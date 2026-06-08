@@ -10697,13 +10697,19 @@ Instrucciones:
   passEl.addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); });
   userEl.addEventListener('keydown', e => { if (e.key === 'Enter') passEl.focus(); });
 
-  document.getElementById('ai-viz-canvas').addEventListener('click', () => {
+  document.getElementById('ai-viz-canvas').addEventListener('click', async () => {
     errEl.textContent = '';
+    btnEl.textContent = 'SINCRONIZANDO...';
+    btnEl.style.color = 'rgba(0,212,255,0.9)';
+    btnEl.disabled = true;
+    const localRaw = localStorage.getItem('lifedash_v2');
+    if (localRaw) {
+      try { await _DOC().set({ state: localRaw }); } catch(e) {}
+    }
     btnEl.textContent = 'ACCESO CONCEDIDO';
     btnEl.style.color = '#00FF88';
     btnEl.style.borderColor = '#00FF88';
     btnEl.style.boxShadow = '0 0 24px rgba(0,255,136,0.45)';
-    btnEl.disabled = true;
     setTimeout(() => {
       screen.classList.add('exit');
       setTimeout(() => { screen.remove(); running = false; }, 1700);
