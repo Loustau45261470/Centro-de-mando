@@ -4219,16 +4219,13 @@ let _fbSaveTid = null;
 function _fbSave() {
   clearTimeout(_fbSaveTid);
   _fbSaveTid = setTimeout(() => {
-    if (_auth.currentUser) {
-      _DOC().set({ state: JSON.stringify(S) }).catch(() => {});
-    }
+    _DOC().set({ state: JSON.stringify(S) }).catch(() => {});
   }, 2000);
 }
 // ─────────────────────────────────────────────────────────────────────────
 
 async function loadState() {
   try {
-    await _auth.signInAnonymously();
     const snap = await _DOC().get();
     if (snap.exists && snap.data()?.state) {
       S = JSON.parse(snap.data().state);
@@ -10670,7 +10667,6 @@ Instrucciones:
       const localRaw = localStorage.getItem('lifedash_v2');
       if (localRaw) {
         try {
-          await _auth.signInAnonymously();
           await _DOC().set({ state: localRaw });
         } catch(e) {
           errEl.textContent = '[ SYNC ERROR: ' + (e.code || e.message) + ' ]';
