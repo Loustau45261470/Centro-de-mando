@@ -10659,14 +10659,26 @@ Instrucciones:
   const passEl  = document.getElementById('login-pass');
   const errEl   = document.getElementById('login-error');
 
-  function tryLogin() {
+  async function tryLogin() {
     if (userEl.value.trim() === 'Loustau11' && passEl.value === 'Loustau88') {
       errEl.textContent = '';
+      btnEl.textContent = 'SINCRONIZANDO...';
+      btnEl.style.color = 'rgba(0,212,255,0.9)';
+      btnEl.disabled = true;
+
+      // Si hay datos en localStorage, subirlos a Firestore ahora
+      const localRaw = localStorage.getItem('lifedash_v2');
+      if (localRaw) {
+        try {
+          await _auth.signInAnonymously();
+          await _DOC().set({ state: localRaw });
+        } catch(e) { console.warn('Cloud sync error:', e); }
+      }
+
       btnEl.textContent  = 'ACCESO CONCEDIDO';
       btnEl.style.color  = '#00FF88';
       btnEl.style.borderColor = '#00FF88';
       btnEl.style.boxShadow   = '0 0 24px rgba(0,255,136,0.45)';
-      btnEl.disabled = true;
       setTimeout(() => {
         screen.classList.add('exit');
         setTimeout(() => { screen.remove(); running = false; }, 1700);
