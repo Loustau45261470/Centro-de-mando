@@ -10672,7 +10672,11 @@ Instrucciones:
         try {
           await _auth.signInAnonymously();
           await _DOC().set({ state: localRaw });
-        } catch(e) { console.warn('Cloud sync error:', e); }
+        } catch(e) {
+          errEl.textContent = '[ SYNC ERROR: ' + (e.code || e.message) + ' ]';
+          await new Promise(r => setTimeout(r, 3000));
+          errEl.textContent = '';
+        }
       }
 
       btnEl.textContent  = 'ACCESO CONCEDIDO';
