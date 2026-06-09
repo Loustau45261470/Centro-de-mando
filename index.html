@@ -7506,12 +7506,26 @@ function checkReminderNotifications() {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
   const now = new Date();
   const pad = n => String(n).padStart(2, '0');
-  const currentDT = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const toMinStr = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const currentDT  = toMinStr(now);
+  const in24hDT    = toMinStr(new Date(now.getTime() + 86400000));
   const PRIO_EMOJI = { critical:'⚡', high:'🔴', medium:'🟡', low:'🟢' };
   ['vida','finanzas','salud','conocimiento','ia'].forEach(tab => {
     (S.reminders?.[tab] || []).forEach(r => {
       if (!r.datetime) return;
-      if (r.datetime.slice(0,16) === currentDT && !_notifiedSet.has(r.id)) {
+      const remDT = r.datetime.slice(0, 16);
+      // 24 h de anticipación
+      if (remDT === in24hDT && !_notifiedSet.has(r.id + '_1d')) {
+        _notifiedSet.add(r.id + '_1d');
+        const n = new Notification('📅 Vence mañana — Centro de Mando', {
+          body: `${PRIO_EMOJI[r.priority] || '🔵'} ${r.title}`,
+          tag: r.id + '_1d',
+          requireInteraction: false,
+        });
+        n.onclick = () => { window.focus(); n.close(); };
+      }
+      // Al momento exacto
+      if (remDT === currentDT && !_notifiedSet.has(r.id)) {
         _notifiedSet.add(r.id);
         const n = new Notification('🔔 Recordatorio — Centro de Mando', {
           body: `${PRIO_EMOJI[r.priority] || '🔵'} ${r.title}`,
