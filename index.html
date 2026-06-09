@@ -1856,6 +1856,25 @@ textarea { resize: vertical; min-height: 60px; }
 .proy-node-action-btn.danger:hover { background: rgba(255,107,107,.15); color: var(--danger); }
 .proy-node-action-btn svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
+/* ── Identity Affirmations ── */
+.affirmation-strip {
+  text-align: center;
+  padding: 6px 20px 2px;
+  user-select: none;
+  pointer-events: none;
+}
+.affirmation-strip span {
+  font-size: 11px;
+  font-style: italic;
+  font-weight: 400;
+  color: var(--accent);
+  opacity: 0.42;
+  letter-spacing: 0.04em;
+  transition: opacity 0.75s ease;
+  display: inline-block;
+}
+.affirmation-strip span.aff-fade { opacity: 0; }
+
 /* ── Checkbox ── */
 .proy-check {
   width: 15px; height: 15px; flex-shrink: 0;
@@ -3025,6 +3044,7 @@ textarea { resize: vertical; min-height: 60px; }
       </div>
       <div class="tab-header-meta" id="vidaHeaderMeta"></div>
     </div>
+    <div class="affirmation-strip"><span id="affirmation-vida"></span></div>
     <!-- Day progress -->
     <div class="card day-progress-wrap">
       <div class="day-progress-header">
@@ -3156,6 +3176,7 @@ textarea { resize: vertical; min-height: 60px; }
       </div>
       <div class="tab-header-meta" id="saludHeaderMeta"></div>
     </div>
+    <div class="affirmation-strip"><span id="affirmation-salud"></span></div>
 
     <div id="qobj-wrap-salud"></div>
     <div id="proyectos-wrap-salud"></div>
@@ -3176,6 +3197,7 @@ textarea { resize: vertical; min-height: 60px; }
       </div>
       <div class="tab-header-meta" id="conocimientoHeaderMeta"></div>
     </div>
+    <div class="affirmation-strip"><span id="affirmation-conocimiento"></span></div>
     <!-- Quarterly Objectives: Facultad & Conocimiento -->
     <div id="qobj-wrap-conocimiento"></div>
     <div id="proyectos-wrap-conocimiento"></div>
@@ -3213,6 +3235,7 @@ textarea { resize: vertical; min-height: 60px; }
       </div>
       <div class="fin-header-meta" id="finHeaderMeta"></div>
     </div>
+    <div class="affirmation-strip"><span id="affirmation-finanzas"></span></div>
 
     <!-- Quarterly Objectives: Economía -->
     <div id="qobj-wrap-finanzas"></div>
@@ -3321,7 +3344,7 @@ textarea { resize: vertical; min-height: 60px; }
   </button>
   <button class="nav-btn" data-tab="conocimiento" onclick="switchTab('conocimiento',this)">
     <svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>
-    Saber
+    Conocimiento
   </button>
   <button class="nav-btn" data-tab="salud" onclick="switchTab('salud',this)">
     <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
@@ -9079,7 +9102,7 @@ const _RC = {
 
 const _AS = ['vida','finanzas','salud','conocimiento','ia'];
 const _AI = {vida:'🌟',finanzas:'💎',salud:'❤️',conocimiento:'📚',ia:'🤖'};
-const _AL = {vida:'Vida',finanzas:'Finanzas',salud:'Salud',conocimiento:'Saber',ia:'IA'};
+const _AL = {vida:'Vida',finanzas:'Finanzas',salud:'Salud',conocimiento:'Conocimiento',ia:'IA'};
 
 function openAchievements() {
   if (!S.achievementLog) S.achievementLog = {};
@@ -10796,6 +10819,100 @@ Instrucciones:
       setTimeout(() => { screen.remove(); running = false; }, 1700);
     }, 900);
   });
+})();
+</script>
+
+<script>
+/* ── IDENTITY AFFIRMATIONS ── */
+(function () {
+  const AFF = {
+    vida: [
+      'Soy el mejor hijo',
+      'Soy el novio más amoroso y detallista',
+      'Soy disciplinado',
+      'Soy comprometido',
+      'Soy puntual',
+      'Soy responsable',
+      'Soy un hijo amoroso',
+      'Soy un padre amoroso',
+      'Soy un novio fuerte',
+      'Soy un novio atento',
+      'Soy un novio caballeroso',
+      'Soy una persona alegre',
+      'Soy un aprovechador de oportunidades',
+      'Soy valiente',
+      'Soy fuerte',
+      'Siempre me levanto',
+      'Dios está conmigo',
+      'Dios me ama',
+      'Soy un fiel servidor de Dios',
+      'Soy un cristiano devoto',
+      'Soy planificador',
+      'Soy centrado',
+      'Soy una montaña inamovible ante el caos',
+    ],
+    finanzas: [
+      'Soy responsable financieramente',
+      'Soy economista',
+      'Manejo inteligentemente el dinero',
+      'Soy un experto en finanzas',
+      'Soy inversor',
+      'Soy millonario',
+      'Tengo buenos hábitos financieros',
+      'Solo gasto en lo útil y necesario',
+    ],
+    salud: [
+      'Soy fuerte y ágil',
+      'Soy deportista',
+      'Soy disciplinado',
+      'Tengo hábitos sanos',
+      'Tengo energía infinita',
+      'Soy el mejor',
+      'Soy una bestia humana',
+      'Soy una fuerza imparable',
+    ],
+    conocimiento: [
+      'Soy el mejor estudiante',
+      'Soy disciplinado y constante',
+      'Soy entusiasta y disfruto el proceso',
+      'Me emociona lo que aprendo',
+      'Aprendo y retengo con facilidad',
+      'Soy imparable en los finales',
+      'Apunto siempre a la excelencia',
+      'Soy un estudiante exitoso',
+      'Soy un lector entusiasta',
+    ],
+  };
+
+  const idx = { vida: 0, finanzas: 0, salud: 0, conocimiento: 0 };
+
+  function set(tab, text) {
+    const el = document.getElementById('affirmation-' + tab);
+    if (el) el.textContent = text;
+  }
+
+  function rotate(tab) {
+    const el = document.getElementById('affirmation-' + tab);
+    if (!el) return;
+    el.classList.add('aff-fade');
+    setTimeout(() => {
+      idx[tab] = (idx[tab] + 1) % AFF[tab].length;
+      el.textContent = AFF[tab][idx[tab]];
+      el.classList.remove('aff-fade');
+    }, 750);
+  }
+
+  // Init each tab at a random offset so they don't all say the same thing
+  Object.keys(AFF).forEach(tab => {
+    idx[tab] = Math.floor(Math.random() * AFF[tab].length);
+    set(tab, AFF[tab][idx[tab]]);
+  });
+
+  // Stagger rotations so they don't all flip at the same moment
+  setTimeout(() => setInterval(() => rotate('vida'),         14000), 0);
+  setTimeout(() => setInterval(() => rotate('finanzas'),     14000), 3500);
+  setTimeout(() => setInterval(() => rotate('salud'),        14000), 7000);
+  setTimeout(() => setInterval(() => rotate('conocimiento'), 14000), 10500);
 })();
 </script>
 </body>
