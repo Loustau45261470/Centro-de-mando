@@ -7520,7 +7520,7 @@ function checkReminderNotifications() {
         const n = new Notification('📅 Vence mañana — Centro de Mando', {
           body: `${PRIO_EMOJI[r.priority] || '🔵'} ${r.title}`,
           tag: r.id + '_1d',
-          requireInteraction: false,
+          requireInteraction: true,
         });
         n.onclick = () => { window.focus(); n.close(); };
       }
