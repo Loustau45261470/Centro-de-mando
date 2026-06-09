@@ -9954,6 +9954,7 @@ buildTickerAlerts();
   function addRootNode(tab) {
     const n = { id: uid(), label: 'Nuevo proyecto', icon: '📁', open: true, description: '', notes: '', detailOpen: false, done: false, priority: '', dueDate: '', children: [] };
     trees[tab].push(n); saveTree(tab, trees[tab]); renderProyectos(tab);
+    if (window.JARVIS) JARVIS.onNewProject();
     setTimeout(() => { const el = document.querySelector(`[data-id="${n.id}"] .proy-node-label`); if (el) { el.focus(); selAll(el); } }, 50);
   }
 
@@ -10869,6 +10870,90 @@ Instrucciones:
 </script>
 
 <script>
+/* ── JARVIS VOICE ENGINE ── */
+(function () {
+  const KEY     = '2e60b7b6d9c041f6b3362a27a5e936f8';
+  const VOICE   = '612b878b113047d9a770c069c8b4fdfe'; // Jarvis MCU — Fish Audio
+  let enabled   = localStorage.getItem('jarvis_enabled') !== '0';
+  let currentAudio = null;
+
+  async function speak(text) {
+    if (!enabled || !text) return;
+    try {
+      if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+      const res = await fetch('https://api.fish.audio/v1/tts', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text,
+          reference_id: VOICE,
+          format: 'mp3',
+          latency: 'balanced',
+          prosody: { speed: 1.0 },
+        })
+      });
+      if (!res.ok) { console.warn('JARVIS: API error', res.status); return; }
+      const buf  = await res.arrayBuffer();
+      const blob = new Blob([buf], { type: 'audio/mpeg' });
+      const url  = URL.createObjectURL(blob);
+      currentAudio = new Audio(url);
+      currentAudio.play();
+      currentAudio.onended = () => URL.revokeObjectURL(url);
+    } catch (e) {
+      console.warn('JARVIS:', e.message);
+    }
+  }
+
+  function greeting() {
+    const h = new Date().getHours();
+    const lines = h >= 6 && h < 12
+      ? ["Good morning, sir. All systems are online.",
+         "Good morning, sir. Ready when you are."]
+      : h >= 12 && h < 19
+      ? ["Good afternoon, sir. Welcome back.",
+         "Good afternoon, sir. Shall we get to work?"]
+      : h >= 19 && h < 23
+      ? ["Good evening, sir. What shall we accomplish tonight?",
+         "Good evening, sir. Shall we review today's progress?"]
+      : ["Working late again, sir. I'll keep the lights on.",
+         "Good evening, sir. Still at it, I see."];
+    speak(lines[Math.floor(Math.random() * lines.length)]);
+  }
+
+  const PROJ_LINES = [
+    "Working on something special, sir?",
+    "New project logged, sir.",
+    "Understood, sir. I will track that for you.",
+    "Excellent initiative, sir.",
+    "Another venture, sir. I like it.",
+  ];
+  let _pi = 0;
+  function onNewProject() { speak(PROJ_LINES[_pi++ % PROJ_LINES.length]); }
+
+  function toggle() {
+    enabled = !enabled;
+    localStorage.setItem('jarvis_enabled', enabled ? '1' : '0');
+    _updateBtn();
+    if (enabled) speak('Voice systems online, sir.');
+  }
+
+  function _updateBtn() {
+    const b = document.getElementById('jarvis-toggle-btn');
+    if (!b) return;
+    b.textContent = enabled ? '🔊 JARVIS activo' : '🔇 JARVIS silenciado';
+    b.style.color = enabled ? 'rgba(0,255,136,0.75)' : 'rgba(255,255,255,0.28)';
+    b.style.borderColor = enabled ? 'rgba(0,255,136,0.25)' : 'rgba(255,255,255,0.08)';
+  }
+  setTimeout(_updateBtn, 400);
+
+  window.JARVIS = { speak, greeting, onNewProject, toggle };
+})();
+</script>
+
+<script>
 /* ── LOGIN SCREEN ── */
 (function () {
   const screen   = document.getElementById('login-screen');
@@ -11061,6 +11146,7 @@ Instrucciones:
       btnEl.style.color  = '#00FF88';
       btnEl.style.borderColor = '#00FF88';
       btnEl.style.boxShadow   = '0 0 24px rgba(0,255,136,0.45)';
+      if (window.JARVIS) JARVIS.greeting();
       setTimeout(() => {
         screen.classList.add('exit');
         setTimeout(() => { screen.remove(); running = false; }, 1700);
@@ -11092,6 +11178,7 @@ Instrucciones:
     btnEl.style.color = '#00FF88';
     btnEl.style.borderColor = '#00FF88';
     btnEl.style.boxShadow = '0 0 24px rgba(0,255,136,0.45)';
+    if (window.JARVIS) JARVIS.greeting();
     setTimeout(() => {
       screen.classList.add('exit');
       setTimeout(() => { screen.remove(); running = false; }, 1700);
@@ -11167,7 +11254,8 @@ Instrucciones:
         <div class="font-opt-name">Plus Jakarta Sans</div>
       </button>
     </div>
-    <div style="margin-top:16px">
+    <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px">
+      <button id="jarvis-toggle-btn" onclick="JARVIS.toggle()" style="width:100%;padding:9px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:9px;cursor:pointer;font-size:11px;font-weight:600;letter-spacing:0.06em;transition:all .2s;font-family:var(--mono)">🔊 JARVIS activo</button>
       <button class="theme-close-btn" onclick="document.getElementById('theme-panel').classList.remove('open')">Cerrar</button>
     </div>
   </div>
