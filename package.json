@@ -1,0 +1,12 @@
+{
+  "name": "centro-de-mando-push",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "push": "node push-reminders.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.0.0",
+    "web-push": "^3.6.7"
+  }
+}

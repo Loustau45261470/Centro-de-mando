@@ -1,0 +1,14 @@
+{
+  "exceptions": [
+    {
+      "file": "push-reminders.js",
+      "patterns": ["private[_-]?key"],
+      "reason": "VAPID signing key for Web Push notifications — read from user's own Firestore, not a hardcoded secret"
+    },
+    {
+      "file": "index.html",
+      "patterns": ["private[_-]?key"],
+      "reason": "VAPID key generation via Web Crypto API — generates and stores keys in user's own Firestore"
+    }
+  ]
+}

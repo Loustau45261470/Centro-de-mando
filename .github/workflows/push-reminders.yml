@@ -1,0 +1,27 @@
+name: Push Reminder Notifications
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'   # Every 5 minutes
+  workflow_dispatch:          # Allow manual trigger from GitHub UI
+
+jobs:
+  send-reminders:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Send reminder push notifications
+        env:
+          FIREBASE_SERVICE_ACCOUNT_B64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_B64 }}
+        run: node push-reminders.js

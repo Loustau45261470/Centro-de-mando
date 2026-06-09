@@ -1,0 +1,15 @@
+{
+  "name": "Centro de Mando",
+  "short_name": "CentroMando",
+  "description": "Tu centro de control personal",
+  "start_url": "/Centro-de-mando/",
+  "scope": "/Centro-de-mando/",
+  "display": "standalone",
+  "background_color": "#050506",
+  "theme_color": "#050506",
+  "orientation": "portrait-primary",
+  "lang": "es",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
