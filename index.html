@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Centro de mando</title>
+<script src="https://js.puter.com/v2/"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700&family=Manrope:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -10872,47 +10873,44 @@ Instrucciones:
 <script>
 /* ── JARVIS VOICE ENGINE ── */
 (function () {
-  const KEY     = '2e60b7b6d9c041f6b3362a27a5e936f8';
-  const VOICE   = '612b878b113047d9a770c069c8b4fdfe'; // Jarvis MCU — Fish Audio
+  const JARVIS_VOICE = 'WWtyH2oxeOp9yZwK8ERD'; // Jarvis - ElevenLabs community voice
   let enabled   = localStorage.getItem('jarvis_enabled') !== '0';
   let currentAudio = null;
 
+  async function speakPuter(text) {
+    const audio = await puter.ai.txt2speech(text, {
+      provider: 'elevenlabs',
+      voice: JARVIS_VOICE,
+    });
+    if (currentAudio) { try { currentAudio.pause(); } catch(e){} }
+    currentAudio = audio;
+    audio.play();
+  }
+
+  function speakBrowser(text) {
+    if (!window.speechSynthesis) return;
+    speechSynthesis.cancel();
+    const utt = new SpeechSynthesisUtterance(text);
+    const voices = speechSynthesis.getVoices();
+    const brit = voices.find(v => v.name.includes('George') || v.name.includes('Daniel') || (v.lang === 'en-GB' && v.name.toLowerCase().includes('male')))
+              || voices.find(v => v.lang === 'en-GB')
+              || voices.find(v => v.lang.startsWith('en'));
+    if (brit) utt.voice = brit;
+    utt.lang = 'en-GB'; utt.pitch = 0.82; utt.rate = 0.88; utt.volume = 1;
+    speechSynthesis.speak(utt);
+  }
+
   async function speak(text) {
     if (!enabled || !text) return;
-    console.log('JARVIS: speaking →', text);
     try {
-      if (currentAudio) { currentAudio.pause(); currentAudio = null; }
-      const res = await fetch('https://api.fish.audio/v1/tts', {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Bearer ' + KEY,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          text,
-          reference_id: VOICE,
-          format: 'mp3',
-          latency: 'balanced',
-          prosody: { speed: 1.0 },
-        })
-      });
-      console.log('JARVIS: response status', res.status, res.headers.get('content-type'));
-      if (!res.ok) {
-        const err = await res.text();
-        console.error('JARVIS: API error', res.status, err);
-        return;
+      if (window.puter && puter.ai) {
+        await speakPuter(text);
+      } else {
+        speakBrowser(text);
       }
-      const buf  = await res.arrayBuffer();
-      console.log('JARVIS: audio buffer size', buf.byteLength, 'bytes');
-      if (buf.byteLength < 100) { console.error('JARVIS: buffer too small, likely an error'); return; }
-      const blob = new Blob([buf], { type: 'audio/mpeg' });
-      const url  = URL.createObjectURL(blob);
-      currentAudio = new Audio(url);
-      const playPromise = currentAudio.play();
-      if (playPromise) playPromise.catch(e => console.error('JARVIS: play error', e));
-      currentAudio.onended = () => URL.revokeObjectURL(url);
     } catch (e) {
-      console.error('JARVIS: fetch error', e.message, e);
+      console.warn('JARVIS Puter failed, using browser voice:', e.message);
+      speakBrowser(text);
     }
   }
 
