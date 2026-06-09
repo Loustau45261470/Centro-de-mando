@@ -9826,6 +9826,7 @@ buildTickerAlerts();
       checkEl.classList.toggle('done', node.done);
       checkEl.title = node.done ? 'Marcar como pendiente' : 'Marcar como completado';
       labelEl.classList.toggle('done', node.done);
+      if (node.done && window.JARVIS) JARVIS.onTaskDone();
       saveTree(tab, trees[tab]);
     };
 
@@ -9968,6 +9969,7 @@ buildTickerAlerts();
 
   function deleteNode(tab, id) {
     if (!confirm('¿Eliminar este elemento y todo su contenido?')) return;
+    if (window.JARVIS) JARVIS.onDeleteProject();
     trees[tab] = removeById(trees[tab], id);
     saveTree(tab, trees[tab]); renderProyectos(tab);
   }
@@ -10025,7 +10027,9 @@ buildTickerAlerts();
     node.label       = label;
     node.description = document.getElementById('proyDetailDesc').value.trim();
     node.notes       = document.getElementById('proyDetailNotes').value.trim();
-    node.priority    = document.getElementById('proyDetailPriority').value;
+    const newPriority = document.getElementById('proyDetailPriority').value;
+    if (newPriority === '1' && node.priority !== '1' && window.JARVIS) JARVIS.onPrioritySet();
+    node.priority    = newPriority;
     node.dueDate     = document.getElementById('proyDetailDue').value;
     saveTree(tab, trees[tab]);
     closeModal('modal-proy-detail');
@@ -10926,15 +10930,20 @@ Instrucciones:
     const h = new Date().getHours();
     const lines = h >= 6 && h < 12
       ? ["Good morning, sir. All systems are online.",
-         "Good morning, sir. Ready when you are."]
+         "Good morning, sir. Ready when you are.",
+         "Good morning, sir. Your agenda is clear.",
+         "Rise and shine, sir. What are we building today?"]
       : h >= 12 && h < 19
       ? ["Good afternoon, sir. Welcome back.",
-         "Good afternoon, sir. Shall we get to work?"]
+         "Good afternoon, sir. Shall we get to work?",
+         "Good afternoon, sir. The command center is yours."]
       : h >= 19 && h < 23
       ? ["Good evening, sir. What shall we accomplish tonight?",
-         "Good evening, sir. Shall we review today's progress?"]
+         "Good evening, sir. Shall we review today's progress?",
+         "Good evening, sir. The command center is yours."]
       : ["Working late again, sir. I'll keep the lights on.",
-         "Good evening, sir. Still at it, I see."];
+         "Good evening, sir. Still at it, I see.",
+         "Late night again, sir. Coffee's metaphorically ready."];
     speak(lines[Math.floor(Math.random() * lines.length)]);
   }
 
@@ -10948,6 +10957,64 @@ Instrucciones:
   ];
   let _pi = 0;
   function onNewProject() { speak(PROJ_LINES[_pi++ % PROJ_LINES.length]); }
+
+  const DONE_LINES = [
+    "Well done, sir. One less obstacle.",
+    "Mission accomplished. Moving on, sir.",
+    "Objective cleared. What's next, sir?",
+    "Marked complete. You're making progress, sir.",
+  ];
+  let _di = 0;
+  function onTaskDone() { speak(DONE_LINES[_di++ % DONE_LINES.length]); }
+
+  const P1_LINES = [
+    "High priority flagged, sir. I'll keep a close eye on that one.",
+    "Understood. This one goes to the top of the list.",
+  ];
+  let _p1i = 0;
+  function onPrioritySet() { speak(P1_LINES[_p1i++ % P1_LINES.length]); }
+
+  const DEL_LINES = [
+    "Project removed, sir. Clean slate.",
+    "Understood. It's gone.",
+  ];
+  let _deli = 0;
+  function onDeleteProject() { speak(DEL_LINES[_deli++ % DEL_LINES.length]); }
+
+  const THEME_LINES = [
+    "Display preferences updated, sir.",
+    "Switching visual mode, sir.",
+  ];
+  let _ti = 0;
+  function onThemeChange() { speak(THEME_LINES[_ti++ % THEME_LINES.length]); }
+
+  function checkOverdue() {
+    if (sessionStorage.getItem('jarvis_overdue_checked')) return;
+    sessionStorage.setItem('jarvis_overdue_checked', '1');
+    try {
+      const tabs = ['vida','finanzas','salud','conocimiento','ia'];
+      const today = new Date(); today.setHours(0,0,0,0);
+      let count = 0;
+      function walk(nodes) {
+        (nodes || []).forEach(n => {
+          if (n.dueDate && !n.done) {
+            if (new Date(n.dueDate + 'T00:00:00') < today) count++;
+          }
+          walk(n.children);
+        });
+      }
+      tabs.forEach(t => {
+        try { walk(JSON.parse(localStorage.getItem('proyectos_' + t + '_v1') || '[]')); } catch(e){}
+      });
+      if (count === 0) return;
+      const lines = count === 1
+        ? ["Sir, one deadline has passed. Your attention may be required.",
+           "You have an overdue item, sir. Might want to take a look."]
+        : [`Sir, you have ${count} overdue items. Might want to take a look.`,
+           `${count} deadlines have passed, sir. Shall we review them?`];
+      setTimeout(() => speak(lines[Math.floor(Math.random() * lines.length)]), 3500);
+    } catch(e) {}
+  }
 
   function toggle() {
     enabled = !enabled;
@@ -10965,7 +11032,7 @@ Instrucciones:
   }
   setTimeout(_updateBtn, 400);
 
-  window.JARVIS = { speak, greeting, onNewProject, toggle };
+  window.JARVIS = { speak, greeting, onNewProject, onTaskDone, onPrioritySet, onDeleteProject, onThemeChange, checkOverdue, toggle };
 })();
 </script>
 
@@ -11162,7 +11229,7 @@ Instrucciones:
       btnEl.style.color  = '#00FF88';
       btnEl.style.borderColor = '#00FF88';
       btnEl.style.boxShadow   = '0 0 24px rgba(0,255,136,0.45)';
-      if (window.JARVIS) JARVIS.greeting();
+      if (window.JARVIS) { JARVIS.greeting(); JARVIS.checkOverdue(); }
       setTimeout(() => {
         screen.classList.add('exit');
         setTimeout(() => { screen.remove(); running = false; }, 1700);
@@ -11284,8 +11351,10 @@ Instrucciones:
   const FONTS  = ['', 'dm', 'outfit', 'manrope', 'jakarta'];
 
   window.applyTheme = function(theme) {
+    const prev = localStorage.getItem('ui_theme') || '';
     THEMES.forEach(t => { if (t) document.body.classList.remove('theme-' + t); });
     if (theme) document.body.classList.add('theme-' + theme);
+    if (theme !== prev && window.JARVIS && document.getElementById('login-screen')?.style.display === 'none') JARVIS.onThemeChange();
     localStorage.setItem('ui_theme', theme);
     document.querySelectorAll('.theme-opt').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.theme === theme);
