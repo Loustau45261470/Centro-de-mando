@@ -10873,7 +10873,7 @@ Instrucciones:
 /* ── JARVIS VOICE ENGINE ── */
 (function () {
   const EL_KEY    = 'sk_5ddff68a6492ab2746534eb4821d33b32a60c142ebf2d0eb';
-  const EL_VOICE  = 'pqHfZKP75CvOlQylNhV4'; // Bill — deep, powerful
+  const EL_VOICE  = 'JBFqnCBsd6RMkjVDRZzb'; // George — British, authoritative, deep
   let enabled     = localStorage.getItem('jarvis_enabled') !== '0';
   let currentAudio = null;
 
@@ -10939,11 +10939,12 @@ Instrucciones:
   }
 
   const PROJ_LINES = [
-    "Working on something special, sir?",
-    "New project logged, sir.",
-    "Understood, sir. I will track that for you.",
-    "Excellent initiative, sir.",
-    "Another venture, sir. I like it.",
+    "Project initiated. I'll monitor it closely, sir.",
+    "New objective logged and ready for execution, sir.",
+    "Added to your command center. I'll keep track of every detail.",
+    "Understood. Mission parameters set, sir.",
+    "Another target acquired, sir. Let's get to work.",
+    "Logged. I'll make sure nothing falls through the cracks, sir.",
   ];
   let _pi = 0;
   function onNewProject() { speak(PROJ_LINES[_pi++ % PROJ_LINES.length]); }
