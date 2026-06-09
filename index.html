@@ -10878,7 +10878,7 @@ Instrucciones:
 (function () {
   const EL_KEY    = 'sk_5ddff68a6492ab2746534eb4821d33b32a60c142ebf2d0eb';
   const EL_VOICE  = 'JBFqnCBsd6RMkjVDRZzb'; // George — British, authoritative, deep
-  let enabled     = localStorage.getItem('jarvis_enabled') !== '0';
+  let enabled     = localStorage.getItem('jarvis_enabled') === '1';
   let currentAudio = null;
 
   async function speakElevenLabs(text) {
