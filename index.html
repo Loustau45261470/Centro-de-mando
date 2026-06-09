@@ -1857,58 +1857,143 @@ textarea { resize: vertical; min-height: 60px; }
 .proy-node-action-btn svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
 /* ══════════════════════════════════════════════════════
-   NIGHT THEMES — overrides for CSS variables
+   NIGHT THEMES — comprehensive variable overrides
    ══════════════════════════════════════════════════════ */
 
-/* ── Ámbar: dark bg, warm amber text — survives yellow filter ── */
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   TEMA 1 · BLOOMBERG
+   Blanco brillante sobre negro. Máximo contraste.
+   Acentos naranja. Estilo terminal financiero.
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+body.theme-bloomberg {
+  --bg: #080808; --bg2: #101010;
+  --card: rgba(255,255,255,0.08); --card-h: rgba(255,255,255,0.13);
+  --border: rgba(255,255,255,0.18);
+  --tp: #FFFFFF; --ts: #BBBBBB; --tt: #777777;
+  --ok: #00EE66; --warn: #FF9900; --danger: #FF4040;
+  --accent: #FF8C00;
+  --c-vida: #FF8C00; --c-finanzas: #FFDD00; --c-salud: #FF5050;
+  --c-conocimiento: #FFAA00; --c-ia: #EEEEEE;
+}
+body.theme-bloomberg #tab-vida,
+body.theme-bloomberg #tab-salud,
+body.theme-bloomberg #tab-conocimiento,
+body.theme-bloomberg #tab-ia { background: #080808; }
+body.theme-bloomberg #tab-vida,
+body.theme-bloomberg #tab-salud,
+body.theme-bloomberg #tab-conocimiento,
+body.theme-bloomberg #tab-ia {
+  --tab-t1: #FFFFFF; --tab-t2: rgba(220,220,220,0.70); --tab-t3: rgba(170,170,170,0.45);
+  --tab-border: rgba(255,255,255,0.20); --tab-border-s: rgba(255,255,255,0.08);
+}
+body.theme-bloomberg #tab-finanzas {
+  background: #080808;
+  --fin-green: #FFDD00; --fin-red: #FF4040; --fin-amber: #FF8C00;
+  --fin-t1: #FFFFFF; --fin-t2: rgba(220,220,220,0.65); --fin-t3: rgba(170,170,170,0.40);
+  --fin-border: rgba(255,255,255,0.18); --fin-border-s: rgba(255,255,255,0.07);
+  --fin-surface: rgba(255,255,255,0.04);
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   TEMA 2 · ÁMBAR
+   Texto dorado brillante sobre negro puro.
+   Clásico de terminales financieros CRT.
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 body.theme-amber {
-  --bg:     #060400;
-  --bg2:    #0E0900;
-  --card:   rgba(255,168,0,0.055);
-  --card-h: rgba(255,168,0,0.09);
-  --border: rgba(255,168,0,0.13);
-  --tp: #FFD060; --ts: #C08818; --tt: #785005;
-  --ok: #C8E800; --warn: #FF8800; --danger: #FF4400;
-  --accent: #FFB000;
-  --c-vida:         #FFB000;
-  --c-finanzas:     #C8E000;
-  --c-salud:        #FF7020;
-  --c-conocimiento: #E8C000;
-  --c-ia:           #FFE060;
+  --bg: #000000; --bg2: #060300;
+  --card: rgba(255,175,0,0.10); --card-h: rgba(255,175,0,0.17);
+  --border: rgba(255,175,0,0.25);
+  --tp: #FFD700; --ts: #CC8800; --tt: #886000;
+  --ok: #CCFF00; --warn: #FF8800; --danger: #FF4400;
+  --accent: #FFD700;
+  --c-vida: #FFD700; --c-finanzas: #CCFF00; --c-salud: #FF8040;
+  --c-conocimiento: #FFAA00; --c-ia: #FFE880;
+}
+body.theme-amber #tab-vida,
+body.theme-amber #tab-salud,
+body.theme-amber #tab-conocimiento,
+body.theme-amber #tab-ia { background: #000000; }
+body.theme-amber #tab-vida,
+body.theme-amber #tab-salud,
+body.theme-amber #tab-conocimiento,
+body.theme-amber #tab-ia {
+  --tab-t1: #FFD700; --tab-t2: rgba(255,175,0,0.65); --tab-t3: rgba(255,140,0,0.40);
+  --tab-border: rgba(255,175,0,0.28); --tab-border-s: rgba(255,175,0,0.10);
+}
+body.theme-amber #tab-finanzas {
+  background: #000000;
+  --fin-green: #CCFF00; --fin-red: #FF4400; --fin-amber: #FFD700;
+  --fin-t1: #FFD700; --fin-t2: rgba(255,175,0,0.65); --fin-t3: rgba(255,140,0,0.38);
+  --fin-border: rgba(255,175,0,0.25); --fin-border-s: rgba(255,175,0,0.10);
+  --fin-surface: rgba(255,175,0,0.04);
 }
 
-/* ── Terminal: pure black, phosphor green — maximum contrast ── */
-body.theme-terminal {
-  --bg:     #000000;
-  --bg2:    #010801;
-  --card:   rgba(0,255,65,0.04);
-  --card-h: rgba(0,255,65,0.07);
-  --border: rgba(0,255,65,0.10);
-  --tp: #00FF41; --ts: #00BB2E; --tt: #006018;
-  --ok: #00FF41; --warn: #FFEE00; --danger: #FF4020;
-  --accent: #00FF41;
-  --c-vida:         #00FF41;
-  --c-finanzas:     #AAFF00;
-  --c-salud:        #FF8040;
-  --c-conocimiento: #40FFCC;
-  --c-ia:           #FFFFFF;
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   TEMA 3 · RADAR
+   Verde fósforo sobre negro absoluto.
+   Estilo militar / control aéreo.
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+body.theme-radar {
+  --bg: #000000; --bg2: #010601;
+  --card: rgba(0,255,80,0.07); --card-h: rgba(0,255,80,0.12);
+  --border: rgba(0,255,80,0.22);
+  --tp: #00FF50; --ts: #00BB3A; --tt: #00701F;
+  --ok: #00FF50; --warn: #EEEE00; --danger: #FF4020;
+  --accent: #00FF50;
+  --c-vida: #00FF50; --c-finanzas: #AAFF00; --c-salud: #FF7030;
+  --c-conocimiento: #00FFCC; --c-ia: #CCFFCC;
+}
+body.theme-radar #tab-vida,
+body.theme-radar #tab-salud,
+body.theme-radar #tab-conocimiento,
+body.theme-radar #tab-ia { background: #000000; }
+body.theme-radar #tab-vida,
+body.theme-radar #tab-salud,
+body.theme-radar #tab-conocimiento,
+body.theme-radar #tab-ia {
+  --tab-t1: #00FF50; --tab-t2: rgba(0,220,70,0.65); --tab-t3: rgba(0,180,55,0.40);
+  --tab-border: rgba(0,255,80,0.25); --tab-border-s: rgba(0,255,80,0.10);
+}
+body.theme-radar #tab-finanzas {
+  background: #000000;
+  --fin-green: #AAFF00; --fin-red: #FF4020; --fin-amber: #EEEE00;
+  --fin-t1: #00FF50; --fin-t2: rgba(0,220,70,0.65); --fin-t3: rgba(0,180,55,0.38);
+  --fin-border: rgba(0,255,80,0.22); --fin-border-s: rgba(0,255,80,0.08);
+  --fin-surface: rgba(0,255,80,0.04);
 }
 
-/* ── Luna: dark warm bg, bright cream text — softest legibility ── */
-body.theme-luna {
-  --bg:     #0A0806;
-  --bg2:    #16120A;
-  --card:   rgba(255,235,180,0.065);
-  --card-h: rgba(255,235,180,0.10);
-  --border: rgba(255,235,180,0.10);
-  --tp: #FFF0D0; --ts: #D4AE60; --tt: #907838;
-  --ok: #88E000; --warn: #FFAA00; --danger: #FF5030;
-  --accent: #E8C830;
-  --c-vida:         #E8C830;
-  --c-finanzas:     #88E030;
-  --c-salud:        #FF8050;
-  --c-conocimiento: #E0A820;
-  --c-ia:           #F5E8C0;
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   TEMA 4 · INFRARROJO
+   Naranja cobre intenso sobre negro cálido.
+   Aspecto industrial / sala de control.
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+body.theme-infrared {
+  --bg: #050200; --bg2: #0A0400;
+  --card: rgba(255,100,0,0.10); --card-h: rgba(255,100,0,0.16);
+  --border: rgba(255,100,0,0.25);
+  --tp: #FF7A00; --ts: #CC4400; --tt: #882B00;
+  --ok: #BBEE00; --warn: #FFCC00; --danger: #FF2020;
+  --accent: #FF7A00;
+  --c-vida: #FF7A00; --c-finanzas: #BBEE00; --c-salud: #FF3030;
+  --c-conocimiento: #FFAA00; --c-ia: #FF9940;
+}
+body.theme-infrared #tab-vida,
+body.theme-infrared #tab-salud,
+body.theme-infrared #tab-conocimiento,
+body.theme-infrared #tab-ia { background: #050200; }
+body.theme-infrared #tab-vida,
+body.theme-infrared #tab-salud,
+body.theme-infrared #tab-conocimiento,
+body.theme-infrared #tab-ia {
+  --tab-t1: #FF7A00; --tab-t2: rgba(255,100,0,0.65); --tab-t3: rgba(220,70,0,0.40);
+  --tab-border: rgba(255,100,0,0.28); --tab-border-s: rgba(255,100,0,0.10);
+}
+body.theme-infrared #tab-finanzas {
+  background: #050200;
+  --fin-green: #BBEE00; --fin-red: #FF2020; --fin-amber: #FFCC00;
+  --fin-t1: #FF7A00; --fin-t2: rgba(255,100,0,0.65); --fin-t3: rgba(220,70,0,0.38);
+  --fin-border: rgba(255,100,0,0.25); --fin-border-s: rgba(255,100,0,0.08);
+  --fin-surface: rgba(255,100,0,0.04);
 }
 
 /* ── Theme switcher panel ── */
@@ -1954,7 +2039,7 @@ body.theme-luna {
   text-align: center; margin-bottom: 20px; font-family: var(--mono);
 }
 .theme-options {
-  display: grid; grid-template-columns: 1fr 1fr;
+  display: grid; grid-template-columns: repeat(3, 1fr);
   gap: 10px; margin-bottom: 16px;
 }
 .theme-opt {
@@ -5885,8 +5970,20 @@ function startRutinaSession(rtnId) {
   if (!rtn.exercises.length) { showToast('Agregá ejercicios primero'); return; }
   const exSets = {};
   rtn.exercises.forEach(ex => { exSets[ex.id] = [{ weight: '', reps: '' }]; });
-  S.activeRtnSession = { routineId: rtnId, startedAt: Date.now(), exSets };
-  _rtnExpandedEx = new Set(rtn.exercises.map(e => e.id)); // all expanded by default
+  S.activeRtnSession = { routineId: rtnId, startedAt: Date.now(), exSets, exOrder: rtn.exercises.map(e => e.id) };
+  _rtnExpandedEx = new Set(rtn.exercises.map(e => e.id));
+  saveState(); renderRutinas();
+}
+
+function moveRtnSessionEx(exId, dir) {
+  if (!S.activeRtnSession) return;
+  _readSaveRtnSets(exId);
+  const order = S.activeRtnSession.exOrder;
+  const i = order.indexOf(exId);
+  if (i < 0) return;
+  const j = i + dir;
+  if (j < 0 || j >= order.length) return;
+  [order[i], order[j]] = [order[j], order[i]];
   saveState(); renderRutinas();
 }
 
@@ -5930,7 +6027,10 @@ function renderActiveSession() {
   if (!rtn) { S.activeRtnSession = null; saveState(); renderRutinas(); return; }
   const elapsed = Math.floor((Date.now() - startedAt) / 1000);
 
-  const exBlocks = rtn.exercises.map(ex => {
+  const _sessionOrder = (S.activeRtnSession.exOrder || rtn.exercises.map(e => e.id));
+  const _orderedExes = _sessionOrder.map(id => rtn.exercises.find(e => e.id === id)).filter(Boolean);
+
+  const exBlocks = _orderedExes.map((ex, idx) => {
     const sets = exSets[ex.id] || [{ weight: '', reps: '' }];
     const setsHtml = sets.map((s, si) => `
       <div class="rtn-set-row${s.done ? ' rtn-set-done' : ''}">
@@ -5946,6 +6046,10 @@ function renderActiveSession() {
     const tDone = tVisible && tRem <= 0;
     const tDisplay = tVisible ? fmtTimerDisplay(tRem) : fmtTimerDisplay(ex.restSecs);
     const isExpanded = _rtnExpandedEx.has(ex.id);
+    const isFirst = idx === 0;
+    const isLast = idx === _orderedExes.length - 1;
+    const btnStyle = 'background:none;border:none;cursor:pointer;padding:2px 5px;font-size:13px;color:var(--tt);line-height:1;flex-shrink:0';
+    const btnDisabled = 'opacity:.25;cursor:default;pointer-events:none';
     return `
       <div class="rtn-ex-block">
         <div class="rtn-ex-block-header" onclick="toggleRtnEx('${ex.id}')">
@@ -5953,6 +6057,8 @@ function renderActiveSession() {
             <span class="rtn-ex-title-name">${ex.name}</span>
             <span class="rtn-ex-title-equip">(${ex.equipment})</span>
           </div>
+          <button onclick="event.stopPropagation();moveRtnSessionEx('${ex.id}',-1)" style="${btnStyle}${isFirst ? ';'+btnDisabled : ''}">↑</button>
+          <button onclick="event.stopPropagation();moveRtnSessionEx('${ex.id}',+1)" style="${btnStyle}${isLast ? ';'+btnDisabled : ''}">↓</button>
           <span class="rtn-ex-chevron" id="rtn-exchev-${ex.id}" style="transform:${isExpanded ? 'rotate(-180deg)' : 'rotate(0deg)'}">▾</span>
         </div>
         <div class="rtn-ex-block-body" id="rtn-exbody-${ex.id}" style="${isExpanded ? '' : 'display:none'}">
@@ -10965,32 +11071,39 @@ Instrucciones:
     <div class="theme-panel-title">Modo Visual</div>
     <div class="theme-options">
       <button class="theme-opt" data-theme="" onclick="applyTheme('')">
-        <div class="theme-swatch" style="background:#050506;border-color:rgba(124,142,232,.5)">
-          <span style="font-size:20px">🌑</span>
+        <div class="theme-swatch" style="background:#050506;border-color:rgba(124,142,232,.6)">
+          <span style="font-size:20px;color:#7C8EE8">◈</span>
         </div>
         <div class="theme-opt-name">Original</div>
         <div class="theme-opt-desc">Azul oscuro<br>por defecto</div>
       </button>
+      <button class="theme-opt" data-theme="bloomberg" onclick="applyTheme('bloomberg')">
+        <div class="theme-swatch" style="background:#080808;border-color:#FF8C00">
+          <span style="font-size:16px;color:#FFFFFF;font-weight:900;font-family:monospace">B</span>
+        </div>
+        <div class="theme-opt-name">Bloomberg</div>
+        <div class="theme-opt-desc">Blanco / naranja<br>terminal financiero</div>
+      </button>
       <button class="theme-opt" data-theme="amber" onclick="applyTheme('amber')">
-        <div class="theme-swatch" style="background:#060400;border-color:#FFB000">
-          <span style="font-size:20px">🌕</span>
+        <div class="theme-swatch" style="background:#000000;border-color:#FFD700">
+          <span style="font-size:20px;color:#FFD700">◈</span>
         </div>
         <div class="theme-opt-name">Ámbar</div>
-        <div class="theme-opt-desc">Dorado cálido<br>alta visibilidad</div>
+        <div class="theme-opt-desc">Dorado sobre negro<br>terminal CRT</div>
       </button>
-      <button class="theme-opt" data-theme="terminal" onclick="applyTheme('terminal')">
-        <div class="theme-swatch" style="background:#000000;border-color:#00FF41">
-          <span style="font-size:20px">💚</span>
+      <button class="theme-opt" data-theme="radar" onclick="applyTheme('radar')">
+        <div class="theme-swatch" style="background:#000000;border-color:#00FF50">
+          <span style="font-size:20px;color:#00FF50">◈</span>
         </div>
-        <div class="theme-opt-name">Terminal</div>
-        <div class="theme-opt-desc">Verde fósforo<br>contraste máximo</div>
+        <div class="theme-opt-name">Radar</div>
+        <div class="theme-opt-desc">Verde fósforo<br>control militar</div>
       </button>
-      <button class="theme-opt" data-theme="luna" onclick="applyTheme('luna')">
-        <div class="theme-swatch" style="background:#0A0806;border-color:#E8C830">
-          <span style="font-size:20px">🌙</span>
+      <button class="theme-opt" data-theme="infrared" onclick="applyTheme('infrared')">
+        <div class="theme-swatch" style="background:#050200;border-color:#FF7A00">
+          <span style="font-size:20px;color:#FF7A00">◈</span>
         </div>
-        <div class="theme-opt-name">Luna</div>
-        <div class="theme-opt-desc">Crema suave<br>lectura cómoda</div>
+        <div class="theme-opt-name">Infrarrojo</div>
+        <div class="theme-opt-desc">Naranja cobre<br>sala de control</div>
       </button>
     </div>
     <button class="theme-close-btn" onclick="document.getElementById('theme-panel').classList.remove('open')">Cerrar</button>
@@ -11000,7 +11113,7 @@ Instrucciones:
 <script>
 /* ── THEME SWITCHER ── */
 (function () {
-  const THEMES = ['', 'amber', 'terminal', 'luna'];
+  const THEMES = ['', 'bloomberg', 'amber', 'radar', 'infrared'];
 
   window.applyTheme = function(theme) {
     THEMES.forEach(t => { if (t) document.body.classList.remove('theme-' + t); });
