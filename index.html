@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Centro de mando</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700&family=Manrope:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -22,6 +25,7 @@
   --ok: #00FF88; --warn: #FFB020; --danger: #FF0000; --accent: #7C8EE8;
   --sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font-label: "Sistema";
   --nav: 60px; --ticker: 34px; --r: 14px;
   --safe-b: env(safe-area-inset-bottom, 0px);
   /* ── Tab accent colors ── */
@@ -1994,6 +1998,40 @@ body.theme-infrared #tab-finanzas {
   --fin-t1: #FF7A00; --fin-t2: rgba(255,100,0,0.65); --fin-t3: rgba(220,70,0,0.38);
   --fin-border: rgba(255,100,0,0.25); --fin-border-s: rgba(255,100,0,0.08);
   --fin-surface: rgba(255,100,0,0.04);
+}
+
+/* ── Font overrides ── */
+body.font-dm       { --sans: "DM Sans", sans-serif;           --mono: "DM Mono", monospace; }
+body.font-outfit   { --sans: "Outfit", sans-serif;            --mono: "JetBrains Mono", monospace; }
+body.font-manrope  { --sans: "Manrope", sans-serif;           --mono: "IBM Plex Mono", monospace; }
+body.font-jakarta  { --sans: "Plus Jakarta Sans", sans-serif; --mono: "JetBrains Mono", monospace; }
+
+/* ── Font selector cards ── */
+.font-section-title {
+  font-size: 10px; letter-spacing: 0.12em; font-weight: 600;
+  color: rgba(255,255,255,0.25); text-transform: uppercase;
+  margin: 16px 0 10px; font-family: var(--mono);
+}
+.font-options {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 8px; margin-bottom: 0;
+}
+.font-opt {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px; padding: 10px 12px;
+  cursor: pointer; transition: all .15s; text-align: left;
+}
+.font-opt:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.18); }
+.font-opt.active { border-color: rgba(255,255,255,0.35); background: rgba(255,255,255,0.07); }
+.font-opt-preview {
+  font-size: 15px; font-weight: 500; color: rgba(255,255,255,0.80);
+  line-height: 1.2; margin-bottom: 4px; letter-spacing: -0.01em;
+}
+.font-opt-name {
+  font-size: 9px; font-weight: 600; letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.35); text-transform: uppercase;
+  font-family: monospace;
 }
 
 /* ── Theme switcher panel ── */
@@ -11106,7 +11144,32 @@ Instrucciones:
         <div class="theme-opt-desc">Naranja cobre<br>sala de control</div>
       </button>
     </div>
-    <button class="theme-close-btn" onclick="document.getElementById('theme-panel').classList.remove('open')">Cerrar</button>
+    <div class="font-section-title">Tipografía</div>
+    <div class="font-options">
+      <button class="font-opt" data-font="" onclick="applyFont('')">
+        <div class="font-opt-preview" style="font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif">Centro de Mando</div>
+        <div class="font-opt-name">Sistema / Inter</div>
+      </button>
+      <button class="font-opt" data-font="dm" onclick="applyFont('dm')">
+        <div class="font-opt-preview" style="font-family:'DM Sans',sans-serif">Centro de Mando</div>
+        <div class="font-opt-name">DM Sans</div>
+      </button>
+      <button class="font-opt" data-font="outfit" onclick="applyFont('outfit')">
+        <div class="font-opt-preview" style="font-family:'Outfit',sans-serif">Centro de Mando</div>
+        <div class="font-opt-name">Outfit</div>
+      </button>
+      <button class="font-opt" data-font="manrope" onclick="applyFont('manrope')">
+        <div class="font-opt-preview" style="font-family:'Manrope',sans-serif">Centro de Mando</div>
+        <div class="font-opt-name">Manrope</div>
+      </button>
+      <button class="font-opt" data-font="jakarta" onclick="applyFont('jakarta')">
+        <div class="font-opt-preview" style="font-family:'Plus Jakarta Sans',sans-serif">Centro de Mando</div>
+        <div class="font-opt-name">Plus Jakarta Sans</div>
+      </button>
+    </div>
+    <div style="margin-top:16px">
+      <button class="theme-close-btn" onclick="document.getElementById('theme-panel').classList.remove('open')">Cerrar</button>
+    </div>
   </div>
 </div>
 
@@ -11114,6 +11177,7 @@ Instrucciones:
 /* ── THEME SWITCHER ── */
 (function () {
   const THEMES = ['', 'bloomberg', 'amber', 'radar', 'infrared'];
+  const FONTS  = ['', 'dm', 'outfit', 'manrope', 'jakarta'];
 
   window.applyTheme = function(theme) {
     THEMES.forEach(t => { if (t) document.body.classList.remove('theme-' + t); });
@@ -11124,14 +11188,20 @@ Instrucciones:
     });
   };
 
-  // Restore saved theme on load
-  const saved = localStorage.getItem('ui_theme') || '';
-  if (saved) applyTheme(saved);
-  else {
-    document.querySelectorAll('.theme-opt').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.theme === '');
+  window.applyFont = function(font) {
+    FONTS.forEach(f => { if (f) document.body.classList.remove('font-' + f); });
+    if (font) document.body.classList.add('font-' + font);
+    localStorage.setItem('ui_font', font);
+    document.querySelectorAll('.font-opt').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.font === font);
     });
-  }
+  };
+
+  // Restore saved preferences on load
+  const savedTheme = localStorage.getItem('ui_theme') || '';
+  const savedFont  = localStorage.getItem('ui_font')  || '';
+  applyTheme(savedTheme);
+  applyFont(savedFont);
 })();
 
 /* ── IDENTITY AFFIRMATIONS ── */
