@@ -7432,7 +7432,10 @@ function renderReminders(tab) {
   wrap.innerHTML = `<div class="card">
     <div class="card-title">
       🔔 Recordatorios
-      <button class="btn btn-ghost btn-sm" onclick="openAddReminder('${tab}')">+ Recordatorio</button>
+      <div style="display:flex;gap:6px;align-items:center">
+        ${_notifBtnHTML()}
+        <button class="btn btn-ghost btn-sm" onclick="openAddReminder('${tab}')">+ Recordatorio</button>
+      </div>
     </div>
     ${isEmpty ? '<div class="empty-state">Sin recordatorios</div>' : urgentHTML + upcomingHTML + noDateHTML + pastHTML}
   </div>`;
@@ -7483,6 +7486,49 @@ function deleteReminder(tab, id) {
   if (!S.reminders?.[tab]) return;
   S.reminders[tab] = S.reminders[tab].filter(r => r.id !== id);
   saveState(); renderReminders(tab);
+}
+
+// ── Reminder Notifications ──
+const _notifiedSet = new Set();
+
+function initNotifications() {
+  if (!('Notification' in window)) { showToast('Este navegador no soporta notificaciones'); return; }
+  if (Notification.permission === 'denied') { showToast('🔕 Notificaciones bloqueadas — habilítalas en configuración del navegador'); return; }
+  if (Notification.permission === 'granted') { showToast('🔔 Notificaciones ya estaban activadas'); return; }
+  Notification.requestPermission().then(perm => {
+    ['vida','finanzas','salud','conocimiento','ia'].forEach(renderReminders);
+    if (perm === 'granted') showToast('🔔 Notificaciones activadas');
+    else showToast('Notificaciones no habilitadas');
+  });
+}
+
+function checkReminderNotifications() {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const now = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const currentDT = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const PRIO_EMOJI = { critical:'⚡', high:'🔴', medium:'🟡', low:'🟢' };
+  ['vida','finanzas','salud','conocimiento','ia'].forEach(tab => {
+    (S.reminders?.[tab] || []).forEach(r => {
+      if (!r.datetime) return;
+      if (r.datetime.slice(0,16) === currentDT && !_notifiedSet.has(r.id)) {
+        _notifiedSet.add(r.id);
+        const n = new Notification('🔔 Recordatorio — Centro de Mando', {
+          body: `${PRIO_EMOJI[r.priority] || '🔵'} ${r.title}`,
+          tag: r.id,
+          requireInteraction: false,
+        });
+        n.onclick = () => { window.focus(); n.close(); };
+      }
+    });
+  });
+}
+
+function _notifBtnHTML() {
+  if (!('Notification' in window)) return '';
+  if (Notification.permission === 'granted') return '<span style="font-size:11px;opacity:.5;cursor:default" title="Notificaciones activas">🔔</span>';
+  if (Notification.permission === 'denied')  return '<span style="font-size:11px;opacity:.5;cursor:default" title="Notificaciones bloqueadas en el navegador">🔕</span>';
+  return `<button class="btn btn-ghost btn-sm" style="font-size:11px" onclick="initNotifications()">Activar 🔔</button>`;
 }
 
 // ── Edit functions ──
@@ -9660,6 +9706,8 @@ setInterval(() => {
   const p = document.querySelector('.tab-panel.active');
   if (p) renderReminders(p.id.replace('tab-', ''));
 }, 60000);
+setInterval(checkReminderNotifications, 60000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkReminderNotifications(); });
 
 renderGoals();
 renderSleepTracker();
