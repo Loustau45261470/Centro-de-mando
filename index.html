@@ -1856,6 +1856,37 @@ textarea { resize: vertical; min-height: 60px; }
 .proy-node-action-btn.danger:hover { background: rgba(255,107,107,.15); color: var(--danger); }
 .proy-node-action-btn svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
+/* ── Checkbox ── */
+.proy-check {
+  width: 15px; height: 15px; flex-shrink: 0;
+  border: 1.5px solid rgba(255,255,255,.22); border-radius: 4px;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: all .15s; background: transparent; margin-right: 2px;
+}
+.proy-check:hover { border-color: var(--ok); }
+.proy-check.done { background: var(--ok); border-color: var(--ok); }
+.proy-check.done::after { content: '✓'; font-size: 9px; color: #000; font-weight: 800; line-height: 1; }
+.proy-node-label.done { text-decoration: line-through; opacity: .4; }
+
+/* ── Priority badge ── */
+.proy-priority {
+  font-size: 9px; font-weight: 700; font-family: var(--mono);
+  padding: 1px 5px; border-radius: 4px; flex-shrink: 0;
+  letter-spacing: .04em;
+}
+.proy-priority.p1 { background: rgba(239,68,68,.18); color: #F87171; }
+.proy-priority.p2 { background: rgba(251,146,60,.18); color: #FB923C; }
+.proy-priority.p3 { background: rgba(99,102,241,.18); color: #818CF8; }
+
+/* ── Due date tag ── */
+.proy-due {
+  font-size: 9px; font-family: var(--mono); flex-shrink: 0;
+  padding: 1px 5px; border-radius: 4px;
+  background: rgba(255,255,255,.07); color: var(--tt);
+}
+.proy-due.overdue { background: rgba(239,68,68,.18); color: #F87171; }
+.proy-due.soon { background: rgba(251,146,60,.15); color: #FB923C; }
+
 /* ── Children ── */
 .proy-children {
   overflow: hidden;
@@ -3762,6 +3793,19 @@ textarea { resize: vertical; min-height: 60px; }
     <div class="field"><label>Título</label><input class="inp" id="proyDetailLabel" placeholder="Nombre..."></div>
     <div class="field"><label>Descripción</label><textarea class="inp" id="proyDetailDesc" rows="3" placeholder="Describe el proyecto, tarea u objetivo..." style="resize:vertical"></textarea></div>
     <div class="field"><label>Notas / Sub-puntos</label><textarea class="inp" id="proyDetailNotes" rows="2" placeholder="Pasos, referencias, detalles extras..." style="resize:vertical"></textarea></div>
+    <div class="input-row" style="gap:10px">
+      <div class="field" style="flex:1"><label>Prioridad</label>
+        <select class="inp" id="proyDetailPriority">
+          <option value="">— Sin prioridad —</option>
+          <option value="1">🔴 Alta</option>
+          <option value="2">🟠 Media</option>
+          <option value="3">🔵 Baja</option>
+        </select>
+      </div>
+      <div class="field" style="flex:1"><label>Fecha límite</label>
+        <input class="inp" type="date" id="proyDetailDue">
+      </div>
+    </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('modal-proy-detail')">Cancelar</button>
       <button class="btn btn-primary" onclick="proyDetailSave()">Guardar</button>
@@ -9370,11 +9414,11 @@ buildTickerAlerts();
   const ICONS = ['📁','📂','🚀','🎯','⭐','📋','🛠️','💡','📝','🔍','🌐','💼','📌','🔖','🏆','⚡','🧠','🔧','📊','✅'];
 
   const DEFAULTS = {
-    vida:         [{ id: uid(), label: 'Proyectos personales', icon: '📁', open: true, description: '', notes: '', detailOpen: false, children: [] }],
-    finanzas:     [{ id: uid(), label: 'Proyectos financieros', icon: '📁', open: true, description: '', notes: '', detailOpen: false, children: [] }],
-    salud:        [{ id: uid(), label: 'Proyectos de salud', icon: '📁', open: true, description: '', notes: '', detailOpen: false, children: [] }],
-    conocimiento: [{ id: uid(), label: 'Proyectos de estudio', icon: '📁', open: true, description: '', notes: '', detailOpen: false, children: [] }],
-    ia:           [{ id: uid(), label: 'Proyectos de IA', icon: '📁', open: true, description: '', notes: '', detailOpen: false, children: [] }],
+    vida:         [{ id: uid(), label: 'Proyectos personales', icon: '📁', open: true, description: '', notes: '', detailOpen: false, done: false, priority: '', dueDate: '', children: [] }],
+    finanzas:     [{ id: uid(), label: 'Proyectos financieros', icon: '📁', open: true, description: '', notes: '', detailOpen: false, done: false, priority: '', dueDate: '', children: [] }],
+    salud:        [{ id: uid(), label: 'Proyectos de salud', icon: '📁', open: true, description: '', notes: '', detailOpen: false, done: false, priority: '', dueDate: '', children: [] }],
+    conocimiento: [{ id: uid(), label: 'Proyectos de estudio', icon: '📁', open: true, description: '', notes: '', detailOpen: false, done: false, priority: '', dueDate: '', children: [] }],
+    ia:           [{ id: uid(), label: 'Proyectos de IA', icon: '📁', open: true, description: '', notes: '', detailOpen: false, done: false, priority: '', dueDate: '', children: [] }],
   };
 
   function migrateOrDefault(tab) {
@@ -9383,7 +9427,7 @@ buildTickerAlerts();
     if (ideas.length) {
       const folder = { id: uid(), label: 'Ideas migradas', icon: '💡', open: true, description: '', notes: '', detailOpen: false, children: [] };
       ideas.forEach(idea => {
-        folder.children.push({ id: idea.id || uid(), label: idea.title || 'Sin título', icon: '📝', open: false, description: idea.description || '', notes: idea.notes || '', detailOpen: false, children: [] });
+        folder.children.push({ id: idea.id || uid(), label: idea.title || 'Sin título', icon: '📝', open: false, description: idea.description || '', notes: idea.notes || '', detailOpen: false, done: false, priority: '', dueDate: '', children: [] });
       });
       tree.push(folder);
     }
@@ -9472,12 +9516,24 @@ buildTickerAlerts();
     toggleBtn.innerHTML = `<svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>`;
     toggleBtn.onclick = e => { e.stopPropagation(); toggleChildren(tab, node); };
 
+    const checkEl = document.createElement('div');
+    checkEl.className = 'proy-check' + (node.done ? ' done' : '');
+    checkEl.title = node.done ? 'Marcar como pendiente' : 'Marcar como completado';
+    checkEl.onclick = e => {
+      e.stopPropagation();
+      node.done = !node.done;
+      checkEl.classList.toggle('done', node.done);
+      checkEl.title = node.done ? 'Marcar como pendiente' : 'Marcar como completado';
+      labelEl.classList.toggle('done', node.done);
+      saveTree(tab, trees[tab]);
+    };
+
     const iconEl = document.createElement('span');
     iconEl.className = 'proy-node-icon';
     iconEl.textContent = node.icon || '📁';
 
     const labelEl = document.createElement('span');
-    labelEl.className = 'proy-node-label';
+    labelEl.className = 'proy-node-label' + (node.done ? ' done' : '');
     labelEl.contentEditable = 'true';
     labelEl.spellcheck = false;
     labelEl.textContent = node.label;
@@ -9488,6 +9544,24 @@ buildTickerAlerts();
     const countEl = document.createElement('span');
     countEl.className = 'proy-node-count';
     if ((node.children || []).length) countEl.textContent = node.children.length;
+
+    const priorityEl = node.priority ? document.createElement('span') : null;
+    if (priorityEl) {
+      const labels = { '1': 'P1', '2': 'P2', '3': 'P3' };
+      priorityEl.className = 'proy-priority p' + node.priority;
+      priorityEl.textContent = labels[node.priority] || '';
+    }
+
+    const dueEl = node.dueDate ? document.createElement('span') : null;
+    if (dueEl) {
+      const today = new Date(); today.setHours(0,0,0,0);
+      const due = new Date(node.dueDate + 'T00:00:00');
+      const diff = Math.round((due - today) / 86400000);
+      dueEl.className = 'proy-due' + (diff < 0 ? ' overdue' : diff <= 3 ? ' soon' : '');
+      const [y, m, d] = node.dueDate.split('-');
+      dueEl.textContent = d + '/' + m + '/' + y.slice(2);
+      dueEl.title = diff < 0 ? 'Vencido hace ' + Math.abs(diff) + ' día(s)' : diff === 0 ? 'Vence hoy' : 'Vence en ' + diff + ' día(s)';
+    }
 
     const actionsEl = document.createElement('div');
     actionsEl.className = 'proy-node-actions';
@@ -9509,7 +9583,10 @@ buildTickerAlerts();
     delBtn.onclick = e => { e.stopPropagation(); deleteNode(tab, node.id); };
 
     actionsEl.append(detailBtn, addFolderBtn, addItemBtn, iconBtn, delBtn);
-    headerEl.append(toggleBtn, iconEl, labelEl, countEl, actionsEl);
+    const metaEls = [countEl];
+    if (priorityEl) metaEls.push(priorityEl);
+    if (dueEl) metaEls.push(dueEl);
+    headerEl.append(toggleBtn, checkEl, iconEl, labelEl, ...metaEls, actionsEl);
     headerEl.onclick = () => toggleChildren(tab, node);
 
     // Detail panel
@@ -9547,7 +9624,7 @@ buildTickerAlerts();
     const doAdd = () => {
       const val = input.value.trim(); if (!val) return;
       if (!node.children) node.children = [];
-      node.children.push({ id: uid(), label: val, icon: '📄', open: false, description: '', notes: '', detailOpen: false, children: [] });
+      node.children.push({ id: uid(), label: val, icon: '📄', open: false, description: '', notes: '', detailOpen: false, done: false, priority: '', dueDate: '', children: [] });
       node.open = true;
       saveTree(tab, trees[tab]); renderProyectos(tab); input.value = '';
     };
@@ -9574,13 +9651,13 @@ buildTickerAlerts();
   }
 
   function addRootNode(tab) {
-    const n = { id: uid(), label: 'Nuevo proyecto', icon: '📁', open: true, description: '', notes: '', detailOpen: false, children: [] };
+    const n = { id: uid(), label: 'Nuevo proyecto', icon: '📁', open: true, description: '', notes: '', detailOpen: false, done: false, priority: '', dueDate: '', children: [] };
     trees[tab].push(n); saveTree(tab, trees[tab]); renderProyectos(tab);
     setTimeout(() => { const el = document.querySelector(`[data-id="${n.id}"] .proy-node-label`); if (el) { el.focus(); selAll(el); } }, 50);
   }
 
   function addChildNode(tab, parent, isFolder) {
-    const n = { id: uid(), label: isFolder ? 'Nueva carpeta' : 'Nueva tarea', icon: isFolder ? '📁' : '📄', open: false, description: '', notes: '', detailOpen: false, children: [] };
+    const n = { id: uid(), label: isFolder ? 'Nueva carpeta' : 'Nueva tarea', icon: isFolder ? '📁' : '📄', open: false, description: '', notes: '', detailOpen: false, done: false, priority: '', dueDate: '', children: [] };
     if (!parent.children) parent.children = [];
     parent.children.push(n); parent.open = true;
     saveTree(tab, trees[tab]); renderProyectos(tab);
@@ -9626,11 +9703,13 @@ buildTickerAlerts();
 
   function openDetailModal(tab, node) {
     document.getElementById('proyDetailModalTitle').textContent = 'Detalles — ' + node.label;
-    document.getElementById('proyDetailTab').value   = tab;
-    document.getElementById('proyDetailId').value    = node.id;
-    document.getElementById('proyDetailLabel').value = node.label;
-    document.getElementById('proyDetailDesc').value  = node.description || '';
-    document.getElementById('proyDetailNotes').value = node.notes || '';
+    document.getElementById('proyDetailTab').value      = tab;
+    document.getElementById('proyDetailId').value       = node.id;
+    document.getElementById('proyDetailLabel').value    = node.label;
+    document.getElementById('proyDetailDesc').value     = node.description || '';
+    document.getElementById('proyDetailNotes').value    = node.notes || '';
+    document.getElementById('proyDetailPriority').value = node.priority || '';
+    document.getElementById('proyDetailDue').value      = node.dueDate || '';
     openModal('modal-proy-detail');
   }
 
@@ -9644,6 +9723,8 @@ buildTickerAlerts();
     node.label       = label;
     node.description = document.getElementById('proyDetailDesc').value.trim();
     node.notes       = document.getElementById('proyDetailNotes').value.trim();
+    node.priority    = document.getElementById('proyDetailPriority').value;
+    node.dueDate     = document.getElementById('proyDetailDue').value;
     saveTree(tab, trees[tab]);
     closeModal('modal-proy-detail');
     renderProyectos(tab);
