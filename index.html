@@ -4762,7 +4762,7 @@ function populateAccountSelects() {
     const sel = document.getElementById(id);
     if (!sel) return;
     const base = id === 'ordAccount' ? '<option value="">— No descontar —</option>' : '<option value="">— Ninguna —</option>';
-    sel.innerHTML = base + S.accounts.filter(a=>a.type==='bank'||a.type==='invest').map(a=>`<option value="${a.id}">${a.icon||'🏦'} ${a.name}</option>`).join('');
+    sel.innerHTML = base + S.accounts.filter(a=>a.type==='bank'||a.type==='invest').map(a=>`<option value="${a.id}">${a.icon||'🏦'} ${a.name}</option>`).join('') + '<option value="prestamos_amorcito">💙 Prestamos amorcito</option>';
   });
 }
 
