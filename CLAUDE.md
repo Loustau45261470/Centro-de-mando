@@ -3,22 +3,17 @@
 ## Archivo principal
 `index.html` — aplicación de una sola página, todo el código vive ahí.
 
-## Regla de commits: acumular, no push por cambio
-Durante una sesión con múltiples cambios, hacer commits locales pero NO hacer push después de cada uno.
-Hacer UN SOLO push al final de la sesión, o cuando el usuario lo pida explícitamente.
+## Regla obligatoria: push automático
+Después de CADA cambio en el código, sin excepción y sin que el usuario lo pida:
+1. `git add index.html`
+2. `git commit -m "descripción breve del cambio"`
+3. `git push origin main`
 
-Flujo correcto:
-1. Cambio 1 → `git add index.html && git commit -m "descripción"`
-2. Cambio 2 → `git add index.html && git commit -m "descripción"`
-3. ...todos los cambios...
-4. Al terminar la sesión → `git push origin main` (UNA VEZ)
-
-Flujo incorrecto (evitar):
-- Push después de cada cambio individual
+Esto dispara el deploy automático en GitHub Pages. No preguntar, no esperar confirmación — hacerlo siempre al terminar.
 
 ## Repositorio
 https://github.com/Loustau45261470/Centro-de-mando.git
-Rama: main
+Rama: main (público)
 
 ## Hosting
 GitHub Pages — deploy automático en cada push a main.
