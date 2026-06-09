@@ -1856,6 +1856,140 @@ textarea { resize: vertical; min-height: 60px; }
 .proy-node-action-btn.danger:hover { background: rgba(255,107,107,.15); color: var(--danger); }
 .proy-node-action-btn svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
+/* ══════════════════════════════════════════════════════
+   NIGHT THEMES — overrides for CSS variables
+   ══════════════════════════════════════════════════════ */
+
+/* ── Ámbar: dark bg, warm amber text — survives yellow filter ── */
+body.theme-amber {
+  --bg:     #060400;
+  --bg2:    #0E0900;
+  --card:   rgba(255,168,0,0.055);
+  --card-h: rgba(255,168,0,0.09);
+  --border: rgba(255,168,0,0.13);
+  --tp: #FFD060; --ts: #C08818; --tt: #785005;
+  --ok: #C8E800; --warn: #FF8800; --danger: #FF4400;
+  --accent: #FFB000;
+  --c-vida:         #FFB000;
+  --c-finanzas:     #C8E000;
+  --c-salud:        #FF7020;
+  --c-conocimiento: #E8C000;
+  --c-ia:           #FFE060;
+}
+
+/* ── Terminal: pure black, phosphor green — maximum contrast ── */
+body.theme-terminal {
+  --bg:     #000000;
+  --bg2:    #010801;
+  --card:   rgba(0,255,65,0.04);
+  --card-h: rgba(0,255,65,0.07);
+  --border: rgba(0,255,65,0.10);
+  --tp: #00FF41; --ts: #00BB2E; --tt: #006018;
+  --ok: #00FF41; --warn: #FFEE00; --danger: #FF4020;
+  --accent: #00FF41;
+  --c-vida:         #00FF41;
+  --c-finanzas:     #AAFF00;
+  --c-salud:        #FF8040;
+  --c-conocimiento: #40FFCC;
+  --c-ia:           #FFFFFF;
+}
+
+/* ── Luna: dark warm bg, bright cream text — softest legibility ── */
+body.theme-luna {
+  --bg:     #0A0806;
+  --bg2:    #16120A;
+  --card:   rgba(255,235,180,0.065);
+  --card-h: rgba(255,235,180,0.10);
+  --border: rgba(255,235,180,0.10);
+  --tp: #FFF0D0; --ts: #D4AE60; --tt: #907838;
+  --ok: #88E000; --warn: #FFAA00; --danger: #FF5030;
+  --accent: #E8C830;
+  --c-vida:         #E8C830;
+  --c-finanzas:     #88E030;
+  --c-salud:        #FF8050;
+  --c-conocimiento: #E0A820;
+  --c-ia:           #F5E8C0;
+}
+
+/* ── Theme switcher panel ── */
+#theme-trigger {
+  position: fixed;
+  bottom: calc(var(--nav) + var(--safe-b) + 10px);
+  right: 12px;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; color: rgba(255,255,255,0.25);
+  opacity: 0.15;
+  transition: opacity .2s;
+  z-index: 9990;
+  user-select: none;
+}
+#theme-trigger:hover { opacity: 0.55; }
+
+#theme-panel {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.75);
+  backdrop-filter: blur(8px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 9995;
+}
+#theme-panel.open { display: flex; }
+#theme-panel-inner {
+  background: #111010;
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 18px;
+  padding: 24px 28px 20px;
+  width: 320px;
+  box-shadow: 0 24px 60px rgba(0,0,0,.8);
+}
+.theme-panel-title {
+  font-size: 12px; letter-spacing: 0.15em; font-weight: 600;
+  color: rgba(255,255,255,0.35); text-transform: uppercase;
+  text-align: center; margin-bottom: 20px; font-family: var(--mono);
+}
+.theme-options {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 10px; margin-bottom: 16px;
+}
+.theme-opt {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px; padding: 12px 10px 10px;
+  cursor: pointer; transition: all .15s;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+}
+.theme-opt:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.18); }
+.theme-opt.active { border-color: rgba(255,255,255,0.35); background: rgba(255,255,255,0.07); }
+.theme-swatch {
+  width: 48px; height: 48px; border-radius: 10px;
+  border: 2px solid transparent;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px;
+}
+.theme-opt-name {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.05em;
+  color: rgba(255,255,255,0.55);
+}
+.theme-opt-desc {
+  font-size: 9px; color: rgba(255,255,255,0.3);
+  text-align: center; line-height: 1.4;
+}
+.theme-close-btn {
+  width: 100%; padding: 9px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 9px; cursor: pointer;
+  color: rgba(255,255,255,0.35); font-size: 12px;
+  transition: all .15s;
+}
+.theme-close-btn:hover { background: rgba(255,255,255,0.09); color: rgba(255,255,255,0.6); }
+
 /* ── Identity Affirmations ── */
 .affirmation-strip {
   text-align: center;
@@ -10822,7 +10956,71 @@ Instrucciones:
 })();
 </script>
 
+<!-- Theme trigger (hidden) -->
+<button id="theme-trigger" title="" onclick="document.getElementById('theme-panel').classList.toggle('open')">◐</button>
+
+<!-- Theme switcher panel -->
+<div id="theme-panel" onclick="if(event.target===this)this.classList.remove('open')">
+  <div id="theme-panel-inner">
+    <div class="theme-panel-title">Modo Visual</div>
+    <div class="theme-options">
+      <button class="theme-opt" data-theme="" onclick="applyTheme('')">
+        <div class="theme-swatch" style="background:#050506;border-color:rgba(124,142,232,.5)">
+          <span style="font-size:20px">🌑</span>
+        </div>
+        <div class="theme-opt-name">Original</div>
+        <div class="theme-opt-desc">Azul oscuro<br>por defecto</div>
+      </button>
+      <button class="theme-opt" data-theme="amber" onclick="applyTheme('amber')">
+        <div class="theme-swatch" style="background:#060400;border-color:#FFB000">
+          <span style="font-size:20px">🌕</span>
+        </div>
+        <div class="theme-opt-name">Ámbar</div>
+        <div class="theme-opt-desc">Dorado cálido<br>alta visibilidad</div>
+      </button>
+      <button class="theme-opt" data-theme="terminal" onclick="applyTheme('terminal')">
+        <div class="theme-swatch" style="background:#000000;border-color:#00FF41">
+          <span style="font-size:20px">💚</span>
+        </div>
+        <div class="theme-opt-name">Terminal</div>
+        <div class="theme-opt-desc">Verde fósforo<br>contraste máximo</div>
+      </button>
+      <button class="theme-opt" data-theme="luna" onclick="applyTheme('luna')">
+        <div class="theme-swatch" style="background:#0A0806;border-color:#E8C830">
+          <span style="font-size:20px">🌙</span>
+        </div>
+        <div class="theme-opt-name">Luna</div>
+        <div class="theme-opt-desc">Crema suave<br>lectura cómoda</div>
+      </button>
+    </div>
+    <button class="theme-close-btn" onclick="document.getElementById('theme-panel').classList.remove('open')">Cerrar</button>
+  </div>
+</div>
+
 <script>
+/* ── THEME SWITCHER ── */
+(function () {
+  const THEMES = ['', 'amber', 'terminal', 'luna'];
+
+  window.applyTheme = function(theme) {
+    THEMES.forEach(t => { if (t) document.body.classList.remove('theme-' + t); });
+    if (theme) document.body.classList.add('theme-' + theme);
+    localStorage.setItem('ui_theme', theme);
+    document.querySelectorAll('.theme-opt').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.theme === theme);
+    });
+  };
+
+  // Restore saved theme on load
+  const saved = localStorage.getItem('ui_theme') || '';
+  if (saved) applyTheme(saved);
+  else {
+    document.querySelectorAll('.theme-opt').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.theme === '');
+    });
+  }
+})();
+
 /* ── IDENTITY AFFIRMATIONS ── */
 (function () {
   const AFF = {
