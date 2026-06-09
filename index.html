@@ -10873,7 +10873,7 @@ Instrucciones:
 /* ── JARVIS VOICE ENGINE ── */
 (function () {
   const EL_KEY    = 'sk_5ddff68a6492ab2746534eb4821d33b32a60c142ebf2d0eb';
-  const EL_VOICE  = 'JBFqnCBsd6RMkjVDRZzb'; // George — British, deep, authoritative
+  const EL_VOICE  = 'onwK4e9ZLuTAKqWW03F9'; // Daniel — British, smooth, natural
   let enabled     = localStorage.getItem('jarvis_enabled') !== '0';
   let currentAudio = null;
 
@@ -10887,8 +10887,8 @@ Instrucciones:
       },
       body: JSON.stringify({
         text,
-        model_id: 'eleven_monolingual_v1',
-        voice_settings: { stability: 0.50, similarity_boost: 0.78, style: 0.0, use_speaker_boost: true }
+        model_id: 'eleven_multilingual_v2',
+        voice_settings: { stability: 0.38, similarity_boost: 0.85, style: 0.12, use_speaker_boost: true }
       })
     });
     if (!res.ok) throw new Error(`EL ${res.status}`);
