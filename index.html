@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Centro de mando</title>
-<script src="https://js.puter.com/v2/"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700&family=Manrope:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -10873,18 +10872,31 @@ Instrucciones:
 <script>
 /* ── JARVIS VOICE ENGINE ── */
 (function () {
-  const JARVIS_VOICE = 'WWtyH2oxeOp9yZwK8ERD'; // Jarvis - ElevenLabs community voice
-  let enabled   = localStorage.getItem('jarvis_enabled') !== '0';
+  const EL_KEY    = 'sk_5ddff68a6492ab2746534eb4821d33b32a60c142ebf2d0eb';
+  const EL_VOICE  = 'JBFqnCBsd6RMkjVDRZzb'; // George — British, deep, authoritative
+  let enabled     = localStorage.getItem('jarvis_enabled') !== '0';
   let currentAudio = null;
 
-  async function speakPuter(text) {
-    const audio = await puter.ai.txt2speech(text, {
-      provider: 'elevenlabs',
-      voice: JARVIS_VOICE,
+  async function speakElevenLabs(text) {
+    const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${EL_VOICE}`, {
+      method: 'POST',
+      headers: {
+        'xi-api-key': EL_KEY,
+        'Content-Type': 'application/json',
+        'Accept': 'audio/mpeg'
+      },
+      body: JSON.stringify({
+        text,
+        model_id: 'eleven_monolingual_v1',
+        voice_settings: { stability: 0.50, similarity_boost: 0.78, style: 0.0, use_speaker_boost: true }
+      })
     });
-    if (currentAudio) { try { currentAudio.pause(); } catch(e){} }
-    currentAudio = audio;
-    audio.play();
+    if (!res.ok) throw new Error(`EL ${res.status}`);
+    const blob = await res.blob();
+    const url  = URL.createObjectURL(blob);
+    if (currentAudio) { try { currentAudio.pause(); URL.revokeObjectURL(currentAudio.src); } catch(e){} }
+    currentAudio = new Audio(url);
+    currentAudio.play();
   }
 
   function speakBrowser(text) {
@@ -10903,13 +10915,9 @@ Instrucciones:
   async function speak(text) {
     if (!enabled || !text) return;
     try {
-      if (window.puter && puter.ai) {
-        await speakPuter(text);
-      } else {
-        speakBrowser(text);
-      }
+      await speakElevenLabs(text);
     } catch (e) {
-      console.warn('JARVIS Puter failed, using browser voice:', e.message);
+      console.warn('JARVIS ElevenLabs failed, fallback browser:', e.message);
       speakBrowser(text);
     }
   }
