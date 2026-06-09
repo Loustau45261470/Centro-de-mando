@@ -10879,6 +10879,7 @@ Instrucciones:
 
   async function speak(text) {
     if (!enabled || !text) return;
+    console.log('JARVIS: speaking →', text);
     try {
       if (currentAudio) { currentAudio.pause(); currentAudio = null; }
       const res = await fetch('https://api.fish.audio/v1/tts', {
@@ -10895,15 +10896,23 @@ Instrucciones:
           prosody: { speed: 1.0 },
         })
       });
-      if (!res.ok) { console.warn('JARVIS: API error', res.status); return; }
+      console.log('JARVIS: response status', res.status, res.headers.get('content-type'));
+      if (!res.ok) {
+        const err = await res.text();
+        console.error('JARVIS: API error', res.status, err);
+        return;
+      }
       const buf  = await res.arrayBuffer();
+      console.log('JARVIS: audio buffer size', buf.byteLength, 'bytes');
+      if (buf.byteLength < 100) { console.error('JARVIS: buffer too small, likely an error'); return; }
       const blob = new Blob([buf], { type: 'audio/mpeg' });
       const url  = URL.createObjectURL(blob);
       currentAudio = new Audio(url);
-      currentAudio.play();
+      const playPromise = currentAudio.play();
+      if (playPromise) playPromise.catch(e => console.error('JARVIS: play error', e));
       currentAudio.onended = () => URL.revokeObjectURL(url);
     } catch (e) {
-      console.warn('JARVIS:', e.message);
+      console.error('JARVIS: fetch error', e.message, e);
     }
   }
 
