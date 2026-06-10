@@ -6381,7 +6381,7 @@ const _msHub = (() => {
       _ctx = new (window.AudioContext || window.webkitAudioContext)();
       const osc = _ctx.createOscillator();
       const gain = _ctx.createGain();
-      gain.gain.value = 0.001;           // −60 dB, imperceptible
+      gain.gain.value = 0;               // completamente silencioso
       osc.connect(gain);
       gain.connect(_ctx.destination);
       osc.start();
