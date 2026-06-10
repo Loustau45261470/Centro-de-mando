@@ -586,6 +586,46 @@ textarea { resize: vertical; min-height: 60px; }
   transition: all .12s; flex-shrink: 0;
 }
 .rtn-timer-skip:hover { background: rgba(244,63,94,.22); }
+/* ── Timer pip (floating overlay) ── */
+#timer-pip {
+  position: fixed;
+  bottom: calc(var(--nav) + var(--safe-b) + 14px);
+  left: 50%; transform: translateX(-50%) translateY(18px);
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(10,10,12,0.96); border: 1px solid rgba(244,63,94,.45);
+  border-radius: 16px; padding: 10px 12px;
+  min-width: 270px; max-width: 360px; width: max-content;
+  z-index: 250; backdrop-filter: blur(24px);
+  box-shadow: 0 10px 40px rgba(0,0,0,.7), 0 0 0 1px rgba(244,63,94,.12);
+  opacity: 0; pointer-events: none;
+  transition: opacity .22s, transform .22s;
+}
+#timer-pip.visible { opacity: 1; pointer-events: auto; transform: translateX(-50%) translateY(0); }
+#timer-pip.pip-urgent { border-color: rgba(255,176,32,.7); animation: pip-pulse .75s ease-in-out infinite; }
+#timer-pip.pip-done   { border-color: rgba(0,255,136,.45); animation: none; }
+@keyframes pip-pulse {
+  0%,100% { box-shadow: 0 10px 40px rgba(0,0,0,.7), 0 0 0 1px rgba(255,176,32,.2); }
+  50%      { box-shadow: 0 10px 40px rgba(0,0,0,.7), 0 0 20px rgba(255,176,32,.45); }
+}
+#pip-info { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+#pip-label { font-size: 9px; color: var(--ts); text-transform: uppercase; letter-spacing: .1em; line-height: 1; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#pip-countdown { font-family: var(--mono); font-size: 30px; font-weight: 900; color: var(--c-salud); letter-spacing: -.04em; line-height: 1; transition: color .2s; }
+#timer-pip.pip-urgent #pip-countdown { color: var(--warn); }
+#timer-pip.pip-done   #pip-countdown { color: var(--ok); font-size: 18px; }
+.pip-adj {
+  padding: 6px 10px; border-radius: 8px; cursor: pointer; flex-shrink: 0;
+  background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.1);
+  color: var(--ts); font-size: 11px; font-weight: 800; font-family: var(--mono);
+  transition: all .12s;
+}
+.pip-adj:hover { background: rgba(255,255,255,.14); color: var(--tp); }
+.pip-close {
+  padding: 6px 9px; border-radius: 8px; cursor: pointer; flex-shrink: 0;
+  background: rgba(244,63,94,.1); border: 1px solid rgba(244,63,94,.28);
+  color: var(--c-salud); font-size: 13px; line-height: 1;
+  transition: all .12s;
+}
+.pip-close:hover { background: rgba(244,63,94,.22); }
 /* Chrono */
 .rtn-chrono {
   font-family: var(--mono); font-size: 20px; font-weight: 900;
@@ -3717,6 +3757,17 @@ body.font-jakarta  { --sans: "Plus Jakarta Sans", sans-serif; --mono: "JetBrains
 <!-- ── Toast ── -->
 <div id="toast"></div>
 
+<!-- ── Timer Pip ── -->
+<div id="timer-pip">
+  <div id="pip-info">
+    <div id="pip-label">Descanso</div>
+    <div id="pip-countdown">1:30</div>
+  </div>
+  <button class="pip-adj" onclick="pipAdjust(-15)">−15</button>
+  <button class="pip-adj" onclick="pipAdjust(+15)">+15</button>
+  <button class="pip-close" onclick="pipSkip()" title="Omitir">✕</button>
+</div>
+
 <!-- ════════════ MODALS ════════════ -->
 
 <!-- Add Goal (Today) -->
@@ -6214,6 +6265,69 @@ let _rtnTimers = {};         // { exId: intervalId }
 let _rtnTimerRemaining = {}; // { exId: secondsLeft }
 let _rtnChrono = null;       // session stopwatch interval
 let _rtnExpandedEx = new Set(); // currently expanded exercise IDs
+let _pipExId = null;         // exercise shown in floating pip
+
+function _updatePip() {
+  const pip = document.getElementById('timer-pip');
+  if (!pip) return;
+  // If current pip timer is gone, try to pick another running one
+  if (_pipExId === null || (_rtnTimerRemaining[_pipExId] === undefined && !_rtnTimers[_pipExId])) {
+    const running = Object.keys(_rtnTimers);
+    _pipExId = running.length > 0
+      ? running.reduce((a, b) => (_rtnTimerRemaining[a] || 999) <= (_rtnTimerRemaining[b] || 999) ? a : b)
+      : null;
+  }
+  if (_pipExId === null) {
+    pip.classList.remove('visible', 'pip-urgent', 'pip-done');
+    return;
+  }
+  const rem = _rtnTimerRemaining[_pipExId] ?? 0;
+  const cd = document.getElementById('pip-countdown');
+  const lbl = document.getElementById('pip-label');
+  if (!cd) return;
+  pip.classList.add('visible');
+  pip.classList.remove('pip-urgent', 'pip-done');
+  if (rem <= 0) {
+    cd.textContent = '¡Listo!';
+    pip.classList.add('pip-done');
+  } else {
+    cd.textContent = fmtTimerDisplay(rem);
+    if (rem <= 10) pip.classList.add('pip-urgent');
+  }
+  if (lbl) {
+    const rtn = S.routines && S.routines.find(r => r.id === S.activeRtnSession?.routineId);
+    const ex = rtn && rtn.exercises.find(e => e.id === _pipExId);
+    lbl.textContent = ex ? `Descanso — ${ex.name}` : 'Descanso';
+  }
+}
+
+function pipAdjust(delta) {
+  if (_pipExId === null) return;
+  adjustRtnTimer(_pipExId, delta);
+}
+
+function pipSkip() {
+  if (_pipExId !== null) skipRtnTimer(_pipExId);
+  _pipExId = null;
+  _updatePip();
+}
+
+function _playTimerDone() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [[880, 0, 0.14], [1108, 0.18, 0.38]].forEach(([freq, t0, t1]) => {
+      const osc = ctx.createOscillator(), gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, ctx.currentTime + t0);
+      gain.gain.setValueAtTime(0, ctx.currentTime + t0);
+      gain.gain.linearRampToValueAtTime(0.22, ctx.currentTime + t0 + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t1);
+      osc.start(ctx.currentTime + t0);
+      osc.stop(ctx.currentTime + t1 + 0.05);
+    });
+  } catch(e) {}
+}
 
 function startRutinaSession(rtnId) {
   const rtn = S.routines.find(r => r.id === rtnId);
@@ -6424,6 +6538,8 @@ function startRtnTimerBand(exId, secs) {
   band.style.display = 'flex';
   band.classList.remove('done');
   display.textContent = fmtTimerDisplay(secs);
+  _pipExId = exId;
+  _updatePip();
   _rtnTimers[exId] = setInterval(() => {
     _rtnTimerRemaining[exId]--;
     const d = document.getElementById('rtn-tband-display-' + exId);
@@ -6434,8 +6550,25 @@ function startRtnTimerBand(exId, secs) {
       d.textContent = '¡Listo!';
       b.classList.add('done');
       showToast('⏱ ¡Descansaste! Seguí con la próxima serie.');
+      _playTimerDone();
+      if (Notification.permission === 'granted') {
+        const rtn = S.routines && S.routines.find(r => r.id === S.activeRtnSession?.routineId);
+        const ex = rtn && rtn.exercises.find(e => e.id === exId);
+        _showNotif('⏱ ¡Descanso terminado!', {
+          body: ex ? `Seguí con ${ex.name}` : 'Retomá la rutina',
+          tag: 'rtn-timer',
+          icon: './icon.svg',
+          requireInteraction: false,
+        });
+      }
+      if (_pipExId === exId) _updatePip();
+      // Auto-ocultar pip 4s después
+      setTimeout(() => {
+        if (_pipExId === exId) { _pipExId = null; _updatePip(); }
+      }, 4000);
     } else {
       d.textContent = fmtTimerDisplay(_rtnTimerRemaining[exId]);
+      if (_pipExId === exId) _updatePip();
     }
   }, 1000);
 }
@@ -6447,6 +6580,7 @@ function adjustRtnTimer(exId, delta) {
   if (d) d.textContent = fmtTimerDisplay(_rtnTimerRemaining[exId]);
   const b = document.getElementById('rtn-tband-' + exId);
   if (b) b.classList.remove('done');
+  if (_pipExId === exId) _updatePip();
 }
 
 function skipRtnTimer(exId) {
@@ -6454,6 +6588,7 @@ function skipRtnTimer(exId) {
   delete _rtnTimerRemaining[exId];
   const band = document.getElementById('rtn-tband-' + exId);
   if (band) band.style.display = 'none';
+  if (_pipExId === exId) { _pipExId = null; _updatePip(); }
 }
 
 function cancelRtnSession() {
@@ -6462,6 +6597,7 @@ function cancelRtnSession() {
   _rtnTimerRemaining = {};
   if (_rtnChrono) { clearInterval(_rtnChrono); _rtnChrono = null; }
   _rtnExpandedEx = new Set();
+  _pipExId = null; _updatePip();
   S.activeRtnSession = null;
   saveState(); renderRutinas();
 }
@@ -6487,6 +6623,7 @@ function finishRtnSession() {
   _rtnTimerRemaining = {};
   if (_rtnChrono) { clearInterval(_rtnChrono); _rtnChrono = null; }
   _rtnExpandedEx = new Set();
+  _pipExId = null; _updatePip();
   S.activeRtnSession = null;
   // Marcar hábito de entrenamientos
   const today = getActiveDate();
