@@ -4786,6 +4786,7 @@ function _applyRemoteState(raw) {
     ['vida','finanzas','salud','conocimiento','ia'].forEach(s => {
       if (!S.habitTrackers[s]) S.habitTrackers[s] = [];
     });
+    _migrateQToT();
     localStorage.setItem('lifedash_v2', JSON.stringify(S));
     _reRenderAll();
     if (typeof window._reloadProyectosFromState === 'function') window._reloadProyectosFromState();
@@ -4878,23 +4879,22 @@ async function loadState() {
       } catch {}
     }
   });
-  if (_proyMigrated) saveState(); // sube datos migrados a Firebase inmediatamente
-  // ── Migrar Q→T en quarterlyObjectives (una sola vez) ────────────────────
-  if (S.quarterlyObjectives) {
-    const qo = S.quarterlyObjectives;
-    let _qMigrated = false;
-    if (qo.activePeriod && /^q\d-/.test(qo.activePeriod)) {
-      qo.activePeriod = qo.activePeriod.replace(/^q(\d-)/, 't$1');
-      _qMigrated = true;
-    }
-    if (qo.periods) {
-      qo.periods.forEach(p => {
-        if (/^q\d-/.test(p.id))    { p.id    = p.id.replace(/^q(\d-)/, 't$1');    _qMigrated = true; }
-        if (/^Q\d /.test(p.label)) { p.label = p.label.replace(/^Q(\d )/, 'T$1'); _qMigrated = true; }
-      });
-    }
-    if (_qMigrated) saveState();
+  if (_proyMigrated) saveState();
+  if (_migrateQToT()) saveState();
+}
+function _migrateQToT() {
+  if (!S.quarterlyObjectives) return false;
+  const qo = S.quarterlyObjectives;
+  let changed = false;
+  if (qo.activePeriod && /^q\d-/.test(qo.activePeriod)) {
+    qo.activePeriod = qo.activePeriod.replace(/^q(\d-)/, 't$1');
+    changed = true;
   }
+  (qo.periods || []).forEach(p => {
+    if (/^q\d-/.test(p.id))    { p.id    = p.id.replace(/^q(\d-)/, 't$1');    changed = true; }
+    if (/^Q\d /.test(p.label)) { p.label = p.label.replace(/^Q(\d )/, 'T$1'); changed = true; }
+  });
+  return changed;
 }
 function saveState() {
   localStorage.setItem('lifedash_v2', JSON.stringify(S));
