@@ -3,6 +3,9 @@
 ## Archivo principal
 `index.html` — aplicación de una sola página, todo el código vive ahí.
 
+## Modo de trabajo
+Trabajar de la forma más autónoma y automatizada posible. Usar herramientas, agents y skills disponibles sin necesidad de intervención del usuario. Solo interrumpir para decisiones genuinamente del usuario (credenciales inexistentes, conflictos irresolubles, acciones destructivas irreversibles).
+
 ## Regla obligatoria: push automático
 Después de CADA cambio en el código, sin excepción y sin que el usuario lo pida:
 1. `git add index.html`
