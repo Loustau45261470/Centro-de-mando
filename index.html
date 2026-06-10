@@ -4690,11 +4690,74 @@ async function _subscribePush(pubKey) {
 _pwaInit();
 
 let _fbSaveTid = null;
+let _fbSaving  = false;
+
 function _fbSave() {
   clearTimeout(_fbSaveTid);
-  _fbSaveTid = setTimeout(() => {
-    _DOC().set({ state: JSON.stringify(S) }).catch(() => {});
+  _fbSaveTid = setTimeout(async () => {
+    _fbSaving = true;
+    try { await _DOC().set({ state: JSON.stringify(S) }); } catch(e) {}
+    // Grace period: ignore the onSnapshot that fires from our own write
+    setTimeout(() => { _fbSaving = false; }, 2500);
   }, 2000);
+}
+
+// ── Re-render current tab after remote sync ───────────────
+function _reRenderAll() {
+  updateDayProgress();
+  buildTickerAlerts();
+  renderGoals();
+  renderQuarterlyObjectives();
+  ['vida','finanzas','salud','conocimiento','ia'].forEach(renderReminders);
+  ['vida','finanzas','salud','conocimiento','ia'].forEach(renderHabitsCard);
+  renderFinObjectives();
+  const tab = currentTab || 'vida';
+  if (tab === 'vida')         { renderSleepTracker(); renderTabHeader('vidaHeaderMeta'); }
+  if (tab === 'salud')        { renderSaludTab(); renderTabHeader('saludHeaderMeta'); }
+  if (tab === 'finanzas')     { renderFinanzasTab(); }
+  if (tab === 'conocimiento') { renderLawProgress(); renderLawMilestones(); renderLawPlan(); renderTabHeader('conocimientoHeaderMeta'); }
+  if (typeof renderProyectos === 'function') renderProyectos(tab);
+}
+
+// ── Apply incoming remote state safely ───────────────────
+function _applyRemoteState(raw) {
+  try {
+    const incoming = JSON.parse(raw);
+    S = incoming;
+    Object.keys(DEFAULT_STATE).forEach(k => {
+      if (S[k] === undefined) S[k] = JSON.parse(JSON.stringify(DEFAULT_STATE[k]));
+    });
+    if (Array.isArray(S.habitTrackers)) {
+      S.habitTrackers = { vida: S.habitTrackers, finanzas:[], salud:[], conocimiento:[], ia:[] };
+    }
+    ['vida','finanzas','salud','conocimiento','ia'].forEach(s => {
+      if (!S.habitTrackers[s]) S.habitTrackers[s] = [];
+    });
+    localStorage.setItem('lifedash_v2', JSON.stringify(S));
+    _reRenderAll();
+    showToast('🔄 Sincronizado');
+  } catch(e) { console.warn('[sync] applyRemoteState error:', e); }
+}
+
+// ── Real-time Firestore listener ──────────────────────────
+function _startFirestoreSync() {
+  _DOC().onSnapshot(snap => {
+    // Ignore snapshots triggered by our own writes or while a local save is pending
+    if (_fbSaving || _fbSaveTid) return;
+    if (!snap.exists || !snap.data()?.state) return;
+    _applyRemoteState(snap.data().state);
+  }, () => {/* ignore network errors — onSnapshot auto-retries */});
+}
+
+// ── On visibility restore (iOS kills WS in background) ───
+async function _syncOnFocus() {
+  if (_fbSaving || _fbSaveTid) return;
+  try {
+    const snap = await _DOC().get();
+    if (snap.exists && snap.data()?.state) {
+      _applyRemoteState(snap.data().state);
+    }
+  } catch(e) {}
 }
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -9881,6 +9944,7 @@ function showSparkle(x, y) {
 // ════════════════════════════════════════════════════════
 (async () => {
 await loadState();
+_startFirestoreSync();
 loadHistoricalData();
 // Migrate lawProgress if it contains old placeholder subjects
 if (S.lawProgress?.years?.[0]?.subjects?.[0]?.id === 's1_1') {
@@ -9895,7 +9959,7 @@ setInterval(() => {
   if (p) renderReminders(p.id.replace('tab-', ''));
 }, 60000);
 setInterval(checkReminderNotifications, 60000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) checkReminderNotifications(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { checkReminderNotifications(); _syncOnFocus(); } });
 
 renderGoals();
 renderSleepTracker();
