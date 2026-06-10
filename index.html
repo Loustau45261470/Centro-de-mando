@@ -6343,6 +6343,150 @@ function _playTimerDone() {
   } catch(e) {}
 }
 
+// ════════════════════════════════════════════════════════
+// MEDIA SESSION HUB  — "Notificación Spotify" del sistema
+// Muestra timers, recordatorios y fechas límite en el
+// notification center / lock screen con controles reales.
+// ════════════════════════════════════════════════════════
+const _msHub = (() => {
+  const BASE_URL = 'https://loustau45261470.github.io/Centro-de-mando';
+  const ARTWORK  = [{ src: BASE_URL + '/icon.svg', sizes: '512x512', type: 'image/svg+xml' }];
+  const TABS     = ['vida','finanzas','salud','conocimiento','ia'];
+  const PRIO_IC  = { critical: '⚡', high: '🔴', medium: '🟡', low: '🟢' };
+
+  let _ctx = null;   // AudioContext — mantiene la sesión viva
+  let _exId = null;  // ejercicio activo en media session (timer mode)
+
+  // ── Audio silencioso para activar el media player ─────
+  function _ensureAudio() {
+    if (_ctx) return;
+    try {
+      _ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = _ctx.createOscillator();
+      const gain = _ctx.createGain();
+      gain.gain.value = 0.001;           // −60 dB, imperceptible
+      osc.connect(gain);
+      gain.connect(_ctx.destination);
+      osc.start();
+    } catch(e) {}
+  }
+
+  function _supported() { return 'mediaSession' in navigator && 'MediaMetadata' in window; }
+
+  function _meta(title, artist) {
+    if (!_supported()) return;
+    navigator.mediaSession.metadata = new MediaMetadata({ title, artist, album: 'Centro de Mando', artwork: ARTWORK });
+    navigator.mediaSession.playbackState = 'playing';
+  }
+
+  function _handle(action, fn) {
+    try { navigator.mediaSession.setActionHandler(action, fn); } catch {}
+  }
+
+  function _clearHandlers() {
+    ['play','pause','stop','seekbackward','seekforward','previoustrack','nexttrack']
+      .forEach(a => { try { navigator.mediaSession.setActionHandler(a, null); } catch {} });
+  }
+
+  function _deactivate() {
+    if (!_supported()) return;
+    _clearHandlers();
+    navigator.mediaSession.playbackState = 'none';
+    navigator.mediaSession.metadata = null;
+    _exId = null;
+  }
+
+  // ── TIMER MODE ─────────────────────────────────────────
+  // Llamado cuando arranca un descanso
+  function onTimerStart(exId, exName) {
+    if (!_supported()) return;
+    _exId = exId;
+    _ensureAudio();
+    _clearHandlers();
+    _handle('seekbackward', () => adjustRtnTimer(exId, -15));
+    _handle('seekforward',  () => adjustRtnTimer(exId, +15));
+    _handle('previoustrack', () => adjustRtnTimer(exId, -15));
+    _handle('nexttrack',     () => adjustRtnTimer(exId, +15));
+    _handle('pause', () => skipRtnTimer(exId));
+    _handle('stop',  () => skipRtnTimer(exId));
+    _tickTimer(exId, exName);
+  }
+
+  // Llamado cada segundo desde el interval existente
+  function onTimerTick(exId, exName) {
+    if (_exId !== exId || !_supported()) return;
+    _tickTimer(exId, exName);
+  }
+
+  function _tickTimer(exId, exName) {
+    const rem = _rtnTimerRemaining[exId];
+    if (rem === undefined || rem <= 0) return;
+    const icon = rem <= 10 ? '⚡' : '⏱';
+    _meta(`${icon} ${fmtTimerDisplay(rem)} de descanso`, exName || 'Rutina');
+  }
+
+  // Llamado cuando el temporizador llega a 0
+  function onTimerDone(exName) {
+    if (!_supported()) return;
+    _exId = null;
+    _clearHandlers();
+    _meta('✅ ¡Descanso terminado!', exName || 'Seguí con la rutina');
+    // Tras 3s vuelve a mostrar recordatorios
+    setTimeout(() => showReminders(), 3000);
+  }
+
+  // Llamado cuando se salta/cancela un timer
+  function onTimerSkip() {
+    _exId = null;
+    showReminders();
+  }
+
+  // ── REMINDERS MODE ─────────────────────────────────────
+  // Muestra próximos recordatorios y fechas límite
+  function showReminders() {
+    _exId = null;
+    if (!_supported()) return;
+    const items = _buildQueue();
+    if (!items.length) { _deactivate(); return; }
+    _ensureAudio();
+    _clearHandlers();
+    let idx = 0;
+    const show = () => _meta(items[idx].title, items[idx].sub);
+    if (items.length > 1) {
+      _handle('nexttrack',     () => { idx = (idx + 1) % items.length; show(); });
+      _handle('previoustrack', () => { idx = (idx - 1 + items.length) % items.length; show(); });
+    }
+    show();
+  }
+
+  function _buildQueue() {
+    const now  = new Date();
+    const all  = [];
+    TABS.forEach(tab => {
+      (S?.reminders?.[tab] || []).forEach(r => {
+        if (!r.datetime) return;
+        const dt      = new Date(r.datetime);
+        const diffMin = Math.round((dt - now) / 60000);
+        if (diffMin >= -120 && diffMin <= 2880) all.push({ diffMin, r });
+      });
+    });
+    all.sort((a, b) => a.diffMin - b.diffMin);
+    return all.slice(0, 10).map(({ diffMin, r }) => {
+      const p = PRIO_IC[r.priority] || '🔵';
+      let sub;
+      if (diffMin < 0)      sub = 'Venció hace ' + Math.abs(diffMin) + 'min';
+      else if (diffMin === 0) sub = '¡Ahora mismo!';
+      else if (diffMin < 60)  sub = 'En ' + diffMin + ' min';
+      else if (diffMin < 1440) sub = 'En ' + Math.round(diffMin / 60) + 'h';
+      else                    sub = 'En ' + Math.round(diffMin / 1440) + ' días';
+      return { title: p + ' ' + r.title, sub };
+    });
+  }
+
+  // API pública
+  return { onTimerStart, onTimerTick, onTimerDone, onTimerSkip, showReminders };
+})();
+
 function startRutinaSession(rtnId) {
   const rtn = S.routines.find(r => r.id === rtnId);
   if (!rtn) return;
@@ -6554,6 +6698,11 @@ function startRtnTimerBand(exId, secs) {
   display.textContent = fmtTimerDisplay(secs);
   _pipExId = exId;
   _updatePip();
+  // Obtener nombre del ejercicio para media session
+  const _rtn = S.routines && S.routines.find(r => r.id === S.activeRtnSession?.routineId);
+  const _ex  = _rtn && _rtn.exercises.find(e => e.id === exId);
+  const _exName = _ex?.name || '';
+  _msHub.onTimerStart(exId, _exName);
   _rtnTimers[exId] = setInterval(() => {
     _rtnTimerRemaining[exId]--;
     const d = document.getElementById('rtn-tband-display-' + exId);
@@ -6565,24 +6714,19 @@ function startRtnTimerBand(exId, secs) {
       b.classList.add('done');
       showToast('⏱ ¡Descansaste! Seguí con la próxima serie.');
       _playTimerDone();
+      _msHub.onTimerDone(_exName);
       if (Notification.permission === 'granted') {
-        const rtn = S.routines && S.routines.find(r => r.id === S.activeRtnSession?.routineId);
-        const ex = rtn && rtn.exercises.find(e => e.id === exId);
         _showNotif('⏱ ¡Descanso terminado!', {
-          body: ex ? `Seguí con ${ex.name}` : 'Retomá la rutina',
-          tag: 'rtn-timer',
-          icon: './icon.svg',
-          requireInteraction: false,
+          body: _exName ? `Seguí con ${_exName}` : 'Retomá la rutina',
+          tag: 'rtn-timer', icon: './icon.svg', requireInteraction: false,
         });
       }
       if (_pipExId === exId) _updatePip();
-      // Auto-ocultar pip 4s después
-      setTimeout(() => {
-        if (_pipExId === exId) { _pipExId = null; _updatePip(); }
-      }, 4000);
+      setTimeout(() => { if (_pipExId === exId) { _pipExId = null; _updatePip(); } }, 4000);
     } else {
       d.textContent = fmtTimerDisplay(_rtnTimerRemaining[exId]);
       if (_pipExId === exId) _updatePip();
+      _msHub.onTimerTick(exId, _exName);
     }
   }, 1000);
 }
@@ -6603,6 +6747,7 @@ function skipRtnTimer(exId) {
   const band = document.getElementById('rtn-tband-' + exId);
   if (band) band.style.display = 'none';
   if (_pipExId === exId) { _pipExId = null; _updatePip(); }
+  _msHub.onTimerSkip();
 }
 
 function cancelRtnSession() {
@@ -6613,6 +6758,7 @@ function cancelRtnSession() {
   _rtnExpandedEx = new Set();
   _pipExId = null; _updatePip();
   S.activeRtnSession = null;
+  _msHub.showReminders();
   saveState(); renderRutinas();
 }
 
@@ -6639,6 +6785,7 @@ function finishRtnSession() {
   _rtnExpandedEx = new Set();
   _pipExId = null; _updatePip();
   S.activeRtnSession = null;
+  _msHub.showReminders();
   // Marcar hábito de entrenamientos y actualizar calendario
   const today = getActiveDate();
   const gymHabit = (S.habitTrackers?.salud || []).find(h => h.id === 'habit-entrenamientos');
@@ -10114,7 +10261,10 @@ setInterval(() => {
   if (p) renderReminders(p.id.replace('tab-', ''));
 }, 60000);
 setInterval(checkReminderNotifications, 60000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) { checkReminderNotifications(); _syncOnFocus(); } });
+setInterval(() => { if (!Object.keys(_rtnTimers).length) _msHub.showReminders(); }, 60000);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) { checkReminderNotifications(); _syncOnFocus(); _msHub.showReminders(); }
+});
 
 renderGoals();
 renderSleepTracker();
@@ -10134,6 +10284,8 @@ chartsInited['salud']=false;
 chartsInited['ia']=false;
 
 buildTickerAlerts();
+// Activar media session con recordatorios próximos al cargar
+setTimeout(() => _msHub.showReminders(), 500);
 })();
 
 // ════════════════════════════════════════════════════════
