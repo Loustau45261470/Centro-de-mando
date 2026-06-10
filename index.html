@@ -4442,7 +4442,7 @@ body.font-jakarta  { --sans: "Plus Jakarta Sans", sans-serif; --mono: "JetBrains
       <div class="modal-title">Nuevo Período</div>
       <button class="modal-close" onclick="closeModal('modal-add-period')">✕</button>
     </div>
-    <input class="inp" id="period-input-label" placeholder="Ej: Q4 2026" style="margin-bottom:10px;width:100%">
+    <input class="inp" id="period-input-label" placeholder="Ej: T4 2026" style="margin-bottom:10px;width:100%">
     <input class="inp" id="period-input-note" placeholder="Nota (ej: 92 días · 50%=46)" style="margin-bottom:10px;width:100%">
     <label style="font-size:12px;color:var(--ter);display:flex;gap:8px;align-items:center;margin-bottom:14px">
       <input type="checkbox" id="period-input-flat"> Sin categorías (lista plana)
@@ -4595,10 +4595,10 @@ const DEFAULT_STATE = {
   historicalDataLoaded: false,
   achievementLog: {},  // { [achievementId]: 'YYYY-MM-DD' (unlock date) }
   quarterlyObjectives: {
-    activePeriod: 'q2-2026',
+    activePeriod: 't2-2026',
     periods: [
       {
-        id: 'q4-2025', label: 'Q4 2025', flat: true, note: null,
+        id: 't4-2025', label: 'T4 2025', flat: true, note: null,
         objectives: [
           { id: 1, text: 'Economía Política', done: true, category: null },
           { id: 2, text: 'Derecho Político', done: true, category: null },
@@ -4611,7 +4611,7 @@ const DEFAULT_STATE = {
         ]
       },
       {
-        id: 'q1-2026', label: 'Q1 2026', flat: true, note: null,
+        id: 't1-2026', label: 'T1 2026', flat: true, note: null,
         objectives: [
           { id: 1, text: 'Pasar más tiempo con amigos y familia', done: true, category: null },
           { id: 2, text: 'Terminar inversiones mínimo 4M', done: true, category: null },
@@ -4628,7 +4628,7 @@ const DEFAULT_STATE = {
         ]
       },
       {
-        id: 'q2-2026', label: 'Q2 2026', flat: false,
+        id: 't2-2026', label: 'T2 2026', flat: false,
         note: '91 días · 50% = 45 días · 75% = 68 días',
         objectives: [
           { id: 1,  text: 'Un mes con 75% de días estudiando (22 días)', done: false, category: 'Facultad' },
@@ -4650,7 +4650,7 @@ const DEFAULT_STATE = {
         ]
       },
       {
-        id: 'q3-2026', label: 'Q3 2026', flat: false,
+        id: 't3-2026', label: 'T3 2026', flat: false,
         note: '92 días · 50% = 46 días · 75% = 69 días',
         objectives: [
           { id: 1,  text: '(por definir)', done: false, category: 'Facultad' },
@@ -4879,6 +4879,22 @@ async function loadState() {
     }
   });
   if (_proyMigrated) saveState(); // sube datos migrados a Firebase inmediatamente
+  // ── Migrar Q→T en quarterlyObjectives (una sola vez) ────────────────────
+  if (S.quarterlyObjectives) {
+    const qo = S.quarterlyObjectives;
+    let _qMigrated = false;
+    if (qo.activePeriod && /^q\d-/.test(qo.activePeriod)) {
+      qo.activePeriod = qo.activePeriod.replace(/^q(\d-)/, 't$1');
+      _qMigrated = true;
+    }
+    if (qo.periods) {
+      qo.periods.forEach(p => {
+        if (/^q\d-/.test(p.id))    { p.id    = p.id.replace(/^q(\d-)/, 't$1');    _qMigrated = true; }
+        if (/^Q\d /.test(p.label)) { p.label = p.label.replace(/^Q(\d )/, 'T$1'); _qMigrated = true; }
+      });
+    }
+    if (_qMigrated) saveState();
+  }
 }
 function saveState() {
   localStorage.setItem('lifedash_v2', JSON.stringify(S));
