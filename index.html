@@ -2120,23 +2120,112 @@ body.font-jakarta  { --sans: "Plus Jakarta Sans", sans-serif; --mono: "JetBrains
 .theme-close-btn:hover { background: rgba(255,255,255,0.09); color: rgba(255,255,255,0.6); }
 
 /* ── Identity Affirmations ── */
+
+/* Strip base — aparece debajo del header en cada tab */
 .affirmation-strip {
   text-align: center;
-  padding: 6px 20px 2px;
+  padding: 10px 24px 6px;
   user-select: none;
   pointer-events: none;
+  /* Separador sutil superior — no card, no border, solo aire */
+  position: relative;
 }
+
 .affirmation-strip span {
-  font-size: 11px;
-  font-style: italic;
-  font-weight: 400;
-  color: var(--accent);
-  opacity: 0.42;
-  letter-spacing: 0.04em;
-  transition: opacity 0.75s ease;
+  /* Tipografía editorial: tamaño legible, peso medio, no italic genérico */
+  font-size: clamp(12px, 1.4vw, 14px);
+  font-style: normal;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+
+  /* Color: blanco atenuado — más visible que el accent a 0.42,
+     sin competir con el contenido principal */
+  color: rgba(250, 250, 250, 0.52);
+
+  /* Subrayado decorativo: línea fina debajo con el accent */
   display: inline-block;
+  padding-bottom: 2px;
+  border-bottom: 1px solid rgba(124, 142, 232, 0.25);
+
+  /* Transición de fade para la rotación */
+  transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1),
+              transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.affirmation-strip span.aff-fade { opacity: 0; }
+
+/* Estado fade — se aplica vía JS antes de cambiar el texto */
+.affirmation-strip span.aff-fade {
+  opacity: 0;
+  transform: translateY(4px);
+}
+
+/* ── Variante featured — para la parte superior del tab Vida ── */
+/* Aplicar clase .aff-featured al .affirmation-strip del tab vida */
+.affirmation-strip.aff-featured {
+  padding: 16px 24px 10px;
+  /* Línea decorativa superior con gradiente accent */
+  border-top: 1px solid rgba(124, 142, 232, 0.15);
+  /* Glow muy suave en el fondo para darle presencia */
+  background: radial-gradient(
+    ellipse 60% 100% at 50% 0%,
+    rgba(124, 142, 232, 0.04) 0%,
+    transparent 100%
+  );
+}
+
+.affirmation-strip.aff-featured span {
+  /* Escala y peso mayores — es el headline del tab */
+  font-size: clamp(13px, 1.8vw, 16px);
+  font-weight: 600;
+  letter-spacing: 0.16em;
+
+  /* Color más visible: accent directo con buena opacidad */
+  color: rgba(124, 142, 232, 0.82);
+
+  /* Glow tipográfico sutil — luxury, no neón */
+  text-shadow:
+    0 0 20px rgba(124, 142, 232, 0.35),
+    0 0 40px rgba(124, 142, 232, 0.12);
+
+  /* Sin subrayado en featured — el glow ya da suficiente identidad */
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+/* Variante mid-tab — segunda afirmación entre secciones */
+.affirmation-strip.aff-mid {
+  padding: 18px 0 6px;
+}
+.affirmation-strip.aff-mid span {
+  display: block;
+  font-size: clamp(13px, 1.6vw, 15px);
+  font-style: italic;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: none;
+  color: rgba(124, 142, 232, 0.82);
+  text-shadow: 0 0 18px rgba(124,142,232,0.28);
+  text-align: left;
+  padding: 12px 20px 12px 36px;
+  background: linear-gradient(135deg, rgba(124,142,232,0.09) 0%, rgba(124,142,232,0.02) 100%);
+  border-left: 3px solid rgba(124,142,232,0.42);
+  border-radius: 0 8px 8px 0;
+  position: relative;
+  border-bottom: none;
+}
+.affirmation-strip.aff-mid span::before {
+  content: '"';
+  font-size: 36px;
+  font-style: normal;
+  font-weight: 300;
+  color: var(--accent);
+  opacity: 0.2;
+  position: absolute;
+  top: 0px;
+  left: 8px;
+  line-height: 1;
+  font-family: Georgia, serif;
+}
 
 /* ── Checkbox ── */
 .proy-check {
@@ -3307,7 +3396,7 @@ body.font-jakarta  { --sans: "Plus Jakarta Sans", sans-serif; --mono: "JetBrains
       </div>
       <div class="tab-header-meta" id="vidaHeaderMeta"></div>
     </div>
-    <div class="affirmation-strip"><span id="affirmation-vida"></span></div>
+    <div class="affirmation-strip aff-featured"><span id="affirmation-vida"></span></div>
     <!-- Day progress -->
     <div class="card day-progress-wrap">
       <div class="day-progress-header">
@@ -3380,6 +3469,7 @@ body.font-jakarta  { --sans: "Plus Jakarta Sans", sans-serif; --mono: "JetBrains
     </div>
 
     <div id="vida-habits-wrap"></div>
+    <div class="affirmation-strip aff-mid"><span id="affirmation2-vida"></span></div>
     <div id="reminders-wrap-vida"></div>
 
     <!-- Bienestar Tracker -->
@@ -3444,6 +3534,7 @@ body.font-jakarta  { --sans: "Plus Jakarta Sans", sans-serif; --mono: "JetBrains
     <div id="qobj-wrap-salud"></div>
     <div id="proyectos-wrap-salud"></div>
     <div id="salud-habits-wrap"></div>
+    <div class="affirmation-strip aff-mid"><span id="affirmation2-salud"></span></div>
     <div id="reminders-wrap-salud"></div>
 
     <!-- Entrenamiento -->
@@ -3468,6 +3559,7 @@ body.font-jakarta  { --sans: "Plus Jakarta Sans", sans-serif; --mono: "JetBrains
     <div id="law-milestones-wrap"></div>
     <div id="law-plan-wrap"></div>
     <div id="conocimiento-habits-wrap"></div>
+    <div class="affirmation-strip aff-mid"><span id="affirmation2-conocimiento"></span></div>
     <div id="reminders-wrap-conocimiento"></div>
   </div>
 
@@ -3481,10 +3573,12 @@ body.font-jakarta  { --sans: "Plus Jakarta Sans", sans-serif; --mono: "JetBrains
       </div>
       <div class="tab-header-meta" id="iaHeaderMeta"></div>
     </div>
+    <div class="affirmation-strip aff-featured"><span id="affirmation-ia"></span></div>
     <!-- Quarterly Objectives: IA -->
     <div id="qobj-wrap-ia"></div>
     <div id="proyectos-wrap-ia"></div>
     <div id="ia-habits-wrap"></div>
+    <div class="affirmation-strip aff-mid"><span id="affirmation2-ia"></span></div>
     <div id="reminders-wrap-ia"></div>
   </div>
 
@@ -3555,6 +3649,7 @@ body.font-jakarta  { --sans: "Plus Jakarta Sans", sans-serif; --mono: "JetBrains
     </div>
 
     <div id="finanzas-habits-wrap"></div>
+    <div class="affirmation-strip aff-mid"><span id="affirmation2-finanzas"></span></div>
     <div id="reminders-wrap-finanzas"></div>
 
     <!-- Subscriptions -->
@@ -11577,37 +11672,60 @@ Instrucciones:
       'Soy un estudiante exitoso',
       'Soy un lector entusiasta',
     ],
+    ia: [
+      'Soy un pionero de la inteligencia artificial',
+      'Domino las herramientas de IA más poderosas',
+      'La IA amplifica mi capacidad ilimitadamente',
+      'Construyo soluciones que transforman vidas',
+      'Entiendo la IA con profundidad y claridad',
+      'Soy un ingeniero de IA imparable',
+      'Aprendo y aplico IA más rápido que nadie',
+      'El futuro me pertenece porque lo estoy construyendo',
+    ],
   };
 
-  const idx = { vida: 0, finanzas: 0, salud: 0, conocimiento: 0 };
+  const TABS_ALL = ['vida', 'finanzas', 'salud', 'conocimiento', 'ia'];
+  const idx  = {};
+  const idx2 = {};
+  TABS_ALL.forEach(t => { idx[t] = 0; idx2[t] = 0; });
 
-  function set(tab, text) {
-    const el = document.getElementById('affirmation-' + tab);
+  function setEl(id, text) {
+    const el = document.getElementById(id);
     if (el) el.textContent = text;
   }
 
-  function rotate(tab) {
-    const el = document.getElementById('affirmation-' + tab);
+  function rotateEl(id, arr, idxObj, key) {
+    const el = document.getElementById(id);
     if (!el) return;
     el.classList.add('aff-fade');
     setTimeout(() => {
-      idx[tab] = (idx[tab] + 1) % AFF[tab].length;
-      el.textContent = AFF[tab][idx[tab]];
+      idxObj[key] = (idxObj[key] + 1) % arr.length;
+      el.textContent = arr[idxObj[key]];
       el.classList.remove('aff-fade');
     }, 750);
   }
 
-  // Init each tab at a random offset so they don't all say the same thing
-  Object.keys(AFF).forEach(tab => {
-    idx[tab] = Math.floor(Math.random() * AFF[tab].length);
-    set(tab, AFF[tab][idx[tab]]);
+  // Init at random offsets so no two strips say the same thing
+  TABS_ALL.forEach(tab => {
+    idx[tab]  = Math.floor(Math.random() * AFF[tab].length);
+    idx2[tab] = (idx[tab] + Math.floor(AFF[tab].length / 2)) % AFF[tab].length;
+    setEl('affirmation-'  + tab, AFF[tab][idx[tab]]);
+    setEl('affirmation2-' + tab, AFF[tab][idx2[tab]]);
   });
 
-  // Stagger rotations so they don't all flip at the same moment
-  setTimeout(() => setInterval(() => rotate('vida'),         14000), 0);
-  setTimeout(() => setInterval(() => rotate('finanzas'),     14000), 3500);
-  setTimeout(() => setInterval(() => rotate('salud'),        14000), 7000);
-  setTimeout(() => setInterval(() => rotate('conocimiento'), 14000), 10500);
+  // Stagger primary rotations (every 14s)
+  setTimeout(() => setInterval(() => rotateEl('affirmation-vida',         AFF.vida,         idx,  'vida'),         14000), 0);
+  setTimeout(() => setInterval(() => rotateEl('affirmation-finanzas',     AFF.finanzas,     idx,  'finanzas'),     14000), 2800);
+  setTimeout(() => setInterval(() => rotateEl('affirmation-salud',        AFF.salud,        idx,  'salud'),        14000), 5600);
+  setTimeout(() => setInterval(() => rotateEl('affirmation-conocimiento', AFF.conocimiento, idx,  'conocimiento'), 14000), 8400);
+  setTimeout(() => setInterval(() => rotateEl('affirmation-ia',           AFF.ia,           idx,  'ia'),           14000), 11200);
+
+  // Stagger secondary (mid-tab) rotations — offset by 7s so they never match the primary
+  setTimeout(() => setInterval(() => rotateEl('affirmation2-vida',         AFF.vida,         idx2, 'vida'),         14000), 7000);
+  setTimeout(() => setInterval(() => rotateEl('affirmation2-finanzas',     AFF.finanzas,     idx2, 'finanzas'),     14000), 9800);
+  setTimeout(() => setInterval(() => rotateEl('affirmation2-salud',        AFF.salud,        idx2, 'salud'),        14000), 12600);
+  setTimeout(() => setInterval(() => rotateEl('affirmation2-conocimiento', AFF.conocimiento, idx2, 'conocimiento'), 14000), 1400);
+  setTimeout(() => setInterval(() => rotateEl('affirmation2-ia',           AFF.ia,           idx2, 'ia'),           14000), 4200);
 })();
 </script>
 </body>
