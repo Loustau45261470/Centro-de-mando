@@ -4591,6 +4591,7 @@ const DEFAULT_STATE = {
   workoutCalendar: { days: {} }, // { 'YYYY-MM-DD': 'done' | 'rest' }
   financeCalendar: { days: {} }, // { 'YYYY-MM-DD': 'done' | 'rest' }
   habitTrackers: { vida:[], finanzas:[], salud:[], conocimiento:[], ia:[] },
+  proyectos: { vida: null, finanzas: null, salud: null, conocimiento: null, ia: null },
   historicalDataLoaded: false,
   achievementLog: {},  // { [achievementId]: 'YYYY-MM-DD' (unlock date) }
   quarterlyObjectives: {
@@ -4786,6 +4787,7 @@ function _applyRemoteState(raw) {
     });
     localStorage.setItem('lifedash_v2', JSON.stringify(S));
     _reRenderAll();
+    if (typeof window._reloadProyectosFromState === 'function') window._reloadProyectosFromState();
     showToast('🔄 Sincronizado');
   } catch(e) { console.warn('[sync] applyRemoteState error:', e); }
 }
@@ -4864,6 +4866,18 @@ async function loadState() {
       days: {},
     });
   }
+  // ── Migrar proyectos de localStorage a S (una sola vez) ──────────────────
+  if (!S.proyectos) S.proyectos = { vida: null, finanzas: null, salud: null, conocimiento: null, ia: null };
+  let _proyMigrated = false;
+  ['vida','finanzas','salud','conocimiento','ia'].forEach(tab => {
+    if (S.proyectos[tab] == null) {
+      try {
+        const raw = localStorage.getItem('proyectos_' + tab + '_v1');
+        if (raw) { S.proyectos[tab] = JSON.parse(raw); _proyMigrated = true; }
+      } catch {}
+    }
+  });
+  if (_proyMigrated) saveState(); // sube datos migrados a Firebase inmediatamente
 }
 function saveState() {
   localStorage.setItem('lifedash_v2', JSON.stringify(S));
@@ -10085,6 +10099,7 @@ function showSparkle(x, y) {
 (async () => {
 await loadState();
 _startFirestoreSync();
+if (typeof window._reloadProyectosFromState === 'function') window._reloadProyectosFromState();
 loadHistoricalData();
 // Migrate lawProgress if it contains old placeholder subjects
 if (S.lawProgress?.years?.[0]?.subjects?.[0]?.id === 's1_1') {
@@ -10176,11 +10191,21 @@ buildTickerAlerts();
   }
 
   function loadTree(tab) {
+    // Prefer S.proyectos (Firebase-synced) when available
+    if (typeof S !== 'undefined' && S.proyectos?.[tab] != null) return S.proyectos[tab];
+    // Fall back to old localStorage key (will be migrated on next loadState)
     try { const r = localStorage.getItem(storageKey(tab)); return r ? JSON.parse(r) : migrateOrDefault(tab); }
     catch { return migrateOrDefault(tab); }
   }
 
-  function saveTree(tab, tree) { localStorage.setItem(storageKey(tab), JSON.stringify(tree)); }
+  function saveTree(tab, tree) {
+    localStorage.setItem(storageKey(tab), JSON.stringify(tree)); // cache local
+    if (typeof S !== 'undefined') {
+      if (!S.proyectos) S.proyectos = {};
+      S.proyectos[tab] = tree;
+      if (typeof saveState === 'function') saveState(); // sync a Firebase
+    }
+  }
 
   const trees = {};
   TABS.forEach(t => { trees[t] = loadTree(t); });
@@ -10477,6 +10502,18 @@ buildTickerAlerts();
   };
 
   window.renderProyectos = renderProyectos;
+
+  // Recarga trees desde S.proyectos (llamado tras loadState o sync remoto)
+  window._reloadProyectosFromState = function() {
+    TABS.forEach(tab => {
+      if (typeof S !== 'undefined' && S.proyectos?.[tab] != null) {
+        trees[tab] = S.proyectos[tab];
+      }
+    });
+    const activeTab = document.querySelector('.tab-panel.active')?.id?.replace('tab-', '') || 'vida';
+    renderProyectos(activeTab);
+  };
+
   setTimeout(() => renderProyectos('vida'), 0);
 })();
 
