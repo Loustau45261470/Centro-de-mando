@@ -6345,7 +6345,10 @@ function pipSkip() {
 
 function _playTimerDone() {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    // Reutilizar el AudioContext del media session hub (ya desbloqueado por gesto del usuario).
+    // Crear uno nuevo dentro de setInterval falla en mobile por restricciones de autoplay.
+    const ctx = (_msHub?.getCtx()) || new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === 'suspended') ctx.resume();
     [[880, 0, 0.14], [1108, 0.18, 0.38]].forEach(([freq, t0, t1]) => {
       const osc = ctx.createOscillator(), gain = ctx.createGain();
       osc.connect(gain); gain.connect(ctx.destination);
@@ -6376,16 +6379,21 @@ const _msHub = (() => {
 
   // ── Audio silencioso para activar el media player ─────
   function _ensureAudio() {
-    if (_ctx) return;
-    try {
-      _ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const osc = _ctx.createOscillator();
-      const gain = _ctx.createGain();
-      gain.gain.value = 0;               // completamente silencioso
-      osc.connect(gain);
-      gain.connect(_ctx.destination);
-      osc.start();
-    } catch(e) {}
+    if (!_ctx) {
+      try {
+        _ctx = new (window.AudioContext || window.webkitAudioContext)();
+        // Buffer de 1 muestra en loop: sin oscilador → sin click/pop, pero el
+        // contexto está "reproduciendo" → media session visible en todos los browsers
+        const buf = _ctx.createBuffer(1, 1, _ctx.sampleRate);
+        const src = _ctx.createBufferSource();
+        src.buffer = buf;
+        src.loop = true;
+        src.connect(_ctx.destination);
+        src.start();
+      } catch(e) {}
+    }
+    // Resume si estaba suspendido (mobile sin gesto previo; se activa al primer timer)
+    if (_ctx && _ctx.state === 'suspended') _ctx.resume().catch(() => {});
   }
 
   function _supported() { return 'mediaSession' in navigator && 'MediaMetadata' in window; }
@@ -6501,7 +6509,7 @@ const _msHub = (() => {
   }
 
   // API pública
-  return { onTimerStart, onTimerTick, onTimerDone, onTimerSkip, showReminders };
+  return { onTimerStart, onTimerTick, onTimerDone, onTimerSkip, showReminders, getCtx: () => _ctx };
 })();
 
 function startRutinaSession(rtnId) {
@@ -8043,10 +8051,14 @@ function initNotifications() {
 }
 
 function _showNotif(title, opts) {
-  // Use Service Worker registration when available (required for iOS PWA push)
-  if (_swReg) return _swReg.showNotification(title, opts);
-  const n = new Notification(title, opts);
-  n.onclick = () => { window.focus(); n.close(); };
+  if (_swReg) {
+    _swReg.showNotification(title, opts).catch(() => {
+      // Fallback: SW showNotification falló (ej. iOS foreground), usar API directa
+      try { const n = new Notification(title, opts); n.onclick = () => { window.focus(); n.close(); }; } catch(e) {}
+    });
+    return;
+  }
+  try { const n = new Notification(title, opts); n.onclick = () => { window.focus(); n.close(); }; } catch(e) {}
 }
 
 function checkReminderNotifications() {
