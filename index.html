@@ -6625,11 +6625,14 @@ function finishRtnSession() {
   _rtnExpandedEx = new Set();
   _pipExId = null; _updatePip();
   S.activeRtnSession = null;
-  // Marcar hábito de entrenamientos
+  // Marcar hábito de entrenamientos y actualizar calendario
   const today = getActiveDate();
   const gymHabit = (S.habitTrackers?.salud || []).find(h => h.id === 'habit-entrenamientos');
-  if (gymHabit) { gymHabit.days[today] = 'done'; }
-  saveState(); renderRutinas(); renderHabitCal('salud');
+  if (gymHabit) {
+    gymHabit.days[today] = 'done';
+    _habitActiveId['salud'] = 'habit-entrenamientos';
+  }
+  saveState(); renderRutinas(); renderHabitsCard('salud');
   showConfetti(3000);
   showToast(`💪 ¡Sesión guardada! ${vol ? vol.toLocaleString() + ' kg de volumen' : ''}`, 4000);
 }
