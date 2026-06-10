@@ -4747,6 +4747,7 @@ let _fbSaving  = false;
 function _fbSave() {
   clearTimeout(_fbSaveTid);
   _fbSaveTid = setTimeout(async () => {
+    _fbSaveTid = null;  // reset so onSnapshot isn't blocked after this save
     _fbSaving = true;
     try { await _DOC().set({ state: JSON.stringify(S) }); } catch(e) {}
     // Grace period: ignore the onSnapshot that fires from our own write
