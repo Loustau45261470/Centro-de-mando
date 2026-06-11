@@ -4741,17 +4741,16 @@ async function _subscribePush(pubKey) {
 
 _pwaInit();
 
-let _fbSaveTid = null;
-let _fbSaving  = false;
+let _fbSaveTid  = null;
+let _lastWriteId = null;  // ID del último write propio — filtra el eco de onSnapshot
 
 function _fbSave() {
   clearTimeout(_fbSaveTid);
   _fbSaveTid = setTimeout(async () => {
-    _fbSaveTid = null;  // reset so onSnapshot isn't blocked after this save
-    _fbSaving = true;
-    try { await _DOC().set({ state: JSON.stringify(S) }); } catch(e) {}
-    // Grace period: ignore the onSnapshot that fires from our own write
-    setTimeout(() => { _fbSaving = false; }, 2500);
+    _fbSaveTid = null;
+    const wid = Math.random().toString(36).slice(2);
+    _lastWriteId = wid;
+    try { await _DOC().set({ state: JSON.stringify(S), _wid: wid }); } catch(e) {}
   }, 2000);
 }
 
@@ -4797,21 +4796,21 @@ function _applyRemoteState(raw) {
 // ── Real-time Firestore listener ──────────────────────────
 function _startFirestoreSync() {
   _DOC().onSnapshot(snap => {
-    // Ignore snapshots triggered by our own writes or while a local save is pending
-    if (_fbSaving || _fbSaveTid) return;
+    if (_fbSaveTid) return;                             // cambios locales pendientes
     if (!snap.exists || !snap.data()?.state) return;
+    if (snap.data()._wid && snap.data()._wid === _lastWriteId) return;  // eco propio
     _applyRemoteState(snap.data().state);
-  }, () => {/* ignore network errors — onSnapshot auto-retries */});
+  }, () => {/* onSnapshot auto-reintenta en errores de red */});
 }
 
 // ── On visibility restore (iOS kills WS in background) ───
 async function _syncOnFocus() {
-  if (_fbSaving || _fbSaveTid) return;
+  if (_fbSaveTid) return;
   try {
     const snap = await _DOC().get();
-    if (snap.exists && snap.data()?.state) {
-      _applyRemoteState(snap.data().state);
-    }
+    if (!snap.exists || !snap.data()?.state) return;
+    if (snap.data()._wid && snap.data()._wid === _lastWriteId) return;  // ya tenemos este estado
+    _applyRemoteState(snap.data().state);
   } catch(e) {}
 }
 // ─────────────────────────────────────────────────────────────────────────
