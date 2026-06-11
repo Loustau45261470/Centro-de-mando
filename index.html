@@ -1309,6 +1309,20 @@ textarea { resize: vertical; min-height: 60px; }
 .qobj-act-btn { background:none; border:none; color:var(--ter); cursor:pointer; font-size:13px; padding:2px 4px; border-radius:4px; }
 .qobj-act-btn:hover { color:var(--sec); background:var(--border); }
 
+/* ── Monthly Goal Tabs & Items ── */
+.qobj-month-tabs { display:flex; gap:4px; flex-wrap:wrap; }
+.qobj-month-tab { padding:5px 10px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--tt); font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; cursor:pointer; transition:all .15s; font-family:var(--sans); }
+.qobj-month-tab:hover { background:var(--card-h); color:var(--sec); }
+.qobj-month-tab.active { background:rgba(124,142,232,.12); border-color:var(--accent); color:var(--accent); }
+.monthly-goal-item { display:flex; align-items:center; gap:9px; padding:7px 4px; border-bottom:1px solid var(--border); }
+.monthly-goal-item:last-child { border-bottom:none; }
+.monthly-goal-item input[type=checkbox] { width:16px; height:16px; accent-color:var(--accent); flex-shrink:0; cursor:pointer; }
+.monthly-goal-item .mg-text { flex:1; font-size:14px; line-height:1.4; }
+.monthly-goal-item.done .mg-text { text-decoration:line-through; color:var(--ter); }
+.mg-del { background:none; border:none; color:var(--ter); cursor:pointer; font-size:12px; padding:2px 4px; border-radius:4px; opacity:0; transition:opacity .15s; }
+.monthly-goal-item:hover .mg-del { opacity:.7; }
+.mg-del:hover { color:var(--sec); background:var(--border); opacity:1 !important; }
+
 /* ── Trophy button ── */
 #trophy-btn {
   position:fixed; top:calc((var(--ticker) - 26px)/2); right:10px;
@@ -4435,6 +4449,22 @@ body.font-jakarta  { --sans: "Plus Jakarta Sans", sans-serif; --mono: "JetBrains
   </div>
 </div>
 
+<!-- Modal: agregar meta mensual -->
+<div class="modal-overlay" id="modal-add-mgoal" onclick="if(event.target===this)closeModal('modal-add-mgoal')">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="mgoal-modal-title">Nueva Meta Mensual</div>
+      <button class="modal-close" onclick="closeModal('modal-add-mgoal')">✕</button>
+    </div>
+    <input class="inp" id="mgoal-input-text" placeholder="Ej: Leer 1 libro" style="margin-bottom:14px;width:100%"
+      onkeydown="if(event.key==='Enter')saveNewMonthlyGoal()">
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-add-mgoal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveNewMonthlyGoal()">Agregar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal: agregar período trimestral -->
 <div class="modal-overlay" id="modal-add-period" onclick="if(event.target===this)closeModal('modal-add-period')">
   <div class="modal">
@@ -4673,7 +4703,8 @@ const DEFAULT_STATE = {
         ]
       }
     ]
-  }
+  },
+  monthlyGoals: {}  // { 'YYYY-MM': [{ id, text, done }] }
 };
 
 let S = {};  // live state
@@ -9546,6 +9577,61 @@ const QOBJ_TAB_CATS = {
   ia:           ['IA']
 };
 
+const _MONTH_SHORT = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+function _periodMonths(periodId) {
+  const m = periodId.match(/^t([1-4])-(\d{4})$/);
+  if (!m) return [];
+  const q = parseInt(m[1]), yr = m[2];
+  const start = (q - 1) * 3;
+  return [0, 1, 2].map(i => `${yr}-${String(start + i + 1).padStart(2, '0')}`);
+}
+
+const _qobjActiveMonth = {}; // tabName → 'trim' | 'YYYY-MM'
+
+function selectMonthView(tabName, view) {
+  _qobjActiveMonth[tabName] = view;
+  renderQObjForTab(tabName);
+}
+
+function toggleMonthlyGoal(monthKey, idx) {
+  if (!S.monthlyGoals) S.monthlyGoals = {};
+  if (!S.monthlyGoals[monthKey]) return;
+  S.monthlyGoals[monthKey][idx].done = !S.monthlyGoals[monthKey][idx].done;
+  saveState(); renderQuarterlyObjectives();
+}
+
+function deleteMonthlyGoal(tabName, monthKey, idx) {
+  if (!S.monthlyGoals?.[monthKey]) return;
+  S.monthlyGoals[monthKey].splice(idx, 1);
+  saveState(); renderQObjForTab(tabName);
+}
+
+let _mgoalAddTab = null, _mgoalAddMonth = null;
+
+function openAddMonthlyGoal(tabName, monthKey) {
+  _mgoalAddTab = tabName;
+  _mgoalAddMonth = monthKey;
+  const [yr, mn] = monthKey.split('-');
+  document.getElementById('mgoal-modal-title').textContent =
+    `Meta — ${_MONTH_SHORT[parseInt(mn) - 1]} ${yr}`;
+  document.getElementById('mgoal-input-text').value = '';
+  openModal('modal-add-mgoal');
+}
+
+function saveNewMonthlyGoal() {
+  const text = document.getElementById('mgoal-input-text').value.trim();
+  if (!text || !_mgoalAddMonth) return;
+  if (!S.monthlyGoals) S.monthlyGoals = {};
+  if (!S.monthlyGoals[_mgoalAddMonth]) S.monthlyGoals[_mgoalAddMonth] = [];
+  const goals = S.monthlyGoals[_mgoalAddMonth];
+  const nextId = goals.length ? Math.max(...goals.map(g => g.id)) + 1 : 1;
+  goals.push({ id: nextId, text, done: false });
+  saveState();
+  closeModal('modal-add-mgoal');
+  renderQObjForTab(_mgoalAddTab);
+}
+
 function renderQObjForTab(tabName) {
   const wrap = document.getElementById('qobj-wrap-' + tabName);
   if (!wrap) return;
@@ -9555,17 +9641,11 @@ function renderQObjForTab(tabName) {
   const cats = QOBJ_TAB_CATS[tabName];
   const isVida = tabName === 'vida';
 
-  // Objectives filtered for this tab
-  const objs = (period.flat && !isVida) ? []
-    : period.flat ? period.objectives
-    : period.objectives.filter(o => cats.includes(o.category));
-
-  const total = objs.length;
-  const done  = objs.filter(o => o.done).length;
-  const barWidth = total ? Math.round(done / total * 100) : 0;
+  const activeView = _qobjActiveMonth[tabName] || 'trim';
+  const months = _periodMonths(period.id);
 
   const ddId = `qobj-dd-${tabName}`;
-  const tabsHTML = `<div class="qobj-period-dropdown" id="${ddId}">
+  const dropdownHTML = `<div class="qobj-period-dropdown" id="${ddId}" style="margin-bottom:0">
     <button class="qobj-period-trigger" onclick="toggleQObjDropdown('${ddId}')">
       ${period.label}<span class="qobj-period-chevron">▾</span>
     </button>
@@ -9574,36 +9654,54 @@ function renderQObjForTab(tabName) {
     </div>
   </div>`;
 
-  const noteHTML = period.note ? `<div class="qobj-note">${period.note}</div>` : '';
+  let monthTabsHTML = '';
+  if (months.length) {
+    const tabs = [
+      `<button class="qobj-month-tab${activeView==='trim'?' active':''}" onclick="selectMonthView('${tabName}','trim')">Trim</button>`,
+      ...months.map(m => {
+        const label = _MONTH_SHORT[parseInt(m.split('-')[1]) - 1];
+        return `<button class="qobj-month-tab${activeView===m?' active':''}" onclick="selectMonthView('${tabName}','${m}')">${label}</button>`;
+      })
+    ].join('');
+    monthTabsHTML = `<div class="qobj-month-tabs">${tabs}</div>`;
+  }
 
   const titleCats = cats.length === 1 ? cats[0] : cats.join(' & ');
   const addPeriodBtn = isVida
     ? `<button class="btn btn-ghost btn-sm" onclick="openModal('modal-add-period')">+ Período</button>`
     : '';
 
-  let listHTML;
-  if (period.flat && !isVida) {
-    listHTML = `<div class="empty-state" style="font-size:11px;padding:16px 0">Sin categorías en este período</div>`;
-  } else if (period.flat) {
-    listHTML = objs.map(o => qobjItemHTML(period.id, o)).join('');
-  } else {
-    listHTML = cats.map(cat => {
-      const items = period.objectives.filter(o => o.category === cat);
-      const bodyId = `qobj-body-${period.id}-${cat.replace(/\W+/g,'_')}`;
-      return `<div class="qobj-category-row" onclick="toggleQObjCat('${bodyId}',this)">
-        <span class="qobj-category-label">${cat}<span class="qobj-category-chevron">▾</span></span>
-        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openAddQObj('${period.id}','${cat}')">+</button>
-      </div>
-      <div class="qobj-category-body" id="${bodyId}">
-        ${items.length ? items.map(o => qobjItemHTML(period.id, o)).join('') : ''}
-      </div>`;
-    }).join('');
-  }
+  let contentHTML;
+  if (activeView === 'trim') {
+    const objs = (period.flat && !isVida) ? []
+      : period.flat ? period.objectives
+      : period.objectives.filter(o => cats.includes(o.category));
 
-  wrap.innerHTML = `<div class="card">
-    <div class="card-title">🏆 Objetivos · ${titleCats}${addPeriodBtn}</div>
-    ${tabsHTML}
-    ${noteHTML}
+    const total = objs.length;
+    const done  = objs.filter(o => o.done).length;
+    const barWidth = total ? Math.round(done / total * 100) : 0;
+    const noteHTML = period.note ? `<div class="qobj-note">${period.note}</div>` : '';
+
+    let listHTML;
+    if (period.flat && !isVida) {
+      listHTML = `<div class="empty-state" style="font-size:11px;padding:16px 0">Sin categorías en este período</div>`;
+    } else if (period.flat) {
+      listHTML = objs.map(o => qobjItemHTML(period.id, o)).join('');
+    } else {
+      listHTML = cats.map(cat => {
+        const items = period.objectives.filter(o => o.category === cat);
+        const bodyId = `qobj-body-${period.id}-${cat.replace(/\W+/g,'_')}`;
+        return `<div class="qobj-category-row" onclick="toggleQObjCat('${bodyId}',this)">
+          <span class="qobj-category-label">${cat}<span class="qobj-category-chevron">▾</span></span>
+          <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openAddQObj('${period.id}','${cat}')">+</button>
+        </div>
+        <div class="qobj-category-body" id="${bodyId}">
+          ${items.length ? items.map(o => qobjItemHTML(period.id, o)).join('') : ''}
+        </div>`;
+      }).join('');
+    }
+
+    contentHTML = `${noteHTML}
     <div class="qobj-progress-row">
       <span class="qobj-progress-num">${done}</span>
       <span class="qobj-progress-den">/${total}</span>
@@ -9611,7 +9709,44 @@ function renderQObjForTab(tabName) {
         <div class="qobj-progress-bar" style="width:${barWidth}%"></div>
       </div>
     </div>
-    <div>${listHTML}</div>
+    <div>${listHTML}</div>`;
+  } else {
+    const monthKey = activeView;
+    const goals = (S.monthlyGoals || {})[monthKey] || [];
+    const mn = parseInt(monthKey.split('-')[1]) - 1;
+    const yr = monthKey.split('-')[0];
+    const totalM = goals.length;
+    const doneM = goals.filter(g => g.done).length;
+    const barWM = totalM ? Math.round(doneM / totalM * 100) : 0;
+
+    const progressHTML = totalM ? `<div class="qobj-progress-row">
+      <span class="qobj-progress-num">${doneM}</span>
+      <span class="qobj-progress-den">/${totalM}</span>
+      <div class="qobj-progress-bar-wrap">
+        <div class="qobj-progress-bar" style="width:${barWM}%"></div>
+      </div>
+    </div>` : '';
+
+    const goalsHTML = goals.length
+      ? goals.map((g, i) => `<div class="monthly-goal-item${g.done?' done':''}">
+          <input type="checkbox" ${g.done?'checked':''} onchange="toggleMonthlyGoal('${monthKey}',${i})">
+          <span class="mg-text">${g.text}</span>
+          <button class="mg-del" onclick="deleteMonthlyGoal('${tabName}','${monthKey}',${i})">✕</button>
+        </div>`).join('')
+      : `<div class="empty-state" style="font-size:12px;padding:14px 0;text-align:center">Sin metas para ${_MONTH_SHORT[mn]} ${yr}</div>`;
+
+    contentHTML = `${progressHTML}
+    <div>${goalsHTML}</div>
+    <button class="btn btn-ghost btn-sm" onclick="openAddMonthlyGoal('${tabName}','${monthKey}')" style="margin-top:8px">+ Meta mensual</button>`;
+  }
+
+  wrap.innerHTML = `<div class="card">
+    <div class="card-title">🏆 Objetivos · ${titleCats}${addPeriodBtn}</div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+      ${dropdownHTML}
+      ${monthTabsHTML}
+    </div>
+    ${contentHTML}
   </div>`;
 }
 
