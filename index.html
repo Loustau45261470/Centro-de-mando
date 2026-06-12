@@ -12238,40 +12238,61 @@ Instrucciones:
       const s = PROY_VOICE.stats();
       ctx = ` The user currently has ${s.pending} pending tasks (${s.overdue} overdue) in his command center.`;
     } catch(e) {}
-    // Dos formatos de key: "AQ...." (Vertex AI express mode) usa el endpoint de aiplatform;
-    // "AIza..." (AI Studio clásica) usa generativelanguage. La key va en header, no en la URL.
-    const url = key.startsWith('AQ.')
-      ? 'https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-2.5-flash:generateContent'
-      : 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+    const sys = 'You are JARVIS, the AI butler of this personal command center. Reply in English, two short sentences maximum, address the user as "sir", be precise with a touch of dry wit. The user speaks Spanish; understand questions in Spanish but always answer in English. Today is ' + new Date().toDateString() + '.' + ctx;
+
+    // Proveedor según el formato de la key — todas se pegan en el mismo campo:
+    //   AIza… → Gemini (AI Studio)    AQ.… → Gemini (Vertex express, requiere API + billing)
+    //   gsk_… → Groq                  sk-or-… → OpenRouter (modelos gratis)
+    let url, body, parse;
+    const headers = { 'Content-Type': 'application/json' };
+    if (key.startsWith('gsk_') || key.startsWith('sk-or-')) {
+      const isGroq = key.startsWith('gsk_');
+      url = isGroq ? 'https://api.groq.com/openai/v1/chat/completions' : 'https://openrouter.ai/api/v1/chat/completions';
+      headers['Authorization'] = 'Bearer ' + key;
+      body = {
+        model: isGroq ? 'llama-3.3-70b-versatile' : 'meta-llama/llama-3.3-70b-instruct:free',
+        messages: [{ role: 'system', content: sys }, { role: 'user', content: question }],
+        max_tokens: 150, temperature: 0.7
+      };
+      parse = d => d.choices?.[0]?.message?.content;
+    } else {
+      url = key.startsWith('AQ.')
+        ? 'https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-2.5-flash:generateContent'
+        : 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+      headers['x-goog-api-key'] = key;
+      body = {
+        systemInstruction: { parts: [{ text: sys }] },
+        contents: [{ role: 'user', parts: [{ text: question }] }],
+        generationConfig: { maxOutputTokens: 150, temperature: 0.7, thinkingConfig: { thinkingBudget: 0 } }
+      };
+      parse = d => d.candidates?.[0]?.content?.parts?.[0]?.text;
+    }
+
     let res;
     try {
-      res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: 'You are JARVIS, the AI butler of this personal command center. Reply in English, two short sentences maximum, address the user as "sir", be precise with a touch of dry wit. The user speaks Spanish; understand questions in Spanish but always answer in English. Today is ' + new Date().toDateString() + '.' + ctx }] },
-          contents: [{ role: 'user', parts: [{ text: question }] }],
-          generationConfig: { maxOutputTokens: 150, temperature: 0.7, thinkingConfig: { thinkingBudget: 0 } }
-        })
-      });
+      res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
     } catch (e) {
       // fetch lanzó antes de llegar al servidor: red caída o CORS bloqueado
-      if (typeof showToast === 'function') showToast('🤖 No se pudo contactar a Gemini (red o CORS): ' + e.message, 8000);
+      if (typeof showToast === 'function') showToast('🤖 No se pudo contactar a la IA (red o CORS): ' + e.message, 8000);
       throw e;
     }
     if (!res.ok) {
       let detail = '';
-      try { const err = await res.json(); detail = err.error?.message || ''; } catch(e) {}
+      try {
+        const err = await res.json();
+        detail = err.error?.message || err.error || '';
+        if (typeof detail !== 'string') detail = JSON.stringify(detail);
+      } catch(e) {}
       if (typeof showToast === 'function') {
         const hint = (res.status === 401 || res.status === 403)
-          ? ' — la key parece inválida o vencida; probá con una de aistudio.google.com/apikey'
+          ? ' — esa key no sirve; probá con una de Groq (console.groq.com/keys, gratis sin tarjeta)'
           : (res.status === 429 ? ' — límite de uso alcanzado, esperá un rato' : '');
-        showToast('🤖 Gemini rechazó el pedido (HTTP ' + res.status + ')' + (detail ? ': ' + detail.slice(0, 140) : '') + hint, 10000);
+        showToast('🤖 La IA rechazó el pedido (HTTP ' + res.status + ')' + (detail ? ': ' + detail.slice(0, 140) : '') + hint, 10000);
       }
-      throw new Error('Gemini ' + res.status + ' ' + detail);
+      throw new Error('AI ' + res.status + ' ' + detail);
     }
     const data = await res.json();
-    return ((data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) || '').trim() || null;
+    return ((parse(data) || '') + '').trim() || null;
   }
 
   /* ── Toggle wake word + guardado de keys (todo por dispositivo) ── */
@@ -12616,7 +12637,7 @@ Instrucciones:
     <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px">
       <button id="jarvis-toggle-btn" onclick="JARVIS.toggle()" style="width:100%;padding:9px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:9px;cursor:pointer;font-size:11px;font-weight:600;letter-spacing:0.06em;transition:all .2s;font-family:var(--mono)">🔊 JARVIS activo</button>
       <button id="jarvis-wake-btn" onclick="JARVIS_EARS.toggleWake()" style="width:100%;padding:9px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:9px;cursor:pointer;font-size:11px;font-weight:600;letter-spacing:0.06em;transition:all .2s;font-family:var(--mono)">🎙️ "Hey Jarvis" apagado</button>
-      <input id="jarvis-gemini-key" type="password" placeholder="🔑 Gemini API key (solo este dispositivo)" onchange="JARVIS_EARS.saveKey('jarvis_gemini_key', this.value)" autocomplete="off" style="width:100%;padding:9px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:9px;font-size:11px;color:inherit;font-family:var(--mono);box-sizing:border-box">
+      <input id="jarvis-gemini-key" type="password" placeholder="🔑 API key de IA: Gemini, Groq u OpenRouter" onchange="JARVIS_EARS.saveKey('jarvis_gemini_key', this.value)" autocomplete="off" style="width:100%;padding:9px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:9px;font-size:11px;color:inherit;font-family:var(--mono);box-sizing:border-box">
       <input id="jarvis-el-key" type="password" placeholder="🔑 ElevenLabs API key (opcional)" onchange="JARVIS_EARS.saveKey('jarvis_el_key', this.value)" autocomplete="off" style="width:100%;padding:9px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:9px;font-size:11px;color:inherit;font-family:var(--mono);box-sizing:border-box">
       <button class="theme-close-btn" onclick="document.getElementById('theme-panel').classList.remove('open')">Cerrar</button>
     </div>
