@@ -12243,16 +12243,33 @@ Instrucciones:
     const url = key.startsWith('AQ.')
       ? 'https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-2.5-flash:generateContent'
       : 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: 'You are JARVIS, the AI butler of this personal command center. Reply in English, two short sentences maximum, address the user as "sir", be precise with a touch of dry wit. The user speaks Spanish; understand questions in Spanish but always answer in English. Today is ' + new Date().toDateString() + '.' + ctx }] },
-        contents: [{ role: 'user', parts: [{ text: question }] }],
-        generationConfig: { maxOutputTokens: 150, temperature: 0.7, thinkingConfig: { thinkingBudget: 0 } }
-      })
-    });
-    if (!res.ok) throw new Error('Gemini ' + res.status);
+    let res;
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: 'You are JARVIS, the AI butler of this personal command center. Reply in English, two short sentences maximum, address the user as "sir", be precise with a touch of dry wit. The user speaks Spanish; understand questions in Spanish but always answer in English. Today is ' + new Date().toDateString() + '.' + ctx }] },
+          contents: [{ role: 'user', parts: [{ text: question }] }],
+          generationConfig: { maxOutputTokens: 150, temperature: 0.7, thinkingConfig: { thinkingBudget: 0 } }
+        })
+      });
+    } catch (e) {
+      // fetch lanzó antes de llegar al servidor: red caída o CORS bloqueado
+      if (typeof showToast === 'function') showToast('🤖 No se pudo contactar a Gemini (red o CORS): ' + e.message, 8000);
+      throw e;
+    }
+    if (!res.ok) {
+      let detail = '';
+      try { const err = await res.json(); detail = err.error?.message || ''; } catch(e) {}
+      if (typeof showToast === 'function') {
+        const hint = (res.status === 401 || res.status === 403)
+          ? ' — la key parece inválida o vencida; probá con una de aistudio.google.com/apikey'
+          : (res.status === 429 ? ' — límite de uso alcanzado, esperá un rato' : '');
+        showToast('🤖 Gemini rechazó el pedido (HTTP ' + res.status + ')' + (detail ? ': ' + detail.slice(0, 140) : '') + hint, 10000);
+      }
+      throw new Error('Gemini ' + res.status + ' ' + detail);
+    }
     const data = await res.json();
     return ((data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) || '').trim() || null;
   }
