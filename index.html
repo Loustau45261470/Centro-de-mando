@@ -11851,24 +11851,55 @@ Instrucciones:
     currentAudio.play();
   }
 
+  // Chrome carga las voces de forma asíncrona: getVoices() devuelve [] hasta que dispara voiceschanged
+  let _voices = [];
+  function _loadVoices() { _voices = (window.speechSynthesis && speechSynthesis.getVoices()) || []; }
+  if (window.speechSynthesis) { _loadVoices(); speechSynthesis.onvoiceschanged = _loadVoices; }
+
   function speakBrowser(text) {
     if (!window.speechSynthesis) return;
     speechSynthesis.cancel();
     const utt = new SpeechSynthesisUtterance(text);
-    const voices = speechSynthesis.getVoices();
-    const brit = voices.find(v => v.name.includes('George') || v.name.includes('Daniel') || (v.lang === 'en-GB' && v.name.toLowerCase().includes('male')))
-              || voices.find(v => v.lang === 'en-GB')
-              || voices.find(v => v.lang.startsWith('en'));
-    if (brit) utt.voice = brit;
+    if (!_voices.length) _loadVoices();
+    const prefer = ['Google UK English Male', 'Microsoft George', 'Daniel', 'Microsoft Ryan'];
+    let v = null;
+    for (const name of prefer) { v = _voices.find(x => x.name.includes(name)); if (v) break; }
+    if (!v) v = _voices.find(x => x.lang === 'en-GB' && /male/i.test(x.name) && !/female/i.test(x.name));
+    if (!v) v = _voices.find(x => x.lang.startsWith('en') && (/\b(David|Mark|James)\b/.test(x.name) || (/male/i.test(x.name) && !/female/i.test(x.name))));
+    if (!v) v = _voices.find(x => x.lang === 'en-GB') || _voices.find(x => x.lang.startsWith('en'));
+    if (v) utt.voice = v;
     utt.lang = 'en-GB'; utt.pitch = 0.82; utt.rate = 0.88; utt.volume = 1;
     speechSynthesis.speak(utt);
   }
 
+  // Cuota de ElevenLabs: se consulta una vez por hora. Las respuestas dinámicas usan la voz
+  // de JARVIS mientras queden créditos, reservando 1500 para las frases fijas nuevas.
+  let _elQuota = { checked: 0, ok: true };
+  async function _elQuotaOk() {
+    const now = Date.now();
+    if (now - _elQuota.checked < 3600000) return _elQuota.ok;
+    _elQuota.checked = now;
+    try {
+      const res = await fetch('https://api.elevenlabs.io/v1/user/subscription', { headers: { 'xi-api-key': _elKey() } });
+      if (res.ok) {
+        const d = await res.json();
+        _elQuota.ok = (d.character_limit - d.character_count) > 1500;
+      }
+    } catch(e) {}
+    return _elQuota.ok;
+  }
+
   async function speak(text, opts) {
     if (!enabled || !text) return;
-    // Respuestas dinámicas (IA / datos que cambian) usan la voz del navegador: gratis e ilimitada,
-    // la cuota de ElevenLabs queda reservada para las frases fijas (que además se cachean)
-    if (opts && opts.dynamic) { speakBrowser(text); return; }
+    if (opts && opts.dynamic) {
+      // Respuestas dinámicas: voz de JARVIS (ElevenLabs) mientras haya cuota; si se agota
+      // el mes, cae a la voz del navegador y se recupera sola al renovarse los créditos
+      if (await _elQuotaOk()) {
+        try { await speakElevenLabs(text); return; } catch(e) {}
+      }
+      speakBrowser(text);
+      return;
+    }
     try {
       await speakElevenLabs(text);
     } catch (e) {
