@@ -12100,21 +12100,33 @@ Instrucciones:
     rec.interimResults = true;
     rec.onresult = e => {
       for (let i = e.resultIndex; i < e.results.length; i++) {
+        const text = (e.results[i][0].transcript || '').trim();
+        if (!text) continue;
+
         if (!e.results[i].isFinal) {
-          // Transcripción en vivo en modo comando: confirma que el micrófono está captando
-          if (mode === 'command' && typeof showToast === 'function') {
-            const interim = (e.results[i][0].transcript || '').trim();
-            if (interim) showToast('🎙️ ' + interim + '…');
+          if (mode === 'command') {
+            // Seguís hablando: extender la ventana y mostrar transcripción en vivo
+            clearTimeout(cmdTimer); cmdTimer = setTimeout(exitCommand, 9000);
+            if (typeof showToast === 'function') showToast('🎙️ ' + text + '…');
+          } else if (mode === 'passive' && WAKE_RE.test(text) && !(window.JARVIS && JARVIS.isSpeaking())) {
+            // Wake word en resultado parcial: reaccionar ya (los finales a veces tardan o no llegan)
+            const after = text.replace(WAKE_RE, '').replace(/^[,.\s]+/, '').trim();
+            enterCommand();
+            if (!after && window.JARVIS) JARVIS.speak('Yes, sir?');
           }
           continue;
         }
-        const text = (e.results[i][0].transcript || '').trim();
-        if (!text) continue;
-        if (window.JARVIS && JARVIS.isSpeaking()) continue; // no escucharse a sí mismo
+
+        // Resultado final
         if (mode === 'command') {
+          // El filtro anti-eco NO aplica acá: la orden del usuario nunca se descarta.
+          // Quitar el wake word si vino pegado a la orden ("jarvis cambiá a finanzas")
+          const cmd = text.replace(WAKE_RE, '').replace(/^[,.\s]+/, '').trim();
+          if (!cmd) continue; // era solo "jarvis" — seguir esperando la orden
           exitCommand();
-          handleCommand(text);
+          handleCommand(cmd);
         } else if (mode === 'passive') {
+          if (window.JARVIS && JARVIS.isSpeaking()) continue; // no escucharse a sí mismo
           const m = text.match(WAKE_RE);
           if (!m) continue;
           const after = text.slice(text.search(WAKE_RE) + m[0].length).replace(/^[,.\s]+/, '').trim();
@@ -12148,6 +12160,10 @@ Instrucciones:
     const r = rec; rec = null;
     try { r.onend = null; r.stop(); } catch(e) {}
   }
+
+  // Watchdog: si Chrome mató el reconocimiento y el reinicio de onend falló,
+  // levantarlo de nuevo — sin esto el motor podía quedar muerto en silencio
+  setInterval(() => { if (mode !== 'off' && !rec) startRec(); }, 4000);
 
   function enterCommand() {
     mode = 'command'; _ui();
