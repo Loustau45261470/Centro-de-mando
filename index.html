@@ -12154,8 +12154,41 @@ Instrucciones:
     clearTimeout(cmdTimer);
     cmdTimer = setTimeout(exitCommand, 9000); // si no decís nada, vuelve a reposo
     _checkMic();
+    _startMeter();
     if (typeof showToast === 'function') showToast('🎙️ Te escucho — hablá ahora');
     startRec();
+  }
+
+  // ── Medidor de nivel: el botón brilla según cuán fuerte capta el micrófono ──
+  // Sirve para calibrar la amplificación de Windows viendo la señal en vivo
+  let _meterCtx = null, _meterStream = null, _meterRaf = null;
+  async function _startMeter() {
+    if (_meterStream || !navigator.mediaDevices?.getUserMedia) return;
+    try {
+      _meterStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      _meterCtx = new (window.AudioContext || window.webkitAudioContext)();
+      try { _meterCtx.resume(); } catch(e) {}
+      const src = _meterCtx.createMediaStreamSource(_meterStream);
+      const an = _meterCtx.createAnalyser(); an.fftSize = 512;
+      src.connect(an);
+      const buf = new Uint8Array(an.frequencyBinCount);
+      ear.style.animation = 'none'; // el brillo en vivo reemplaza al pulso
+      const tick = () => {
+        an.getByteTimeDomainData(buf);
+        let max = 0;
+        for (let i = 0; i < buf.length; i++) { const d = Math.abs(buf[i] - 128); if (d > max) max = d; }
+        const lvl = Math.min(1, max / 50);
+        ear.style.boxShadow = `0 0 ${8 + lvl * 34}px rgba(0,255,136,${0.18 + lvl * 0.72})`;
+        _meterRaf = requestAnimationFrame(tick);
+      };
+      tick();
+    } catch(e) {}
+  }
+  function _stopMeter() {
+    if (_meterRaf) { cancelAnimationFrame(_meterRaf); _meterRaf = null; }
+    if (_meterStream) { _meterStream.getTracks().forEach(t => t.stop()); _meterStream = null; }
+    if (_meterCtx) { try { _meterCtx.close(); } catch(e) {} _meterCtx = null; }
+    ear.style.boxShadow = ''; ear.style.animation = '';
   }
 
   async function _checkMic() {
@@ -12169,6 +12202,7 @@ Instrucciones:
 
   function exitCommand() {
     clearTimeout(cmdTimer);
+    _stopMeter();
     mode = wakeOn ? 'passive' : 'off'; _ui();
     if (mode === 'off') stopRec();
   }
