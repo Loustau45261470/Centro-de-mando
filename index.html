@@ -324,6 +324,22 @@ textarea { resize: vertical; min-height: 60px; }
 .goal-item:hover .goal-del { opacity: .5; }
 .goal-del:hover { color: var(--danger) !important; opacity: 1 !important; }
 
+.goal-section-head {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 10px; font-weight: 700; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--tt);
+  margin: 16px 0 7px; padding-bottom: 5px;
+  border-bottom: 1px solid var(--border);
+}
+.goal-section-head:first-child { margin-top: 4px; }
+.goal-section-head .gs-count { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--ts); }
+.goal-section-list { min-height: 8px; }
+.goal-section-list:empty::after {
+  content: 'Sin metas'; display: block;
+  font-size: 11px; color: var(--tt); opacity: .55;
+  padding: 4px 12px 6px; font-style: italic;
+}
+
 .add-goal-row { display: flex; gap: 8px; margin-top: 10px; }
 .push-btn { width: 100%; margin-top: 6px; border: 1px dashed rgba(255,255,255,.15); background: none; border-radius: 10px; color: var(--tt); padding: 9px; font-size: 12px; cursor: pointer; transition: all .2s; }
 .push-btn:hover { color: var(--tp); border-color: rgba(255,255,255,.35); }
@@ -3478,7 +3494,7 @@ body.font-jakarta  { --sans: "Plus Jakarta Sans", sans-serif; --mono: "JetBrains
           🎯 Metas de Hoy
           <div class="streak-pill zero" id="streakPill">⚡ 0 días</div>
         </div>
-        <button class="btn btn-ghost btn-sm" onclick="openModal('modal-add-goal')">+ Meta</button>
+        <button class="btn btn-ghost btn-sm" onclick="openAddGoalToday()">+ Meta</button>
       </div>
       <div class="flex items-center gap-8 mb-8">
         <span id="goalsDoneNum" style="font-size:36px;font-weight:800;letter-spacing:-.04em;line-height:1">0</span>
@@ -3796,6 +3812,14 @@ body.font-jakarta  { --sans: "Plus Jakarta Sans", sans-serif; --mono: "JetBrains
         <option value="high">Alta 🔴</option>
         <option value="mid" selected>Media 🟡</option>
         <option value="low">Baja 🟢</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Parte del día</label>
+      <select class="inp" id="newGoalPeriod">
+        <option value="manana">Mañana 🌅</option>
+        <option value="tarde">Tarde ☀️</option>
+        <option value="noche">Noche 🌙</option>
       </select>
     </div>
     <div class="field">
@@ -5219,6 +5243,51 @@ function renderGoals() {
   if (hasTimed) renderReminders('vida');
 }
 
+const GOAL_PERIODS = [
+  ['manana', '🌅 Mañana'],
+  ['tarde',  '☀️ Tarde'],
+  ['noche',  '🌙 Noche']
+];
+
+function buildGoalItem(g, idx, date, readOnly) {
+  const li = document.createElement('div');
+  li.className = 'goal-item' + (g.done ? ' done-row' : '');
+  li.dataset.idx = idx;
+  li.innerHTML = `
+    <span class="goal-drag" title="Arrastrar">⋮⋮</span>
+    <span class="check-box ${g.done?'checked':''}" data-idx="${idx}" data-date="${date}"></span>
+    <span class="goal-priority" style="background:${PRIORITY_COLOR[g.priority]||'#666'}"></span>
+    ${g.time ? `<span class="goal-time-badge">${fmtGoalTime(g.time)}</span>` : ''}
+    <span class="goal-text-el">${g.text}</span>
+    <button class="goal-del" data-idx="${idx}" data-date="${date}" title="Eliminar">×</button>
+  `;
+  // Checkbox click
+  li.querySelector('.check-box').addEventListener('click', () => { toggleGoal(date, idx); });
+  // Delete
+  li.querySelector('.goal-del').addEventListener('click', () => { deleteGoal(date, idx); });
+  // Inline edit (text)
+  if (!readOnly) {
+    const textEl = li.querySelector('.goal-text-el');
+    textEl.addEventListener('click', () => {
+      if (textEl.getAttribute('contenteditable') === 'true') return;
+      const orig = textEl.textContent;
+      textEl.setAttribute('contenteditable','true');
+      textEl.focus();
+      const range = document.createRange(); range.selectNodeContents(textEl); range.collapse(false);
+      window.getSelection().removeAllRanges(); window.getSelection().addRange(range);
+      const commit = () => {
+        textEl.removeAttribute('contenteditable');
+        const v = textEl.textContent.trim();
+        if (v && v !== orig) { S.goals[date][idx].text = v; saveState(); }
+        else textEl.textContent = orig;
+      };
+      textEl.addEventListener('blur', commit, { once: true });
+      textEl.addEventListener('keydown', e => { if (e.key==='Enter') { e.preventDefault(); textEl.blur(); } if (e.key==='Escape') { textEl.textContent = orig; textEl.removeEventListener('blur',commit); textEl.removeAttribute('contenteditable'); } }, { once:true });
+    });
+  }
+  return li;
+}
+
 function renderGoalList(date, listId, emptyId, readOnly) {
   const goals = S.goals[date] || [];
   const list = document.getElementById(listId);
@@ -5226,44 +5295,44 @@ function renderGoalList(date, listId, emptyId, readOnly) {
   list.innerHTML = '';
   empty.style.display = goals.length ? 'none' : '';
 
-  goals.forEach((g, idx) => {
-    const li = document.createElement('div');
-    li.className = 'goal-item' + (g.done ? ' done-row' : '');
-    li.dataset.idx = idx;
-    li.innerHTML = `
-      <span class="goal-drag" title="Arrastrar">⋮⋮</span>
-      <span class="check-box ${g.done?'checked':''}" data-idx="${idx}" data-date="${date}"></span>
-      <span class="goal-priority" style="background:${PRIORITY_COLOR[g.priority]||'#666'}"></span>
-      ${g.time ? `<span class="goal-time-badge">${fmtGoalTime(g.time)}</span>` : ''}
-      <span class="goal-text-el">${g.text}</span>
-      <button class="goal-del" data-idx="${idx}" data-date="${date}" title="Eliminar">×</button>
-    `;
-    // Checkbox click
-    li.querySelector('.check-box').addEventListener('click', () => { toggleGoal(date, idx); });
-    // Delete
-    li.querySelector('.goal-del').addEventListener('click', () => { deleteGoal(date, idx); });
-    // Inline edit (text)
-    if (!readOnly) {
-      const textEl = li.querySelector('.goal-text-el');
-      textEl.addEventListener('click', () => {
-        if (textEl.getAttribute('contenteditable') === 'true') return;
-        const orig = textEl.textContent;
-        textEl.setAttribute('contenteditable','true');
-        textEl.focus();
-        const range = document.createRange(); range.selectNodeContents(textEl); range.collapse(false);
-        window.getSelection().removeAllRanges(); window.getSelection().addRange(range);
-        const commit = () => {
-          textEl.removeAttribute('contenteditable');
-          const v = textEl.textContent.trim();
-          if (v && v !== orig) { S.goals[date][idx].text = v; saveState(); }
-          else textEl.textContent = orig;
-        };
-        textEl.addEventListener('blur', commit, { once: true });
-        textEl.addEventListener('keydown', e => { if (e.key==='Enter') { e.preventDefault(); textEl.blur(); } if (e.key==='Escape') { textEl.textContent = orig; textEl.removeEventListener('blur',commit); textEl.removeAttribute('contenteditable'); } }, { once:true });
-      });
-    }
-    list.appendChild(li);
-  });
+  // Today's list: grouped by part of day (Mañana / Tarde / Noche)
+  if (listId === 'goalList') {
+    if (!goals.length) return;
+    GOAL_PERIODS.forEach(([key, label]) => {
+      const items = goals.map((g, i) => ({ g, i })).filter(x => (x.g.period || 'manana') === key);
+      const done = items.filter(x => x.g.done).length;
+      const head = document.createElement('div');
+      head.className = 'goal-section-head';
+      head.innerHTML = `<span>${label}</span><span class="gs-count">${items.length ? `${done}/${items.length}` : ''}</span>`;
+      const sec = document.createElement('div');
+      sec.className = 'goal-section-list';
+      sec.dataset.period = key;
+      items.forEach(({ g, i }) => sec.appendChild(buildGoalItem(g, i, date, readOnly)));
+      list.appendChild(head);
+      list.appendChild(sec);
+
+      if (!readOnly && typeof Sortable !== 'undefined') {
+        Sortable.create(sec, {
+          handle: '.goal-drag', animation: 150, group: 'goalsToday',
+          onEnd: () => {
+            // Rebuild order from DOM across all sections; section determines period
+            const newArr = [];
+            list.querySelectorAll('.goal-section-list').forEach(s => {
+              s.querySelectorAll('.goal-item').forEach(li => {
+                const g = goals[+li.dataset.idx];
+                g.period = s.dataset.period;
+                newArr.push(g);
+              });
+            });
+            S.goals[date] = newArr; saveState(); renderGoals();
+          }
+        });
+      }
+    });
+    return;
+  }
+
+  goals.forEach((g, idx) => list.appendChild(buildGoalItem(g, idx, date, readOnly)));
 
   // Sortable drag — destroy previous instance before creating new one
   if (!readOnly && typeof Sortable !== 'undefined') {
@@ -5309,10 +5378,10 @@ function toggleGoal(date, idx) {
   // Sync reminders urgent block (timed goals appear there — today and tomorrow)
   if (S.goals[date][idx].time) renderReminders('vida');
   if (S.goals[date][idx].done) {
-    // Sparkle from the checkbox element
-    const boxes = document.querySelectorAll(`#goalList .check-box`);
-    if (boxes[idx]) {
-      const r = boxes[idx].getBoundingClientRect();
+    // Sparkle from the checkbox element (lookup by data attrs — grouped DOM no longer matches array order)
+    const box = document.querySelector(`.check-box[data-idx="${idx}"][data-date="${date}"]`);
+    if (box) {
+      const r = box.getBoundingClientRect();
       showSparkle(r.left + r.width/2, r.top + r.height/2);
     }
     const allDone = S.goals[date].every(g => g.done);
@@ -5331,6 +5400,14 @@ function deleteGoal(date, idx) {
   saveState(); renderGoals();
 }
 
+function openAddGoalToday() {
+  // Preselect part of day based on current time
+  const h = new Date().getHours();
+  const sel = document.getElementById('newGoalPeriod');
+  if (sel) sel.value = h < 13 ? 'manana' : h < 19 ? 'tarde' : 'noche';
+  openModal('modal-add-goal');
+}
+
 function addGoal(when) {
   const isTom = when === 'tomorrow';
   const textId = isTom ? 'newGoalTextTom' : 'newGoalText';
@@ -5341,7 +5418,9 @@ function addGoal(when) {
   if (!S.goals[date]) S.goals[date] = [];
   const timeEl = document.getElementById('newGoalTime');
   const timeVal = (!isTom && timeEl) ? (timeEl.value || null) : null;
-  S.goals[date].push({ id: uid(), text, done: false, priority: document.getElementById(prioId).value, time: timeVal });
+  const periodEl = document.getElementById('newGoalPeriod');
+  const period = (!isTom && periodEl) ? periodEl.value : 'manana';
+  S.goals[date].push({ id: uid(), text, done: false, priority: document.getElementById(prioId).value, time: timeVal, period });
   document.getElementById(textId).value = '';
   if (timeEl) timeEl.value = '';
   saveState(); renderGoals();
