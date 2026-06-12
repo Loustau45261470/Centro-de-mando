@@ -12066,10 +12066,17 @@ Instrucciones:
     rec = new SR();
     rec.lang = 'es-AR';
     rec.continuous = true;
-    rec.interimResults = false;
+    rec.interimResults = true;
     rec.onresult = e => {
       for (let i = e.resultIndex; i < e.results.length; i++) {
-        if (!e.results[i].isFinal) continue;
+        if (!e.results[i].isFinal) {
+          // Transcripción en vivo en modo comando: confirma que el micrófono está captando
+          if (mode === 'command' && typeof showToast === 'function') {
+            const interim = (e.results[i][0].transcript || '').trim();
+            if (interim) showToast('🎙️ ' + interim + '…');
+          }
+          continue;
+        }
         const text = (e.results[i][0].transcript || '').trim();
         if (!text) continue;
         if (window.JARVIS && JARVIS.isSpeaking()) continue; // no escucharse a sí mismo
@@ -12089,8 +12096,14 @@ Instrucciones:
       if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
         wakeOn = false; localStorage.setItem('jarvis_wake', '0');
         mode = 'off'; stopRec(); _ui(); _updateWakeBtn();
-        if (typeof showToast === 'function') showToast('🎙️ Sin permiso de micrófono — wake word desactivado');
+        if (typeof showToast === 'function') showToast('🎙️ Chrome bloqueó el micrófono — clic en el candado de la barra de direcciones → permitir Micrófono', 7000);
+      } else if (e.error === 'audio-capture') {
+        mode = 'off'; stopRec(); _ui();
+        if (typeof showToast === 'function') showToast('🎙️ No se detectó micrófono — revisá que esté conectado y sea el predeterminado en Windows', 7000);
+      } else if (e.error === 'network' && mode === 'command') {
+        if (typeof showToast === 'function') showToast('🎙️ Sin conexión con el servicio de voz de Google', 5000);
       }
+      // 'no-speech' y 'aborted' son normales — el reinicio automático de onend los cubre
     };
     rec.onend = () => {
       rec = null;
@@ -12109,7 +12122,18 @@ Instrucciones:
     mode = 'command'; _ui();
     clearTimeout(cmdTimer);
     cmdTimer = setTimeout(exitCommand, 9000); // si no decís nada, vuelve a reposo
+    _checkMic();
+    if (typeof showToast === 'function') showToast('🎙️ Te escucho — hablá ahora');
     startRec();
+  }
+
+  async function _checkMic() {
+    try {
+      const devs = await navigator.mediaDevices.enumerateDevices();
+      if (!devs.some(d => d.kind === 'audioinput')) {
+        if (typeof showToast === 'function') showToast('🎙️ Windows no reporta ningún micrófono conectado — revisá Configuración → Sistema → Sonido', 7000);
+      }
+    } catch(e) {}
   }
 
   function exitCommand() {
