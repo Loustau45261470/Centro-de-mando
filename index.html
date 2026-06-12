@@ -12060,7 +12060,7 @@ Instrucciones:
    por lo que no interfiere con la sincronización entre PC y celular. */
 (function () {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  const WAKE_RE = /\b(jarvis|yarvis|harvis|jarbis|garvis|charvis)\b/i;
+  const WAKE_RE = /\b(jarvis|yarvis|harvis|jarbis|garvis|charvis|jervis|yarbis|harbis|jarviz|j[aá]rbis|gervis)\b/i;
   const TABS_VOICE = { vida:'vida', finanzas:'finanzas', salud:'salud', conocimiento:'conocimiento', inteligencia:'ia', ia:'ia' };
   let wakeOn = localStorage.getItem('jarvis_wake') === '1';
   let rec = null, mode = 'off'; // off | passive (espera wake word) | command (espera orden)
