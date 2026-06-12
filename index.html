@@ -3824,7 +3824,7 @@ body.font-jakarta  { --sans: "Plus Jakarta Sans", sans-serif; --mono: "JetBrains
     </div>
     <div class="field">
       <label>Horario en el planner <span style="font-weight:400;color:var(--tt)">(opcional)</span></label>
-      <input type="time" class="inp" id="newGoalTime" style="color-scheme:dark">
+      <input type="time" class="inp" id="newGoalTime" style="color-scheme:dark" onchange="syncNewGoalPeriod(this.value)">
     </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('modal-add-goal')">Cancelar</button>
@@ -5249,6 +5249,25 @@ const GOAL_PERIODS = [
   ['noche',  '🌙 Noche']
 ];
 
+function goalPeriodFromHour(h) {
+  return h < 6 ? 'noche' : h < 13 ? 'manana' : h < 19 ? 'tarde' : 'noche';
+}
+
+// Sección efectiva de una meta: period explícito > derivado del horario > mañana.
+// Nunca devuelve un valor fuera de las 3 secciones (evita metas invisibles).
+function goalPeriodOf(g) {
+  if (g.period === 'manana' || g.period === 'tarde' || g.period === 'noche') return g.period;
+  if (g.time) return goalPeriodFromHour(parseInt(g.time.split(':')[0], 10));
+  return 'manana';
+}
+
+// Al elegir horario en el modal, sincroniza el selector de parte del día
+function syncNewGoalPeriod(t) {
+  if (!t) return;
+  const sel = document.getElementById('newGoalPeriod');
+  if (sel) sel.value = goalPeriodFromHour(parseInt(t.split(':')[0], 10));
+}
+
 function buildGoalItem(g, idx, date, readOnly) {
   const li = document.createElement('div');
   li.className = 'goal-item' + (g.done ? ' done-row' : '');
@@ -5299,7 +5318,7 @@ function renderGoalList(date, listId, emptyId, readOnly) {
   if (listId === 'goalList') {
     if (!goals.length) return;
     GOAL_PERIODS.forEach(([key, label]) => {
-      const items = goals.map((g, i) => ({ g, i })).filter(x => (x.g.period || 'manana') === key);
+      const items = goals.map((g, i) => ({ g, i })).filter(x => goalPeriodOf(x.g) === key);
       const done = items.filter(x => x.g.done).length;
       const head = document.createElement('div');
       head.className = 'goal-section-head';
@@ -5402,9 +5421,8 @@ function deleteGoal(date, idx) {
 
 function openAddGoalToday() {
   // Preselect part of day based on current time
-  const h = new Date().getHours();
   const sel = document.getElementById('newGoalPeriod');
-  if (sel) sel.value = h < 13 ? 'manana' : h < 19 ? 'tarde' : 'noche';
+  if (sel) sel.value = goalPeriodFromHour(new Date().getHours());
   openModal('modal-add-goal');
 }
 
