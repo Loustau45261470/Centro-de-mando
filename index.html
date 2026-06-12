@@ -11893,18 +11893,29 @@ Instrucciones:
       ? ["Good morning, sir. All systems are online.",
          "Good morning, sir. Ready when you are.",
          "Good morning, sir. Your agenda is clear.",
-         "Rise and shine, sir. What are we building today?"]
+         "Rise and shine, sir. What are we building today?",
+         "Good morning, sir. The world awaits your instructions.",
+         "Morning, sir. I trust you slept adequately.",
+         "Good morning, sir. Shall we make today count?"]
       : h >= 12 && h < 19
       ? ["Good afternoon, sir. Welcome back.",
          "Good afternoon, sir. Shall we get to work?",
-         "Good afternoon, sir. The command center is yours."]
+         "Good afternoon, sir. The command center is yours.",
+         "Good afternoon, sir. Everything is running smoothly.",
+         "Good afternoon, sir. I've kept everything in order.",
+         "Welcome back, sir. Right where we left off."]
       : h >= 19 && h < 23
       ? ["Good evening, sir. What shall we accomplish tonight?",
          "Good evening, sir. Shall we review today's progress?",
-         "Good evening, sir. The command center is yours."]
+         "Good evening, sir. The command center is yours.",
+         "Good evening, sir. All systems standing by.",
+         "Evening, sir. Let's finish strong.",
+         "Good evening, sir. I took the liberty of keeping everything tidy."]
       : ["Working late again, sir. I'll keep the lights on.",
          "Good evening, sir. Still at it, I see.",
-         "Late night again, sir. Coffee's metaphorically ready."];
+         "Late night again, sir. Coffee's metaphorically ready.",
+         "Burning the midnight oil, sir. Admirable, if slightly concerning.",
+         "Sir, even genius requires sleep. Eventually."];
     speak(lines[Math.floor(Math.random() * lines.length)]);
   }
 
@@ -11915,6 +11926,10 @@ Instrucciones:
     "Understood. Mission parameters set, sir.",
     "Another target acquired, sir. Let's get to work.",
     "Logged. I'll make sure nothing falls through the cracks, sir.",
+    "Consider it tracked, sir.",
+    "A new venture. I do enjoy ambition, sir.",
+    "Filed and flagged, sir. We'll see it through.",
+    "Excellent choice, sir. Adding it to the board.",
   ];
   let _pi = 0;
   function onNewProject() { speak(PROJ_LINES[_pi++ % PROJ_LINES.length]); }
@@ -11924,6 +11939,10 @@ Instrucciones:
     "Mission accomplished. Moving on, sir.",
     "Objective cleared. What's next, sir?",
     "Marked complete. You're making progress, sir.",
+    "Another one down, sir. Most efficient.",
+    "Done and dusted, sir.",
+    "Splendid work, sir. The list grows shorter.",
+    "Task neutralized, sir. On to the next.",
   ];
   let _di = 0;
   function onTaskDone() { speak(DONE_LINES[_di++ % DONE_LINES.length]); }
@@ -11931,6 +11950,9 @@ Instrucciones:
   const P1_LINES = [
     "High priority flagged, sir. I'll keep a close eye on that one.",
     "Understood. This one goes to the top of the list.",
+    "Top priority confirmed, sir. Consider it under surveillance.",
+    "Marked urgent, sir. I shall be persistent about it.",
+    "Priority one, sir. Nothing slips past me.",
   ];
   let _p1i = 0;
   function onPrioritySet() { speak(P1_LINES[_p1i++ % P1_LINES.length]); }
@@ -11938,6 +11960,8 @@ Instrucciones:
   const DEL_LINES = [
     "Project removed, sir. Clean slate.",
     "Understood. It's gone.",
+    "Erased from the record, sir.",
+    "Off the books, sir. As if it never existed.",
   ];
   let _deli = 0;
   function onDeleteProject() { speak(DEL_LINES[_deli++ % DEL_LINES.length]); }
@@ -11945,6 +11969,8 @@ Instrucciones:
   const THEME_LINES = [
     "Display preferences updated, sir.",
     "Switching visual mode, sir.",
+    "A fresh coat of paint, sir. Very tasteful.",
+    "Interface reconfigured, sir.",
   ];
   let _ti = 0;
   function onThemeChange() { speak(THEME_LINES[_ti++ % THEME_LINES.length]); }
@@ -12188,11 +12214,16 @@ Instrucciones:
       const s = PROY_VOICE.stats();
       ctx = ` The user currently has ${s.pending} pending tasks (${s.overdue} overdue) in his command center.`;
     } catch(e) {}
-    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + encodeURIComponent(key), {
+    // Dos formatos de key: "AQ...." (Vertex AI express mode) usa el endpoint de aiplatform;
+    // "AIza..." (AI Studio clásica) usa generativelanguage. La key va en header, no en la URL.
+    const url = key.startsWith('AQ.')
+      ? 'https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-2.5-flash:generateContent'
+      : 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+    const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
       body: JSON.stringify({
-        system_instruction: { parts: [{ text: 'You are JARVIS, the AI butler of this personal command center. Reply in English, two short sentences maximum, address the user as "sir", be precise with a touch of dry wit. The user speaks Spanish; understand questions in Spanish but always answer in English. Today is ' + new Date().toDateString() + '.' + ctx }] },
+        systemInstruction: { parts: [{ text: 'You are JARVIS, the AI butler of this personal command center. Reply in English, two short sentences maximum, address the user as "sir", be precise with a touch of dry wit. The user speaks Spanish; understand questions in Spanish but always answer in English. Today is ' + new Date().toDateString() + '.' + ctx }] },
         contents: [{ role: 'user', parts: [{ text: question }] }],
         generationConfig: { maxOutputTokens: 150, temperature: 0.7, thinkingConfig: { thinkingBudget: 0 } }
       })
