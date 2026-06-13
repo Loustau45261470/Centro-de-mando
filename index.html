@@ -12213,7 +12213,7 @@ Instrucciones:
     }
   }
   function spawnPulse() {
-    if (!edges.length || pulses.length > 140) return;
+    if (!edges.length || pulses.length > 90) return;
     const e = edges[(Math.random() * edges.length) | 0];
     pulses.push({ a: e[0], b: e[1], t: 0, sp: 0.5 + Math.random() * 0.8 + energy * 0.9 });
   }
@@ -12279,10 +12279,12 @@ Instrucciones:
       const x = (R.x + a.ux * R.w) + ((R.x + b.ux * R.w) - (R.x + a.ux * R.w)) * pl.t;
       const y = (R.y + a.uy * R.h) + ((R.y + b.uy * R.h) - (R.y + a.uy * R.h)) * pl.t;
       const a2 = (1 - Math.abs(pl.t - 0.5) * 2) * opacity;
-      ctx.fillStyle = rgba(C2, a2 * 0.9); ctx.shadowColor = rgba(C2, 0.9); ctx.shadowBlur = 8;
-      ctx.beginPath(); ctx.arc(x, y, 1.8, 0, 6.2832); ctx.fill();
+      // glow de dos capas con composición 'lighter' (más barato que shadowBlur por pulso)
+      ctx.fillStyle = rgba(C, a2 * 0.30);
+      ctx.beginPath(); ctx.arc(x, y, 4.5, 0, 6.2832); ctx.fill();
+      ctx.fillStyle = rgba(C2, a2 * 0.95);
+      ctx.beginPath(); ctx.arc(x, y, 1.6, 0, 6.2832); ctx.fill();
     }
-    ctx.shadowBlur = 0;
 
     // neuronas
     for (let i = 0; i < N; i++) {
