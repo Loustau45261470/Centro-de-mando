@@ -13688,29 +13688,19 @@ Instrucciones:
     .tk-dot{width:6px;height:6px;border-radius:50%;background:var(--hud);box-shadow:0 0 8px var(--hud);animation:tkpulse 2s ease-in-out infinite;flex-shrink:0}
     @keyframes tkpulse{0%,100%{opacity:1}50%{opacity:.35}}
     #tk-time{color:var(--hud-bright);text-shadow:0 0 8px var(--hud-dim)}
-    .tk-ok{color:var(--hud)} .tk-save{color:var(--warn)} .tk-off{color:var(--danger)}
-    @media (max-width:560px){ #tk-date{display:none} }`;
+    .tk-ok{color:var(--hud)} .tk-save{color:var(--warn)} .tk-off{color:var(--danger)}`;
   document.head.appendChild(style);
 
   const left = document.createElement('div'); left.id = 'ticker-left';
-  left.innerHTML = '<span class="tk-dot"></span><span id="tk-time">--:--:--</span><span id="tk-date" class="tk-dim"></span>';
+  left.innerHTML = '<span class="tk-dot"></span><span id="tk-time">--:--:--</span>';
   const right = document.createElement('div'); right.id = 'ticker-right';
-  right.innerHTML = '<span id="tk-sync" class="tk-ok">● SYNC</span><span id="tk-load" class="tk-dim">LOAD --</span>';
+  right.innerHTML = '<span id="tk-sync" class="tk-ok">● SYNC</span>';
   ticker.appendChild(left); ticker.appendChild(right);
 
-  const MES = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
   const p2 = n => String(n).padStart(2, '0');
-  const elTime = left.querySelector('#tk-time'), elDate = left.querySelector('#tk-date');
-  const elSync = right.querySelector('#tk-sync'), elLoad = right.querySelector('#tk-load');
+  const elTime = left.querySelector('#tk-time');
+  const elSync = right.querySelector('#tk-sync');
 
-  function dayLoad() {
-    try {
-      const today = (typeof getActiveDate === 'function') ? getActiveDate() : new Date().toISOString().slice(0,10);
-      const g = (typeof S !== 'undefined' && S.goals && S.goals[today]) || [];
-      if (g.length) return Math.round(g.filter(x => x.done).length / g.length * 100);
-    } catch (e) {}
-    return null;
-  }
   function syncInfo() {
     if (!navigator.onLine) return { t: '⚠ OFFLINE', c: 'tk-off' };
     let pending = false; try { pending = !!_fbSaveTid; } catch (e) {}
@@ -13719,11 +13709,8 @@ Instrucciones:
   function tick() {
     const d = new Date();
     elTime.textContent = p2(d.getHours()) + ':' + p2(d.getMinutes()) + ':' + p2(d.getSeconds());
-    elDate.textContent = d.getDate() + ' ' + MES[d.getMonth()];
     const s = syncInfo();
     elSync.textContent = s.t; elSync.className = s.c;
-    const l = dayLoad();
-    elLoad.textContent = 'LOAD ' + (l == null ? '--' : l + '%');
   }
   tick();
   setInterval(tick, 1000);
