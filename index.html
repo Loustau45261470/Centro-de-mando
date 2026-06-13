@@ -220,6 +220,21 @@ body::before {
 .kpi-tile .k-bar { height: 3px; background: rgba(120,180,230,.12); border-radius: 2px; margin-top: 7px; overflow: hidden; }
 .kpi-tile .k-bar i { display: block; height: 100%; background: var(--c-vida); box-shadow: 0 0 6px var(--c-vida); border-radius: 2px; }
 @media (max-width: 430px) { .kpi-strip { grid-template-columns: repeat(2, 1fr); } }
+/* ── KPI strip compacto (por sección) ── */
+.kpi-strip.kpi-sm { gap: 7px; margin-bottom: 10px; }
+.kpi-sm .kpi-tile { padding: 8px 6px 7px; border-radius: 9px; }
+.kpi-sm .kpi-tile .k-val { font-size: 17px; }
+.kpi-sm .kpi-tile .k-lbl { font-size: 7.5px; margin-top: 4px; }
+.kpi-sm .kpi-tile .k-bar { height: 2.5px; margin-top: 5px; }
+/* Acento del KPI por sección */
+#tab-finanzas     .kpi-tile::after { background: linear-gradient(90deg, transparent, var(--c-finanzas), transparent); }
+#tab-finanzas     .kpi-tile .k-bar i { background: var(--c-finanzas); box-shadow: 0 0 6px var(--c-finanzas); }
+#tab-salud        .kpi-tile::after { background: linear-gradient(90deg, transparent, var(--c-salud), transparent); }
+#tab-salud        .kpi-tile .k-bar i { background: var(--c-salud); box-shadow: 0 0 6px var(--c-salud); }
+#tab-conocimiento .kpi-tile::after { background: linear-gradient(90deg, transparent, var(--c-conocimiento), transparent); }
+#tab-conocimiento .kpi-tile .k-bar i { background: var(--c-conocimiento); box-shadow: 0 0 6px var(--c-conocimiento); }
+#tab-ia           .kpi-tile::after { background: linear-gradient(90deg, transparent, var(--c-ia), transparent); }
+#tab-ia           .kpi-tile .k-bar i { background: var(--c-ia); box-shadow: 0 0 6px var(--c-ia); }
 .card-title {
   font-size: 14px; font-weight: 700;
   letter-spacing: .14em; text-transform: uppercase;
@@ -3561,11 +3576,11 @@ body.font-jakarta  { --sans: "Plus Jakarta Sans", sans-serif; --mono: "JetBrains
     </div>
     <div class="affirmation-strip aff-featured"><span id="affirmation-vida"></span></div>
     <!-- Tira de KPIs (cabina) -->
-    <div id="vida-kpi" class="kpi-strip"></div>
-    <!-- ⚡ INTEL — motor de inteligencia + heatmap de actividad -->
+    <div id="kpi-vida" class="kpi-strip kpi-sm"></div>
+    <!-- ⚡ INTEL — análisis de la sección -->
     <div class="card intel-card">
-      <div class="card-title">⚡ INTEL <span id="intel-sub">análisis del sistema</span></div>
-      <div id="intel-card-body"></div>
+      <div class="card-title">⚡ INTEL <span id="intel-sub-vida">análisis de Vida</span></div>
+      <div id="intel-body-vida" class="intel-body"></div>
     </div>
     <!-- Day progress -->
     <div class="card day-progress-wrap">
@@ -3701,6 +3716,12 @@ body.font-jakarta  { --sans: "Plus Jakarta Sans", sans-serif; --mono: "JetBrains
     </div>
     <div class="affirmation-strip"><span id="affirmation-salud"></span></div>
 
+    <div id="kpi-salud" class="kpi-strip kpi-sm"></div>
+    <div class="card intel-card">
+      <div class="card-title">⚡ INTEL <span id="intel-sub-salud">análisis de Salud</span></div>
+      <div id="intel-body-salud" class="intel-body"></div>
+    </div>
+
     <div id="qobj-wrap-salud"></div>
     <div id="proyectos-wrap-salud"></div>
     <div id="salud-habits-wrap"></div>
@@ -3722,6 +3743,12 @@ body.font-jakarta  { --sans: "Plus Jakarta Sans", sans-serif; --mono: "JetBrains
       <div class="tab-header-meta" id="conocimientoHeaderMeta"></div>
     </div>
     <div class="affirmation-strip"><span id="affirmation-conocimiento"></span></div>
+
+    <div id="kpi-conocimiento" class="kpi-strip kpi-sm"></div>
+    <div class="card intel-card">
+      <div class="card-title">⚡ INTEL <span id="intel-sub-conocimiento">análisis de Conocimiento</span></div>
+      <div id="intel-body-conocimiento" class="intel-body"></div>
+    </div>
     <!-- Quarterly Objectives: Facultad & Conocimiento -->
     <div id="qobj-wrap-conocimiento"></div>
     <div id="proyectos-wrap-conocimiento"></div>
@@ -3744,6 +3771,12 @@ body.font-jakarta  { --sans: "Plus Jakarta Sans", sans-serif; --mono: "JetBrains
       <div class="tab-header-meta" id="iaHeaderMeta"></div>
     </div>
     <div class="affirmation-strip aff-featured"><span id="affirmation-ia"></span></div>
+
+    <div id="kpi-ia" class="kpi-strip kpi-sm"></div>
+    <div class="card intel-card">
+      <div class="card-title">⚡ INTEL <span id="intel-sub-ia">análisis de IA</span></div>
+      <div id="intel-body-ia" class="intel-body"></div>
+    </div>
     <!-- Quarterly Objectives: IA -->
     <div id="qobj-wrap-ia"></div>
     <div id="proyectos-wrap-ia"></div>
@@ -3763,6 +3796,12 @@ body.font-jakarta  { --sans: "Plus Jakarta Sans", sans-serif; --mono: "JetBrains
       <div class="fin-header-meta" id="finHeaderMeta"></div>
     </div>
     <div class="affirmation-strip"><span id="affirmation-finanzas"></span></div>
+
+    <div id="kpi-finanzas" class="kpi-strip kpi-sm"></div>
+    <div class="card intel-card">
+      <div class="card-title">⚡ INTEL <span id="intel-sub-finanzas">análisis de Finanzas</span></div>
+      <div id="intel-body-finanzas" class="intel-body"></div>
+    </div>
 
     <!-- Quarterly Objectives: Economía -->
     <div id="qobj-wrap-finanzas"></div>
@@ -4919,10 +4958,11 @@ function _reRenderAll() {
   ['vida','finanzas','salud','conocimiento','ia'].forEach(renderHabitsCard);
   renderFinObjectives();
   const tab = currentTab || 'vida';
-  if (tab === 'vida')         { renderSleepTracker(); renderTabHeader('vidaHeaderMeta'); if (window.JARVIS_INTEL) JARVIS_INTEL.renderCard(); }
+  if (tab === 'vida')         { renderSleepTracker(); renderTabHeader('vidaHeaderMeta'); }
   if (tab === 'salud')        { renderSaludTab(); renderTabHeader('saludHeaderMeta'); }
   if (tab === 'finanzas')     { renderFinanzasTab(); }
   if (tab === 'conocimiento') { renderLawProgress(); renderLawMilestones(); renderLawPlan(); renderTabHeader('conocimientoHeaderMeta'); }
+  if (window.JARVIS_INTEL) JARVIS_INTEL.renderCard(tab);
   if (typeof renderProyectos === 'function') renderProyectos(tab);
 }
 
@@ -5168,11 +5208,12 @@ function switchTab(tab, btn) {
   currentTab = tab;
   if (!chartsInited[tab]) { initChartsForTab(tab); chartsInited[tab] = true; }
   renderQObjForTab(tab);
-  if (tab === 'vida')         { renderSleepTracker(); renderTabHeader('vidaHeaderMeta'); if (window.JARVIS_INTEL) JARVIS_INTEL.renderCard(); }
+  if (tab === 'vida')         { renderSleepTracker(); renderTabHeader('vidaHeaderMeta'); }
   if (tab === 'salud')        { renderSaludTab(); renderTabHeader('saludHeaderMeta'); }
   if (tab === 'finanzas')     { renderFinanzasTab(); }
   if (tab === 'conocimiento') { renderLawProgress(); renderLawMilestones(); renderLawPlan(); renderTabHeader('conocimientoHeaderMeta'); }
   if (tab === 'ia')           { renderTabHeader('iaHeaderMeta'); }
+  if (window.JARVIS_INTEL) JARVIS_INTEL.renderCard(tab);
   renderHabitsCard(tab);
   checkAchievements();
   if (typeof renderProyectos === 'function') renderProyectos(tab);
@@ -11155,6 +11196,20 @@ setTimeout(() => _msHub.showReminders(), 500);
         })(trees[tab]);
       });
       return { pending, overdue };
+    },
+    // Igual que stats() pero acotado a una sola sección
+    statsFor(tab) {
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      if (!trees[tab]) trees[tab] = loadTree(tab);
+      let pending = 0, overdue = 0;
+      (function walk(nodes) {
+        (nodes || []).forEach(n => {
+          if (!n.done && (!n.children || !n.children.length)) pending++;
+          if (n.dueDate && !n.done && new Date(n.dueDate + 'T00:00:00') < today) overdue++;
+          walk(n.children);
+        });
+      })(trees[tab]);
+      return { pending, overdue };
     }
   };
 
@@ -13637,14 +13692,16 @@ Instrucciones:
 
 <script>
 /* ══════════════════════════════════════════════════════
-   JARVIS INTEL — motor de inteligencia: insights con proyecciones,
-   heatmap de actividad (16 semanas) y momentum (14 días). Llena la
-   tarjeta ⚡ INTEL de Vida y alimenta el briefing por voz / Ctrl+K.
+   JARVIS INTEL — motor de inteligencia POR SECCIÓN: cada tab
+   (vida, finanzas, salud, conocimiento, ia) tiene su propia tarjeta
+   ⚡ INTEL con KPIs y análisis usando únicamente los datos de esa
+   sección. El seguimiento de objetivos usa las metas MENSUALES.
+   Momentum 14 días por sección. Alimenta briefing por voz / Ctrl+K.
    ══════════════════════════════════════════════════════ */
 (function () {
   const style = document.createElement('style');
   style.textContent = `
-    #intel-card-body{display:flex;flex-direction:column;gap:12px}
+    .intel-body{display:flex;flex-direction:column;gap:12px}
     .intel-insights{display:flex;flex-direction:column;gap:7px}
     .intel-row{display:flex;align-items:flex-start;gap:9px;font-size:12.5px;line-height:1.42;color:var(--ts)}
     .intel-row .ii-ic{flex-shrink:0;font-size:13px;width:16px;text-align:center;line-height:1.4}
@@ -13655,53 +13712,77 @@ Instrucciones:
     .intel-mom{display:flex;align-items:center;gap:14px}
     .intel-mom svg{flex:1;height:34px;overflow:visible}
     .intel-mom .mom-val{font-family:var(--mono);font-size:20px;font-weight:800;letter-spacing:-.02em;text-shadow:0 0 12px currentColor}
-    .intel-mom .mom-lbl{font-family:var(--mono);font-size:9px;color:var(--tt);letter-spacing:.06em;text-transform:uppercase}
-    .intel-hm-wrap{overflow-x:auto;padding-bottom:2px}
-    .intel-hm{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,1fr);gap:3px;justify-content:start;width:max-content}
-    .intel-hm i{width:10px;height:10px;border-radius:2px;background:rgba(120,180,230,0.06)}
-    .intel-hm i.l1{background:rgba(56,189,248,0.30)} .intel-hm i.l2{background:rgba(56,189,248,0.52)}
-    .intel-hm i.l3{background:rgba(56,189,248,0.74);box-shadow:0 0 5px rgba(56,189,248,0.5)}
-    .intel-hm i.l4{background:rgba(125,211,252,0.96);box-shadow:0 0 7px rgba(56,189,248,0.7)}`;
+    .intel-mom .mom-lbl{font-family:var(--mono);font-size:9px;color:var(--tt);letter-spacing:.06em;text-transform:uppercase}`;
   document.head.appendChild(style);
 
-  const TABS = ['vida','finanzas','salud','conocimiento','ia'];
+  const SECTIONS = ['vida','finanzas','salud','conocimiento','ia'];
+  const SEC_LABEL = { vida:'Vida', finanzas:'Finanzas', salud:'Salud', conocimiento:'Conocimiento', ia:'IA' };
   const _today = () => (typeof getActiveDate === 'function') ? getActiveDate() : new Date().toISOString().slice(0,10);
   const _ls = d => (typeof localStr === 'function') ? localStr(d) : d.toISOString().slice(0,10);
+  const _money = () => (typeof fmtMoney === 'function');
+  function _compact(n){
+    const a = Math.abs(n), s = n < 0 ? '-' : '+';
+    if (a >= 1e6) return s + (a/1e6).toFixed(a >= 1e7 ? 0 : 1) + 'M';
+    if (a >= 1e3) return s + Math.round(a/1e3) + 'k';
+    return s + Math.round(a);
+  }
 
-  function activity(ds){
+  // ── Actividad de una sección (hábitos; vida suma metas del día) ──
+  function secActivity(sec, ds){
     let a = 0;
-    try {
-      TABS.forEach(sec => { const hs = (S.habitTrackers && S.habitTrackers[sec]) || []; hs.forEach(h => { const v = (h.days||{})[ds]; if (v==='done') a+=1; else if (v==='partial') a+=0.5; }); });
-      a += ((S.goals && S.goals[ds]) || []).filter(x => x.done).length;
-    } catch(e) {}
+    const hs = (S.habitTrackers && S.habitTrackers[sec]) || [];
+    hs.forEach(h => { const v = (h.days||{})[ds]; if (v==='done') a+=1; else if (v==='partial') a+=0.5; });
+    if (sec === 'vida') a += ((S.goals && S.goals[ds]) || []).filter(x => x.done).length;
     return a;
   }
-  const level = a => a<=0 ? 0 : a<2 ? 1 : a<3.5 ? 2 : a<5 ? 3 : 4;
+  function habCount(sec, ds){
+    const hs = (S.habitTrackers && S.habitTrackers[sec]) || []; let done = 0, tot = 0;
+    hs.forEach(h => { tot++; const v = (h.days||{})[ds]; if (v==='done' || v==='partial') done++; });
+    return { done, tot };
+  }
+  function taskStats(sec){
+    try { if (window.PROY_VOICE && PROY_VOICE.statsFor) return PROY_VOICE.statsFor(sec); } catch(e) {}
+    return { pending:0, overdue:0 };
+  }
 
-  function _quarterPace(){
+  // ── Objetivos MENSUALES (globales, compartidos por todas las secciones) ──
+  function _monthPace(){
     try {
-      const qo = S.quarterlyObjectives; if (!qo || !qo.periods) return null;
-      const p = qo.periods.find(x => x.id === qo.activePeriod); if (!p) return null;
-      const objs = p.objectives || []; if (!objs.length) return null;
-      const done = objs.filter(o => o.done).length, pct = done/objs.length*100;
-      let elapsed = null;
-      if (typeof _periodMonths === 'function') {
-        const ms = _periodMonths(p.id);
-        if (ms.length === 3) {
-          const start = new Date(ms[0]+'-01T00:00:00');
-          const ep = ms[2].split('-'); const end = new Date(+ep[0], +ep[1], 0, 23,59,59);
-          elapsed = Math.max(0, Math.min(1, (Date.now()-start)/(end-start))) * 100;
-        }
-      }
-      return { done, total: objs.length, pct, elapsed };
+      const mk = _today().slice(0,7);
+      const goals = (S.monthlyGoals || {})[mk] || []; if (!goals.length) return null;
+      const done = goals.filter(g => g.done).length, pct = done/goals.length*100;
+      const now = new Date(_today()+'T00:00:00');
+      const dim = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+      const elapsed = Math.min(100, now.getDate()/dim*100);
+      return { done, total: goals.length, pct, elapsed };
     } catch(e) { return null; }
   }
+  function _monthObjInsight(out){
+    const mp = _monthPace(); if (!mp) return;
+    const gap = mp.pct - mp.elapsed;
+    const lvl = gap>=5 ? 'ok' : gap<=-12 ? 'bad' : gap<=-5 ? 'warn' : 'info';
+    const word = gap>=5 ? 'adelantado' : gap<=-5 ? 'atrasado' : 'en ritmo';
+    out.push({lvl, ic:'◎', html:`Objetivos del mes: <b>${mp.done}/${mp.total}</b> (${Math.round(mp.pct)}%) con ${Math.round(mp.elapsed)}% del mes transcurrido — <b>${word}</b>.`});
+  }
+  function _habitInsight(sec, out){
+    const today = _today(), { done, tot } = habCount(sec, today); if (!tot) return;
+    const pend = tot - done;
+    if (pend === 0) out.push({lvl:'ok', ic:'✓', html:`Todos los hábitos de ${SEC_LABEL[sec]} de hoy registrados.`});
+    else out.push({lvl: pend>tot/2 ? 'warn':'info', ic:'◷', html:`Te faltan <b>${pend}</b> de ${tot} hábitos de ${SEC_LABEL[sec]} hoy.`});
+  }
+  function _taskInsight(sec, out){
+    const s = taskStats(sec);
+    if (s.overdue > 0) out.push({lvl:'bad', ic:'!', html:`<b>${s.overdue}</b> tareas vencidas · ${s.pending} pendientes en ${SEC_LABEL[sec]}.`});
+    else if (s.pending > 0) out.push({lvl:'info', ic:'▤', html:`<b>${s.pending}</b> tareas pendientes en ${SEC_LABEL[sec]}.`});
+  }
+
+  // ── Finanzas ──
   function _nwProjection(){
     try {
       const nw = (S.nwHistory||[]).filter(x => x && x.date && typeof x.value === 'number').slice().sort((a,b)=>a.date.localeCompare(b.date));
       if (nw.length < 2) return null;
       const r = nw.slice(-6), t0 = new Date(r[0].date).getTime();
-      const pts = r.map(p => ({ x: (new Date(p.date).getTime()-t0)/(2.628e9), y: p.value })); // x en meses
+      const pts = r.map(p => ({ x: (new Date(p.date).getTime()-t0)/(2.628e9), y: p.value }));
       const n = pts.length, sx = pts.reduce((s,p)=>s+p.x,0), sy = pts.reduce((s,p)=>s+p.y,0);
       const sxx = pts.reduce((s,p)=>s+p.x*p.x,0), sxy = pts.reduce((s,p)=>s+p.x*p.y,0);
       const den = n*sxx - sx*sx; if (!den) return null;
@@ -13718,53 +13799,72 @@ Instrucciones:
       return { cur, avg, diff: (cur-avg)/avg*100 };
     } catch(e) { return null; }
   }
-
-  function insights(){
-    const out = [], today = _today(), money = (typeof fmtMoney === 'function');
-    const qp = _quarterPace();
-    if (qp) {
-      if (qp.elapsed != null) {
-        const gap = qp.pct - qp.elapsed;
-        const lvl = gap>=5 ? 'ok' : gap<=-12 ? 'bad' : gap<=-5 ? 'warn' : 'info';
-        const word = gap>=5 ? 'adelantado' : gap<=-5 ? 'atrasado' : 'en ritmo';
-        out.push({lvl, ic:'◎', html:`Objetivos del trimestre: <b>${qp.done}/${qp.total}</b> (${Math.round(qp.pct)}%) con ${Math.round(qp.elapsed)}% del período transcurrido — <b>${word}</b>.`});
-      } else out.push({lvl:'info', ic:'◎', html:`Objetivos del trimestre: <b>${qp.done}/${qp.total}</b> (${Math.round(qp.pct)}%).`});
-    }
-    const np = _nwProjection();
-    if (np && money) {
-      if (np.slope > 0) out.push({lvl:'ok', ic:'▲', html:`Patrimonio creciendo ~<b>${fmtMoney(Math.round(np.slope),'ARS')}</b>/mes — proyección a 6 meses: <b>${fmtMoney(Math.round(np.current+np.slope*6),'ARS')}</b>.`});
-      else if (np.slope < 0) out.push({lvl:'warn', ic:'▼', html:`Patrimonio cayendo ~<b>${fmtMoney(Math.round(-np.slope),'ARS')}</b>/mes. Conviene ajustar gastos.`});
-    }
-    const sa = _spendAnomaly();
-    if (sa && money) {
-      if (sa.diff >= 20) out.push({lvl:'warn', ic:'⚠', html:`Gasto del mes <b>${Math.round(sa.diff)}% sobre</b> tu promedio (${fmtMoney(Math.round(sa.cur),'ARS')} vs ${fmtMoney(Math.round(sa.avg),'ARS')}).`});
-      else if (sa.diff <= -15) out.push({lvl:'ok', ic:'✓', html:`Gasto del mes <b>${Math.round(-sa.diff)}% bajo</b> tu promedio. Bien controlado.`});
-    }
+  function _monthBalance(){
     try {
-      let pend=0, tot=0;
-      TABS.forEach(sec => { const hs=(S.habitTrackers&&S.habitTrackers[sec])||[]; hs.forEach(h => { tot++; if (!((h.days||{})[today])) pend++; }); });
-      if (tot) {
-        if (pend===0) out.push({lvl:'ok', ic:'✓', html:`Todos los hábitos de hoy registrados. Racha intacta.`});
-        else out.push({lvl: pend>tot/2 ? 'warn':'info', ic:'◷', html:`Te faltan <b>${pend}</b> de ${tot} hábitos por marcar hoy.`});
-      }
+      const mk = _today().slice(0,7); let inc = 0, exp = 0;
+      (S.transactions||[]).forEach(t => { if ((t.date||'').slice(0,7) !== mk) return; const a = +t.amount||0; if (t.type==='expense') exp+=a; else if (t.type==='income') inc+=a; });
+      return { inc, exp, bal: inc-exp };
+    } catch(e) { return null; }
+  }
+
+  // ── Salud (bienestar / sueño) ──
+  function _avgEnergy(){
+    try {
+      const today = new Date(_today()+'T00:00:00'); let sum = 0, n = 0;
+      for (let i=0;i<7;i++){ const d=new Date(today); d.setDate(d.getDate()-i); const w=S.sleepLog && S.sleepLog[_ls(d)] && S.sleepLog[_ls(d)].wellness; if (w && w.energy){ sum+=w.energy; n++; } }
+      return n ? { avg: sum/n, n } : null;
+    } catch(e) { return null; }
+  }
+  function _lastSleep(){
+    try {
+      const today = new Date(_today()+'T00:00:00');
+      for (let i=0;i<3;i++){ const d=new Date(today); d.setDate(d.getDate()-i); const e=S.sleepLog && S.sleepLog[_ls(d)]; if (e && e.hours) return { h: e.hours, ago: i }; }
     } catch(e) {}
-    try { if (window.PROY_VOICE) { const s=PROY_VOICE.stats(); if (s.overdue>0) out.push({lvl:'bad', ic:'!', html:`<b>${s.overdue}</b> tareas vencidas · ${s.pending} pendientes en total.`}); } } catch(e) {}
-    try { const g=(S.goals&&S.goals[today])||[]; if (g.length){ const d=g.filter(x=>x.done).length; out.push({lvl:d===g.length?'ok':'info', ic:'▮', html:`Metas de hoy: <b>${d}/${g.length}</b> completadas.`}); } } catch(e) {}
-    if (!out.length) out.push({lvl:'info', ic:'◇', html:'Cargá metas, hábitos y finanzas para empezar a recibir análisis.'});
+    return null;
+  }
+
+  function insights(sec){
+    const out = [], today = _today();
+    _monthObjInsight(out);
+    if (sec === 'vida') {
+      try { const g=(S.goals&&S.goals[today])||[]; if (g.length){ const d=g.filter(x=>x.done).length; out.push({lvl:d===g.length?'ok':'info', ic:'▮', html:`Metas de hoy: <b>${d}/${g.length}</b> completadas.`}); } } catch(e) {}
+      const st = (S.streak && S.streak.count) || 0;
+      if (st > 0) out.push({lvl: st>=7?'ok':'info', ic:'🔥', html:`Racha de <b>${st}</b> día${st!==1?'s':''} cumpliendo metas.`});
+    } else if (sec === 'finanzas') {
+      const np = _nwProjection();
+      if (np && _money()) {
+        if (np.slope > 0) out.push({lvl:'ok', ic:'▲', html:`Patrimonio creciendo ~<b>${fmtMoney(Math.round(np.slope),'ARS')}</b>/mes — proyección a 6 meses: <b>${fmtMoney(Math.round(np.current+np.slope*6),'ARS')}</b>.`});
+        else if (np.slope < 0) out.push({lvl:'warn', ic:'▼', html:`Patrimonio cayendo ~<b>${fmtMoney(Math.round(-np.slope),'ARS')}</b>/mes. Conviene ajustar gastos.`});
+      }
+      const sa = _spendAnomaly();
+      if (sa && _money()) {
+        if (sa.diff >= 20) out.push({lvl:'warn', ic:'⚠', html:`Gasto del mes <b>${Math.round(sa.diff)}% sobre</b> tu promedio (${fmtMoney(Math.round(sa.cur),'ARS')} vs ${fmtMoney(Math.round(sa.avg),'ARS')}).`});
+        else if (sa.diff <= -15) out.push({lvl:'ok', ic:'✓', html:`Gasto del mes <b>${Math.round(-sa.diff)}% bajo</b> tu promedio. Bien controlado.`});
+      }
+    } else if (sec === 'salud') {
+      const ae = _avgEnergy();
+      if (ae) out.push({lvl: ae.avg>=3.5?'ok':ae.avg<=2?'warn':'info', ic:'⚡', html:`Energía promedio <b>${ae.avg.toFixed(1)}/5</b> (últimos ${ae.n}d).`});
+      const sl = _lastSleep();
+      if (sl) out.push({lvl: sl.h>=7?'ok':sl.h<6?'warn':'info', ic:'☾', html:`${sl.ago===0?'Anoche':'Última noche'} dormiste <b>${sl.h}h</b>.`});
+    }
+    _habitInsight(sec, out);
+    _taskInsight(sec, out);
+    if (!out.length) out.push({lvl:'info', ic:'◇', html:`Cargá datos de ${SEC_LABEL[sec]} para empezar a recibir análisis.`});
     return out;
   }
-  function briefing(){ return insights().slice(0,3).map(i => i.html.replace(/<[^>]+>/g,'')).join(' '); }
 
-  function _heatmap(){
-    const today = new Date(_today()+'T00:00:00');
-    let start = new Date(today); start.setDate(start.getDate()-(16*7-1)); start.setDate(start.getDate()-start.getDay());
-    const cells = []; const cur = new Date(start);
-    while (cur <= today) { const ds=_ls(cur); cells.push('<i class="l'+level(activity(ds))+'" title="'+ds+'"></i>'); cur.setDate(cur.getDate()+1); }
-    return cells.join('');
+  function briefing(){
+    const seen = new Set(), lines = [];
+    ['vida','finanzas','salud'].forEach(sec => {
+      const i = insights(sec)[0];
+      if (i){ const t = i.html.replace(/<[^>]+>/g,''); if (!seen.has(t)){ seen.add(t); lines.push(t); } }
+    });
+    return lines.slice(0,3).join(' ');
   }
-  function _momentum(){
+
+  function momentum(sec){
     const today = new Date(_today()+'T00:00:00'), vals = [];
-    for (let i=13;i>=0;i--){ const d=new Date(today); d.setDate(d.getDate()-i); vals.push(activity(_ls(d))); }
+    for (let i=13;i>=0;i--){ const d=new Date(today); d.setDate(d.getDate()-i); vals.push(secActivity(sec, _ls(d))); }
     const max = Math.max(1, ...vals), w=160, h=34;
     const pts = vals.map((v,i) => `${(i/(vals.length-1))*w},${(h-(v/max)*h).toFixed(1)}`).join(' ');
     const thisW = vals.slice(7).reduce((s,v)=>s+v,0), lastW = vals.slice(0,7).reduce((s,v)=>s+v,0);
@@ -13772,37 +13872,62 @@ Instrucciones:
     return { svg:`<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="var(--hud)" stroke-width="2" style="filter:drop-shadow(0 0 4px var(--hud-dim))"/></svg>`, mom, col: mom>=0?'var(--ok)':'var(--danger)' };
   }
 
-  function renderKPIs(){
-    const el = document.getElementById('vida-kpi'); if (!el) return;
+  function renderKPIs(sec){
+    const el = document.getElementById('kpi-' + sec); if (!el) return;
     const today = _today();
-    const g = (S.goals && S.goals[today]) || [];
-    const dpct = g.length ? Math.round(g.filter(x => x.done).length / g.length * 100) : 0;
-    const streak = (S.streak && S.streak.count) || 0;
-    let hd = 0, ht = 0;
-    TABS.forEach(sec => { const hs = (S.habitTrackers && S.habitTrackers[sec]) || []; hs.forEach(h => { ht++; const v = (h.days||{})[today]; if (v==='done' || v==='partial') hd++; }); });
-    const qp = _quarterPace(); const qpct = qp ? Math.round(qp.pct) : 0;
+    const { done:hd, tot:ht } = habCount(sec, today);
+    const mp = _monthPace(); const mpct = mp ? Math.round(mp.pct) : 0;
     const tile = (val, lbl, bar) => `<div class="kpi-tile"><div class="k-val">${val}</div><div class="k-lbl">${lbl}</div>${bar!=null?`<div class="k-bar"><i style="width:${bar}%"></i></div>`:''}</div>`;
-    el.innerHTML = tile(dpct+'%','Día',dpct) + tile('🔥 '+streak,'Racha',null) + tile(hd+'/'+ht,'Hábitos',ht?Math.round(hd/ht*100):0) + tile(qpct+'%','Trimestre',qpct);
+    const hb = tile(hd+'/'+ht, 'Hábitos', ht?Math.round(hd/ht*100):0);
+    const ms = tile(mpct+'%', 'Mes', mpct);
+    let html = '';
+    if (sec === 'vida') {
+      const g = (S.goals && S.goals[today]) || [];
+      const dpct = g.length ? Math.round(g.filter(x => x.done).length / g.length * 100) : 0;
+      const st = (S.streak && S.streak.count) || 0;
+      html = tile(dpct+'%','Día',dpct) + tile('🔥 '+st,'Racha',null) + hb + ms;
+    } else if (sec === 'finanzas') {
+      const mb = _monthBalance(), sa = _spendAnomaly();
+      const balV = mb ? _compact(mb.bal) : '—';
+      const gastoV = sa ? (sa.diff>=0?'+':'') + Math.round(sa.diff) + '%' : '—';
+      html = tile(balV,'Balance',null) + tile(gastoV,'Gasto/prom',null) + hb + ms;
+    } else if (sec === 'salud') {
+      const ae = _avgEnergy(), sl = _lastSleep();
+      const enV = ae ? ae.avg.toFixed(1) : '—';
+      const slV = sl ? sl.h+'h' : '—';
+      html = tile(enV,'Energía',ae?Math.round(ae.avg/5*100):0) + tile(slV,'Sueño',sl?Math.min(100,Math.round(sl.h/8*100)):0) + hb + ms;
+    } else {
+      const ts = taskStats(sec);
+      html = hb + tile(ts.pending,'Tareas',null) + tile(ts.overdue,'Vencidas',null) + ms;
+    }
+    el.innerHTML = html;
   }
 
-  function renderCard(){
-    try { renderKPIs(); } catch(e) {}
-    const body = document.getElementById('intel-card-body'); if (!body) return;
+  function renderSection(sec){
+    try { renderKPIs(sec); } catch(e) {}
+    const body = document.getElementById('intel-body-' + sec); if (!body) return;
     try {
-      const ins = insights().map(i => `<div class="intel-row ${i.lvl}"><span class="ii-ic">${i.ic}</span><span>${i.html}</span></div>`).join('');
-      const m = _momentum();
+      const ins = insights(sec).map(i => `<div class="intel-row ${i.lvl}"><span class="ii-ic">${i.ic}</span><span>${i.html}</span></div>`).join('');
+      const m = momentum(sec);
       body.innerHTML =
         `<div class="intel-insights">${ins}</div>`+
         `<div class="intel-sec">Momentum · 14 días</div>`+
-        `<div class="intel-mom"><div><div class="mom-val" style="color:${m.col}">${m.mom>=0?'+':''}${m.mom}%</div><div class="mom-lbl">vs semana previa</div></div>${m.svg}</div>`+
-        `<div class="intel-sec">Actividad · 16 semanas</div>`+
-        `<div class="intel-hm-wrap"><div class="intel-hm">${_heatmap()}</div></div>`;
+        `<div class="intel-mom"><div><div class="mom-val" style="color:${m.col}">${m.mom>=0?'+':''}${m.mom}%</div><div class="mom-lbl">vs semana previa</div></div>${m.svg}</div>`;
     } catch(e) { body.innerHTML = '<div class="intel-row info"><span class="ii-ic">◇</span><span>Análisis no disponible por ahora.</span></div>'; }
   }
 
-  window.JARVIS_INTEL = { insights, briefing, renderCard, renderKPIs };
-  setTimeout(renderCard, 1200);
-  setInterval(() => { const v = document.getElementById('tab-vida'); if (v && v.classList.contains('active')) renderCard(); }, 60000);
+  function renderCard(sec){
+    if (sec && SECTIONS.includes(sec)) renderSection(sec);
+    else SECTIONS.forEach(renderSection);
+  }
+
+  window.JARVIS_INTEL = { insights, briefing, renderCard, renderKPIs: renderCard };
+  setTimeout(() => renderCard(), 1200);
+  setInterval(() => {
+    const t = (typeof currentTab !== 'undefined' && currentTab) || 'vida';
+    const p = document.getElementById('tab-' + t);
+    if (p && p.classList.contains('active')) renderCard(t);
+  }, 60000);
 })();
 </script>
 
