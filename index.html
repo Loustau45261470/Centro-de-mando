@@ -10953,6 +10953,27 @@ setTimeout(() => _msHub.showReminders(), 500);
       saveTree(best.tab, trees[best.tab]); renderProyectos(best.tab);
       return best.node.label;
     },
+    // Marca el día de hoy en un hábito por nombre (todas las secciones). status: 'done'|'partial'|'rest'
+    markHabit(query, status) {
+      status = status || 'done';
+      const q = (query || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+      if (!q) return null;
+      let best = null;
+      ['vida', 'finanzas', 'salud', 'conocimiento', 'ia'].forEach(sec => {
+        _getHabits(sec).forEach(h => {
+          const name = (h.name || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+          if (name && name.includes(q) && (!best || h.name.length < best.habit.name.length)) best = { sec, habit: h };
+        });
+      });
+      if (!best) return null;
+      best.habit.days = best.habit.days || {};
+      best.habit.days[getActiveDate()] = status;
+      saveState();
+      try { renderHabitCal(best.sec); } catch (e) {}
+      try { renderHabitsCard(best.sec); } catch (e) {}
+      try { checkAchievements(); } catch (e) {}
+      return best.habit.name;
+    },
     stats() {
       const today = new Date(); today.setHours(0, 0, 0, 0);
       let pending = 0, overdue = 0;
@@ -12289,12 +12310,31 @@ Instrucciones:
       }
     }
 
-    // completar tarea: "marcá como hecha X" / "completá X"
+    // marcar hábito: "marcá el hábito de lectura", "registré entrenamientos", "marcá lectura como parcial/descanso"
+    if ((/\bhabito\b/.test(t) || /\bregistr/.test(t)) && window.PROY_VOICE) {
+      let status = 'done';
+      if (/\bparcial\b/.test(t)) status = 'partial';
+      else if (/\bdescans/.test(t)) status = 'rest';
+      const name = raw
+        .replace(/\b(marc[aá]\w*|registr[aáeéó]\w*|complet[aá]\w*|anot[aá]\w*|tild[aá]\w*|pon[eé]\w*)\b/gi, ' ')
+        .replace(/\b(el|la|los|las|un|una|unos|unas|mi|mis|de|del|hoy|como|hecho|hecha|completo|completa|completado|completada|parcial|descanso|descans[eé]|h[aá]bito|h[aá]bitos)\b/gi, ' ')
+        .replace(/\s+/g, ' ').trim();
+      const marked = PROY_VOICE.markHabit(name, status);
+      if (marked) {
+        const w = status === 'partial' ? 'logged as partial' : status === 'rest' ? 'marked as a rest day' : 'marked as done';
+        say(`"${marked}" ${w} for today, sir.`, true);
+      } else say(`I couldn't find a habit matching that, sir.`, true);
+      return;
+    }
+
+    // completar tarea: "marcá como hecha X" / "completá X"  (si no es tarea, prueba como hábito)
     m = raw.match(/(?:marc[aá]\w*|complet[aá]\w*|termin[aá]\w*|tild[aá]\w*)\s+(?:como\s+(?:hecha|hecho|completa|completada|completado)\s+)?(?:la\s+tarea\s+)?(.+)/i);
     if (m && window.PROY_VOICE) {
       const done = PROY_VOICE.completeTask(m[1].trim());
-      if (done) say(`"${done}" marked as complete, sir. Well done.`, true);
-      else say(`I couldn't find a pending task matching that, sir.`, true);
+      if (done) { say(`"${done}" marked as complete, sir. Well done.`, true); return; }
+      const h = PROY_VOICE.markHabit(m[1].trim(), 'done');
+      if (h) say(`"${h}" marked as done for today, sir.`, true);
+      else say(`I couldn't find a pending task or habit matching that, sir.`, true);
       return;
     }
 
