@@ -8824,36 +8824,7 @@ function autoDeductSubscriptions() {
 // CHARTS
 // ════════════════════════════════════════════════════════
 // ── Tema HUD global para todos los gráficos (Chart.js) ──
-const _MONO_CH = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
-Chart.defaults.color = '#9FB1C6';
-Chart.defaults.borderColor = 'rgba(120,180,230,0.08)';
-Chart.defaults.font.family = _MONO_CH;
-Chart.defaults.font.size = 10;
-Chart.defaults.animation = { duration: 700, easing: 'easeOutQuart' };
-Chart.defaults.elements.line.tension = 0.35;
-Chart.defaults.elements.line.borderWidth = 2;
-Chart.defaults.elements.line.borderColor = '#38BDF8';
-Chart.defaults.elements.point.radius = 0;
-Chart.defaults.elements.point.hoverRadius = 5;
-Chart.defaults.elements.point.backgroundColor = '#7DD3FC';
-Chart.defaults.elements.point.borderColor = '#38BDF8';
-Chart.defaults.elements.bar.borderColor = 'rgba(56,189,248,0.9)';
-Chart.defaults.elements.arc.borderColor = 'rgba(4,7,12,0.85)';
-Chart.defaults.elements.arc.borderWidth = 2;
-Chart.defaults.plugins.legend.labels.color = '#AAB6C6';
-Chart.defaults.plugins.legend.labels.font = { family: _MONO_CH, size: 10 };
-Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(6,12,20,0.94)';
-Chart.defaults.plugins.tooltip.borderColor = 'rgba(56,189,248,0.55)';
-Chart.defaults.plugins.tooltip.borderWidth = 1;
-Chart.defaults.plugins.tooltip.titleColor = '#7DD3FC';
-Chart.defaults.plugins.tooltip.bodyColor = '#E4F4FF';
-Chart.defaults.plugins.tooltip.cornerRadius = 6;
-Chart.defaults.plugins.tooltip.padding = 10;
-Chart.defaults.plugins.tooltip.displayColors = false;
-Chart.defaults.plugins.tooltip.titleFont = { family: _MONO_CH, size: 11 };
-Chart.defaults.plugins.tooltip.bodyFont = { family: _MONO_CH, size: 11 };
-
-// El canvas no entiende colores var(--x): los resolvemos a hex (con fallback cian neón)
+// Todo va envuelto en try/catch: si algo del tema falla, los gráficos igual se dibujan.
 const _HUDVAR = { '--accent':'#38BDF8','--hud':'#38BDF8','--ok':'#00FF88','--warn':'#FFB020','--danger':'#FF3B47','--c-vida':'#00D4FF','--c-finanzas':'#22C55E','--c-salud':'#F43F5E','--c-conocimiento':'#4B7BEC','--c-ia':'#D4DCE8','--fin-green':'#22C55E' };
 function _hudColor(v){ if (typeof v !== 'string') return v; const m = v.match(/var\((--[\w-]+)\)/); return m ? (_HUDVAR[m[1]] || '#38BDF8') : v; }
 function _toRGBA(c, a){
@@ -8861,42 +8832,69 @@ function _toRGBA(c, a){
   if (c[0] === '#') { let h = c.slice(1); if (h.length === 3) h = h.replace(/./g, '$&$&'); const n = parseInt(h, 16); return 'rgba(' + ((n>>16)&255) + ',' + ((n>>8)&255) + ',' + (n&255) + ',' + a + ')'; }
   const m = c.match(/(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/); return m ? 'rgba(' + m[1] + ',' + m[2] + ',' + m[3] + ',' + a + ')' : 'rgba(56,189,248,' + a + ')';
 }
+function _setChartDefault(path, val){ try { const p = path.split('.'); let o = Chart.defaults; for (let i=0;i<p.length-1;i++){ if (o[p[i]]==null) o[p[i]]={}; o=o[p[i]]; } o[p[p.length-1]]=val; } catch(e){} }
+try {
+  const MONO = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+  _setChartDefault('color', '#9FB1C6');
+  _setChartDefault('borderColor', 'rgba(120,180,230,0.08)');
+  _setChartDefault('font.family', MONO);
+  _setChartDefault('font.size', 10);
+  _setChartDefault('elements.line.tension', 0.35);
+  _setChartDefault('elements.line.borderWidth', 2);
+  _setChartDefault('elements.point.hoverRadius', 5);
+  _setChartDefault('elements.point.backgroundColor', '#7DD3FC');
+  _setChartDefault('elements.point.borderColor', '#38BDF8');
+  _setChartDefault('elements.arc.borderColor', 'rgba(4,7,12,0.85)');
+  _setChartDefault('elements.arc.borderWidth', 2);
+  _setChartDefault('plugins.legend.labels.color', '#AAB6C6');
+  _setChartDefault('plugins.tooltip.backgroundColor', 'rgba(6,12,20,0.94)');
+  _setChartDefault('plugins.tooltip.borderColor', 'rgba(56,189,248,0.55)');
+  _setChartDefault('plugins.tooltip.borderWidth', 1);
+  _setChartDefault('plugins.tooltip.titleColor', '#7DD3FC');
+  _setChartDefault('plugins.tooltip.bodyColor', '#E4F4FF');
+  _setChartDefault('plugins.tooltip.cornerRadius', 6);
+  _setChartDefault('plugins.tooltip.padding', 10);
+  _setChartDefault('plugins.tooltip.displayColors', false);
 
-// Plugin: sanea colores var() de los datasets y arma un degradé vertical bajo las líneas con fill
-Chart.register({
-  id: 'hudColors',
-  beforeUpdate(chart) {
-    chart.data.datasets.forEach(ds => {
-      ['borderColor','backgroundColor','pointBackgroundColor','pointBorderColor','hoverBackgroundColor'].forEach(k => {
-        if (typeof ds[k] === 'string' && ds[k].includes('var(')) ds[k] = _hudColor(ds[k]);
-      });
-    });
-  },
-  beforeDatasetsDraw(chart) {
-    const area = chart.chartArea; if (!area) return;
-    chart.data.datasets.forEach((ds, i) => {
-      const meta = chart.getDatasetMeta(i);
-      if (meta.type !== 'line' || !ds.fill) return;
-      const base = _hudColor(ds.borderColor) || '#38BDF8';
-      const g = chart.ctx.createLinearGradient(0, area.top, 0, area.bottom);
-      g.addColorStop(0, _toRGBA(base, 0.32)); g.addColorStop(1, _toRGBA(base, 0.0));
-      ds.backgroundColor = g;
-    });
-  }
-});
+  Chart.register({
+    id: 'hudColors',
+    beforeUpdate(chart) {
+      try {
+        chart.data.datasets.forEach(ds => {
+          ['borderColor','backgroundColor','pointBackgroundColor','pointBorderColor','hoverBackgroundColor'].forEach(k => {
+            if (typeof ds[k] === 'string' && ds[k].includes('var(')) ds[k] = _hudColor(ds[k]);
+          });
+        });
+      } catch(e){}
+    },
+    beforeDatasetsDraw(chart) {
+      try {
+        const area = chart.chartArea; if (!area) return;
+        chart.data.datasets.forEach((ds, i) => {
+          if (chart.getDatasetMeta(i).type !== 'line' || !ds.fill) return;
+          const base = _hudColor(ds.borderColor) || '#38BDF8';
+          const g = chart.ctx.createLinearGradient(0, area.top, 0, area.bottom);
+          g.addColorStop(0, _toRGBA(base, 0.32)); g.addColorStop(1, _toRGBA(base, 0.0));
+          ds.backgroundColor = g;
+        });
+      } catch(e){}
+    }
+  });
 
-// Plugin: glow neón por dataset (cada uno en su color)
-Chart.register({
-  id: 'hudGlow',
-  beforeDatasetDraw(chart, args) {
-    const ds = chart.data.datasets[args.index];
-    let c = _hudColor(ds.borderColor) || _hudColor(Array.isArray(ds.backgroundColor) ? ds.backgroundColor[0] : ds.backgroundColor) || '#38BDF8';
-    if (typeof c !== 'string') c = '#38BDF8';
-    chart.ctx.save(); // save al final: nada puede lanzar después, así restore siempre queda balanceado
-    chart.ctx.shadowColor = c; chart.ctx.shadowBlur = ds._noGlow ? 0 : 8;
-  },
-  afterDatasetDraw(chart) { chart.ctx.restore(); }
-});
+  Chart.register({
+    id: 'hudGlow',
+    beforeDatasetDraw(chart, args) {
+      try {
+        const ds = chart.data.datasets[args.index];
+        let c = _hudColor(ds.borderColor) || _hudColor(Array.isArray(ds.backgroundColor) ? ds.backgroundColor[0] : ds.backgroundColor) || '#38BDF8';
+        if (typeof c !== 'string') c = '#38BDF8';
+        chart.ctx.save();
+        chart.ctx.shadowColor = c; chart.ctx.shadowBlur = ds._noGlow ? 0 : 8;
+      } catch(e){}
+    },
+    afterDatasetDraw(chart) { try { chart.ctx.restore(); } catch(e){} }
+  });
+} catch (e) { console.warn('[charts] tema HUD no aplicado:', e); }
 
 let waterChartInst=null, weightChartInst=null, nwPieInst=null, nwLineInst=null, txnChartInst=null, sleepChartInst=null;
 
