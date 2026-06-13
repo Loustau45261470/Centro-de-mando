@@ -1330,6 +1330,15 @@ textarea { resize: vertical; min-height: 60px; }
 .study-cal-stat + .study-cal-stat { border-left:1px solid var(--border); }
 .study-cal-stat-num { font-size:30px; font-weight:800; letter-spacing:-.04em; line-height:1; }
 .study-cal-stat-label { font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--tt); }
+
+/* ── Realce HUD para estadísticas y barras (readouts mono + glow neón) ── */
+.study-cal-stat-num, .qobj-progress-num, .rtn-stats-bar .rtn-stat-val, #goalsDoneNum {
+  font-family: var(--mono); text-shadow: 0 0 14px currentColor;
+}
+.prog-fill, .day-bar-fill, .law-total-bar-fill, .law-year-bar-fill,
+.qobj-progress-bar, .cal-week-bar-done, .cal-month-bar-fill, .ach-global-fill {
+  box-shadow: 0 0 8px var(--accent);
+}
 .study-cal-legend { display:flex; gap:14px; justify-content:center; margin-top:12px; flex-wrap:wrap; }
 .study-cal-legend-item { display:flex; align-items:center; gap:5px; font-size:10px; color:var(--tt); }
 .study-cal-legend-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
@@ -8608,7 +8617,6 @@ function renderTxnChart(transactions) {
   const total   = data.reduce((a,b)=>a+b,0);
 
   if (txnChartInst) { txnChartInst.destroy(); txnChartInst = null; }
-  Chart.defaults.color = '#FFFFFF';
   txnChartInst = new Chart(canvas.getContext('2d'), {
     type: 'doughnut',
     data: {
@@ -8815,9 +8823,80 @@ function autoDeductSubscriptions() {
 // ════════════════════════════════════════════════════════
 // CHARTS
 // ════════════════════════════════════════════════════════
-Chart.defaults.color='#76746E';
-Chart.defaults.borderColor='rgba(255,255,255,0.06)';
-Chart.defaults.font.family='-apple-system,BlinkMacSystemFont,sans-serif';
+// ── Tema HUD global para todos los gráficos (Chart.js) ──
+const _MONO_CH = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+Chart.defaults.color = '#9FB1C6';
+Chart.defaults.borderColor = 'rgba(120,180,230,0.08)';
+Chart.defaults.font.family = _MONO_CH;
+Chart.defaults.font.size = 10;
+Chart.defaults.animation = { duration: 700, easing: 'easeOutQuart' };
+Chart.defaults.elements.line.tension = 0.35;
+Chart.defaults.elements.line.borderWidth = 2;
+Chart.defaults.elements.line.borderColor = '#38BDF8';
+Chart.defaults.elements.point.radius = 0;
+Chart.defaults.elements.point.hoverRadius = 5;
+Chart.defaults.elements.point.backgroundColor = '#7DD3FC';
+Chart.defaults.elements.point.borderColor = '#38BDF8';
+Chart.defaults.elements.bar.borderColor = 'rgba(56,189,248,0.9)';
+Chart.defaults.elements.arc.borderColor = 'rgba(4,7,12,0.85)';
+Chart.defaults.elements.arc.borderWidth = 2;
+Chart.defaults.plugins.legend.labels.color = '#AAB6C6';
+Chart.defaults.plugins.legend.labels.font = { family: _MONO_CH, size: 10 };
+Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(6,12,20,0.94)';
+Chart.defaults.plugins.tooltip.borderColor = 'rgba(56,189,248,0.55)';
+Chart.defaults.plugins.tooltip.borderWidth = 1;
+Chart.defaults.plugins.tooltip.titleColor = '#7DD3FC';
+Chart.defaults.plugins.tooltip.bodyColor = '#E4F4FF';
+Chart.defaults.plugins.tooltip.cornerRadius = 6;
+Chart.defaults.plugins.tooltip.padding = 10;
+Chart.defaults.plugins.tooltip.displayColors = false;
+Chart.defaults.plugins.tooltip.titleFont = { family: _MONO_CH, size: 11 };
+Chart.defaults.plugins.tooltip.bodyFont = { family: _MONO_CH, size: 11 };
+
+// El canvas no entiende colores var(--x): los resolvemos a hex (con fallback cian neón)
+const _HUDVAR = { '--accent':'#38BDF8','--hud':'#38BDF8','--ok':'#00FF88','--warn':'#FFB020','--danger':'#FF3B47','--c-vida':'#00D4FF','--c-finanzas':'#22C55E','--c-salud':'#F43F5E','--c-conocimiento':'#4B7BEC','--c-ia':'#D4DCE8','--fin-green':'#22C55E' };
+function _hudColor(v){ if (typeof v !== 'string') return v; const m = v.match(/var\((--[\w-]+)\)/); return m ? (_HUDVAR[m[1]] || '#38BDF8') : v; }
+function _toRGBA(c, a){
+  if (typeof c !== 'string') return 'rgba(56,189,248,' + a + ')';
+  if (c[0] === '#') { let h = c.slice(1); if (h.length === 3) h = h.replace(/./g, '$&$&'); const n = parseInt(h, 16); return 'rgba(' + ((n>>16)&255) + ',' + ((n>>8)&255) + ',' + (n&255) + ',' + a + ')'; }
+  const m = c.match(/(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/); return m ? 'rgba(' + m[1] + ',' + m[2] + ',' + m[3] + ',' + a + ')' : 'rgba(56,189,248,' + a + ')';
+}
+
+// Plugin: sanea colores var() de los datasets y arma un degradé vertical bajo las líneas con fill
+Chart.register({
+  id: 'hudColors',
+  beforeUpdate(chart) {
+    chart.data.datasets.forEach(ds => {
+      ['borderColor','backgroundColor','pointBackgroundColor','pointBorderColor','hoverBackgroundColor'].forEach(k => {
+        if (typeof ds[k] === 'string' && ds[k].includes('var(')) ds[k] = _hudColor(ds[k]);
+      });
+    });
+  },
+  beforeDatasetsDraw(chart) {
+    const area = chart.chartArea; if (!area) return;
+    chart.data.datasets.forEach((ds, i) => {
+      const meta = chart.getDatasetMeta(i);
+      if (meta.type !== 'line' || !ds.fill) return;
+      const base = _hudColor(ds.borderColor) || '#38BDF8';
+      const g = chart.ctx.createLinearGradient(0, area.top, 0, area.bottom);
+      g.addColorStop(0, _toRGBA(base, 0.32)); g.addColorStop(1, _toRGBA(base, 0.0));
+      ds.backgroundColor = g;
+    });
+  }
+});
+
+// Plugin: glow neón por dataset (cada uno en su color)
+Chart.register({
+  id: 'hudGlow',
+  beforeDatasetDraw(chart, args) {
+    const ctx = chart.ctx; ctx.save();
+    const ds = chart.data.datasets[args.index];
+    let c = _hudColor(ds.borderColor) || _hudColor(Array.isArray(ds.backgroundColor) ? ds.backgroundColor[0] : ds.backgroundColor) || '#38BDF8';
+    if (typeof c !== 'string') c = '#38BDF8';
+    ctx.shadowColor = c; ctx.shadowBlur = ds._noGlow ? 0 : 8;
+  },
+  afterDatasetDraw(chart) { chart.ctx.restore(); }
+});
 
 let waterChartInst=null, weightChartInst=null, nwPieInst=null, nwLineInst=null, txnChartInst=null, sleepChartInst=null;
 
