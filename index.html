@@ -4981,6 +4981,7 @@ function _applyRemoteState(raw) {
       if (!S.habitTrackers[s]) S.habitTrackers[s] = [];
     });
     _migrateQToT();
+    _migrateMonthlyGoals();
     localStorage.setItem('lifedash_v2', JSON.stringify(S));
     _reRenderAll();
     if (typeof window._reloadProyectosFromState === 'function') window._reloadProyectosFromState();
@@ -5075,6 +5076,7 @@ async function loadState() {
   });
   if (_proyMigrated) saveState();
   if (_migrateQToT()) saveState();
+  if (_migrateMonthlyGoals()) saveState();
 }
 function _migrateQToT() {
   if (!S.quarterlyObjectives) return false;
@@ -9904,19 +9906,18 @@ function selectMonthView(tabName, view) {
 // Forma: S.monthlyGoals = { <sec>: { 'YYYY-MM': [{ id, text, done }] } }
 const _MG_SECTIONS = Object.keys(QOBJ_TAB_CATS); // vida, finanzas, salud, conocimiento, ia
 function _migrateMonthlyGoals() {
-  if (!S.monthlyGoals || typeof S.monthlyGoals !== 'object') { S.monthlyGoals = {}; return; }
+  if (!S.monthlyGoals || typeof S.monthlyGoals !== 'object') { S.monthlyGoals = {}; return false; }
   const keys = Object.keys(S.monthlyGoals);
   // Formato viejo (global por mes): claves 'YYYY-MM' en el primer nivel → mover a 'vida'
-  if (keys.some(k => /^\d{4}-\d{2}$/.test(k))) {
-    const old = S.monthlyGoals, next = {};
-    _MG_SECTIONS.forEach(s => next[s] = {});
-    keys.forEach(k => {
-      if (/^\d{4}-\d{2}$/.test(k)) next.vida[k] = old[k];
-      else if (old[k] && typeof old[k] === 'object') next[k] = old[k];
-    });
-    S.monthlyGoals = next;
-    try { saveState(); } catch (e) {}
-  }
+  if (!keys.some(k => /^\d{4}-\d{2}$/.test(k))) return false;
+  const old = S.monthlyGoals, next = {};
+  _MG_SECTIONS.forEach(s => next[s] = {});
+  keys.forEach(k => {
+    if (/^\d{4}-\d{2}$/.test(k)) next.vida[k] = old[k];
+    else if (old[k] && typeof old[k] === 'object') next[k] = old[k];
+  });
+  S.monthlyGoals = next;
+  return true;
 }
 function _mgSection(sec) {
   _migrateMonthlyGoals();
@@ -12277,7 +12278,8 @@ Instrucciones:
         case 'add_monthly_goal': {
           const mk = a.month || _today().slice(0, 7);
           let sec = _norm(a.section || a.tab || 'vida'); if (!TABS.includes(sec)) sec = 'vida';
-          const m = (typeof _mgSection === 'function') ? _mgSection(sec) : (S.monthlyGoals = S.monthlyGoals || {});
+          if (typeof _mgSection !== 'function') return { ok: false, msg: 'Monthly goals unavailable, sir.' };
+          const m = _mgSection(sec);
           if (!m[mk]) m[mk] = [];
           const g = m[mk];
           g.push({ id: g.length ? Math.max(...g.map(x => +x.id || 0)) + 1 : 1, text: a.text || '', done: false });
