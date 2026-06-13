@@ -12158,35 +12158,55 @@ Instrucciones:
   }
   window.addEventListener('resize', resize); resize();
 
-  /* ── Nodos (espacio unitario 0..1, mapeados a la región activa) ── */
-  const N = REDUCED ? 34 : 66;
+  /* ── Paleta extendida ── */
+  const CW = { r: 224, g: 248, b: 255 }; // blanco-cian: núcleos calientes / picos de voz
+  const CD = { r: 30,  g: 130, b: 190 }; // cian profundo: estructuras de fondo
+  const TAU = Math.PI * 2;
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const clamp01 = v => v < 0 ? 0 : v > 1 ? 1 : v;
+
+  /* ── Red neuronal: nodos en espacio unitario (0..1) mapeados a la región activa ── */
+  const N = REDUCED ? 30 : 84;
   const nodes = [];
   for (let i = 0; i < N; i++) {
-    const ang = Math.random() * Math.PI * 2, rad = Math.pow(Math.random(), 0.7) * 0.5;
+    const ang = Math.random() * TAU, rad = Math.pow(Math.random(), 0.65) * 0.5;
     nodes.push({
       ux: 0.5 + Math.cos(ang) * rad, uy: 0.5 + Math.sin(ang) * rad,
-      vx: (Math.random() - 0.5) * 0.0006, vy: (Math.random() - 0.5) * 0.0006,
-      r: 0.8 + Math.random() * 1.6, ph: Math.random() * Math.PI * 2
+      vx: rnd(-1, 1) * 0.00045, vy: rnd(-1, 1) * 0.00045,
+      z: Math.random(), r: rnd(0.7, 2.2), ph: Math.random() * TAU, fire: 0
     });
   }
-  nodes[0].ux = 0.5; nodes[0].uy = 0.5; nodes[0].core = true;
+  nodes[0].ux = 0.5; nodes[0].uy = 0.5; nodes[0].core = true; nodes[0].z = 1;
+  const adj = Array.from({ length: N }, () => []);
 
-  // Núcleo en reposo: esquina inferior izquierda, por encima de la barra de navegación
-  // (centrado en ~70px desde la izquierda y ~130px desde abajo, alineado con #jarvis-ear).
+  /* ── Partículas de ambiente (motas a la deriva, en unidades de la región) ── */
+  const PMAX = REDUCED ? 18 : 90;
+  const parts = [];
+  for (let i = 0; i < PMAX; i++) parts.push({ ux: Math.random(), uy: Math.random(), vx: rnd(-1, 1) * 0.0006, vy: rnd(-1, 1) * 0.0006, r: rnd(0.4, 1.5), tw: Math.random() * TAU });
+
+  /* ── Satélites en órbita del núcleo ── */
+  const sats = [];
+  for (let i = 0; i < 7; i++) sats.push({ a: Math.random() * TAU, rad: rnd(0.5, 1.4), sp: (Math.random() < 0.5 ? -1 : 1) * rnd(0.25, 0.6), r: rnd(1, 2.4), e: rnd(0.3, 0.9) });
+
+  /* ── Lluvia de datos hexadecimales (sólo a pantalla completa) ── */
+  const HEX = '0123456789ABCDEF';
+  const cols = [];
+  for (let i = 0; i < 5; i++) cols.push({ sp: rnd(0.3, 0.9), off: 0 });
+
   const cornerRect = () => ({ x: 5, y: H - 195, w: 130, h: 130 });
   const fullRect   = () => ({ x: W * 0.07, y: H * 0.10, w: W * 0.86, h: H * 0.78 });
   let R = cornerRect(), RT = cornerRect();
 
   const STATES = {
-    off:      { e: 0.05, op: 0.30, full: 0 },
-    passive:  { e: 0.22, op: 0.92, full: 0 },
-    command:  { e: 0.55, op: 1.00, full: 1 },
-    thinking: { e: 0.88, op: 1.00, full: 1 }
+    off:      { e: 0.05, op: 0.32, full: 0 },
+    passive:  { e: 0.24, op: 0.95, full: 0 },
+    command:  { e: 0.58, op: 1.00, full: 1 },
+    thinking: { e: 0.92, op: 1.00, full: 1 }
   };
 
-  let state = 'off', energy = 0.05, energyT = 0.05, level = 0, levelS = 0;
-  let expand = 0, expandT = 0, opacity = 0, opacityT = 0.30, t = 0;
-  const pulses = [], waves = []; let edges = [], edgeTimer = 0, lastWave = 0;
+  let state = 'off', energy = 0.05, energyT = 0.05, level = 0, levelS = 0, levelPk = 0;
+  let expand = 0, expandT = 0, opacity = 0, opacityT = 0.32, t = 0;
+  const pulses = [], waves = [], sparks = []; let edges = [], edgeTimer = 0, lastWave = 0;
 
   const api = {
     onExit: null,
@@ -12195,39 +12215,156 @@ Instrucciones:
       energyT = cfg.e; opacityT = cfg.op; expandT = cfg.full;
       backdrop.classList.toggle('on', cfg.full === 1);
     },
-    setLevel(l) { level = Math.max(0, Math.min(1, l || 0)); }
+    setLevel(l) { level = clamp01(l); }
   };
   window.JARVIS_FX = api;
 
+  /* ── Topología: aristas por cercanía + lista de adyacencia (para propagar señales) ── */
   function computeEdges() {
     edges.length = 0;
-    const maxD = (R.w + R.h) * 0.16 + 28;
+    for (let i = 0; i < N; i++) adj[i].length = 0;
+    const maxD = (R.w + R.h) * 0.15 + 26;
     for (let i = 0; i < N; i++) {
       let cnt = 0;
       const ax = R.x + nodes[i].ux * R.w, ay = R.y + nodes[i].uy * R.h;
       for (let j = i + 1; j < N; j++) {
         const bx = R.x + nodes[j].ux * R.w, by = R.y + nodes[j].uy * R.h;
         const d = Math.hypot(ax - bx, ay - by);
-        if (d < maxD) { edges.push([i, j, maxD]); if (++cnt > 4) break; }
+        if (d < maxD) { edges.push([i, j, maxD]); adj[i].push(j); adj[j].push(i); if (++cnt > 5) break; }
       }
     }
   }
-  function spawnPulse() {
-    if (!edges.length || pulses.length > 90) return;
-    const e = edges[(Math.random() * edges.length) | 0];
-    pulses.push({ a: e[0], b: e[1], t: 0, sp: 0.5 + Math.random() * 0.8 + energy * 0.9 });
+
+  /* ── Señales que disparan como neuronas: saltan de nodo a nodo y se ramifican ── */
+  function ignite(i, hop) {
+    nodes[i].fire = 1;
+    if (hop > 5 || pulses.length > 90) return;
+    const ns = adj[i]; if (!ns.length) return;
+    const branches = hop === 0 ? 2 : (Math.random() < 0.45 ? 2 : 1);
+    for (let b = 0; b < branches; b++) {
+      const j = ns[(Math.random() * ns.length) | 0];
+      pulses.push({ a: i, b: j, t: 0, sp: rnd(0.7, 1.3) + energy * 0.7, hop: hop });
+    }
   }
+  function igniteRandom() { ignite((Math.random() * N) | 0, 0); }
   const speaking = () => { try { return !!(window.JARVIS && JARVIS.isSpeaking()); } catch (e) { return false; } };
+
+  /* ── Glow aditivo barato (2 capas, sin shadowBlur) ── */
+  function glow(x, y, r, c, a) {
+    if (a <= 0) return;
+    ctx.fillStyle = rgba(c, a * 0.26); ctx.beginPath(); ctx.arc(x, y, r * 2.6, 0, TAU); ctx.fill();
+    ctx.fillStyle = rgba(c, a);        ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+  }
+
+  /* ── Estructuras de fondo: anillos lentos + radios (sólo expandido) ── */
+  function drawBackdrop(cx, cy, vis) {
+    const base = Math.max(R.w, R.h) * 0.5;
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 3; i++) {
+      ctx.strokeStyle = rgba(CD, 0.05 * vis * opacity);
+      ctx.beginPath(); ctx.arc(cx, cy, base * (0.55 + i * 0.22), 0, TAU); ctx.stroke();
+    }
+    const spokes = 40, rot = t * 0.05;
+    ctx.strokeStyle = rgba(CD, 0.03 * vis * opacity);
+    for (let i = 0; i < spokes; i++) {
+      const a = rot + i / spokes * TAU, c = Math.cos(a), s = Math.sin(a);
+      ctx.beginPath(); ctx.moveTo(cx + c * base * 0.5, cy + s * base * 0.5); ctx.lineTo(cx + c * base * 1.18, cy + s * base * 1.18); ctx.stroke();
+    }
+  }
+
+  /* ── Núcleo tipo reactor: anillos, arcos, iris, radios, satélites, orbe ── */
+  function drawCore(cx, cy, cr) {
+    const e = energy, rot = t, o = opacity;
+    // anillo exterior con marcas
+    const ticks = 48;
+    ctx.lineWidth = 1;
+    for (let i = 0; i < ticks; i++) {
+      const a = rot * 0.2 + i / ticks * TAU, big = i % 4 === 0;
+      const r1 = cr * 1.45, r2 = cr * (big ? 1.62 : 1.55);
+      ctx.strokeStyle = rgba(C, (big ? 0.5 : 0.22) * o);
+      ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1); ctx.lineTo(cx + Math.cos(a) * r2, cy + Math.sin(a) * r2); ctx.stroke();
+    }
+    // arcos parciales rotando (gyroscopio)
+    const arcs = [[cr * 1.18, 0.2, 2.0, 0.6, 2, C2], [cr * 1.30, 3.2, 5.0, -0.4, 1.5, C], [cr * 1.00, 1.5, 3.0, 0.9, 2.5, C2]];
+    for (const ar of arcs) {
+      ctx.strokeStyle = rgba(ar[5], (0.4 + 0.4 * e) * o); ctx.lineWidth = ar[4];
+      ctx.beginPath(); ctx.arc(cx, cy, ar[0], rot * ar[3] + ar[1], rot * ar[3] + ar[2]); ctx.stroke();
+    }
+    // anillo punteado
+    ctx.setLineDash([3, 6]); ctx.strokeStyle = rgba(C, 0.3 * o); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(cx, cy, cr * 1.7, -rot * 0.3, -rot * 0.3 + TAU); ctx.stroke();
+    ctx.setLineDash([]);
+    // iris hexagonal pulsante
+    const ir = cr * (0.55 + 0.12 * Math.sin(t * 3) + levelS * 0.4), irot = -rot * 0.5;
+    ctx.strokeStyle = rgba(C2, (0.5 + 0.4 * e) * o); ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (let i = 0; i <= 6; i++) { const a = irot + i / 6 * TAU, fx = cx + Math.cos(a) * ir, fy = cy + Math.sin(a) * ir; i ? ctx.lineTo(fx, fy) : ctx.moveTo(fx, fy); }
+    ctx.stroke();
+    // radios internos pulsantes
+    for (let i = 0; i < 12; i++) {
+      const a = rot * 0.4 + i / 12 * TAU, pl = 0.5 + 0.5 * Math.sin(t * 4 + i);
+      ctx.strokeStyle = rgba(C2, 0.18 * pl * (0.4 + e) * o); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * cr * 0.62, cy + Math.sin(a) * cr * 0.62); ctx.lineTo(cx + Math.cos(a) * cr * (0.9 + 0.2 * pl), cy + Math.sin(a) * cr * (0.9 + 0.2 * pl)); ctx.stroke();
+    }
+    // satélites en órbita
+    for (const s of sats) { s.a += s.sp / 60; glow(cx + Math.cos(s.a) * cr * s.rad, cy + Math.sin(s.a) * cr * s.rad, s.r, C2, s.e * (0.5 + 0.5 * e) * o); }
+    // orbe central con bloom
+    ctx.shadowColor = rgba(C2, 1); ctx.shadowBlur = 26 + e * 36 + levelS * 30;
+    ctx.fillStyle = rgba(C2, 0.85 * o);
+    ctx.beginPath(); ctx.arc(cx, cy, cr * 0.34 + levelS * 6, 0, TAU); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = rgba(CW, 0.95 * o);
+    ctx.beginPath(); ctx.arc(cx, cy, cr * 0.16 + levelS * 3, 0, TAU); ctx.fill();
+  }
+
+  /* ── Marco HUD: brackets, retícula, barrido de radar, lluvia de datos (sólo expandido) ── */
+  function drawHUD(cx, cy, vis) {
+    const a = vis * opacity, rr = Math.min(W, H) * 0.42;
+    // brackets de esquina
+    const m = 26, L = 34;
+    ctx.strokeStyle = rgba(C, 0.5 * a); ctx.lineWidth = 2;
+    const corner = (x, y, dx, dy) => { ctx.beginPath(); ctx.moveTo(x + dx * L, y); ctx.lineTo(x, y); ctx.lineTo(x, y + dy * L); ctx.stroke(); };
+    corner(m, m, 1, 1); corner(W - m, m, -1, 1); corner(m, H - m, 1, -1); corner(W - m, H - m, -1, -1);
+    // retícula grande rotando + cruces cardinales
+    ctx.lineWidth = 1;
+    for (let s = 0; s < 4; s++) { const a0 = t * 0.1 + s * (TAU / 4); ctx.strokeStyle = rgba(C, 0.10 * a); ctx.beginPath(); ctx.arc(cx, cy, rr, a0 + 0.15, a0 + TAU / 4 - 0.15); ctx.stroke(); }
+    for (let i = 0; i < 4; i++) { const ang = i * (TAU / 4) + t * 0.1, x = cx + Math.cos(ang) * rr, y = cy + Math.sin(ang) * rr; ctx.strokeStyle = rgba(C2, 0.4 * a); ctx.beginPath(); ctx.moveTo(x - 4, y); ctx.lineTo(x + 4, y); ctx.moveTo(x, y - 4); ctx.lineTo(x, y + 4); ctx.stroke(); }
+    // barrido de radar (cuña con degradé + línea)
+    if (!REDUCED) {
+      const sweep = t * (state === 'thinking' ? 1.5 : 0.7);
+      const wg = ctx.createLinearGradient(cx, cy, cx + Math.cos(sweep) * rr, cy + Math.sin(sweep) * rr);
+      wg.addColorStop(0, rgba(C2, 0.20 * a)); wg.addColorStop(1, rgba(C2, 0));
+      ctx.fillStyle = wg; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, rr, sweep - 0.28, sweep); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = rgba(C2, 0.5 * a); ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(sweep) * rr, cy + Math.sin(sweep) * rr); ctx.stroke();
+    }
+    // lluvia de datos hexadecimales (sólo en pantallas anchas, por costo)
+    if (!REDUCED && W > 760) {
+      ctx.font = '10px monospace'; ctx.textBaseline = 'top';
+      const step = 18, rows = Math.min(46, Math.ceil(H / step) + 1);
+      for (let i = 0; i < cols.length; i++) {
+        const c = cols[i]; c.off += c.sp; if (c.off >= step) c.off -= step;
+        const x = (i + 0.5) / cols.length * W;
+        for (let r = 0; r < rows; r++) {
+          const ch = HEX[(r * 7 + i * 13 + ((t * (2 + i)) | 0)) % 16];
+          ctx.fillStyle = rgba(C, 0.09 * a * (0.4 + 0.6 * ((r + i) % 5) / 4));
+          ctx.fillText(ch, x, r * step - step + c.off);
+        }
+      }
+    }
+  }
 
   let raf;
   function frame() {
     t += 1 / 60;
-    levelS += (level - levelS) * 0.2;
-    const breath = (state === 'passive') ? (Math.sin(t * 1.6) * 0.5 + 0.5) * 0.12 : 0;
+    levelS += (level - levelS) * 0.22;
+    levelPk *= 0.90; if (level > levelPk) levelPk = level;
+    const breath = (state === 'passive' || state === 'off') ? (Math.sin(t * 1.5) * 0.5 + 0.5) * 0.10 : 0;
     const eTarget = energyT + (state === 'command' ? levelS * 0.5 : 0) + breath;
     energy  += (eTarget  - energy)  * 0.08;
     opacity += (opacityT - opacity) * 0.08;
     expand  += (expandT  - expand)  * 0.06;
+    const exv = clamp01((expand - 0.12) / 0.88);
 
     const cr = cornerRect(), fr = fullRect();
     RT.x = cr.x + (fr.x - cr.x) * expand; RT.y = cr.y + (fr.y - cr.y) * expand;
@@ -12235,84 +12372,103 @@ Instrucciones:
     R.x += (RT.x - R.x) * 0.2; R.y += (RT.y - R.y) * 0.2;
     R.w += (RT.w - R.w) * 0.2; R.h += (RT.h - R.h) * 0.2;
 
-    const jit = REDUCED ? 0 : 0.0008 * energy;
+    // nodos: deriva suave + decaimiento de la activación neuronal
+    const jit = REDUCED ? 0 : 0.0006 * energy;
     for (let i = 1; i < N; i++) {
       const n = nodes[i];
       n.ux += n.vx + (Math.random() - 0.5) * jit;
       n.uy += n.vy + (Math.random() - 0.5) * jit;
       if (n.ux < 0.04 || n.ux > 0.96) n.vx *= -1;
       if (n.uy < 0.04 || n.uy > 0.96) n.vy *= -1;
-      n.ux = Math.max(0.03, Math.min(0.97, n.ux));
-      n.uy = Math.max(0.03, Math.min(0.97, n.uy));
+      n.ux = n.ux < 0.03 ? 0.03 : n.ux > 0.97 ? 0.97 : n.ux;
+      n.uy = n.uy < 0.03 ? 0.03 : n.uy > 0.97 ? 0.97 : n.uy;
+      n.fire *= 0.94;
     }
+    nodes[0].fire = Math.max(nodes[0].fire, 0.5 + 0.5 * energy);
 
-    if (--edgeTimer <= 0) { computeEdges(); edgeTimer = 12; }
+    if (--edgeTimer <= 0) { computeEdges(); edgeTimer = 10; }
     if (!REDUCED) {
-      const rate = energy * (state === 'thinking' ? 0.95 : 0.42);
-      if (Math.random() < rate) spawnPulse();
-      if (state === 'thinking' && Math.random() < rate) spawnPulse();
+      const rate = 0.10 + energy * (state === 'thinking' ? 1.0 : 0.5);
+      if (Math.random() < rate) igniteRandom();
+      if (state === 'thinking' && Math.random() < rate * 0.7) igniteRandom();
+      // chispas en picos de voz
+      if (state === 'command' && levelPk > 0.55 && Math.random() < levelPk) {
+        const sx = R.x + 0.5 * R.w, sy = R.y + 0.5 * R.h;
+        for (let s = 0; s < 3; s++) { const a = Math.random() * TAU, v = rnd(1.5, 4); sparks.push({ x: sx, y: sy, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 1 }); }
+      }
     }
-    const sp = speaking();
-    if (sp && !REDUCED && t - lastWave > 0.45) { waves.push({ t: 0 }); lastWave = t; }
+    if (speaking() && !REDUCED && t - lastWave > 0.5) { waves.push({ t: 0 }); lastWave = t; }
 
     ctx.clearRect(0, 0, W, H);
     if (opacity <= 0.012) { raf = requestAnimationFrame(frame); return; }
     ctx.globalCompositeOperation = 'lighter';
     const cx = R.x + 0.5 * R.w, cy = R.y + 0.5 * R.h;
+    const coreR = Math.min(R.w, R.h) * (0.13 + 0.02 * Math.sin(t * 2)) + 6 + levelS * 10;
 
-    // sinapsis
-    ctx.lineWidth = 1;
+    if (exv > 0.01) drawBackdrop(cx, cy, exv);
+
+    // partículas
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i];
+      p.ux += p.vx; p.uy += p.vy;
+      if (p.ux < 0) p.ux += 1; else if (p.ux > 1) p.ux -= 1;
+      if (p.uy < 0) p.uy += 1; else if (p.uy > 1) p.uy -= 1;
+      const tw = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(t * 2 + p.tw));
+      glow(R.x + p.ux * R.w, R.y + p.uy * R.h, p.r, C, tw * (0.10 + 0.25 * energy) * opacity);
+    }
+
+    // sinapsis curvas (brillan cuando sus extremos disparan)
     for (let k = 0; k < edges.length; k++) {
       const a = nodes[edges[k][0]], b = nodes[edges[k][1]], maxD = edges[k][2];
       const ax = R.x + a.ux * R.w, ay = R.y + a.uy * R.h, bx = R.x + b.ux * R.w, by = R.y + b.uy * R.h;
-      const d = Math.hypot(ax - bx, ay - by), al = (1 - d / maxD);
-      if (al <= 0) continue;
-      ctx.strokeStyle = rgba(C, al * (0.06 + 0.22 * energy) * opacity);
-      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+      const d = Math.hypot(ax - bx, ay - by), prox = 1 - d / maxD;
+      if (prox <= 0) continue;
+      const fireB = a.fire > b.fire ? a.fire : b.fire;
+      const al = prox * (0.05 + 0.16 * energy + 0.5 * fireB) * opacity;
+      const mx = (ax + bx) / 2, my = (ay + by) / 2, off = (a.ph - b.ph) * 6, inv = 1 / (d || 1);
+      ctx.strokeStyle = rgba(fireB > 0.2 ? C2 : C, al); ctx.lineWidth = 0.6 + fireB * 1.6;
+      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.quadraticCurveTo(mx - (by - ay) * inv * off, my + (bx - ax) * inv * off, bx, by); ctx.stroke();
     }
 
-    // pulsos de energía
+    // señales viajando (con cola) que se encadenan al llegar
     for (let p = pulses.length - 1; p >= 0; p--) {
       const pl = pulses[p]; pl.t += pl.sp / 60;
-      if (pl.t >= 1) { pulses.splice(p, 1); continue; }
       const a = nodes[pl.a], b = nodes[pl.b];
-      const x = (R.x + a.ux * R.w) + ((R.x + b.ux * R.w) - (R.x + a.ux * R.w)) * pl.t;
-      const y = (R.y + a.uy * R.h) + ((R.y + b.uy * R.h) - (R.y + a.uy * R.h)) * pl.t;
-      const a2 = (1 - Math.abs(pl.t - 0.5) * 2) * opacity;
-      // glow de dos capas con composición 'lighter' (más barato que shadowBlur por pulso)
-      ctx.fillStyle = rgba(C, a2 * 0.30);
-      ctx.beginPath(); ctx.arc(x, y, 4.5, 0, 6.2832); ctx.fill();
-      ctx.fillStyle = rgba(C2, a2 * 0.95);
-      ctx.beginPath(); ctx.arc(x, y, 1.6, 0, 6.2832); ctx.fill();
+      const ax = R.x + a.ux * R.w, ay = R.y + a.uy * R.h, bx = R.x + b.ux * R.w, by = R.y + b.uy * R.h;
+      if (pl.t >= 1) { pulses.splice(p, 1); if (Math.random() < 0.62) ignite(pl.b, pl.hop + 1); else nodes[pl.b].fire = 1; continue; }
+      const x = ax + (bx - ax) * pl.t, y = ay + (by - ay) * pl.t;
+      const back = Math.max(0, pl.t - 0.16), tx = ax + (bx - ax) * back, ty = ay + (by - ay) * back;
+      const grad = ctx.createLinearGradient(tx, ty, x, y);
+      grad.addColorStop(0, rgba(C2, 0)); grad.addColorStop(1, rgba(C2, opacity * 0.7));
+      ctx.strokeStyle = grad; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(x, y); ctx.stroke();
+      glow(x, y, 1.8, CW, opacity);
+    }
+
+    // chispas
+    for (let s = sparks.length - 1; s >= 0; s--) {
+      const sk = sparks[s]; sk.x += sk.vx; sk.y += sk.vy; sk.vx *= 0.96; sk.vy *= 0.96; sk.life -= 0.03;
+      if (sk.life <= 0) { sparks.splice(s, 1); continue; }
+      glow(sk.x, sk.y, 1.5, CW, sk.life * opacity);
     }
 
     // neuronas
-    for (let i = 0; i < N; i++) {
+    for (let i = 1; i < N; i++) {
       const n = nodes[i], x = R.x + n.ux * R.w, y = R.y + n.uy * R.h;
       const pulse = 0.5 + 0.5 * Math.sin(t * 2 + n.ph);
-      if (n.core) {
-        const rr = (5 + expand * 11) * (1 + 0.15 * Math.sin(t * 3)) + energy * 6 + levelS * 9;
-        ctx.fillStyle = rgba(C2, 0.9 * opacity); ctx.shadowColor = rgba(C2, 1); ctx.shadowBlur = 22 + energy * 32;
-        ctx.beginPath(); ctx.arc(x, y, rr, 0, 6.2832); ctx.fill(); ctx.shadowBlur = 0;
-      } else {
-        const rr = n.r * (0.8 + expand * 0.9) * (0.8 + 0.4 * pulse) + energy * 1.2;
-        ctx.fillStyle = rgba(C2, (0.45 + 0.55 * pulse) * opacity * (0.5 + 0.5 * energy));
-        ctx.beginPath(); ctx.arc(x, y, rr, 0, 6.2832); ctx.fill();
-      }
+      const rr = (n.r * (0.6 + 0.7 * n.z)) * (0.7 + expand * 0.7) * (0.85 + 0.3 * pulse) + energy + n.fire * 2.5;
+      const al = (0.30 + 0.40 * pulse + 0.5 * n.fire) * opacity * (0.5 + 0.5 * energy) * (0.5 + 0.5 * n.z);
+      glow(x, y, rr, n.fire > 0.25 ? CW : C2, al);
     }
 
-    // anillo de escaneo (pensando)
-    if (state === 'thinking') {
-      const rr = Math.max(R.w, R.h) * 0.5 * (0.3 + 0.7 * ((t * 0.4) % 1));
-      ctx.strokeStyle = rgba(C, 0.12 * opacity); ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(cx, cy, rr, 0, 6.2832); ctx.stroke();
-    }
+    drawCore(cx, cy, coreR);
+    if (exv > 0.01) drawHUD(cx, cy, exv);
+
     // ondas (hablando)
     for (let w = waves.length - 1; w >= 0; w--) {
       const wv = waves[w]; wv.t += 1 / 60;
       const al = 1 - wv.t; if (al <= 0) { waves.splice(w, 1); continue; }
       ctx.strokeStyle = rgba(C2, al * 0.4 * opacity); ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(cx, cy, wv.t * Math.max(R.w, R.h) * 0.6, 0, 6.2832); ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx, cy, wv.t * Math.max(R.w, R.h) * 0.6, 0, TAU); ctx.stroke();
     }
 
     ctx.globalCompositeOperation = 'source-over';
