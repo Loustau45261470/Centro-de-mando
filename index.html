@@ -12238,7 +12238,7 @@ Instrucciones:
   /* ── Señales que disparan como neuronas: saltan de nodo a nodo y se ramifican ── */
   function ignite(i, hop) {
     nodes[i].fire = 1;
-    if (hop > 5 || pulses.length > 90) return;
+    if (hop > 5 || pulses.length >= ((REDUCED || W < 760) ? 40 : 80)) return;
     const ns = adj[i]; if (!ns.length) return;
     const branches = hop === 0 ? 2 : (Math.random() < 0.45 ? 2 : 1);
     for (let b = 0; b < branches; b++) {
@@ -12392,7 +12392,7 @@ Instrucciones:
       if (Math.random() < rate) igniteRandom();
       if (state === 'thinking' && Math.random() < rate * 0.7) igniteRandom();
       // chispas en picos de voz
-      if (state === 'command' && levelPk > 0.55 && Math.random() < levelPk) {
+      if (state === 'command' && levelPk > 0.55 && sparks.length < 120 && Math.random() < levelPk) {
         const sx = R.x + 0.5 * R.w, sy = R.y + 0.5 * R.h;
         for (let s = 0; s < 3; s++) { const a = Math.random() * TAU, v = rnd(1.5, 4); sparks.push({ x: sx, y: sy, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 1 }); }
       }
@@ -12437,10 +12437,12 @@ Instrucciones:
       const ax = R.x + a.ux * R.w, ay = R.y + a.uy * R.h, bx = R.x + b.ux * R.w, by = R.y + b.uy * R.h;
       if (pl.t >= 1) { pulses.splice(p, 1); if (Math.random() < 0.62) ignite(pl.b, pl.hop + 1); else nodes[pl.b].fire = 1; continue; }
       const x = ax + (bx - ax) * pl.t, y = ay + (by - ay) * pl.t;
-      const back = Math.max(0, pl.t - 0.16), tx = ax + (bx - ax) * back, ty = ay + (by - ay) * back;
-      const grad = ctx.createLinearGradient(tx, ty, x, y);
-      grad.addColorStop(0, rgba(C2, 0)); grad.addColorStop(1, rgba(C2, opacity * 0.7));
-      ctx.strokeStyle = grad; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(x, y); ctx.stroke();
+      // cola tipo cometa en 2 segmentos (sin createLinearGradient por frame: mucho más barato en mobile)
+      const back = Math.max(0, pl.t - 0.16), mid = Math.max(0, pl.t - 0.08);
+      const tx = ax + (bx - ax) * back, ty = ay + (by - ay) * back, hx = ax + (bx - ax) * mid, hy = ay + (by - ay) * mid;
+      ctx.lineWidth = 1.6;
+      ctx.strokeStyle = rgba(C2, opacity * 0.22); ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(hx, hy); ctx.stroke();
+      ctx.strokeStyle = rgba(C2, opacity * 0.6);  ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(x, y); ctx.stroke();
       glow(x, y, 1.8, CW, opacity);
     }
 
