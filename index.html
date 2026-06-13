@@ -12329,10 +12329,16 @@ Instrucciones:
 <script>
 /* ── JARVIS VOICE ENGINE ── */
 (function () {
-  const EL_KEY_DEFAULT = 'sk_5ddff68a6492ab2746534eb4821d33b32a60c142ebf2d0eb';
   const EL_VOICE  = 'JBFqnCBsd6RMkjVDRZzb'; // George — British, authoritative, deep
-  // La key puede sobreescribirse por dispositivo desde el panel de temas (localStorage — no sincroniza ni se publica)
-  function _elKey() { return localStorage.getItem('jarvis_el_key') || EL_KEY_DEFAULT; }
+  // La key de ElevenLabs vive SOLO en localStorage por dispositivo (se carga desde el panel de temas).
+  // Nunca se hardcodea: el repo es público. Sin key, JARVIS usa la voz del navegador.
+  function _elKey() { return localStorage.getItem('jarvis_el_key') || ''; }
+  // Aviso único (no molesta más de una vez) sugiriendo cargar una key para la voz premium
+  function _elHint() {
+    if (localStorage.getItem('jarvis_el_hint')) return;
+    localStorage.setItem('jarvis_el_hint', '1');
+    if (typeof showToast === 'function') showToast('🔊 JARVIS habla con la voz del navegador. Para su voz premium, cargá una API key de ElevenLabs en el panel de temas.', 8000);
+  }
   let enabled     = localStorage.getItem('jarvis_enabled') === '1';
   let currentAudio = null;
 
@@ -12413,6 +12419,7 @@ Instrucciones:
   async function speak(text, opts) {
     if (!enabled || !text) return;
     _speakAt = Date.now();
+    if (!_elKey()) { _elHint(); speakBrowser(text); return; } // sin key de ElevenLabs → voz del navegador, sin intentos 401
     if (opts && opts.dynamic) {
       // Respuestas dinámicas: voz de JARVIS (ElevenLabs) mientras haya cuota; si se agota
       // el mes, cae a la voz del navegador y se recupera sola al renovarse los créditos
