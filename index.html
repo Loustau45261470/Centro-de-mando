@@ -13875,7 +13875,7 @@ Instrucciones:
     if (Math.abs(diff) < 1e-9) return `<span class="vr-d flat">=</span>`;
     const up = diff > 0, good = up === goodWhenUp, cls = good ? 'good' : 'bad', arrow = up ? '▲' : '▼';
     let txt;
-    if (kind === 'pct') txt = (prev <= 0) ? 'nuevo' : Math.round(Math.abs(diff/prev*100)) + '%';
+    if (kind === 'pct') txt = (prev === 0) ? 'nuevo' : Math.round(Math.abs(diff/prev*100)) + '%';
     else txt = _fmtCount(Math.abs(diff));
     return `<span class="vr-d ${cls}">${arrow} ${txt}</span>`;
   }
