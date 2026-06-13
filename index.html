@@ -201,6 +201,24 @@ body::before {
     linear-gradient(var(--card-accent),var(--card-accent)) 100% 100% / 15px 2px no-repeat,
     linear-gradient(var(--card-accent),var(--card-accent)) 100% 100% / 2px 15px no-repeat;
 }
+/* Índice de módulo (telemetría) por tarjeta — numeración automática por sección */
+.tab-panel { counter-reset: modidx; }
+.card { counter-increment: modidx; }
+.card::before {
+  content: 'M' counter(modidx, decimal-leading-zero);
+  position: absolute; bottom: 5px; right: 11px; z-index: 0;
+  font-family: var(--mono); font-size: 8px; letter-spacing: .12em;
+  color: var(--card-accent, var(--hud)); opacity: .32; pointer-events: none;
+}
+/* Tira de KPIs del dashboard */
+.kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+.kpi-tile { position: relative; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 11px 8px 10px; text-align: center; overflow: hidden; backdrop-filter: blur(10px); }
+.kpi-tile::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, var(--c-vida), transparent); opacity: .6; }
+.kpi-tile .k-val { font-family: var(--mono); font-size: 21px; font-weight: 800; letter-spacing: -.02em; color: var(--hud-bright); text-shadow: 0 0 12px var(--hud-dim); line-height: 1; }
+.kpi-tile .k-lbl { font-family: var(--mono); font-size: 8px; letter-spacing: .1em; text-transform: uppercase; color: var(--tt); margin-top: 5px; }
+.kpi-tile .k-bar { height: 3px; background: rgba(120,180,230,.12); border-radius: 2px; margin-top: 7px; overflow: hidden; }
+.kpi-tile .k-bar i { display: block; height: 100%; background: var(--c-vida); box-shadow: 0 0 6px var(--c-vida); border-radius: 2px; }
+@media (max-width: 430px) { .kpi-strip { grid-template-columns: repeat(2, 1fr); } }
 .card-title {
   font-size: 14px; font-weight: 700;
   letter-spacing: .14em; text-transform: uppercase;
@@ -3541,6 +3559,8 @@ body.font-jakarta  { --sans: "Plus Jakarta Sans", sans-serif; --mono: "JetBrains
       <div class="tab-header-meta" id="vidaHeaderMeta"></div>
     </div>
     <div class="affirmation-strip aff-featured"><span id="affirmation-vida"></span></div>
+    <!-- Tira de KPIs (cabina) -->
+    <div id="vida-kpi" class="kpi-strip"></div>
     <!-- ⚡ INTEL — motor de inteligencia + heatmap de actividad -->
     <div class="card intel-card">
       <div class="card-title">⚡ INTEL <span id="intel-sub">análisis del sistema</span></div>
@@ -13751,7 +13771,21 @@ Instrucciones:
     return { svg:`<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="var(--hud)" stroke-width="2" style="filter:drop-shadow(0 0 4px var(--hud-dim))"/></svg>`, mom, col: mom>=0?'var(--ok)':'var(--danger)' };
   }
 
+  function renderKPIs(){
+    const el = document.getElementById('vida-kpi'); if (!el) return;
+    const today = _today();
+    const g = (S.goals && S.goals[today]) || [];
+    const dpct = g.length ? Math.round(g.filter(x => x.done).length / g.length * 100) : 0;
+    const streak = (S.streak && S.streak.count) || 0;
+    let hd = 0, ht = 0;
+    TABS.forEach(sec => { const hs = (S.habitTrackers && S.habitTrackers[sec]) || []; hs.forEach(h => { ht++; const v = (h.days||{})[today]; if (v==='done' || v==='partial') hd++; }); });
+    const qp = _quarterPace(); const qpct = qp ? Math.round(qp.pct) : 0;
+    const tile = (val, lbl, bar) => `<div class="kpi-tile"><div class="k-val">${val}</div><div class="k-lbl">${lbl}</div>${bar!=null?`<div class="k-bar"><i style="width:${bar}%"></i></div>`:''}</div>`;
+    el.innerHTML = tile(dpct+'%','Día',dpct) + tile('🔥 '+streak,'Racha',null) + tile(hd+'/'+ht,'Hábitos',ht?Math.round(hd/ht*100):0) + tile(qpct+'%','Trimestre',qpct);
+  }
+
   function renderCard(){
+    try { renderKPIs(); } catch(e) {}
     const body = document.getElementById('intel-card-body'); if (!body) return;
     try {
       const ins = insights().map(i => `<div class="intel-row ${i.lvl}"><span class="ii-ic">${i.ic}</span><span>${i.html}</span></div>`).join('');
@@ -13765,7 +13799,7 @@ Instrucciones:
     } catch(e) { body.innerHTML = '<div class="intel-row info"><span class="ii-ic">◇</span><span>Análisis no disponible por ahora.</span></div>'; }
   }
 
-  window.JARVIS_INTEL = { insights, briefing, renderCard };
+  window.JARVIS_INTEL = { insights, briefing, renderCard, renderKPIs };
   setTimeout(renderCard, 1200);
   setInterval(() => { const v = document.getElementById('tab-vida'); if (v && v.classList.contains('active')) renderCard(); }, 60000);
 })();
