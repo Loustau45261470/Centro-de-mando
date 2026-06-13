@@ -22,17 +22,19 @@
 /* ── Reset & Variables ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
-  --bg: #050506;
-  --bg2: #0d0d0f;
-  --card: rgba(255,255,255,0.045);
-  --card-h: rgba(255,255,255,0.07);
-  --border: rgba(255,255,255,0.08);
-  --tp: #FAFAFA; --ts: #B8B6B0; --tt: #76746E;
-  --ok: #00FF88; --warn: #FFB020; --danger: #FF0000; --accent: #7C8EE8;
+  --bg: #04060a;
+  --bg2: #0a0e15;
+  --card: rgba(140,185,230,0.05);
+  --card-h: rgba(150,200,245,0.09);
+  --border: rgba(130,180,230,0.13);
+  --tp: #F4F8FC; --ts: #AAB6C6; --tt: #6E7A8A;
+  --ok: #00FF88; --warn: #FFB020; --danger: #FF0000; --accent: #38BDF8;
+  /* ── Acento de sistema HUD (coherente con la red neuronal de JARVIS) ── */
+  --hud: #38BDF8; --hud-bright: #7DD3FC; --hud-dim: rgba(56,189,248,0.5); --hud-glow: rgba(56,189,248,0.25);
   --sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --font-label: "Sistema";
-  --nav: 60px; --ticker: 34px; --r: 14px;
+  --nav: 60px; --ticker: 34px; --r: 11px;
   --safe-b: env(safe-area-inset-bottom, 0px);
   /* ── Tab accent colors ── */
   --c-vida:         #00D4FF;
@@ -44,18 +46,34 @@
 html, body { height: 100%; }
 body {
   font-family: var(--sans);
-  background: var(--bg);
   color: var(--tp);
   overflow: hidden;
   position: fixed; inset: 0;
+  background:
+    repeating-linear-gradient(0deg, rgba(140,190,240,0.018) 0 1px, transparent 1px 3px),
+    radial-gradient(120% 80% at 50% -12%, rgba(40,95,150,0.13), transparent 55%),
+    radial-gradient(110% 70% at 50% 112%, rgba(18,70,120,0.10), transparent 55%),
+    var(--bg);
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+}
+/* Grilla tech de fondo (se desvanece hacia los bordes; queda detrás del contenido) */
+body::before {
+  content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background-image:
+    linear-gradient(rgba(120,180,230,0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(120,180,230,0.05) 1px, transparent 1px);
+  background-size: 46px 46px;
+  -webkit-mask-image: radial-gradient(135% 105% at 50% 22%, #000 42%, transparent 92%);
+          mask-image: radial-gradient(135% 105% at 50% 22%, #000 42%, transparent 92%);
 }
 
 /* ── Ticker ── */
 #ticker {
   position: fixed; top: 0; left: 0; right: 0;
   height: var(--ticker);
-  background: rgba(0,0,0,0.55);
+  background: linear-gradient(180deg, rgba(6,10,16,0.72), rgba(4,7,12,0.5));
   border-bottom: 1px solid var(--border);
+  box-shadow: 0 1px 20px rgba(56,189,248,0.05);
   backdrop-filter: blur(12px);
   display: flex; align-items: center;
   overflow: hidden; z-index: 100;
@@ -85,6 +103,7 @@ body {
   bottom: calc(var(--nav) + var(--safe-b));
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  z-index: 1;
 }
 .tab-panel { display: none; padding: 16px 16px 8px; min-height: 100%; }
 .tab-panel.active { display: block; }
@@ -94,12 +113,14 @@ body {
   position: fixed; bottom: 0; left: 0; right: 0;
   height: calc(var(--nav) + var(--safe-b));
   padding-bottom: var(--safe-b);
-  background: rgba(5,5,6,0.92);
+  background: linear-gradient(180deg, rgba(8,12,20,0.86), rgba(4,6,10,0.96));
   border-top: 1px solid var(--border);
+  box-shadow: 0 -1px 24px rgba(56,189,248,0.06), inset 0 1px 0 rgba(120,180,230,0.08);
   backdrop-filter: blur(20px);
   display: flex; z-index: 100;
 }
 .nav-btn {
+  position: relative;
   flex: 1; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 4px;
   background: none; border: none; cursor: pointer;
@@ -109,8 +130,9 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 .nav-btn svg { width: 27px; height: 27px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.nav-btn.active { color: var(--tp); }
-.nav-btn.active svg { stroke: var(--tp); }
+.nav-btn.active { color: var(--tp); text-shadow: 0 0 10px currentColor; }
+.nav-btn.active svg { stroke: var(--tp); filter: drop-shadow(0 0 6px currentColor); }
+.nav-btn.active::before { content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 26px; height: 2px; border-radius: 0 0 2px 2px; background: currentColor; box-shadow: 0 0 8px currentColor; }
 .nav-btn[data-tab="vida"].active,         .nav-btn[data-tab="vida"].active svg     { color: var(--c-vida);         stroke: var(--c-vida); }
 .nav-btn[data-tab="finanzas"].active,     .nav-btn[data-tab="finanzas"].active svg { color: var(--c-finanzas);     stroke: var(--c-finanzas); }
 .nav-btn[data-tab="salud"].active,        .nav-btn[data-tab="salud"].active svg    { color: var(--c-salud);        stroke: var(--c-salud); }
@@ -155,12 +177,29 @@ body {
 
 /* ── Cards ── */
 .card {
+  --card-accent: var(--hud);
+  position: relative;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--r);
   padding: 16px;
   margin-bottom: 12px;
   backdrop-filter: blur(16px);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 10px 30px rgba(0,0,0,0.35);
+}
+/* Brackets de esquina tipo HUD (color por sección vía --card-accent) */
+.card::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
+  opacity: .6;
+  background:
+    linear-gradient(var(--card-accent),var(--card-accent)) 0 0 / 15px 2px no-repeat,
+    linear-gradient(var(--card-accent),var(--card-accent)) 0 0 / 2px 15px no-repeat,
+    linear-gradient(var(--card-accent),var(--card-accent)) 100% 0 / 15px 2px no-repeat,
+    linear-gradient(var(--card-accent),var(--card-accent)) 100% 0 / 2px 15px no-repeat,
+    linear-gradient(var(--card-accent),var(--card-accent)) 0 100% / 15px 2px no-repeat,
+    linear-gradient(var(--card-accent),var(--card-accent)) 0 100% / 2px 15px no-repeat,
+    linear-gradient(var(--card-accent),var(--card-accent)) 100% 100% / 15px 2px no-repeat,
+    linear-gradient(var(--card-accent),var(--card-accent)) 100% 100% / 2px 15px no-repeat;
 }
 .card-title {
   font-size: 14px; font-weight: 700;
@@ -185,13 +224,18 @@ body {
   font-family: var(--sans); font-size: 14px; font-weight: 600;
   cursor: pointer; transition: all .15s; white-space: nowrap;
 }
-.btn-primary { background: #fff; color: #050506; }
-.btn-primary:hover { background: #eee; }
+.btn-primary {
+  background: linear-gradient(180deg, rgba(56,189,248,0.28), rgba(56,189,248,0.12));
+  color: var(--hud-bright); border: 1px solid var(--hud-dim);
+  box-shadow: 0 0 16px var(--hud-glow), inset 0 0 12px rgba(56,189,248,0.08);
+  text-shadow: 0 0 8px rgba(56,189,248,0.5); letter-spacing: .02em;
+}
+.btn-primary:hover { background: linear-gradient(180deg, rgba(56,189,248,0.42), rgba(56,189,248,0.18)); box-shadow: 0 0 24px var(--hud-glow), inset 0 0 14px rgba(56,189,248,0.12); }
 .btn-ghost {
   background: var(--card); border: 1px solid var(--border);
   color: var(--ts);
 }
-.btn-ghost:hover { background: var(--card-h); color: var(--tp); }
+.btn-ghost:hover { background: var(--card-h); color: var(--tp); border-color: var(--hud-dim); }
 .btn-danger { background: rgba(255,107,107,.15); color: var(--danger); border: 1px solid rgba(255,107,107,.25); }
 .btn-sm { padding: 7px 13px; font-size: 13px; }
 .btn-icon { padding: 9px; border-radius: 8px; }
@@ -215,7 +259,7 @@ body {
   outline: none; transition: border-color .2s;
   -webkit-appearance: none;
 }
-.inp:focus, select:focus, textarea:focus { border-color: rgba(255,255,255,.28); }
+.inp:focus, select:focus, textarea:focus { border-color: var(--hud-dim); box-shadow: 0 0 0 3px rgba(56,189,248,0.12); }
 .inp::placeholder { color: var(--tt); }
 select option { background: #1a1a1f; }
 textarea { resize: vertical; min-height: 60px; }
@@ -925,18 +969,18 @@ textarea { resize: vertical; min-height: 60px; }
 #tab-ia           { --accent: var(--c-ia); }
 
 /* Card border tint per tab */
-#tab-vida         .card { border-color: rgba(0,212,255,.13); }
-#tab-finanzas     .card { border-color: rgba(34,197,94,.13); }
-#tab-salud        .card { border-color: rgba(244,63,94,.13); }
-#tab-conocimiento .card { border-color: rgba(75,123,236,.13); }
-#tab-ia           .card { border-color: rgba(212,220,232,.13); }
+#tab-vida         .card { border-color: rgba(0,212,255,.16);  --card-accent: var(--c-vida); }
+#tab-finanzas     .card { border-color: rgba(34,197,94,.16);  --card-accent: var(--c-finanzas); }
+#tab-salud        .card { border-color: rgba(244,63,94,.16);  --card-accent: var(--c-salud); }
+#tab-conocimiento .card { border-color: rgba(75,123,236,.16); --card-accent: var(--c-conocimiento); }
+#tab-ia           .card { border-color: rgba(212,220,232,.16); --card-accent: var(--c-ia); }
 
-/* Card title per tab */
-#tab-vida         .card-title { color: var(--c-vida); }
-#tab-finanzas     .card-title { color: var(--c-finanzas); }
-#tab-salud        .card-title { color: var(--c-salud); }
-#tab-conocimiento .card-title { color: var(--c-conocimiento); }
-#tab-ia           .card-title { color: var(--c-ia); }
+/* Card title per tab (con leve glow HUD) */
+#tab-vida         .card-title { color: var(--c-vida);         text-shadow: 0 0 12px rgba(0,212,255,.35); }
+#tab-finanzas     .card-title { color: var(--c-finanzas);     text-shadow: 0 0 12px rgba(34,197,94,.30); }
+#tab-salud        .card-title { color: var(--c-salud);        text-shadow: 0 0 12px rgba(244,63,94,.30); }
+#tab-conocimiento .card-title { color: var(--c-conocimiento); text-shadow: 0 0 12px rgba(75,123,236,.30); }
+#tab-ia           .card-title { color: var(--c-ia);           text-shadow: 0 0 12px rgba(212,220,232,.22); }
 
 /* Sec-label (secciones internas) per tab */
 #tab-vida         .sec-label { color: var(--c-vida); }
