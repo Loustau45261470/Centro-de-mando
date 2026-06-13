@@ -13736,7 +13736,7 @@ Instrucciones:
    (vida, finanzas, salud, conocimiento, ia) tiene su propia tarjeta
    ⚡ INTEL con KPIs y análisis usando únicamente los datos de esa
    sección. El seguimiento de objetivos usa las metas MENSUALES.
-   Momentum 14 días por sección. Alimenta briefing por voz / Ctrl+K.
+   Alimenta el briefing por voz / Ctrl+K.
    ══════════════════════════════════════════════════════ */
 (function () {
   const style = document.createElement('style');
@@ -13746,13 +13746,7 @@ Instrucciones:
     .intel-row{display:flex;align-items:flex-start;gap:9px;font-size:12.5px;line-height:1.42;color:var(--ts)}
     .intel-row .ii-ic{flex-shrink:0;font-size:13px;width:16px;text-align:center;line-height:1.4}
     .intel-row.ok .ii-ic{color:var(--ok)} .intel-row.warn .ii-ic{color:var(--warn)} .intel-row.bad .ii-ic{color:var(--danger)} .intel-row.info .ii-ic{color:var(--hud)}
-    .intel-row b{color:var(--tp);font-weight:700}
-    .intel-sec{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--tt)}
-    .intel-sec::after{content:'';flex:1;height:1px;background:var(--border)}
-    .intel-mom{display:flex;align-items:center;gap:14px}
-    .intel-mom svg{flex:1;height:34px;overflow:visible}
-    .intel-mom .mom-val{font-family:var(--mono);font-size:20px;font-weight:800;letter-spacing:-.02em;text-shadow:0 0 12px currentColor}
-    .intel-mom .mom-lbl{font-family:var(--mono);font-size:9px;color:var(--tt);letter-spacing:.06em;text-transform:uppercase}`;
+    .intel-row b{color:var(--tp);font-weight:700}`;
   document.head.appendChild(style);
 
   const SECTIONS = ['vida','finanzas','salud','conocimiento','ia'];
@@ -13768,13 +13762,6 @@ Instrucciones:
   }
 
   // ── Actividad de una sección (hábitos; vida suma metas del día) ──
-  function secActivity(sec, ds){
-    let a = 0;
-    const hs = (S.habitTrackers && S.habitTrackers[sec]) || [];
-    hs.forEach(h => { const v = (h.days||{})[ds]; if (v==='done') a+=1; else if (v==='partial') a+=0.5; });
-    if (sec === 'vida') a += ((S.goals && S.goals[ds]) || []).filter(x => x.done).length;
-    return a;
-  }
   function habCount(sec, ds){
     const hs = (S.habitTrackers && S.habitTrackers[sec]) || []; let done = 0, tot = 0;
     hs.forEach(h => { tot++; const v = (h.days||{})[ds]; if (v==='done' || v==='partial') done++; });
@@ -13821,18 +13808,6 @@ Instrucciones:
   }
 
   // ── Finanzas ──
-  function _nwProjection(){
-    try {
-      const nw = (S.nwHistory||[]).filter(x => x && x.date && typeof x.value === 'number').slice().sort((a,b)=>a.date.localeCompare(b.date));
-      if (nw.length < 2) return null;
-      const r = nw.slice(-6), t0 = new Date(r[0].date).getTime();
-      const pts = r.map(p => ({ x: (new Date(p.date).getTime()-t0)/(2.628e9), y: p.value }));
-      const n = pts.length, sx = pts.reduce((s,p)=>s+p.x,0), sy = pts.reduce((s,p)=>s+p.y,0);
-      const sxx = pts.reduce((s,p)=>s+p.x*p.x,0), sxy = pts.reduce((s,p)=>s+p.x*p.y,0);
-      const den = n*sxx - sx*sx; if (!den) return null;
-      return { slope: (n*sxy - sx*sy)/den, current: r[r.length-1].value };
-    } catch(e) { return null; }
-  }
   function _spendAnomaly(){
     try {
       const bm = {};
@@ -13875,11 +13850,6 @@ Instrucciones:
       const st = (S.streak && S.streak.count) || 0;
       if (st > 0) out.push({lvl: st>=7?'ok':'info', ic:'🔥', html:`Racha de <b>${st}</b> día${st!==1?'s':''} cumpliendo metas.`});
     } else if (sec === 'finanzas') {
-      const np = _nwProjection();
-      if (np && _money()) {
-        if (np.slope > 0) out.push({lvl:'ok', ic:'▲', html:`Patrimonio creciendo ~<b>${fmtMoney(Math.round(np.slope),'ARS')}</b>/mes — proyección a 6 meses: <b>${fmtMoney(Math.round(np.current+np.slope*6),'ARS')}</b>.`});
-        else if (np.slope < 0) out.push({lvl:'warn', ic:'▼', html:`Patrimonio cayendo ~<b>${fmtMoney(Math.round(-np.slope),'ARS')}</b>/mes. Conviene ajustar gastos.`});
-      }
       const sa = _spendAnomaly();
       if (sa && _money()) {
         if (sa.diff >= 20) out.push({lvl:'warn', ic:'⚠', html:`Gasto del mes <b>${Math.round(sa.diff)}% sobre</b> tu promedio (${fmtMoney(Math.round(sa.cur),'ARS')} vs ${fmtMoney(Math.round(sa.avg),'ARS')}).`});
@@ -13906,16 +13876,6 @@ Instrucciones:
     return lines.slice(0,3).join(' ');
   }
 
-  function momentum(sec){
-    const today = new Date(_today()+'T00:00:00'), vals = [];
-    for (let i=13;i>=0;i--){ const d=new Date(today); d.setDate(d.getDate()-i); vals.push(secActivity(sec, _ls(d))); }
-    const max = Math.max(1, ...vals), w=160, h=34;
-    const pts = vals.map((v,i) => `${(i/(vals.length-1))*w},${(h-(v/max)*h).toFixed(1)}`).join(' ');
-    const thisW = vals.slice(7).reduce((s,v)=>s+v,0), lastW = vals.slice(0,7).reduce((s,v)=>s+v,0);
-    const mom = lastW>0 ? Math.round((thisW-lastW)/lastW*100) : (thisW>0?100:0);
-    return { svg:`<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="var(--hud)" stroke-width="2" style="filter:drop-shadow(0 0 4px var(--hud-dim))"/></svg>`, mom, col: mom>=0?'var(--ok)':'var(--danger)' };
-  }
-
   function renderKPIs(sec){
     const el = document.getElementById('kpi-' + sec); if (!el) return;
     const today = _today();
@@ -13923,7 +13883,7 @@ Instrucciones:
     const mp = _monthPace(sec); const mpct = mp ? Math.round(mp.pct) : 0;
     const tile = (val, lbl, bar) => `<div class="kpi-tile"><div class="k-val">${val}</div><div class="k-lbl">${lbl}</div>${bar!=null?`<div class="k-bar"><i style="width:${bar}%"></i></div>`:''}</div>`;
     const hb = tile(hd+'/'+ht, 'Hábitos', ht?Math.round(hd/ht*100):0);
-    const ms = tile(mpct+'%', 'Mes', mpct);
+    const ms = tile(mp ? (mp.done+'/'+mp.total) : '0/0', 'Mes', mpct);
     let html = '';
     if (sec === 'vida') {
       const g = (S.goals && S.goals[today]) || [];
@@ -13952,11 +13912,7 @@ Instrucciones:
     const body = document.getElementById('intel-body-' + sec); if (!body) return;
     try {
       const ins = insights(sec).map(i => `<div class="intel-row ${i.lvl}"><span class="ii-ic">${i.ic}</span><span>${i.html}</span></div>`).join('');
-      const m = momentum(sec);
-      body.innerHTML =
-        `<div class="intel-insights">${ins}</div>`+
-        `<div class="intel-sec">Momentum · 14 días</div>`+
-        `<div class="intel-mom"><div><div class="mom-val" style="color:${m.col}">${m.mom>=0?'+':''}${m.mom}%</div><div class="mom-lbl">vs semana previa</div></div>${m.svg}</div>`;
+      body.innerHTML = `<div class="intel-insights">${ins}</div>`;
     } catch(e) { body.innerHTML = '<div class="intel-row info"><span class="ii-ic">◇</span><span>Análisis no disponible por ahora.</span></div>'; }
   }
 
