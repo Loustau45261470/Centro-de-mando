@@ -211,11 +211,12 @@ body::before {
 
 /* ── Section headers ── */
 .sec-label {
-  font-size: 14px; font-weight: 700; letter-spacing: .12em;
-  text-transform: uppercase; color: var(--tt);
-  display: flex; align-items: center; gap: 10px; margin: 16px 0 10px;
+  font-size: 13px; font-weight: 700; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--tt); font-family: var(--mono);
+  display: flex; align-items: center; gap: 9px; margin: 18px 0 10px;
 }
-.sec-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.sec-label::before { content: '▸'; color: var(--accent); font-size: 11px; opacity: .85; }
+.sec-label::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, var(--accent), transparent); opacity: .4; }
 
 /* ── Buttons ── */
 .btn {
@@ -2867,47 +2868,67 @@ body.font-jakarta  { --sans: "Plus Jakarta Sans", sans-serif; --mono: "JetBrains
 
 /* ── Enterprise dashboard header (shared) ── */
 .tab-header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  padding: 2px 0 14px;
-  border-bottom: 1px solid var(--tab-border);
-  margin-bottom: 14px;
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 14px;
+  margin-bottom: 16px;
+  background: linear-gradient(180deg, rgba(140,185,230,0.06), rgba(140,185,230,0.015));
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  overflow: hidden;
+}
+.tab-header::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none; opacity: .6;
+  background:
+    linear-gradient(180deg, var(--accent), transparent) left / 3px 100% no-repeat,
+    repeating-linear-gradient(90deg, rgba(140,185,230,0.045) 0 1px, transparent 1px 8px);
 }
 .tab-header::after {
-  content: '';
-  position: absolute;
-  bottom: -1px; left: 0;
-  width: 32px; height: 1px;
-  background: var(--accent);
+  content: ''; position: absolute; top: 8px; right: 8px; width: 13px; height: 13px; pointer-events: none;
+  border-top: 1.5px solid var(--accent); border-right: 1.5px solid var(--accent); opacity: .5;
 }
+.tab-header > div:first-child { position: relative; z-index: 1; }
 .tab-header-super {
-  font-size: 7px;
+  font-size: 8px;
   font-weight: 700;
-  letter-spacing: 0.3em;
+  letter-spacing: 0.32em;
   text-transform: uppercase;
-  color: var(--tab-t3);
+  color: var(--accent);
+  opacity: .85;
   margin-bottom: 7px;
   font-family: var(--mono);
 }
 .tab-header-title {
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: 0.13em;
   text-transform: uppercase;
   color: var(--tab-t1);
   line-height: 1;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  text-shadow: 0 0 18px var(--accent);
 }
+.tab-header-title::before {
+  content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
+  box-shadow: 0 0 10px var(--accent); animation: th-pulse 2s ease-in-out infinite; flex-shrink: 0;
+}
+@keyframes th-pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
 .tab-header-meta {
+  position: relative; z-index: 1;
   font-family: var(--mono);
-  font-size: 8px;
+  font-size: 8.5px;
   color: var(--tab-t3);
   letter-spacing: 0.1em;
   text-align: right;
-  line-height: 1.9;
+  line-height: 1.85;
   text-transform: uppercase;
 }
+.tab-header-meta .thm-ok { display: block; color: var(--accent); }
 .tab-header-meta strong {
   display: block;
   font-size: 10px;
@@ -5115,7 +5136,7 @@ function renderTabHeader(metaId) {
   const now = new Date();
   const months = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
   const days   = ['DOM','LUN','MAR','MIÉ','JUE','VIE','SÁB'];
-  el.innerHTML = `${days[now.getDay()]} ${now.getDate()} ${months[now.getMonth()]}<strong>${now.getFullYear()}</strong>`;
+  el.innerHTML = `<span class="thm-ok">● OPERATIVO</span>${days[now.getDay()]} ${now.getDate()} ${months[now.getMonth()]}<strong>${now.getFullYear()}</strong>`;
 }
 
 function switchTab(tab, btn) {
