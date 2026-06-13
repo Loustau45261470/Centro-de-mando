@@ -12002,6 +12002,7 @@ Instrucciones:
         }
         case 'add_quarterly': {
           const p = S.quarterlyObjectives.periods.find(x => x.id === S.quarterlyObjectives.activePeriod);
+          if (!p) return { ok: false, msg: 'No active quarter found, sir.' };
           const nid = p.objectives.length ? Math.max(...p.objectives.map(o => +o.id || 0)) + 1 : 1;
           p.objectives.push({ id: nid, text: a.text || '', done: false, category: a.category || null });
           saveState(); if (typeof renderQuarterlyObjectives === 'function') renderQuarterlyObjectives();
