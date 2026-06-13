@@ -12854,6 +12854,7 @@ Instrucciones:
   let wakeOn = localStorage.getItem('jarvis_wake') === '1';
   let rec = null, mode = 'off'; // off | passive (espera wake word) | command (espera orden)
   let cmdTimer = null, recStartedAt = 0;
+  const LISTEN_MS = 14000; // ventana de escucha amplia, para que se sienta como una charla
   let restartTimes = [], restartTimer = null; // anti-tormenta de reinicios
 
   /* ── Target de clic transparente sobre el núcleo neuronal (lo visual lo dibuja JARVIS_FX) ── */
@@ -12886,8 +12887,9 @@ Instrucciones:
 
         if (!e.results[i].isFinal) {
           if (mode === 'command') {
+            if (window.JARVIS && JARVIS.isSpeaking()) continue; // no reaccionar a su propia voz
             // Seguís hablando: extender la ventana y mostrar transcripción en vivo
-            clearTimeout(cmdTimer); cmdTimer = setTimeout(exitCommand, 9000);
+            clearTimeout(cmdTimer); cmdTimer = setTimeout(commandTimeout, LISTEN_MS);
             if (typeof showToast === 'function') showToast('🎙️ ' + text + '…');
           } else if (mode === 'passive' && WAKE_RE.test(text) && !(window.JARVIS && JARVIS.isSpeaking())) {
             // Wake word en resultado parcial: reaccionar ya (los finales a veces tardan o no llegan)
@@ -12900,18 +12902,18 @@ Instrucciones:
 
         // Resultado final
         if (mode === 'command') {
-          // El filtro anti-eco NO aplica acá: la orden del usuario nunca se descarta.
+          if (window.JARVIS && JARVIS.isSpeaking()) continue; // descartar el eco de su propia voz (antes "Yes, sir?" cerraba la ventana al instante)
           // Quitar el wake word si vino pegado a la orden ("jarvis cambiá a finanzas")
           const cmd = text.replace(WAKE_RE, '').replace(/^[,.\s]+/, '').trim();
           if (!cmd) continue; // era solo "jarvis" — seguir esperando la orden
-          exitCommand();
-          handleCommand(cmd);
+          clearTimeout(cmdTimer);                                   // pausar el cierre mientras procesa y responde
+          Promise.resolve(handleCommand(cmd)).finally(followUp);    // tras responder, sigue escuchando (charla continua)
         } else if (mode === 'passive') {
           if (window.JARVIS && JARVIS.isSpeaking()) continue; // no escucharse a sí mismo
           const m = text.match(WAKE_RE);
           if (!m) continue;
           const after = text.slice(text.search(WAKE_RE) + m[0].length).replace(/^[,.\s]+/, '').trim();
-          if (after.split(/\s+/).filter(Boolean).length >= 2) handleCommand(after);
+          if (after.split(/\s+/).filter(Boolean).length >= 2) { enterCommand(); Promise.resolve(handleCommand(after)).finally(followUp); } // orden directa + abrir la charla
           else { enterCommand(); if (window.JARVIS) JARVIS.speak('Yes, sir?'); }
         }
       }
@@ -12969,11 +12971,26 @@ Instrucciones:
     }
   }, 4000);
 
+  // El cierre por silencio NO corre mientras JARVIS está hablando: la charla queda viva y
+  // te da la ventana completa recién cuando terminó de hablar y te quedaste callado.
+  function commandTimeout(tries) {
+    tries = tries || 0;
+    // Esperar a que termine de hablar, pero con tope (~30s) por si isSpeaking quedara trabado.
+    if (tries < 20 && window.JARVIS && JARVIS.isSpeaking()) { cmdTimer = setTimeout(() => commandTimeout(tries + 1), 1500); return; }
+    exitCommand();
+  }
+  // Tras responder una orden, reabrir la ventana para seguir la conversación sin repetir "Jarvis".
+  function followUp() {
+    if (mode !== 'command') return;        // si saliste manualmente, no reabrir
+    clearTimeout(cmdTimer);
+    cmdTimer = setTimeout(commandTimeout, LISTEN_MS);
+  }
+
   function enterCommand() {
     mode = 'command'; _ui();
     if (restartTimer) { clearTimeout(restartTimer); restartTimer = null; } // no dejar un reinicio del watchdog pisando el arranque
     clearTimeout(cmdTimer);
-    cmdTimer = setTimeout(exitCommand, 9000); // si no decís nada, vuelve a reposo
+    cmdTimer = setTimeout(commandTimeout, LISTEN_MS); // si te quedás en silencio, vuelve a reposo
     _checkMic();
     _startMeter();
     if (typeof showToast === 'function') showToast('🎙️ Te escucho — hablá ahora');
