@@ -13261,7 +13261,7 @@ Instrucciones:
     }
 
     // briefing / informe del sistema (motor de inteligencia)
-    if (/\b(briefing|informe|resumen|analisis|como voy|como vengo|como vamos)\b/.test(t) && window.JARVIS_INTEL) {
+    if (/\b(briefing|informe|como voy|como vengo|como vamos)\b/.test(t) && window.JARVIS_INTEL) {
       say(JARVIS_INTEL.briefing(), true);
       const c = document.querySelector('.intel-card'); if (c) { JARVIS_INTEL.renderCard(); c.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
       return;
@@ -13638,7 +13638,8 @@ Instrucciones:
 
   function _quarterPace(){
     try {
-      const qo = S.quarterlyObjectives; const p = qo.periods.find(x => x.id === qo.activePeriod); if (!p) return null;
+      const qo = S.quarterlyObjectives; if (!qo || !qo.periods) return null;
+      const p = qo.periods.find(x => x.id === qo.activePeriod); if (!p) return null;
       const objs = p.objectives || []; if (!objs.length) return null;
       const done = objs.filter(o => o.done).length, pct = done/objs.length*100;
       let elapsed = null;
