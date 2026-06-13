@@ -12256,58 +12256,111 @@ Instrucciones:
     ctx.fillStyle = rgba(c, a);        ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
   }
 
-  /* ── Estructuras de fondo: anillos lentos + radios (sólo expandido) ── */
+  /* ── Estructuras de fondo: grilla de puntería + anillos + radios (sólo expandido) ── */
   function drawBackdrop(cx, cy, vis) {
-    const base = Math.max(R.w, R.h) * 0.5;
+    const base = Math.max(R.w, R.h) * 0.5, a = vis * opacity;
     ctx.lineWidth = 1;
-    for (let i = 0; i < 3; i++) {
-      ctx.strokeStyle = rgba(CD, 0.05 * vis * opacity);
-      ctx.beginPath(); ctx.arc(cx, cy, base * (0.55 + i * 0.22), 0, TAU); ctx.stroke();
+    // anillos concéntricos, alternando sólidos y punteados
+    for (let i = 0; i < 4; i++) {
+      ctx.setLineDash(i % 2 ? [2, 7] : []);
+      ctx.strokeStyle = rgba(CD, (i % 2 ? 0.04 : 0.06) * a);
+      ctx.beginPath(); ctx.arc(cx, cy, base * (0.42 + i * 0.2), 0, TAU); ctx.stroke();
     }
-    const spokes = 40, rot = t * 0.05;
-    ctx.strokeStyle = rgba(CD, 0.03 * vis * opacity);
+    ctx.setLineDash([]);
+    // radios tenues girando (los múltiplos de 4 llegan más lejos)
+    const spokes = 48, rot = t * 0.05;
+    ctx.strokeStyle = rgba(CD, 0.03 * a);
     for (let i = 0; i < spokes; i++) {
-      const a = rot + i / spokes * TAU, c = Math.cos(a), s = Math.sin(a);
-      ctx.beginPath(); ctx.moveTo(cx + c * base * 0.5, cy + s * base * 0.5); ctx.lineTo(cx + c * base * 1.18, cy + s * base * 1.18); ctx.stroke();
+      const ang = rot + i / spokes * TAU, c = Math.cos(ang), s = Math.sin(ang), far = i % 4 ? 1.0 : 1.18;
+      ctx.beginPath(); ctx.moveTo(cx + c * base * 0.42, cy + s * base * 0.42); ctx.lineTo(cx + c * base * far, cy + s * base * far); ctx.stroke();
     }
+    // cruz de mira sutil a través del centro
+    ctx.strokeStyle = rgba(CD, 0.045 * a);
+    ctx.beginPath();
+    ctx.moveTo(cx - base * 1.3, cy); ctx.lineTo(cx + base * 1.3, cy);
+    ctx.moveTo(cx, cy - base * 1.3); ctx.lineTo(cx, cy + base * 1.3);
+    ctx.stroke();
   }
 
-  /* ── Núcleo tipo reactor: anillos, arcos, iris, radios, satélites, orbe ── */
+  /* ── Núcleo tipo reactor: halo, anillos, arcos, iris doble, filamentos, satélites, orbe ── */
   function drawCore(cx, cy, cr) {
     const e = energy, rot = t, o = opacity;
-    // anillo exterior con marcas
-    const ticks = 48;
+
+    // halo radial suave detrás del núcleo (atmósfera / profundidad)
+    const hg = ctx.createRadialGradient(cx, cy, cr * 0.2, cx, cy, cr * 2.0);
+    hg.addColorStop(0, rgba(C2, (0.10 + 0.10 * e + levelS * 0.15) * o));
+    hg.addColorStop(1, rgba(C2, 0));
+    ctx.fillStyle = hg; ctx.beginPath(); ctx.arc(cx, cy, cr * 2.0, 0, TAU); ctx.fill();
+
+    // anillo exterior con marcas finas (+ marcadores diamante en las mayores)
+    const ticks = 60;
     ctx.lineWidth = 1;
     for (let i = 0; i < ticks; i++) {
-      const a = rot * 0.2 + i / ticks * TAU, big = i % 4 === 0;
-      const r1 = cr * 1.45, r2 = cr * (big ? 1.62 : 1.55);
-      ctx.strokeStyle = rgba(C, (big ? 0.5 : 0.22) * o);
-      ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1); ctx.lineTo(cx + Math.cos(a) * r2, cy + Math.sin(a) * r2); ctx.stroke();
+      const a = rot * 0.2 + i / ticks * TAU, big = i % 5 === 0, ca = Math.cos(a), sa = Math.sin(a);
+      const r1 = cr * 1.45, r2 = cr * (big ? 1.64 : 1.55);
+      ctx.strokeStyle = rgba(C, (big ? 0.55 : 0.20) * o);
+      ctx.beginPath(); ctx.moveTo(cx + ca * r1, cy + sa * r1); ctx.lineTo(cx + ca * r2, cy + sa * r2); ctx.stroke();
+      if (big) { ctx.fillStyle = rgba(C2, 0.5 * o); ctx.beginPath(); ctx.arc(cx + ca * cr * 1.72, cy + sa * cr * 1.72, 1.3, 0, TAU); ctx.fill(); }
     }
-    // arcos parciales rotando (gyroscopio)
-    const arcs = [[cr * 1.18, 0.2, 2.0, 0.6, 2, C2], [cr * 1.30, 3.2, 5.0, -0.4, 1.5, C], [cr * 1.00, 1.5, 3.0, 0.9, 2.5, C2]];
+
+    // arcos parciales rotando (gyroscopio, 4 niveles)
+    const arcs = [[cr * 1.18, 0.2, 2.0, 0.6, 2, C2], [cr * 1.30, 3.2, 5.0, -0.4, 1.5, C], [cr * 1.00, 1.5, 3.0, 0.9, 2.5, C2], [cr * 0.86, 4.0, 5.2, -0.7, 1.5, C2]];
     for (const ar of arcs) {
       ctx.strokeStyle = rgba(ar[5], (0.4 + 0.4 * e) * o); ctx.lineWidth = ar[4];
       ctx.beginPath(); ctx.arc(cx, cy, ar[0], rot * ar[3] + ar[1], rot * ar[3] + ar[2]); ctx.stroke();
     }
-    // anillo punteado
+
+    // anillos finos internos
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = rgba(C, 0.18 * o); ctx.beginPath(); ctx.arc(cx, cy, cr * 0.74, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = rgba(C, 0.12 * o); ctx.beginPath(); ctx.arc(cx, cy, cr * 0.46, 0, TAU); ctx.stroke();
+
+    // anillo punteado exterior
     ctx.setLineDash([3, 6]); ctx.strokeStyle = rgba(C, 0.3 * o); ctx.lineWidth = 1;
     ctx.beginPath(); ctx.arc(cx, cy, cr * 1.7, -rot * 0.3, -rot * 0.3 + TAU); ctx.stroke();
     ctx.setLineDash([]);
+
     // iris hexagonal pulsante
     const ir = cr * (0.55 + 0.12 * Math.sin(t * 3) + levelS * 0.4), irot = -rot * 0.5;
     ctx.strokeStyle = rgba(C2, (0.5 + 0.4 * e) * o); ctx.lineWidth = 1.5;
     ctx.beginPath();
     for (let i = 0; i <= 6; i++) { const a = irot + i / 6 * TAU, fx = cx + Math.cos(a) * ir, fy = cy + Math.sin(a) * ir; i ? ctx.lineTo(fx, fy) : ctx.moveTo(fx, fy); }
     ctx.stroke();
+    // iris triangular interior contra-rotando
+    const ir2 = cr * (0.34 + levelS * 0.25), trot = rot * 0.7;
+    ctx.strokeStyle = rgba(CW, (0.32 + 0.4 * e) * o); ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 0; i <= 3; i++) { const a = trot + i / 3 * TAU, fx = cx + Math.cos(a) * ir2, fy = cy + Math.sin(a) * ir2; i ? ctx.lineTo(fx, fy) : ctx.moveTo(fx, fy); }
+    ctx.stroke();
+
     // radios internos pulsantes
     for (let i = 0; i < 12; i++) {
       const a = rot * 0.4 + i / 12 * TAU, pl = 0.5 + 0.5 * Math.sin(t * 4 + i);
       ctx.strokeStyle = rgba(C2, 0.18 * pl * (0.4 + e) * o); ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * cr * 0.62, cy + Math.sin(a) * cr * 0.62); ctx.lineTo(cx + Math.cos(a) * cr * (0.9 + 0.2 * pl), cy + Math.sin(a) * cr * (0.9 + 0.2 * pl)); ctx.stroke();
     }
-    // satélites en órbita
-    for (const s of sats) { s.a += s.sp / 60; glow(cx + Math.cos(s.a) * cr * s.rad, cy + Math.sin(s.a) * cr * s.rad, s.r, C2, s.e * (0.5 + 0.5 * e) * o); }
+
+    // filamentos eléctricos que parpadean entre el iris y el anillo
+    if (!REDUCED) for (let i = 0; i < 5; i++) {
+      const fl = Math.sin(t * 7 + i * 1.7); if (fl < 0.4) continue;
+      const a = rot * 0.9 + i / 5 * TAU + i, r1 = cr * 0.5, r2 = cr * 1.12, midR = (r1 + r2) / 2, ja = a + (Math.random() - 0.5) * 0.3;
+      ctx.strokeStyle = rgba(CW, (fl - 0.4) * 0.5 * (0.4 + e) * o); ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1);
+      ctx.lineTo(cx + Math.cos(ja) * midR, cy + Math.sin(ja) * midR);
+      ctx.lineTo(cx + Math.cos(a) * r2, cy + Math.sin(a) * r2);
+      ctx.stroke();
+    }
+
+    // satélites en órbita (con estela corta)
+    for (const s of sats) {
+      s.a += s.sp / 60;
+      const x = cx + Math.cos(s.a) * cr * s.rad, y = cy + Math.sin(s.a) * cr * s.rad;
+      const xb = cx + Math.cos(s.a - s.sp * 0.12) * cr * s.rad, yb = cy + Math.sin(s.a - s.sp * 0.12) * cr * s.rad;
+      ctx.strokeStyle = rgba(C2, s.e * 0.3 * o); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(xb, yb); ctx.lineTo(x, y); ctx.stroke();
+      glow(x, y, s.r, C2, s.e * (0.5 + 0.5 * e) * o);
+    }
+
     // orbe central con bloom
     ctx.shadowColor = rgba(C2, 1); ctx.shadowBlur = 26 + e * 36 + levelS * 30;
     ctx.fillStyle = rgba(C2, 0.85 * o);
@@ -12317,17 +12370,27 @@ Instrucciones:
     ctx.beginPath(); ctx.arc(cx, cy, cr * 0.16 + levelS * 3, 0, TAU); ctx.fill();
   }
 
-  /* ── Marco HUD: brackets, retícula, barrido de radar, lluvia de datos (sólo expandido) ── */
+  /* ── Marco HUD: brackets, retícula con grados, radar, ecualizador, telemetría, datos ── */
   function drawHUD(cx, cy, vis) {
-    const a = vis * opacity, rr = Math.min(W, H) * 0.42;
-    // brackets de esquina
-    const m = 26, L = 34;
-    ctx.strokeStyle = rgba(C, 0.5 * a); ctx.lineWidth = 2;
-    const corner = (x, y, dx, dy) => { ctx.beginPath(); ctx.moveTo(x + dx * L, y); ctx.lineTo(x, y); ctx.lineTo(x, y + dy * L); ctx.stroke(); };
+    const a = vis * opacity, rr = Math.min(W, H) * 0.42, wide = W > 760;
+    // brackets de esquina (doble línea + punto)
+    const m = 24, L = 36;
+    const corner = (x, y, dx, dy) => {
+      ctx.strokeStyle = rgba(C, 0.55 * a); ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(x + dx * L, y); ctx.lineTo(x, y); ctx.lineTo(x, y + dy * L); ctx.stroke();
+      ctx.strokeStyle = rgba(C, 0.22 * a); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x + dx * (L * 0.6), y + dy * 6); ctx.lineTo(x + dx * 6, y + dy * 6); ctx.lineTo(x + dx * 6, y + dy * (L * 0.6)); ctx.stroke();
+      ctx.fillStyle = rgba(C2, 0.6 * a); ctx.beginPath(); ctx.arc(x + dx * 6, y + dy * 6, 1.6, 0, TAU); ctx.fill();
+    };
     corner(m, m, 1, 1); corner(W - m, m, -1, 1); corner(m, H - m, 1, -1); corner(W - m, H - m, -1, -1);
-    // retícula grande rotando + cruces cardinales
+    // retícula grande rotando con marcas de grado + cruces cardinales
     ctx.lineWidth = 1;
     for (let s = 0; s < 4; s++) { const a0 = t * 0.1 + s * (TAU / 4); ctx.strokeStyle = rgba(C, 0.10 * a); ctx.beginPath(); ctx.arc(cx, cy, rr, a0 + 0.15, a0 + TAU / 4 - 0.15); ctx.stroke(); }
+    for (let i = 0; i < 72; i++) {
+      const ang = i / 72 * TAU + t * 0.1, big = i % 9 === 0, c = Math.cos(ang), s = Math.sin(ang), len = big ? 9 : 4;
+      ctx.strokeStyle = rgba(C, (big ? 0.30 : 0.12) * a);
+      ctx.beginPath(); ctx.moveTo(cx + c * rr, cy + s * rr); ctx.lineTo(cx + c * (rr - len), cy + s * (rr - len)); ctx.stroke();
+    }
     for (let i = 0; i < 4; i++) { const ang = i * (TAU / 4) + t * 0.1, x = cx + Math.cos(ang) * rr, y = cy + Math.sin(ang) * rr; ctx.strokeStyle = rgba(C2, 0.4 * a); ctx.beginPath(); ctx.moveTo(x - 4, y); ctx.lineTo(x + 4, y); ctx.moveTo(x, y - 4); ctx.lineTo(x, y + 4); ctx.stroke(); }
     // barrido de radar (cuña con degradé + línea)
     if (!REDUCED) {
@@ -12338,8 +12401,31 @@ Instrucciones:
       ctx.strokeStyle = rgba(C2, 0.5 * a); ctx.lineWidth = 2;
       ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(sweep) * rr, cy + Math.sin(sweep) * rr); ctx.stroke();
     }
+    // ecualizador de voz (barras simétricas que reaccionan al nivel)
+    if (wide) {
+      const bars = 24, bw = 3, gap = 3, bx0 = cx - bars * (bw + gap) / 2, by0 = H - 44;
+      for (let i = 0; i < bars; i++) {
+        const dd = Math.abs(i - bars / 2) / (bars / 2);
+        const h = 3 + (levelS * 58 + energy * 12) * (1 - dd * 0.7) * (0.55 + 0.45 * Math.sin(t * 8 + i));
+        ctx.fillStyle = rgba(i % 2 ? C2 : C, (0.22 + 0.5 * levelS) * a);
+        ctx.fillRect(bx0 + i * (bw + gap), by0 - h, bw, h);
+      }
+    }
+    // telemetría dinámica en las esquinas
+    if (wide) {
+      ctx.font = '10px monospace'; ctx.textBaseline = 'top';
+      const stat = state === 'thinking' ? 'PROCESSING' : state === 'command' ? 'LISTENING' : 'STANDBY';
+      ctx.fillStyle = rgba(C2, 0.7 * a);
+      ctx.fillText((Math.sin(t * 4) > 0 ? '● ' : '○ ') + 'NEURAL LINK · ' + stat, m + 16, m + 5);
+      ctx.fillStyle = rgba(C, 0.45 * a);
+      ctx.fillText('NODES ' + N + ' · SYNC ' + (90 + (((t * 3) | 0) % 10)) + '%', m + 16, m + 19);
+      ctx.textAlign = 'right';
+      ctx.fillStyle = rgba(C2, 0.6 * a); ctx.fillText('PWR ' + Math.round((0.4 + energy * 0.6) * 100) + '%', W - m - 16, m + 5);
+      ctx.fillStyle = rgba(C, 0.45 * a); ctx.fillText('AUDIO ' + Math.round(levelS * 100) + '%', W - m - 16, m + 19);
+      ctx.textAlign = 'left';
+    }
     // lluvia de datos hexadecimales (sólo en pantallas anchas, por costo)
-    if (!REDUCED && W > 760) {
+    if (!REDUCED && wide) {
       ctx.font = '10px monospace'; ctx.textBaseline = 'top';
       const step = 18, rows = Math.min(46, Math.ceil(H / step) + 1);
       for (let i = 0; i < cols.length; i++) {
@@ -12460,6 +12546,19 @@ Instrucciones:
       const rr = (n.r * (0.6 + 0.7 * n.z)) * (0.7 + expand * 0.7) * (0.85 + 0.3 * pulse) + energy + n.fire * 2.5;
       const al = (0.30 + 0.40 * pulse + 0.5 * n.fire) * opacity * (0.5 + 0.5 * energy) * (0.5 + 0.5 * n.z);
       glow(x, y, rr, n.fire > 0.25 ? CW : C2, al);
+      // detalle: anillo de activación que se expande + destello en cruz al disparar
+      if (n.fire > 0.18) {
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = rgba(CW, n.fire * 0.5 * opacity);
+        ctx.beginPath(); ctx.arc(x, y, rr + 2 + (1 - n.fire) * 6, 0, TAU); ctx.stroke();
+        const g = (rr + 5) * n.fire;
+        ctx.strokeStyle = rgba(CW, n.fire * 0.55 * opacity);
+        ctx.beginPath(); ctx.moveTo(x - g, y); ctx.lineTo(x + g, y); ctx.moveTo(x, y - g); ctx.lineTo(x, y + g); ctx.stroke();
+      } else if (n.z > 0.82 && expand > 0.3) {
+        // halo tenue alrededor de los nodos grandes (sensación de profundidad)
+        ctx.lineWidth = 1; ctx.strokeStyle = rgba(C, 0.14 * al);
+        ctx.beginPath(); ctx.arc(x, y, rr + 3, 0, TAU); ctx.stroke();
+      }
     }
 
     drawCore(cx, cy, coreR);
