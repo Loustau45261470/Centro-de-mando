@@ -3656,6 +3656,31 @@ body.font-jakarta  { --sans: "Plus Jakarta Sans", sans-serif; --mono: "JetBrains
     <div id="vida-habits-wrap"></div>
     <div class="affirmation-strip aff-mid"><span id="affirmation2-vida"></span></div>
     <div id="reminders-wrap-vida"></div>
+  </div>
+
+  <!-- ████ SALUD Y DEPORTE TAB ████ -->
+  <div id="tab-salud" class="tab-panel">
+    <div class="page-header">Centro de mando · Salud</div>
+    <div class="tab-header">
+      <div>
+        <div class="tab-header-super">Centro de Mando</div>
+        <div class="tab-header-title">Salud</div>
+      </div>
+      <div class="tab-header-meta" id="saludHeaderMeta"></div>
+    </div>
+    <div class="affirmation-strip"><span id="affirmation-salud"></span></div>
+
+    <div id="kpi-salud" class="kpi-strip kpi-sm"></div>
+    <div class="card intel-card">
+      <div class="card-title">📊 Análisis de Salud</div>
+      <div id="intel-body-salud" class="intel-body"></div>
+    </div>
+
+    <div id="qobj-wrap-salud"></div>
+    <div id="proyectos-wrap-salud"></div>
+    <div id="salud-habits-wrap"></div>
+    <div class="affirmation-strip aff-mid"><span id="affirmation2-salud"></span></div>
+    <div id="reminders-wrap-salud"></div>
 
     <!-- Bienestar Tracker -->
     <div class="card">
@@ -3702,31 +3727,6 @@ body.font-jakarta  { --sans: "Plus Jakarta Sans", sans-serif; --mono: "JetBrains
           oninput="saveSleepNotes()"></textarea>
       </div>
     </div>
-  </div>
-
-  <!-- ████ SALUD Y DEPORTE TAB ████ -->
-  <div id="tab-salud" class="tab-panel">
-    <div class="page-header">Centro de mando · Salud</div>
-    <div class="tab-header">
-      <div>
-        <div class="tab-header-super">Centro de Mando</div>
-        <div class="tab-header-title">Salud</div>
-      </div>
-      <div class="tab-header-meta" id="saludHeaderMeta"></div>
-    </div>
-    <div class="affirmation-strip"><span id="affirmation-salud"></span></div>
-
-    <div id="kpi-salud" class="kpi-strip kpi-sm"></div>
-    <div class="card intel-card">
-      <div class="card-title">📊 Análisis de Salud</div>
-      <div id="intel-body-salud" class="intel-body"></div>
-    </div>
-
-    <div id="qobj-wrap-salud"></div>
-    <div id="proyectos-wrap-salud"></div>
-    <div id="salud-habits-wrap"></div>
-    <div class="affirmation-strip aff-mid"><span id="affirmation2-salud"></span></div>
-    <div id="reminders-wrap-salud"></div>
 
     <!-- Entrenamiento -->
     <div id="rutinas-wrap"></div>
@@ -4958,8 +4958,8 @@ function _reRenderAll() {
   ['vida','finanzas','salud','conocimiento','ia'].forEach(renderHabitsCard);
   renderFinObjectives();
   const tab = currentTab || 'vida';
-  if (tab === 'vida')         { renderSleepTracker(); renderTabHeader('vidaHeaderMeta'); }
-  if (tab === 'salud')        { renderSaludTab(); renderTabHeader('saludHeaderMeta'); }
+  if (tab === 'vida')         { renderTabHeader('vidaHeaderMeta'); }
+  if (tab === 'salud')        { renderSaludTab(); renderSleepTracker(); renderTabHeader('saludHeaderMeta'); }
   if (tab === 'finanzas')     { renderFinanzasTab(); }
   if (tab === 'conocimiento') { renderLawProgress(); renderLawMilestones(); renderLawPlan(); renderTabHeader('conocimientoHeaderMeta'); }
   if (window.JARVIS_INTEL) JARVIS_INTEL.renderCard(tab);
@@ -5210,8 +5210,8 @@ function switchTab(tab, btn) {
   currentTab = tab;
   if (!chartsInited[tab]) { initChartsForTab(tab); chartsInited[tab] = true; }
   renderQObjForTab(tab);
-  if (tab === 'vida')         { renderSleepTracker(); renderTabHeader('vidaHeaderMeta'); }
-  if (tab === 'salud')        { renderSaludTab(); renderTabHeader('saludHeaderMeta'); }
+  if (tab === 'vida')         { renderTabHeader('vidaHeaderMeta'); }
+  if (tab === 'salud')        { renderSaludTab(); renderSleepTracker(); renderTabHeader('saludHeaderMeta'); }
   if (tab === 'finanzas')     { renderFinanzasTab(); }
   if (tab === 'conocimiento') { renderLawProgress(); renderLawMilestones(); renderLawPlan(); renderTabHeader('conocimientoHeaderMeta'); }
   if (tab === 'ia')           { renderTabHeader('iaHeaderMeta'); }
