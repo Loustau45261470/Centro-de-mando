@@ -4867,7 +4867,7 @@ const DEFAULT_STATE = {
       }
     ]
   },
-  monthlyGoals: {}  // { 'YYYY-MM': [{ id, text, done }] }
+  monthlyGoals: {}  // POR SECCIÓN: { <sec>: { 'YYYY-MM': [{ id, text, done }] } } (migración automática desde el formato viejo plano)
 };
 
 let S = {};  // live state
@@ -9900,17 +9900,49 @@ function selectMonthView(tabName, view) {
   renderQObjForTab(tabName);
 }
 
-function toggleMonthlyGoal(monthKey, idx) {
-  if (!S.monthlyGoals) S.monthlyGoals = {};
-  if (!S.monthlyGoals[monthKey]) return;
-  S.monthlyGoals[monthKey][idx].done = !S.monthlyGoals[monthKey][idx].done;
-  saveState(); renderQuarterlyObjectives();
+// ── Metas mensuales POR SECCIÓN ──────────────────────────────
+// Forma: S.monthlyGoals = { <sec>: { 'YYYY-MM': [{ id, text, done }] } }
+const _MG_SECTIONS = Object.keys(QOBJ_TAB_CATS); // vida, finanzas, salud, conocimiento, ia
+function _migrateMonthlyGoals() {
+  if (!S.monthlyGoals || typeof S.monthlyGoals !== 'object') { S.monthlyGoals = {}; return; }
+  const keys = Object.keys(S.monthlyGoals);
+  // Formato viejo (global por mes): claves 'YYYY-MM' en el primer nivel → mover a 'vida'
+  if (keys.some(k => /^\d{4}-\d{2}$/.test(k))) {
+    const old = S.monthlyGoals, next = {};
+    _MG_SECTIONS.forEach(s => next[s] = {});
+    keys.forEach(k => {
+      if (/^\d{4}-\d{2}$/.test(k)) next.vida[k] = old[k];
+      else if (old[k] && typeof old[k] === 'object') next[k] = old[k];
+    });
+    S.monthlyGoals = next;
+    try { saveState(); } catch (e) {}
+  }
+}
+function _mgSection(sec) {
+  _migrateMonthlyGoals();
+  if (!S.monthlyGoals[sec]) S.monthlyGoals[sec] = {};
+  return S.monthlyGoals[sec];
+}
+function getMonthlyGoals(sec, monthKey) {
+  return _mgSection(sec)[monthKey] || [];
+}
+function _refreshMonthly(sec) {
+  renderQObjForTab(sec);
+  if (window.JARVIS_INTEL) try { JARVIS_INTEL.renderCard(sec); } catch (e) {}
+}
+
+function toggleMonthlyGoal(tabName, monthKey, idx) {
+  const goals = getMonthlyGoals(tabName, monthKey);
+  if (!goals[idx]) return;
+  goals[idx].done = !goals[idx].done;
+  saveState(); _refreshMonthly(tabName);
 }
 
 function deleteMonthlyGoal(tabName, monthKey, idx) {
-  if (!S.monthlyGoals?.[monthKey]) return;
-  S.monthlyGoals[monthKey].splice(idx, 1);
-  saveState(); renderQObjForTab(tabName);
+  const goals = getMonthlyGoals(tabName, monthKey);
+  if (!goals[idx]) return;
+  goals.splice(idx, 1);
+  saveState(); _refreshMonthly(tabName);
 }
 
 let _mgoalAddTab = null, _mgoalAddMonth = null;
@@ -9919,23 +9951,24 @@ function openAddMonthlyGoal(tabName, monthKey) {
   _mgoalAddTab = tabName;
   _mgoalAddMonth = monthKey;
   const [yr, mn] = monthKey.split('-');
+  const secLbl = (QOBJ_TAB_CATS[tabName] || []).join(' & ') || tabName;
   document.getElementById('mgoal-modal-title').textContent =
-    `Meta — ${_MONTH_SHORT[parseInt(mn) - 1]} ${yr}`;
+    `Meta de ${secLbl} — ${_MONTH_SHORT[parseInt(mn) - 1]} ${yr}`;
   document.getElementById('mgoal-input-text').value = '';
   openModal('modal-add-mgoal');
 }
 
 function saveNewMonthlyGoal() {
   const text = document.getElementById('mgoal-input-text').value.trim();
-  if (!text || !_mgoalAddMonth) return;
-  if (!S.monthlyGoals) S.monthlyGoals = {};
-  if (!S.monthlyGoals[_mgoalAddMonth]) S.monthlyGoals[_mgoalAddMonth] = [];
-  const goals = S.monthlyGoals[_mgoalAddMonth];
+  if (!text || !_mgoalAddMonth || !_mgoalAddTab) return;
+  const m = _mgSection(_mgoalAddTab);
+  if (!m[_mgoalAddMonth]) m[_mgoalAddMonth] = [];
+  const goals = m[_mgoalAddMonth];
   const nextId = goals.length ? Math.max(...goals.map(g => g.id)) + 1 : 1;
   goals.push({ id: nextId, text, done: false });
   saveState();
   closeModal('modal-add-mgoal');
-  renderQObjForTab(_mgoalAddTab);
+  _refreshMonthly(_mgoalAddTab);
 }
 
 function renderQObjForTab(tabName) {
@@ -10018,7 +10051,7 @@ function renderQObjForTab(tabName) {
     <div>${listHTML}</div>`;
   } else {
     const monthKey = activeView;
-    const goals = (S.monthlyGoals || {})[monthKey] || [];
+    const goals = getMonthlyGoals(tabName, monthKey);
     const mn = parseInt(monthKey.split('-')[1]) - 1;
     const yr = monthKey.split('-')[0];
     const totalM = goals.length;
@@ -10035,7 +10068,7 @@ function renderQObjForTab(tabName) {
 
     const goalsHTML = goals.length
       ? goals.map((g, i) => `<div class="monthly-goal-item${g.done?' done':''}">
-          <input type="checkbox" ${g.done?'checked':''} onchange="toggleMonthlyGoal('${monthKey}',${i})">
+          <input type="checkbox" ${g.done?'checked':''} onchange="toggleMonthlyGoal('${tabName}','${monthKey}',${i})">
           <span class="mg-text">${g.text}</span>
           <button class="mg-del" onclick="deleteMonthlyGoal('${tabName}','${monthKey}',${i})">✕</button>
         </div>`).join('')
@@ -12092,10 +12125,12 @@ Instrucciones:
       }
     }
 
-    // Metas del mes
+    // Metas del mes (por sección)
     const mk = today.slice(0, 7);
-    const mg = (S.monthlyGoals && S.monthlyGoals[mk]) || [];
-    if (mg.length) { L.push('\nMETAS DEL MES [' + mk + ']:'); mg.forEach(g => L.push(`  [${g.done ? 'HECHO' : 'pendiente'}] ${g.text}`)); }
+    Object.keys(QOBJ_TAB_CATS).forEach(sec => {
+      const mg = (typeof getMonthlyGoals === 'function') ? getMonthlyGoals(sec, mk) : [];
+      if (mg.length) { L.push('\nMETAS DEL MES — ' + sec.toUpperCase() + ' [' + mk + ']:'); mg.forEach(g => L.push(`  [${g.done ? 'HECHO' : 'pendiente'}] ${g.text}`)); }
+    });
 
     // Metas de hoy
     const dg = (S.goals && S.goals[today]) || [];
@@ -12166,7 +12201,7 @@ Instrucciones:
     'toggle_quarterly {search}  — marca/desmarca un objetivo del trimestre activo',
     'add_quarterly {text, category?(Vida|Economía|Facultad|Conocimiento|Entrenamiento|IA)}',
     'delete_quarterly {search}',
-    'add_monthly_goal {text, month?(YYYY-MM)}',
+    'add_monthly_goal {text, section?(vida|finanzas|salud|conocimiento|ia), month?(YYYY-MM)}',
     'add_project {tab, name}',
     'complete_task {search}',
     'mark_habit {search, status?(done|partial|rest)}',
@@ -12241,11 +12276,14 @@ Instrucciones:
         }
         case 'add_monthly_goal': {
           const mk = a.month || _today().slice(0, 7);
-          if (!S.monthlyGoals) S.monthlyGoals = {};
-          if (!S.monthlyGoals[mk]) S.monthlyGoals[mk] = [];
-          const g = S.monthlyGoals[mk];
+          let sec = _norm(a.section || a.tab || 'vida'); if (!TABS.includes(sec)) sec = 'vida';
+          const m = (typeof _mgSection === 'function') ? _mgSection(sec) : (S.monthlyGoals = S.monthlyGoals || {});
+          if (!m[mk]) m[mk] = [];
+          const g = m[mk];
           g.push({ id: g.length ? Math.max(...g.map(x => +x.id || 0)) + 1 : 1, text: a.text || '', done: false });
-          saveState(); if (typeof renderQuarterlyObjectives === 'function') renderQuarterlyObjectives();
+          saveState();
+          if (typeof renderQObjForTab === 'function') renderQObjForTab(sec);
+          if (window.JARVIS_INTEL) try { JARVIS_INTEL.renderCard(sec); } catch (e) {}
           return { ok: true };
         }
         case 'add_project': {
@@ -13745,11 +13783,15 @@ Instrucciones:
     return { pending:0, overdue:0 };
   }
 
-  // ── Objetivos MENSUALES (globales, compartidos por todas las secciones) ──
-  function _monthPace(){
+  // ── Objetivos MENSUALES de la sección ──
+  function _monthGoals(sec){
+    const mk = _today().slice(0,7);
+    if (typeof getMonthlyGoals === 'function') return getMonthlyGoals(sec, mk);
+    return ((S.monthlyGoals || {})[sec] || {})[mk] || [];
+  }
+  function _monthPace(sec){
     try {
-      const mk = _today().slice(0,7);
-      const goals = (S.monthlyGoals || {})[mk] || []; if (!goals.length) return null;
+      const goals = _monthGoals(sec); if (!goals.length) return null;
       const done = goals.filter(g => g.done).length, pct = done/goals.length*100;
       const now = new Date(_today()+'T00:00:00');
       const dim = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
@@ -13757,8 +13799,8 @@ Instrucciones:
       return { done, total: goals.length, pct, elapsed };
     } catch(e) { return null; }
   }
-  function _monthObjInsight(out){
-    const mp = _monthPace(); if (!mp) return;
+  function _monthObjInsight(sec, out){
+    const mp = _monthPace(sec); if (!mp) return;
     const gap = mp.pct - mp.elapsed;
     const lvl = gap>=5 ? 'ok' : gap<=-12 ? 'bad' : gap<=-5 ? 'warn' : 'info';
     const word = gap>=5 ? 'adelantado' : gap<=-5 ? 'atrasado' : 'en ritmo';
@@ -13825,7 +13867,7 @@ Instrucciones:
 
   function insights(sec){
     const out = [], today = _today();
-    _monthObjInsight(out);
+    _monthObjInsight(sec, out);
     if (sec === 'vida') {
       try { const g=(S.goals&&S.goals[today])||[]; if (g.length){ const d=g.filter(x=>x.done).length; out.push({lvl:d===g.length?'ok':'info', ic:'▮', html:`Metas de hoy: <b>${d}/${g.length}</b> completadas.`}); } } catch(e) {}
       const st = (S.streak && S.streak.count) || 0;
@@ -13876,7 +13918,7 @@ Instrucciones:
     const el = document.getElementById('kpi-' + sec); if (!el) return;
     const today = _today();
     const { done:hd, tot:ht } = habCount(sec, today);
-    const mp = _monthPace(); const mpct = mp ? Math.round(mp.pct) : 0;
+    const mp = _monthPace(sec); const mpct = mp ? Math.round(mp.pct) : 0;
     const tile = (val, lbl, bar) => `<div class="kpi-tile"><div class="k-val">${val}</div><div class="k-lbl">${lbl}</div>${bar!=null?`<div class="k-bar"><i style="width:${bar}%"></i></div>`:''}</div>`;
     const hb = tile(hd+'/'+ht, 'Hábitos', ht?Math.round(hd/ht*100):0);
     const ms = tile(mpct+'%', 'Mes', mpct);
