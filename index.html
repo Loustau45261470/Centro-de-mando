@@ -8889,11 +8889,11 @@ Chart.register({
 Chart.register({
   id: 'hudGlow',
   beforeDatasetDraw(chart, args) {
-    const ctx = chart.ctx; ctx.save();
     const ds = chart.data.datasets[args.index];
     let c = _hudColor(ds.borderColor) || _hudColor(Array.isArray(ds.backgroundColor) ? ds.backgroundColor[0] : ds.backgroundColor) || '#38BDF8';
     if (typeof c !== 'string') c = '#38BDF8';
-    ctx.shadowColor = c; ctx.shadowBlur = ds._noGlow ? 0 : 8;
+    chart.ctx.save(); // save al final: nada puede lanzar después, así restore siempre queda balanceado
+    chart.ctx.shadowColor = c; chart.ctx.shadowBlur = ds._noGlow ? 0 : 8;
   },
   afterDatasetDraw(chart) { chart.ctx.restore(); }
 });
