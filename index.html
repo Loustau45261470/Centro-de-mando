@@ -3520,6 +3520,11 @@ body.font-jakarta  { --sans: "Plus Jakarta Sans", sans-serif; --mono: "JetBrains
       <div class="tab-header-meta" id="vidaHeaderMeta"></div>
     </div>
     <div class="affirmation-strip aff-featured"><span id="affirmation-vida"></span></div>
+    <!-- ⚡ INTEL — motor de inteligencia + heatmap de actividad -->
+    <div class="card intel-card">
+      <div class="card-title">⚡ INTEL <span id="intel-sub">análisis del sistema</span></div>
+      <div id="intel-card-body"></div>
+    </div>
     <!-- Day progress -->
     <div class="card day-progress-wrap">
       <div class="day-progress-header">
@@ -4872,7 +4877,7 @@ function _reRenderAll() {
   ['vida','finanzas','salud','conocimiento','ia'].forEach(renderHabitsCard);
   renderFinObjectives();
   const tab = currentTab || 'vida';
-  if (tab === 'vida')         { renderSleepTracker(); renderTabHeader('vidaHeaderMeta'); }
+  if (tab === 'vida')         { renderSleepTracker(); renderTabHeader('vidaHeaderMeta'); if (window.JARVIS_INTEL) JARVIS_INTEL.renderCard(); }
   if (tab === 'salud')        { renderSaludTab(); renderTabHeader('saludHeaderMeta'); }
   if (tab === 'finanzas')     { renderFinanzasTab(); }
   if (tab === 'conocimiento') { renderLawProgress(); renderLawMilestones(); renderLawPlan(); renderTabHeader('conocimientoHeaderMeta'); }
@@ -5121,7 +5126,7 @@ function switchTab(tab, btn) {
   currentTab = tab;
   if (!chartsInited[tab]) { initChartsForTab(tab); chartsInited[tab] = true; }
   renderQObjForTab(tab);
-  if (tab === 'vida')         { renderSleepTracker(); renderTabHeader('vidaHeaderMeta'); }
+  if (tab === 'vida')         { renderSleepTracker(); renderTabHeader('vidaHeaderMeta'); if (window.JARVIS_INTEL) JARVIS_INTEL.renderCard(); }
   if (tab === 'salud')        { renderSaludTab(); renderTabHeader('saludHeaderMeta'); }
   if (tab === 'finanzas')     { renderFinanzasTab(); }
   if (tab === 'conocimiento') { renderLawProgress(); renderLawMilestones(); renderLawPlan(); renderTabHeader('conocimientoHeaderMeta'); }
@@ -13255,6 +13260,13 @@ Instrucciones:
       }
     }
 
+    // briefing / informe del sistema (motor de inteligencia)
+    if (/\b(briefing|informe|resumen|analisis|como voy|como vengo|como vamos)\b/.test(t) && window.JARVIS_INTEL) {
+      say(JARVIS_INTEL.briefing(), true);
+      const c = document.querySelector('.intel-card'); if (c) { JARVIS_INTEL.renderCard(); c.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+      return;
+    }
+
     // fallback → cerebro IA: responde sobre cualquier dato y ejecuta cualquier acción del centro de mando
     if (window.JARVIS_FX) JARVIS_FX.setState('thinking');
     try {
@@ -13407,14 +13419,7 @@ Instrucciones:
 (function () {
   const style = document.createElement('style');
   style.textContent = `
-    #cmdk-fab{position:fixed;bottom:calc(var(--nav) + var(--safe-b) + 12px);left:50%;transform:translateX(-50%);z-index:95;
-      display:flex;align-items:center;gap:7px;padding:7px 14px;border-radius:99px;cursor:pointer;
-      font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--hud-bright);
-      background:linear-gradient(180deg,rgba(56,189,248,0.16),rgba(56,189,248,0.06));
-      border:1px solid var(--hud-dim);box-shadow:0 0 18px rgba(56,189,248,0.18), inset 0 0 10px rgba(56,189,248,0.06);
-      -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);transition:transform .15s, box-shadow .2s;-webkit-tap-highlight-color:transparent}
-    #cmdk-fab:hover{box-shadow:0 0 26px rgba(56,189,248,0.32)}
-    #cmdk-fab:active{transform:translateX(-50%) scale(.95)}
+    #agent-fab{display:none!important}
     #cmdk-overlay{position:fixed;inset:0;z-index:9990;display:none;align-items:flex-start;justify-content:center;
       padding:12vh 14px 0;background:radial-gradient(ellipse at 50% 28%, rgba(6,14,24,0.62), rgba(2,5,10,0.86));
       -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
@@ -13460,8 +13465,8 @@ Instrucciones:
     {ic:'＋', lbl:'Nuevo hábito — Vida', cat:'Hábitos', kw:'habito vida', run:()=>{ if(has('openAddHabitFor')) openAddHabitFor('vida'); }},
     {ic:'＋', lbl:'Nuevo hábito — Salud', cat:'Hábitos', kw:'habito salud', run:()=>{ if(has('openAddHabitFor')) openAddHabitFor('salud'); }},
     {ic:'＋', lbl:'Nuevo hábito — Conocimiento', cat:'Hábitos', kw:'habito estudio', run:()=>{ if(has('openAddHabitFor')) openAddHabitFor('conocimiento'); }},
+    {ic:'⚡', lbl:'Briefing del sistema', cat:'INTEL', kw:'briefing informe resumen analisis intel como voy proyeccion', run:()=>{ nav('vida'); if(window.JARVIS_INTEL){ JARVIS_INTEL.renderCard(); setTimeout(()=>{ const c=document.querySelector('.intel-card'); if(c) c.scrollIntoView({behavior:'smooth',block:'start'}); },120); if(window.JARVIS&&JARVIS.speak) JARVIS.speak(JARVIS_INTEL.briefing(),{dynamic:true}); } }},
     {ic:'🎙', lbl:'Activar / silenciar "Hey Jarvis"', cat:'JARVIS', kw:'jarvis voz wake escuchar microfono', run:()=>{ if(window.JARVIS_EARS) JARVIS_EARS.toggleWake(); }},
-    {ic:'💬', lbl:'Abrir asistente de texto', cat:'JARVIS', kw:'asistente chat preguntar ia', run:()=>{ if(has('agentToggle')) agentToggle(); }},
     {ic:'◑', lbl:'Tema: Bloomberg', cat:'Tema', kw:'tema bloomberg', run:()=>{ if(has('applyTheme')) applyTheme('bloomberg'); }},
     {ic:'◑', lbl:'Tema: Ámbar', cat:'Tema', kw:'tema ambar amber', run:()=>{ if(has('applyTheme')) applyTheme('amber'); }},
     {ic:'◑', lbl:'Tema: Radar', cat:'Tema', kw:'tema radar', run:()=>{ if(has('applyTheme')) applyTheme('radar'); }},
@@ -13480,12 +13485,6 @@ Instrucciones:
   document.body.appendChild(overlay);
   const input=overlay.querySelector('#cmdk-input');
   const list=overlay.querySelector('#cmdk-list');
-
-  const fab=document.createElement('div'); fab.id='cmdk-fab';
-  fab.innerHTML='<span>⌁</span><span>COMANDO</span>';
-  fab.title='Paleta de comandos (Ctrl+K)';
-  document.body.appendChild(fab);
-  fab.onclick=openPalette;
 
   overlay.addEventListener('click', e=>{ if(e.target===overlay) closePalette(); });
 
@@ -13591,6 +13590,162 @@ Instrucciones:
   }
   tick();
   setInterval(tick, 1000);
+})();
+</script>
+
+<script>
+/* ══════════════════════════════════════════════════════
+   JARVIS INTEL — motor de inteligencia: insights con proyecciones,
+   heatmap de actividad (16 semanas) y momentum (14 días). Llena la
+   tarjeta ⚡ INTEL de Vida y alimenta el briefing por voz / Ctrl+K.
+   ══════════════════════════════════════════════════════ */
+(function () {
+  const style = document.createElement('style');
+  style.textContent = `
+    #intel-card-body{display:flex;flex-direction:column;gap:12px}
+    .intel-insights{display:flex;flex-direction:column;gap:7px}
+    .intel-row{display:flex;align-items:flex-start;gap:9px;font-size:12.5px;line-height:1.42;color:var(--ts)}
+    .intel-row .ii-ic{flex-shrink:0;font-size:13px;width:16px;text-align:center;line-height:1.4}
+    .intel-row.ok .ii-ic{color:var(--ok)} .intel-row.warn .ii-ic{color:var(--warn)} .intel-row.bad .ii-ic{color:var(--danger)} .intel-row.info .ii-ic{color:var(--hud)}
+    .intel-row b{color:var(--tp);font-weight:700}
+    .intel-sec{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--tt)}
+    .intel-sec::after{content:'';flex:1;height:1px;background:var(--border)}
+    .intel-mom{display:flex;align-items:center;gap:14px}
+    .intel-mom svg{flex:1;height:34px;overflow:visible}
+    .intel-mom .mom-val{font-family:var(--mono);font-size:20px;font-weight:800;letter-spacing:-.02em;text-shadow:0 0 12px currentColor}
+    .intel-mom .mom-lbl{font-family:var(--mono);font-size:9px;color:var(--tt);letter-spacing:.06em;text-transform:uppercase}
+    .intel-hm-wrap{overflow-x:auto;padding-bottom:2px}
+    .intel-hm{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,1fr);gap:3px;justify-content:start;width:max-content}
+    .intel-hm i{width:10px;height:10px;border-radius:2px;background:rgba(120,180,230,0.06)}
+    .intel-hm i.l1{background:rgba(56,189,248,0.30)} .intel-hm i.l2{background:rgba(56,189,248,0.52)}
+    .intel-hm i.l3{background:rgba(56,189,248,0.74);box-shadow:0 0 5px rgba(56,189,248,0.5)}
+    .intel-hm i.l4{background:rgba(125,211,252,0.96);box-shadow:0 0 7px rgba(56,189,248,0.7)}`;
+  document.head.appendChild(style);
+
+  const TABS = ['vida','finanzas','salud','conocimiento','ia'];
+  const _today = () => (typeof getActiveDate === 'function') ? getActiveDate() : new Date().toISOString().slice(0,10);
+  const _ls = d => (typeof localStr === 'function') ? localStr(d) : d.toISOString().slice(0,10);
+
+  function activity(ds){
+    let a = 0;
+    try {
+      TABS.forEach(sec => { const hs = (S.habitTrackers && S.habitTrackers[sec]) || []; hs.forEach(h => { const v = (h.days||{})[ds]; if (v==='done') a+=1; else if (v==='partial') a+=0.5; }); });
+      a += ((S.goals && S.goals[ds]) || []).filter(x => x.done).length;
+    } catch(e) {}
+    return a;
+  }
+  const level = a => a<=0 ? 0 : a<2 ? 1 : a<3.5 ? 2 : a<5 ? 3 : 4;
+
+  function _quarterPace(){
+    try {
+      const qo = S.quarterlyObjectives; const p = qo.periods.find(x => x.id === qo.activePeriod); if (!p) return null;
+      const objs = p.objectives || []; if (!objs.length) return null;
+      const done = objs.filter(o => o.done).length, pct = done/objs.length*100;
+      let elapsed = null;
+      if (typeof _periodMonths === 'function') {
+        const ms = _periodMonths(p.id);
+        if (ms.length === 3) {
+          const start = new Date(ms[0]+'-01T00:00:00');
+          const ep = ms[2].split('-'); const end = new Date(+ep[0], +ep[1], 0, 23,59,59);
+          elapsed = Math.max(0, Math.min(1, (Date.now()-start)/(end-start))) * 100;
+        }
+      }
+      return { done, total: objs.length, pct, elapsed };
+    } catch(e) { return null; }
+  }
+  function _nwProjection(){
+    try {
+      const nw = (S.nwHistory||[]).filter(x => x && x.date && typeof x.value === 'number').slice().sort((a,b)=>a.date.localeCompare(b.date));
+      if (nw.length < 2) return null;
+      const r = nw.slice(-6), t0 = new Date(r[0].date).getTime();
+      const pts = r.map(p => ({ x: (new Date(p.date).getTime()-t0)/(2.628e9), y: p.value })); // x en meses
+      const n = pts.length, sx = pts.reduce((s,p)=>s+p.x,0), sy = pts.reduce((s,p)=>s+p.y,0);
+      const sxx = pts.reduce((s,p)=>s+p.x*p.x,0), sxy = pts.reduce((s,p)=>s+p.x*p.y,0);
+      const den = n*sxx - sx*sx; if (!den) return null;
+      return { slope: (n*sxy - sx*sy)/den, current: r[r.length-1].value };
+    } catch(e) { return null; }
+  }
+  function _spendAnomaly(){
+    try {
+      const bm = {};
+      (S.transactions||[]).forEach(t => { if (t.type!=='expense') return; const m = (t.date||'').slice(0,7); if (m) bm[m] = (bm[m]||0)+(+t.amount||0); });
+      const ms = Object.keys(bm).sort(); const cur = bm[_today().slice(0,7)]; if (cur == null) return null;
+      const prev = ms.filter(m => m < _today().slice(0,7)).slice(-3); if (!prev.length) return null;
+      const avg = prev.reduce((s,m)=>s+bm[m],0)/prev.length; if (avg <= 0) return null;
+      return { cur, avg, diff: (cur-avg)/avg*100 };
+    } catch(e) { return null; }
+  }
+
+  function insights(){
+    const out = [], today = _today(), money = (typeof fmtMoney === 'function');
+    const qp = _quarterPace();
+    if (qp) {
+      if (qp.elapsed != null) {
+        const gap = qp.pct - qp.elapsed;
+        const lvl = gap>=5 ? 'ok' : gap<=-12 ? 'bad' : gap<=-5 ? 'warn' : 'info';
+        const word = gap>=5 ? 'adelantado' : gap<=-5 ? 'atrasado' : 'en ritmo';
+        out.push({lvl, ic:'◎', html:`Objetivos del trimestre: <b>${qp.done}/${qp.total}</b> (${Math.round(qp.pct)}%) con ${Math.round(qp.elapsed)}% del período transcurrido — <b>${word}</b>.`});
+      } else out.push({lvl:'info', ic:'◎', html:`Objetivos del trimestre: <b>${qp.done}/${qp.total}</b> (${Math.round(qp.pct)}%).`});
+    }
+    const np = _nwProjection();
+    if (np && money) {
+      if (np.slope > 0) out.push({lvl:'ok', ic:'▲', html:`Patrimonio creciendo ~<b>${fmtMoney(Math.round(np.slope),'ARS')}</b>/mes — proyección a 6 meses: <b>${fmtMoney(Math.round(np.current+np.slope*6),'ARS')}</b>.`});
+      else if (np.slope < 0) out.push({lvl:'warn', ic:'▼', html:`Patrimonio cayendo ~<b>${fmtMoney(Math.round(-np.slope),'ARS')}</b>/mes. Conviene ajustar gastos.`});
+    }
+    const sa = _spendAnomaly();
+    if (sa && money) {
+      if (sa.diff >= 20) out.push({lvl:'warn', ic:'⚠', html:`Gasto del mes <b>${Math.round(sa.diff)}% sobre</b> tu promedio (${fmtMoney(Math.round(sa.cur),'ARS')} vs ${fmtMoney(Math.round(sa.avg),'ARS')}).`});
+      else if (sa.diff <= -15) out.push({lvl:'ok', ic:'✓', html:`Gasto del mes <b>${Math.round(-sa.diff)}% bajo</b> tu promedio. Bien controlado.`});
+    }
+    try {
+      let pend=0, tot=0;
+      TABS.forEach(sec => { const hs=(S.habitTrackers&&S.habitTrackers[sec])||[]; hs.forEach(h => { tot++; if (!((h.days||{})[today])) pend++; }); });
+      if (tot) {
+        if (pend===0) out.push({lvl:'ok', ic:'✓', html:`Todos los hábitos de hoy registrados. Racha intacta.`});
+        else out.push({lvl: pend>tot/2 ? 'warn':'info', ic:'◷', html:`Te faltan <b>${pend}</b> de ${tot} hábitos por marcar hoy.`});
+      }
+    } catch(e) {}
+    try { if (window.PROY_VOICE) { const s=PROY_VOICE.stats(); if (s.overdue>0) out.push({lvl:'bad', ic:'!', html:`<b>${s.overdue}</b> tareas vencidas · ${s.pending} pendientes en total.`}); } } catch(e) {}
+    try { const g=(S.goals&&S.goals[today])||[]; if (g.length){ const d=g.filter(x=>x.done).length; out.push({lvl:d===g.length?'ok':'info', ic:'▮', html:`Metas de hoy: <b>${d}/${g.length}</b> completadas.`}); } } catch(e) {}
+    if (!out.length) out.push({lvl:'info', ic:'◇', html:'Cargá metas, hábitos y finanzas para empezar a recibir análisis.'});
+    return out;
+  }
+  function briefing(){ return insights().slice(0,3).map(i => i.html.replace(/<[^>]+>/g,'')).join(' '); }
+
+  function _heatmap(){
+    const today = new Date(_today()+'T00:00:00');
+    let start = new Date(today); start.setDate(start.getDate()-(16*7-1)); start.setDate(start.getDate()-start.getDay());
+    const cells = []; const cur = new Date(start);
+    while (cur <= today) { const ds=_ls(cur); cells.push('<i class="l'+level(activity(ds))+'" title="'+ds+'"></i>'); cur.setDate(cur.getDate()+1); }
+    return cells.join('');
+  }
+  function _momentum(){
+    const today = new Date(_today()+'T00:00:00'), vals = [];
+    for (let i=13;i>=0;i--){ const d=new Date(today); d.setDate(d.getDate()-i); vals.push(activity(_ls(d))); }
+    const max = Math.max(1, ...vals), w=160, h=34;
+    const pts = vals.map((v,i) => `${(i/(vals.length-1))*w},${(h-(v/max)*h).toFixed(1)}`).join(' ');
+    const thisW = vals.slice(7).reduce((s,v)=>s+v,0), lastW = vals.slice(0,7).reduce((s,v)=>s+v,0);
+    const mom = lastW>0 ? Math.round((thisW-lastW)/lastW*100) : (thisW>0?100:0);
+    return { svg:`<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="var(--hud)" stroke-width="2" style="filter:drop-shadow(0 0 4px var(--hud-dim))"/></svg>`, mom, col: mom>=0?'var(--ok)':'var(--danger)' };
+  }
+
+  function renderCard(){
+    const body = document.getElementById('intel-card-body'); if (!body) return;
+    try {
+      const ins = insights().map(i => `<div class="intel-row ${i.lvl}"><span class="ii-ic">${i.ic}</span><span>${i.html}</span></div>`).join('');
+      const m = _momentum();
+      body.innerHTML =
+        `<div class="intel-insights">${ins}</div>`+
+        `<div class="intel-sec">Momentum · 14 días</div>`+
+        `<div class="intel-mom"><div><div class="mom-val" style="color:${m.col}">${m.mom>=0?'+':''}${m.mom}%</div><div class="mom-lbl">vs semana previa</div></div>${m.svg}</div>`+
+        `<div class="intel-sec">Actividad · 16 semanas</div>`+
+        `<div class="intel-hm-wrap"><div class="intel-hm">${_heatmap()}</div></div>`;
+    } catch(e) { body.innerHTML = '<div class="intel-row info"><span class="ii-ic">◇</span><span>Análisis no disponible por ahora.</span></div>'; }
+  }
+
+  window.JARVIS_INTEL = { insights, briefing, renderCard };
+  setTimeout(renderCard, 1200);
+  setInterval(() => { const v = document.getElementById('tab-vida'); if (v && v.classList.contains('active')) renderCard(); }, 60000);
 })();
 </script>
 
