@@ -12119,6 +12119,212 @@ Instrucciones:
 </script>
 
 <script>
+/* ══════════════════════════════════════════════════════
+   JARVIS NEURAL FX — red neuronal viva (canvas), cian eléctrico.
+   Reacciona a la voz (nivel de micrófono) y al estado de JARVIS.
+   Reposo: núcleo compacto en la esquina. Al activarse: la red se
+   despliega a pantalla completa como un HUD, con el dashboard atenuado.
+   API global: JARVIS_FX.setState('off'|'passive'|'command'|'thinking'),
+               JARVIS_FX.setLevel(0..1), JARVIS_FX.onExit = fn
+   ══════════════════════════════════════════════════════ */
+(function () {
+  const REDUCED = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const C  = { r: 56,  g: 189, b: 248 }; // #38bdf8 cian base
+  const C2 = { r: 125, g: 211, b: 252 }; // #7dd3fc cian brillante
+  const rgba = (c, a) => `rgba(${c.r},${c.g},${c.b},${a})`;
+
+  /* ── DOM ── */
+  const style = document.createElement('style');
+  style.textContent = `
+    #jarvis-fx-backdrop{position:fixed;inset:0;z-index:9998;pointer-events:none;opacity:0;
+      background:radial-gradient(ellipse at 50% 44%, rgba(8,18,30,0.50), rgba(2,5,11,0.88));
+      -webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);transition:opacity .55s ease}
+    #jarvis-fx-backdrop.on{opacity:1;pointer-events:auto}
+    #jarvis-fx-canvas{position:fixed;inset:0;z-index:9999;pointer-events:none}`;
+  document.head.appendChild(style);
+  const backdrop = document.createElement('div'); backdrop.id = 'jarvis-fx-backdrop';
+  const canvas   = document.createElement('canvas'); canvas.id = 'jarvis-fx-canvas';
+  document.body.appendChild(backdrop); document.body.appendChild(canvas);
+  const ctx = canvas.getContext('2d');
+  backdrop.addEventListener('click', () => { if (api.onExit) api.onExit(); });
+
+  let W = 0, H = 0, DPR = 1;
+  function resize() {
+    DPR = Math.min(2, window.devicePixelRatio || 1);
+    W = window.innerWidth; H = window.innerHeight;
+    canvas.width = W * DPR; canvas.height = H * DPR;
+    canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  window.addEventListener('resize', resize); resize();
+
+  /* ── Nodos (espacio unitario 0..1, mapeados a la región activa) ── */
+  const N = REDUCED ? 34 : 66;
+  const nodes = [];
+  for (let i = 0; i < N; i++) {
+    const ang = Math.random() * Math.PI * 2, rad = Math.pow(Math.random(), 0.7) * 0.5;
+    nodes.push({
+      ux: 0.5 + Math.cos(ang) * rad, uy: 0.5 + Math.sin(ang) * rad,
+      vx: (Math.random() - 0.5) * 0.0006, vy: (Math.random() - 0.5) * 0.0006,
+      r: 0.8 + Math.random() * 1.6, ph: Math.random() * Math.PI * 2
+    });
+  }
+  nodes[0].ux = 0.5; nodes[0].uy = 0.5; nodes[0].core = true;
+
+  // Núcleo en reposo: esquina inferior izquierda, por encima de la barra de navegación
+  // (centrado en ~70px desde la izquierda y ~130px desde abajo, alineado con #jarvis-ear).
+  const cornerRect = () => ({ x: 5, y: H - 195, w: 130, h: 130 });
+  const fullRect   = () => ({ x: W * 0.07, y: H * 0.10, w: W * 0.86, h: H * 0.78 });
+  let R = cornerRect(), RT = cornerRect();
+
+  const STATES = {
+    off:      { e: 0.05, op: 0.30, full: 0 },
+    passive:  { e: 0.22, op: 0.92, full: 0 },
+    command:  { e: 0.55, op: 1.00, full: 1 },
+    thinking: { e: 0.88, op: 1.00, full: 1 }
+  };
+
+  let state = 'off', energy = 0.05, energyT = 0.05, level = 0, levelS = 0;
+  let expand = 0, expandT = 0, opacity = 0, opacityT = 0.30, t = 0;
+  const pulses = [], waves = []; let edges = [], edgeTimer = 0, lastWave = 0;
+
+  const api = {
+    onExit: null,
+    setState(s) {
+      const cfg = STATES[s] || STATES.passive; state = STATES[s] ? s : 'passive';
+      energyT = cfg.e; opacityT = cfg.op; expandT = cfg.full;
+      backdrop.classList.toggle('on', cfg.full === 1);
+    },
+    setLevel(l) { level = Math.max(0, Math.min(1, l || 0)); }
+  };
+  window.JARVIS_FX = api;
+
+  function computeEdges() {
+    edges.length = 0;
+    const maxD = (R.w + R.h) * 0.16 + 28;
+    for (let i = 0; i < N; i++) {
+      let cnt = 0;
+      const ax = R.x + nodes[i].ux * R.w, ay = R.y + nodes[i].uy * R.h;
+      for (let j = i + 1; j < N; j++) {
+        const bx = R.x + nodes[j].ux * R.w, by = R.y + nodes[j].uy * R.h;
+        const d = Math.hypot(ax - bx, ay - by);
+        if (d < maxD) { edges.push([i, j, maxD]); if (++cnt > 4) break; }
+      }
+    }
+  }
+  function spawnPulse() {
+    if (!edges.length || pulses.length > 140) return;
+    const e = edges[(Math.random() * edges.length) | 0];
+    pulses.push({ a: e[0], b: e[1], t: 0, sp: 0.5 + Math.random() * 0.8 + energy * 0.9 });
+  }
+  const speaking = () => { try { return !!(window.JARVIS && JARVIS.isSpeaking()); } catch (e) { return false; } };
+
+  let raf;
+  function frame() {
+    t += 1 / 60;
+    levelS += (level - levelS) * 0.2;
+    const breath = (state === 'passive') ? (Math.sin(t * 1.6) * 0.5 + 0.5) * 0.12 : 0;
+    const eTarget = energyT + (state === 'command' ? levelS * 0.5 : 0) + breath;
+    energy  += (eTarget  - energy)  * 0.08;
+    opacity += (opacityT - opacity) * 0.08;
+    expand  += (expandT  - expand)  * 0.06;
+
+    const cr = cornerRect(), fr = fullRect();
+    RT.x = cr.x + (fr.x - cr.x) * expand; RT.y = cr.y + (fr.y - cr.y) * expand;
+    RT.w = cr.w + (fr.w - cr.w) * expand; RT.h = cr.h + (fr.h - cr.h) * expand;
+    R.x += (RT.x - R.x) * 0.2; R.y += (RT.y - R.y) * 0.2;
+    R.w += (RT.w - R.w) * 0.2; R.h += (RT.h - R.h) * 0.2;
+
+    const jit = REDUCED ? 0 : 0.0008 * energy;
+    for (let i = 1; i < N; i++) {
+      const n = nodes[i];
+      n.ux += n.vx + (Math.random() - 0.5) * jit;
+      n.uy += n.vy + (Math.random() - 0.5) * jit;
+      if (n.ux < 0.04 || n.ux > 0.96) n.vx *= -1;
+      if (n.uy < 0.04 || n.uy > 0.96) n.vy *= -1;
+      n.ux = Math.max(0.03, Math.min(0.97, n.ux));
+      n.uy = Math.max(0.03, Math.min(0.97, n.uy));
+    }
+
+    if (--edgeTimer <= 0) { computeEdges(); edgeTimer = 12; }
+    if (!REDUCED) {
+      const rate = energy * (state === 'thinking' ? 0.95 : 0.42);
+      if (Math.random() < rate) spawnPulse();
+      if (state === 'thinking' && Math.random() < rate) spawnPulse();
+    }
+    const sp = speaking();
+    if (sp && !REDUCED && t - lastWave > 0.45) { waves.push({ t: 0 }); lastWave = t; }
+
+    ctx.clearRect(0, 0, W, H);
+    if (opacity <= 0.012) { raf = requestAnimationFrame(frame); return; }
+    ctx.globalCompositeOperation = 'lighter';
+    const cx = R.x + 0.5 * R.w, cy = R.y + 0.5 * R.h;
+
+    // sinapsis
+    ctx.lineWidth = 1;
+    for (let k = 0; k < edges.length; k++) {
+      const a = nodes[edges[k][0]], b = nodes[edges[k][1]], maxD = edges[k][2];
+      const ax = R.x + a.ux * R.w, ay = R.y + a.uy * R.h, bx = R.x + b.ux * R.w, by = R.y + b.uy * R.h;
+      const d = Math.hypot(ax - bx, ay - by), al = (1 - d / maxD);
+      if (al <= 0) continue;
+      ctx.strokeStyle = rgba(C, al * (0.06 + 0.22 * energy) * opacity);
+      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+    }
+
+    // pulsos de energía
+    for (let p = pulses.length - 1; p >= 0; p--) {
+      const pl = pulses[p]; pl.t += pl.sp / 60;
+      if (pl.t >= 1) { pulses.splice(p, 1); continue; }
+      const a = nodes[pl.a], b = nodes[pl.b];
+      const x = (R.x + a.ux * R.w) + ((R.x + b.ux * R.w) - (R.x + a.ux * R.w)) * pl.t;
+      const y = (R.y + a.uy * R.h) + ((R.y + b.uy * R.h) - (R.y + a.uy * R.h)) * pl.t;
+      const a2 = (1 - Math.abs(pl.t - 0.5) * 2) * opacity;
+      ctx.fillStyle = rgba(C2, a2 * 0.9); ctx.shadowColor = rgba(C2, 0.9); ctx.shadowBlur = 8;
+      ctx.beginPath(); ctx.arc(x, y, 1.8, 0, 6.2832); ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+
+    // neuronas
+    for (let i = 0; i < N; i++) {
+      const n = nodes[i], x = R.x + n.ux * R.w, y = R.y + n.uy * R.h;
+      const pulse = 0.5 + 0.5 * Math.sin(t * 2 + n.ph);
+      if (n.core) {
+        const rr = (5 + expand * 11) * (1 + 0.15 * Math.sin(t * 3)) + energy * 6 + levelS * 9;
+        ctx.fillStyle = rgba(C2, 0.9 * opacity); ctx.shadowColor = rgba(C2, 1); ctx.shadowBlur = 22 + energy * 32;
+        ctx.beginPath(); ctx.arc(x, y, rr, 0, 6.2832); ctx.fill(); ctx.shadowBlur = 0;
+      } else {
+        const rr = n.r * (0.8 + expand * 0.9) * (0.8 + 0.4 * pulse) + energy * 1.2;
+        ctx.fillStyle = rgba(C2, (0.45 + 0.55 * pulse) * opacity * (0.5 + 0.5 * energy));
+        ctx.beginPath(); ctx.arc(x, y, rr, 0, 6.2832); ctx.fill();
+      }
+    }
+
+    // anillo de escaneo (pensando)
+    if (state === 'thinking') {
+      const rr = Math.max(R.w, R.h) * 0.5 * (0.3 + 0.7 * ((t * 0.4) % 1));
+      ctx.strokeStyle = rgba(C, 0.12 * opacity); ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(cx, cy, rr, 0, 6.2832); ctx.stroke();
+    }
+    // ondas (hablando)
+    for (let w = waves.length - 1; w >= 0; w--) {
+      const wv = waves[w]; wv.t += 1 / 60;
+      const al = 1 - wv.t; if (al <= 0) { waves.splice(w, 1); continue; }
+      ctx.strokeStyle = rgba(C2, al * 0.4 * opacity); ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(cx, cy, wv.t * Math.max(R.w, R.h) * 0.6, 0, 6.2832); ctx.stroke();
+    }
+
+    ctx.globalCompositeOperation = 'source-over';
+    raf = requestAnimationFrame(frame);
+  }
+  raf = requestAnimationFrame(frame);
+  document.addEventListener('visibilitychange', () => {
+    cancelAnimationFrame(raf);
+    if (!document.hidden) raf = requestAnimationFrame(frame);
+  });
+})();
+</script>
+
+<script>
 /* ── JARVIS VOICE ENGINE ── */
 (function () {
   const EL_KEY_DEFAULT = 'sk_5ddff68a6492ab2746534eb4821d33b32a60c142ebf2d0eb';
@@ -12384,29 +12590,20 @@ Instrucciones:
   let cmdTimer = null, recStartedAt = 0;
   let restartTimes = [], restartTimer = null; // anti-tormenta de reinicios
 
-  /* ── Indicador flotante (también funciona como botón push-to-talk) ── */
+  /* ── Target de clic transparente sobre el núcleo neuronal (lo visual lo dibuja JARVIS_FX) ── */
   const css = document.createElement('style');
   css.textContent = `
-    #jarvis-ear{position:fixed;bottom:18px;right:18px;z-index:9999;width:46px;height:46px;border-radius:50%;
-      display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:19px;user-select:none;
-      background:rgba(10,14,20,0.85);border:1px solid rgba(255,255,255,0.12);backdrop-filter:blur(8px);
-      transition:opacity .25s,border-color .25s;box-shadow:0 4px 18px rgba(0,0,0,0.45)}
-    #jarvis-ear.passive{border-color:rgba(0,255,136,0.35);box-shadow:0 0 12px rgba(0,255,136,0.18)}
-    #jarvis-ear.command{border-color:rgba(0,255,136,0.9);animation:jarvisPulse 1.1s infinite}
-    #jarvis-ear.thinking{border-color:rgba(255,200,0,0.8)}
-    @keyframes jarvisPulse{0%{box-shadow:0 0 0 0 rgba(0,255,136,0.45)}70%{box-shadow:0 0 0 14px rgba(0,255,136,0)}100%{box-shadow:0 0 0 0 rgba(0,255,136,0)}}`;
+    #jarvis-ear{position:fixed;left:34px;bottom:calc(var(--nav) + var(--safe-b) + 34px);z-index:10000;
+      width:72px;height:72px;border-radius:50%;cursor:pointer;user-select:none;background:transparent}`;
   document.head.appendChild(css);
   const ear = document.createElement('div');
-  ear.id = 'jarvis-ear'; ear.textContent = '🎙️'; ear.title = 'JARVIS — tocá para dar una orden';
+  ear.id = 'jarvis-ear'; ear.title = 'JARVIS — tocá para dar una orden';
   ear.onclick = () => { if (mode === 'command') exitCommand(); else enterCommand(); };
   document.body.appendChild(ear);
   if (!SR) ear.style.display = 'none';
 
   function _ui() {
-    ear.classList.remove('passive', 'command', 'thinking');
-    if (mode === 'command') ear.classList.add('command');
-    else if (mode === 'passive') ear.classList.add('passive');
-    ear.style.opacity = (mode === 'off') ? '0.45' : '1';
+    if (window.JARVIS_FX) JARVIS_FX.setState(mode === 'off' ? 'off' : mode);
   }
 
   /* ── Motor de reconocimiento (es-AR) ── */
@@ -12530,13 +12727,12 @@ Instrucciones:
       const an = _meterCtx.createAnalyser(); an.fftSize = 512;
       src.connect(an);
       const buf = new Uint8Array(an.frequencyBinCount);
-      ear.style.animation = 'none'; // el brillo en vivo reemplaza al pulso
       const tick = () => {
         an.getByteTimeDomainData(buf);
         let max = 0;
         for (let i = 0; i < buf.length; i++) { const d = Math.abs(buf[i] - 128); if (d > max) max = d; }
         const lvl = Math.min(1, max / 50);
-        ear.style.boxShadow = `0 0 ${8 + lvl * 34}px rgba(0,255,136,${0.18 + lvl * 0.72})`;
+        if (window.JARVIS_FX) JARVIS_FX.setLevel(lvl); // alimenta la red neuronal con el nivel de voz en vivo
         _meterRaf = requestAnimationFrame(tick);
       };
       tick();
@@ -12546,7 +12742,7 @@ Instrucciones:
     if (_meterRaf) { cancelAnimationFrame(_meterRaf); _meterRaf = null; }
     if (_meterStream) { _meterStream.getTracks().forEach(t => t.stop()); _meterStream = null; }
     if (_meterCtx) { try { _meterCtx.close(); } catch(e) {} _meterCtx = null; }
-    ear.style.boxShadow = ''; ear.style.animation = '';
+    if (window.JARVIS_FX) JARVIS_FX.setLevel(0);
   }
 
   async function _checkMic() {
@@ -12656,7 +12852,7 @@ Instrucciones:
     }
 
     // fallback → cerebro IA: responde sobre cualquier dato y ejecuta cualquier acción del centro de mando
-    ear.classList.add('thinking');
+    if (window.JARVIS_FX) JARVIS_FX.setState('thinking');
     try {
       const ans = await askGemini(raw);
       if (ans) _handleBrain(ans);
@@ -12789,6 +12985,8 @@ Instrucciones:
     if (el) el.value = localStorage.getItem('jarvis_el_key') || '';
   }
   setTimeout(() => { _updateWakeBtn(); _initInputs(); }, 400);
+
+  if (window.JARVIS_FX) JARVIS_FX.onExit = exitCommand; // clic en el HUD a pantalla completa = salir del modo comando
 
   if (wakeOn && SR) { mode = 'passive'; startRec(); }
   _ui();
