@@ -11891,6 +11891,7 @@ Instrucciones:
 
   async function speak(text, opts) {
     if (!enabled || !text) return;
+    _speakAt = Date.now();
     if (opts && opts.dynamic) {
       // Respuestas dinámicas: voz de JARVIS (ElevenLabs) mientras haya cuota; si se agota
       // el mes, cae a la voz del navegador y se recupera sola al renovarse los créditos
@@ -11908,9 +11909,12 @@ Instrucciones:
     }
   }
 
+  let _speakAt = 0;
   function isSpeaking() {
-    if (window.speechSynthesis && speechSynthesis.speaking) return true;
-    return !!(currentAudio && !currentAudio.paused && !currentAudio.ended);
+    if (currentAudio && !currentAudio.paused && !currentAudio.ended) return true;
+    // speechSynthesis.speaking puede quedar trabado en true para siempre (bug de Chrome):
+    // solo confiar en él durante los 25s posteriores al último speak(), si no deja sordo a JARVIS
+    return !!(window.speechSynthesis && speechSynthesis.speaking && Date.now() - _speakAt < 25000);
   }
 
   function stopSpeaking() {
@@ -12064,7 +12068,8 @@ Instrucciones:
   const TABS_VOICE = { vida:'vida', finanzas:'finanzas', salud:'salud', conocimiento:'conocimiento', inteligencia:'ia', ia:'ia' };
   let wakeOn = localStorage.getItem('jarvis_wake') === '1';
   let rec = null, mode = 'off'; // off | passive (espera wake word) | command (espera orden)
-  let cmdTimer = null;
+  let cmdTimer = null, recStartedAt = 0;
+  let restartTimes = [], restartTimer = null; // anti-tormenta de reinicios
 
   /* ── Indicador flotante (también funciona como botón push-to-talk) ── */
   const css = document.createElement('style');
@@ -12093,7 +12098,7 @@ Instrucciones:
 
   /* ── Motor de reconocimiento (es-AR) ── */
   function startRec() {
-    if (!SR || rec) return;
+    if (!SR || rec || mode === 'off') return;
     rec = new SR();
     rec.lang = 'es-AR';
     rec.continuous = true;
@@ -12150,23 +12155,47 @@ Instrucciones:
     };
     rec.onend = () => {
       rec = null;
-      if (mode !== 'off') setTimeout(startRec, 400); // reinicio automático (Chrome corta solo)
+      _scheduleRestart(); // reinicio automático (Chrome corta la sesión solo)
     };
-    try { rec.start(); } catch(e) { rec = null; }
+    try { rec.start(); recStartedAt = Date.now(); restartTimes.push(recStartedAt); }
+    catch(e) { rec = null; _scheduleRestart(); }
+  }
+
+  // Reinicio resiliente: espaciado normal, pero si Chrome entra en bucle de cortes
+  // (throttling o micrófono perdido) se frena para darle tiempo a recuperarse en lugar
+  // de tormentear reinicios — que es justo lo que dejaba la escucha intermitente.
+  function _scheduleRestart() {
+    if (mode === 'off' || restartTimer) return;
+    const now = Date.now();
+    restartTimes = restartTimes.filter(t => now - t < 10000);
+    const delay = restartTimes.length >= 5 ? 2000 : 250;
+    restartTimer = setTimeout(() => { restartTimer = null; startRec(); }, delay);
   }
 
   function stopRec() {
+    if (restartTimer) { clearTimeout(restartTimer); restartTimer = null; }
     if (!rec) return;
     const r = rec; rec = null;
     try { r.onend = null; r.stop(); } catch(e) {}
   }
 
-  // Watchdog: si Chrome mató el reconocimiento y el reinicio de onend falló,
-  // levantarlo de nuevo — sin esto el motor podía quedar muerto en silencio
-  setInterval(() => { if (mode !== 'off' && !rec) startRec(); }, 4000);
+  // Watchdog: cubre dos fallas de Chrome que dejaban a JARVIS sordo de forma intermitente.
+  // (1) onend nunca disparó y no quedó reconocimiento vivo → reiniciar.
+  // (2) "zombie": el reconocimiento sigue vivo pero Chrome dejó de capturar sin avisar
+  //     (no dispara onend). Las sesiones continuas largas se degradan; reciclarlas en
+  //     reposo cada ~50s mantiene la escucha sana y mata cualquier sesión zombie.
+  setInterval(() => {
+    if (mode === 'off') return;
+    if (!rec) { _scheduleRestart(); return; }
+    if (mode === 'passive' && Date.now() - recStartedAt > 50000) {
+      stopRec();          // corta la sesión vieja…
+      _scheduleRestart(); // …y arranca una fresca
+    }
+  }, 4000);
 
   function enterCommand() {
     mode = 'command'; _ui();
+    if (restartTimer) { clearTimeout(restartTimer); restartTimer = null; } // no dejar un reinicio del watchdog pisando el arranque
     clearTimeout(cmdTimer);
     cmdTimer = setTimeout(exitCommand, 9000); // si no decís nada, vuelve a reposo
     _checkMic();
