@@ -61,7 +61,7 @@ async function main() {
       const toRem = remMs - now;
 
       // Aviso 1 día antes (ventana de ~1h alrededor de las 24h previas)
-      if (toRem > 0 && toRem <= DAY && toRem > DAY - HOUR && !notified[r.id + '_1d']) {
+      if (toRem > 0 && toRem <= DAY && toRem > DAY - 2 * HOUR && !notified[r.id + '_1d']) {
         newNotif[r.id + '_1d'] = true;
         sends.push(send(pushSub, '📅 Vence mañana — Centro de Mando', `${prio} ${r.title}`, r.id + '_1d', true));
       }
