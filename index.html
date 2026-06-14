@@ -11789,11 +11789,14 @@ _auth.onAuthStateChanged(user => {
    ══════════════════════════════════════════════════════ */
 (function () {
   const KEY_STORE  = 'agent_api_key_v1';
+  const HIST_STORE = 'agent_chat_v1';
+  const HIST_CAP   = 40;   // máximo de mensajes guardados (acota tamaño y costo de tokens)
   const MODEL      = 'claude-haiku-4-5-20251001';
   const API_URL    = 'https://api.anthropic.com/v1/messages';
 
   let apiKey  = localStorage.getItem(KEY_STORE) || '';
   let apiHist = [];   // full API message history (role + content)
+  let displayLog = []; // mensajes visibles {role, text} para re-render al restaurar
   let busy    = false;
 
   /* ── panel open/close ── */
@@ -11805,7 +11808,7 @@ _auth.onAuthStateChanged(user => {
     if (open) {
       if (!apiKey) { _showSetup(); return; }
       _showChat();
-      if (!document.getElementById('agent-messages').children.length) _welcome();
+      if (!document.getElementById('agent-messages').children.length) { if (!_restoreChat()) _welcome(); }
       _scrollBottom();
       setTimeout(() => document.getElementById('agent-input')?.focus(), 340);
     }
@@ -11831,6 +11834,8 @@ _auth.onAuthStateChanged(user => {
 
   window.agentClear = function () {
     apiHist = [];
+    displayLog = [];
+    localStorage.removeItem(HIST_STORE);
     document.getElementById('agent-messages').innerHTML = '';
     _welcome();
   };
@@ -11865,12 +11870,40 @@ _auth.onAuthStateChanged(user => {
     if (document.getElementById('agent-messages').children.length) return;
     _addMsg('assistant', 'Hola, Señor. Soy tu asistente integrado en el dashboard.\n\nPuedo ayudarte a:\n• Crear, editar o eliminar proyectos\n• Agregar o completar tareas\n• Registrar tu bienestar\n• Responder preguntas sobre tus datos\n\n¿En qué te ayudo?');
   }
-  function _addMsg(role, text) {
+  function _renderMsg(role, text) {
     const el = document.createElement('div');
     el.className = 'agent-msg ' + role;
     el.innerHTML = _fmt(text);
     document.getElementById('agent-messages').appendChild(el);
     _scrollBottom();
+  }
+  function _addMsg(role, text) {
+    displayLog.push({ role, text });
+    _renderMsg(role, text);
+  }
+  function _persist() {
+    try {
+      if (displayLog.length > HIST_CAP) displayLog = displayLog.slice(-HIST_CAP);
+      if (apiHist.length > HIST_CAP) {
+        // Recortar a un historial válido: debe empezar en un mensaje 'user' de texto
+        const ah = apiHist.slice(-HIST_CAP);
+        let i = 0;
+        while (i < ah.length && !(ah[i].role === 'user' && typeof ah[i].content === 'string')) i++;
+        apiHist = ah.slice(i);
+      }
+      localStorage.setItem(HIST_STORE, JSON.stringify({ apiHist, displayLog }));
+    } catch (e) { console.warn('[agent] persist:', e); }
+  }
+  function _restoreChat() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(HIST_STORE) || 'null');
+      if (!saved || !Array.isArray(saved.displayLog) || !saved.displayLog.length) return false;
+      apiHist    = Array.isArray(saved.apiHist) ? saved.apiHist : [];
+      displayLog = saved.displayLog;
+      document.getElementById('agent-messages').innerHTML = '';
+      displayLog.forEach(m => _renderMsg(m.role, m.text));
+      return true;
+    } catch { return false; }
   }
   function _sysmsg(text) {
     const el = document.createElement('div');
@@ -11927,6 +11960,35 @@ _auth.onAuthStateChanged(user => {
       ? WELLNESS_METRICS.map(m => `${m.label}: ${wellness[m.id] || '—'}/5`).join(', ')
       : '';
     const sleep = S.sleepLog?.[today];
+
+    // Finanzas del mes en curso (solo ARS para no mezclar monedas)
+    const ym = today.slice(0, 7);
+    let inc = 0, exp = 0;
+    (S.transactions || []).forEach(t => {
+      if (!(t.date || '').startsWith(ym)) return;
+      if (t.currency && t.currency !== 'ARS') return;
+      const a = +t.amount || 0;
+      if (t.type === 'income') inc += a; else exp += a;
+    });
+    // Suplementos (estado de hoy)
+    const supps = (S.supplements || [])
+      .map(s => `${S.suppLog?.[today]?.[s.id] ? '✓' : '○'} ${s.name}`).join(', ') || 'ninguno';
+    // Último peso registrado
+    const bw = (S.bodyWeight || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1))[0];
+    // Objetivos del trimestre activo
+    const qo = S.quarterlyObjectives;
+    let quarter = 'No definido';
+    if (qo?.periods?.length) {
+      const p = qo.periods.find(x => x.id === qo.activePeriod) || qo.periods[0];
+      if (p) quarter = `${p.label}: ` + (p.objectives || []).map(o => `${o.done ? '✓' : '○'} ${o.text}`).join('; ');
+    }
+    // Hábitos de hoy (todas las secciones)
+    const habitsToday = [];
+    TABS.forEach(sec => (S.habitTrackers?.[sec] || []).forEach(h => {
+      const st = h.days?.[today];
+      habitsToday.push(`${st === 'done' ? '✓' : st === 'partial' ? '½' : st === 'rest' ? '—' : '○'} ${h.name}`);
+    }));
+
     return {
       date: today,
       todayGoals: goals,
@@ -11934,6 +11996,11 @@ _auth.onAuthStateChanged(user => {
       wellness: wStr,
       sleep: sleep?.hours ? `${sleep.hours}h (${sleep.bedtime||'?'} → ${sleep.waketime||'?'})` : 'No registrado',
       streak: S.streak,
+      finanzasMes: `ingreso ${inc}, gasto ${exp}, balance ${inc - exp} ARS`,
+      suplementosHoy: supps,
+      ultimoPeso: bw ? `${bw.value} ${bw.unit || 'kg'} (${bw.date})` : 'No registrado',
+      objetivosTrimestre: quarter,
+      habitosHoy: habitsToday.join(', ') || 'ninguno',
     };
   }
 
@@ -11950,7 +12017,7 @@ _auth.onAuthStateChanged(user => {
   const TOOLS = [
     {
       name: 'get_app_state',
-      description: 'Obtiene el estado actual del dashboard: metas del día, proyectos (todos los tabs), bienestar, horas de sueño y racha.',
+      description: 'Obtiene el estado actual del dashboard: metas del día, proyectos (todos los tabs), bienestar, sueño, racha, finanzas del mes (ingreso/gasto/balance), suplementos de hoy, último peso, objetivos del trimestre y hábitos de hoy.',
       input_schema: { type: 'object', properties: {} },
     },
     {
@@ -12241,6 +12308,7 @@ Instrucciones:
       }
     }
 
+    _persist();
     busy = false;
     _setStatus('● LISTO', true);
   }
