@@ -4944,7 +4944,11 @@ function _fbSave() {
     _fbSaveTid = null;
     const wid = Math.random().toString(36).slice(2);
     _lastWriteId = wid;
-    try { await _DOC().set({ state: JSON.stringify(S), _wid: wid }); } catch(e) {}
+    try { await _DOC().set({ state: JSON.stringify(S), _wid: wid }); }
+    catch(e) {
+      console.warn('[fbSave] error:', e.code, e.message);
+      if (e.code === 'permission-denied') showToast('⚠️ Sin permiso para guardar — iniciá sesión');
+    }
   }, 2000);
 }
 
@@ -10746,7 +10750,7 @@ function showSparkle(x, y) {
 // ════════════════════════════════════════════════════════
 // INIT
 // ════════════════════════════════════════════════════════
-(async () => {
+async function _initApp() {
 await loadState();
 _startFirestoreSync();
 if (typeof window._reloadProyectosFromState === 'function') window._reloadProyectosFromState();
@@ -10789,7 +10793,120 @@ chartsInited['ia']=false;
 buildTickerAlerts();
 // Activar media session con recordatorios próximos al cargar
 setTimeout(() => _msHub.showReminders(), 500);
-})();
+}
+
+// ════════════════════════════════════════════════════════
+// AUTH GATE — Google Sign-In (Etapa 1: con escape; reglas Firestore aún abiertas)
+// ════════════════════════════════════════════════════════
+let _authEscaped = false;
+let _appBooted   = false;
+function _bootApp() {
+  if (_appBooted) return;
+  _appBooted = true;
+  _initApp();
+}
+
+function _injectAuthStyles() {
+  if (document.getElementById('authGateStyles')) return;
+  const st = document.createElement('style');
+  st.id = 'authGateStyles';
+  st.textContent = `
+    #authGate{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;
+      background:radial-gradient(circle at 50% 30%,#0a1424,#05080f 70%);font-family:'DM Sans',system-ui,sans-serif}
+    #authGate .auth-card{background:rgba(16,24,40,.92);border:1px solid rgba(90,140,220,.25);border-radius:20px;
+      padding:38px 34px;max-width:340px;width:88%;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.6);backdrop-filter:blur(12px)}
+    #authGate .auth-logo{font-size:46px;margin-bottom:10px}
+    #authGate h2{margin:0 0 6px;color:#eaf1ff;font-size:22px;letter-spacing:.3px}
+    #authGate p{margin:0 0 22px;color:#9fb3d4;font-size:14px;line-height:1.5}
+    #authGate .auth-btn{width:100%;padding:13px;border:none;border-radius:12px;cursor:pointer;
+      background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;font-size:15px;font-weight:600;transition:filter .15s,transform .1s}
+    #authGate .auth-btn:hover{filter:brightness(1.08)}
+    #authGate .auth-btn:active{transform:scale(.98)}
+    #authGate .auth-btn:disabled{opacity:.6;cursor:default}
+    #authGate .auth-err{margin-top:14px;color:#ff9b9b;font-size:12.5px;line-height:1.45;
+      background:rgba(180,40,40,.12);border:1px solid rgba(220,80,80,.25);border-radius:8px;padding:8px 10px}
+    #authGate .auth-escape{margin-top:16px;background:none;border:none;color:#7f93b4;font-size:12.5px;text-decoration:underline;cursor:pointer}
+    #authGate .auth-escape:hover{color:#aebfdc}
+  `;
+  document.head.appendChild(st);
+}
+
+function _showLoginGate(opts = {}) {
+  _injectAuthStyles();
+  let g = document.getElementById('authGate');
+  if (!g) {
+    g = document.createElement('div');
+    g.id = 'authGate';
+    g.setAttribute('role', 'dialog');
+    g.setAttribute('aria-modal', 'true');
+    g.setAttribute('aria-labelledby', 'authGateTitle');
+    g.innerHTML = `
+      <div class="auth-card">
+        <div class="auth-logo">🛡️</div>
+        <h2 id="authGateTitle">Centro de Mando</h2>
+        <p>Iniciá sesión con Google para proteger y sincronizar tus datos entre dispositivos.</p>
+        <button id="authGateBtn" class="auth-btn">Iniciar sesión con Google</button>
+        <div id="authGateErr" class="auth-err" style="display:none"></div>
+        <button id="authGateEscape" class="auth-escape" style="display:none">Continuar sin iniciar sesión</button>
+      </div>`;
+    document.body.appendChild(g);
+    const _b = document.getElementById('authGateBtn');
+    _b.onclick = _signInGoogle;
+    try { _b.focus(); } catch {}
+    document.getElementById('authGateEscape').onclick = () => {
+      _authEscaped = true; _hideLoginGate(); _bootApp();
+    };
+  }
+  if (opts.error) {
+    const e = document.getElementById('authGateErr');
+    if (e) { e.textContent = opts.error; e.style.display = 'block'; }
+    const esc = document.getElementById('authGateEscape');
+    if (esc) esc.style.display = 'block';   // el escape solo aparece si el login falla → nunca te bloquea
+  }
+}
+
+function _hideLoginGate() {
+  const g = document.getElementById('authGate');
+  if (g) g.remove();
+}
+
+async function _signInGoogle() {
+  const btn = document.getElementById('authGateBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Conectando…'; }
+  try {
+    await _auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+    // onAuthStateChanged completa el boot
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Iniciar sesión con Google'; }
+    if (e.code === 'auth/popup-blocked' || e.code === 'auth/cancelled-popup-request') {
+      try { await _auth.signInWithRedirect(new firebase.auth.GoogleAuthProvider()); return; }
+      catch (e2) { _showLoginGate({ error: 'No se pudo iniciar sesión: ' + (e2.message || e2) }); return; }
+    }
+    let hint = e.message || String(e);
+    if (e.code === 'auth/operation-not-allowed') hint = 'Falta habilitar Google en Firebase Console → Authentication → Sign-in method.';
+    if (e.code === 'auth/unauthorized-domain')   hint = 'Falta autorizar este dominio en Firebase Console → Authentication → Settings → Authorized domains.';
+    _showLoginGate({ error: hint });
+  }
+}
+
+// Completa el flujo de signInWithRedirect (popup bloqueado / mobile) y surfacea errores
+_auth.getRedirectResult().catch(e => {
+  let hint = e.message || String(e);
+  if (e.code === 'auth/unauthorized-domain')   hint = 'Falta autorizar este dominio en Firebase Console → Authentication → Settings → Authorized domains.';
+  if (e.code === 'auth/operation-not-allowed') hint = 'Falta habilitar Google en Firebase Console → Authentication → Sign-in method.';
+  _showLoginGate({ error: hint });
+});
+
+// Driver: gobierna el arranque según el estado de autenticación
+_auth.onAuthStateChanged(user => {
+  if (user) {
+    console.log('%c[Centro de Mando] Tu UID de Firebase:', 'color:#3b82f6;font-weight:bold', user.uid);
+    _hideLoginGate();
+    _bootApp();
+  } else if (!_authEscaped) {
+    _showLoginGate();
+  }
+});
 
 // ════════════════════════════════════════════════════════
 // PLANNER MOTIVATIONAL QUOTES
