@@ -18,6 +18,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
 <style>
 /* ── Reset & Variables ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -4882,6 +4883,13 @@ firebase.initializeApp({
   messagingSenderId: "937296552956",
   appId:             "1:937296552956:web:db2a1b9cd4dda457954879"
 });
+
+// App Check (reCAPTCHA v3) — defensa extra: valida que los requests vengan de esta app.
+// Activado en modo monitor; recién protege cuando se habilita "Enforce" en la consola.
+try {
+  firebase.appCheck().activate('6Lcl3R4tAAAAAAmZUcgANfc2K5gWhHV2BVWRqgPP', true);
+} catch (e) { console.warn('[appCheck] activate error:', e); }
+
 const _db  = firebase.firestore();
 const _auth = firebase.auth();
 const _DOC  = () => _db.collection('appdata').doc('lifedash_v2');
