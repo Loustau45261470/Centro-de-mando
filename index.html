@@ -1314,6 +1314,29 @@ textarea { resize: vertical; min-height: 60px; }
 .study-cal-day.weekend:not(.empty) { background:rgba(255,255,255,.018); }
 .study-cal-day.today-cell { background:rgba(75,123,236,.09); }
 
+/* ── Habit heatmap (vista Año, estilo GitHub) ── */
+.habit-view-toggle { display:flex; gap:4px; margin:8px 0 2px; }
+.habit-view-toggle button {
+  flex:1; padding:5px 0; font-size:11px; font-weight:600; font-family:inherit;
+  background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.1);
+  color:var(--tt); border-radius:7px; cursor:pointer; transition:all .15s;
+}
+.habit-view-toggle button.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+.hm-scroll { overflow-x:auto; padding:8px 0 2px; -webkit-overflow-scrolling:touch; }
+.hm { display:inline-grid; grid-template-columns:auto 1fr; gap:0 4px; }
+.hm-months { grid-column:2; display:grid; grid-auto-flow:column; grid-auto-columns:15px; height:12px; }
+.hm-months span { font-size:9px; color:var(--tt); font-family:var(--mono); }
+.hm-wds { grid-column:1; grid-row:2; display:grid; grid-template-rows:repeat(7,12px); gap:3px; padding-right:3px; }
+.hm-wds span { font-size:8px; color:var(--tt); line-height:12px; }
+.hm-grid { grid-column:2; grid-row:2; display:grid; grid-auto-flow:column; grid-template-rows:repeat(7,12px); grid-auto-columns:12px; gap:3px; }
+.hm-cell { width:12px; height:12px; border-radius:3px; background:rgba(255,255,255,.05); }
+.hm-cell.done { background:var(--accent); }
+.hm-cell.partial { background:color-mix(in srgb, var(--accent) 45%, transparent); }
+.hm-cell.rest { background:rgba(255,255,255,.14); }
+.hm-cell.future { background:transparent; }
+.hm-legend { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:9px; color:var(--tt); margin-top:10px; }
+.hm-legend .dot { width:11px; height:11px; border-radius:3px; display:inline-block; vertical-align:middle; margin-right:3px; }
+
 .study-cal-num {
   font-size:10px; font-weight:600; color:var(--tt);
   font-family:var(--mono); line-height:1;
@@ -9293,6 +9316,7 @@ const HABIT_CHART_COLOR = {
 };
 
 let _habitActiveId = { vida:null, finanzas:null, salud:null, conocimiento:null, ia:null };
+let _habitView = { vida:'month', finanzas:'month', salud:'month', conocimiento:'month', ia:'month' };
 let _habitChartInst = {};
 
 function _getHabits(section) {
@@ -9460,8 +9484,23 @@ function renderHabitCal(section) {
     </div>`;
   }
 
+  const view = _habitView[section] || 'month';
+  const toggle = `<div class="habit-view-toggle">
+    <button class="${view==='month'?'active':''}" onclick="_setHabitView('${section}','month')">Mes</button>
+    <button class="${view==='year'?'active':''}" onclick="_setHabitView('${section}','year')">Año</button>
+  </div>`;
+
+  if (view === 'year') {
+    calEl.innerHTML = toggle + _renderHabitHeatmap(section, habit, today);
+    const cw = document.getElementById(`habit-chart-wrap-${section}`);
+    if (cw) cw.style.display = 'none';
+    const sc = calEl.querySelector('.hm-scroll');
+    if (sc) sc.scrollLeft = sc.scrollWidth;   // arrancar mostrando lo más reciente
+    return;
+  }
+
   const WD = ['L','M','X','J','V','S','D'];
-  calEl.innerHTML = `
+  calEl.innerHTML = toggle + `
     <div class="study-cal-header" style="margin-top:8px">
       <button class="study-cal-nav" onclick="_habitMonthNav('${section}',-1)">‹</button>
       <div class="study-cal-title">${CAL_MONTHS[m].toUpperCase()} ${y}</div>
@@ -9480,6 +9519,54 @@ function renderHabitCal(section) {
 
   // ── Monthly chart (últimos 6 meses) ─────────────────
   _renderHabitChart(section, habit);
+}
+
+function _setHabitView(section, view) {
+  _habitView[section] = view;
+  renderHabitCal(section);
+}
+
+function _renderHabitHeatmap(section, habit, today) {
+  const days = habit.days || {};
+  const isDone = ds => days[ds] === 'done' || days[ds] === 'studied';
+  const end = new Date(today + 'T00:00:00');
+  const WEEKS = 53;
+  const start = new Date(end);
+  start.setDate(start.getDate() - (WEEKS * 7 - 1));
+  let dow = start.getDay(); dow = dow === 0 ? 6 : dow - 1;   // alinear a lunes
+  start.setDate(start.getDate() - dow);
+
+  const MON = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  let cells = '', months = '', col = 0, dayOfCol = 0, lastMonth = -1;
+  const d = new Date(start);
+  while (d <= end || dayOfCol !== 0) {
+    const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    let cls = 'hm-cell';
+    if (ds > today)                cls += ' future';
+    else if (isDone(ds))           cls += ' done';
+    else if (days[ds] === 'partial') cls += ' partial';
+    else if (days[ds] === 'rest')    cls += ' rest';
+    cells += `<div class="${cls}" title="${ds}"></div>`;
+    if (dayOfCol === 0) {
+      const mo = d.getMonth();
+      if (mo !== lastMonth) { months += `<span style="grid-column:${col+1}">${MON[mo]}</span>`; lastMonth = mo; }
+    }
+    d.setDate(d.getDate() + 1);
+    if (++dayOfCol === 7) { dayOfCol = 0; col++; }
+  }
+
+  const WD = ['L','','X','','V','',''];
+  return `<div class="hm-scroll"><div class="hm">
+    <div class="hm-months">${months}</div>
+    <div class="hm-wds">${WD.map(w => `<span>${w}</span>`).join('')}</div>
+    <div class="hm-grid">${cells}</div>
+  </div></div>
+  <div class="hm-legend">
+    <span><i class="dot" style="background:var(--accent)"></i>Hecho</span>
+    <span><i class="dot" style="background:color-mix(in srgb,var(--accent) 45%,transparent)"></i>Parcial</span>
+    <span><i class="dot" style="background:rgba(255,255,255,.14)"></i>Descanso</span>
+    <span><i class="dot" style="background:rgba(255,255,255,.05)"></i>Sin marcar</span>
+  </div>`;
 }
 
 function _renderHabitChart(section, habit) {
