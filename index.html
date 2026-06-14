@@ -4929,10 +4929,20 @@ const _DOC  = () => _db.collection('appdata').doc('lifedash_v2');
 // ── PWA / Web Push ────────────────────────────────────────────────────────────
 let _swReg = null;
 
+let _swRefreshing = false;
 async function _pwaInit() {
   if (!('serviceWorker' in navigator)) return;
+  // Si ya había un SW controlando y aparece uno nuevo, recargar una vez para tomar la versión fresca.
+  if (navigator.serviceWorker.controller) {
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (_swRefreshing) return;
+      _swRefreshing = true;
+      location.reload();
+    });
+  }
   try {
     _swReg = await navigator.serviceWorker.register('./sw.js');
+    _swReg.update();   // forzar chequeo de versión nueva en cada carga
   } catch (e) { console.warn('[PWA] SW register failed:', e); }
 }
 
