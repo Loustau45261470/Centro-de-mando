@@ -11401,6 +11401,27 @@ _auth.onAuthStateChanged(user => {
       trees[tab].push(n); saveTree(tab, trees[tab]); renderProyectos(tab);
       return true;
     },
+    // Borra por voz el nodo (proyecto o subtarea) cuyo label coincide mejor, en cualquier sección.
+    deleteProject(query) {
+      const q = (query || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+      if (!q) return null;
+      let best = null;
+      TABS.forEach(tab => {
+        (function walk(nodes) {
+          (nodes || []).forEach(n => {
+            const label = (n.label || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+            if (label && label.includes(q) && (!best || (n.label || '').length < (best.node.label || '').length)) best = { tab, node: n };
+            walk(n.children);
+          });
+        })(trees[tab]);
+      });
+      if (!best) return null;
+      trees[best.tab] = removeById(trees[best.tab], best.node.id);
+      saveTree(best.tab, trees[best.tab]);
+      try { renderProyectos(best.tab); } catch (e) {}
+      if (window.JARVIS) try { JARVIS.onDeleteProject(); } catch (e) {}
+      return best.node.label;
+    },
     completeTask(query) {
       const q = query.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
       let best = null;
@@ -12537,7 +12558,13 @@ Instrucciones:
     'log_bodyweight {value, unit?(kg|lb)}',
     'log_sleep {hours?, bedtime?(HH:MM), waketime?(HH:MM)}  — registra el sueño de hoy',
     'set_wellness {metric(energia|animo|dolor|estres|calidad_sueno), value(1-5)}  — bienestar de hoy',
-    'toggle_law_subject {search}'
+    'toggle_law_subject {search}',
+    'delete_reminder {search}',
+    'delete_wishlist {search}',
+    'delete_transaction {search}  — revierte el saldo de la cuenta',
+    'delete_habit {search}',
+    'delete_project {search}  — borra el proyecto o subtarea (y su contenido)',
+    'delete_monthly_goal {search, section?}'
   ].join('\n- ');
 
   /* ── Ejecutor de acciones ── */
@@ -12739,6 +12766,62 @@ Instrucciones:
           if (!found) return { ok: false, msg: "I couldn't find that subject, sir." };
           if (typeof toggleLawSubject === 'function') toggleLawSubject(found.yearId, found.subId);
           return { ok: true };
+        }
+        case 'delete_reminder': {
+          for (const tab of TABS) {
+            const f = _find((S.reminders && S.reminders[tab]) || [], a.search, 'title');
+            if (f) {
+              if (typeof deleteReminder === 'function') deleteReminder(tab, f.item.id);
+              else { S.reminders[tab].splice(f.idx, 1); saveState(); if (typeof renderReminders === 'function') renderReminders(tab); }
+              return { ok: true };
+            }
+          }
+          return { ok: false, msg: "I couldn't find that reminder, sir." };
+        }
+        case 'delete_wishlist': {
+          const f = _find(S.wishlist || [], a.search, 'name');
+          if (!f) return { ok: false, msg: "I couldn't find that wishlist item, sir." };
+          S.wishlist.splice(f.idx, 1); saveState(); if (typeof renderWishlist === 'function') renderWishlist();
+          return { ok: true };
+        }
+        case 'delete_transaction': {
+          const f = _find(S.transactions || [], a.search, 'name');
+          if (!f) return { ok: false, msg: "I couldn't find that transaction, sir." };
+          const txn = f.item;
+          if (txn.accountId) { const acc = (S.accounts || []).find(x => x.id === txn.accountId); if (acc) acc.balance -= txn.type === 'income' ? txn.amount : -txn.amount; }
+          S.transactions = S.transactions.filter(x => x.id !== txn.id);
+          if (typeof snapshotNW === 'function') snapshotNW();
+          saveState(); if (typeof renderFinanzasTab === 'function') renderFinanzasTab();
+          return { ok: true };
+        }
+        case 'delete_habit': {
+          for (const sec of TABS) {
+            const f = _find((S.habitTrackers && S.habitTrackers[sec]) || [], a.search, 'name');
+            if (f) {
+              S.habitTrackers[sec] = S.habitTrackers[sec].filter(h => h.id !== f.item.id);
+              if (typeof _habitActiveId !== 'undefined' && _habitActiveId[sec] === f.item.id) _habitActiveId[sec] = (S.habitTrackers[sec][0] || {}).id || null;
+              saveState(); if (typeof renderHabitsCard === 'function') renderHabitsCard(sec);
+              return { ok: true };
+            }
+          }
+          return { ok: false, msg: "I couldn't find that habit, sir." };
+        }
+        case 'delete_project': {
+          if (!window.PROY_VOICE || !PROY_VOICE.deleteProject) return { ok: false, msg: 'Projects unavailable, sir.' };
+          const r = PROY_VOICE.deleteProject(a.search || a.name || '');
+          return r ? { ok: true } : { ok: false, msg: "I couldn't find that project, sir." };
+        }
+        case 'delete_monthly_goal': {
+          if (typeof _mgSection !== 'function') return { ok: false, msg: 'Monthly goals unavailable, sir.' };
+          const mk3 = a.month || _today().slice(0, 7);
+          const sec1 = _norm(a.section || a.tab || '');
+          const secs2 = TABS.includes(sec1) ? [sec1] : TABS;
+          for (const s of secs2) {
+            const m = _mgSection(s);
+            const f = _find((m && m[mk3]) || [], a.search, 'text');
+            if (f) { m[mk3].splice(f.idx, 1); saveState(); if (typeof renderQObjForTab === 'function') renderQObjForTab(s); if (window.JARVIS_INTEL) try { JARVIS_INTEL.renderCard(s); } catch (e) {} return { ok: true }; }
+          }
+          return { ok: false, msg: "I couldn't find that monthly goal, sir." };
         }
         default:
           return { ok: false, msg: 'Unknown action, sir.' };
