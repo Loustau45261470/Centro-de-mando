@@ -1,7 +1,7 @@
 // Centro de Mando — Service Worker
 // Maneja Web Push, clicks de notificación, y caché offline del app shell.
 
-const CACHE = 'cdm-shell-v1';
+const CACHE = 'cdm-shell-v2';
 const BASE  = '/Centro-de-mando/';
 const SHELL = [
   BASE,
@@ -44,11 +44,12 @@ self.addEventListener('fetch', event => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
 
-  // Navegación → network-first con fallback al shell cacheado
+  // Navegación → network-first SIN caché HTTP (cache:'reload'), fallback al shell cacheado.
+  // cache:'reload' evita que el navegador sirva un index.html viejo desde su caché HTTP.
   if (req.mode === 'navigate') {
     event.respondWith(
-      fetch(req)
-        .then(res => { caches.open(CACHE).then(c => c.put(BASE, res.clone())); return res; })
+      fetch(req.url, { cache: 'reload', credentials: 'same-origin' })
+        .then(res => { const c = res.clone(); caches.open(CACHE).then(ch => ch.put(BASE, c)); return res; })
         .catch(() => caches.match(BASE).then(r => r || caches.match(BASE + 'index.html')))
     );
     return;
