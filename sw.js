@@ -1,8 +1,72 @@
 // Centro de Mando — Service Worker
-// Handles Web Push events and notification clicks for iOS PWA support
+// Maneja Web Push, clicks de notificación, y caché offline del app shell.
 
-self.addEventListener('install', () => self.skipWaiting());
-self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
+const CACHE = 'cdm-shell-v1';
+const BASE  = '/Centro-de-mando/';
+const SHELL = [
+  BASE,
+  BASE + 'index.html',
+  BASE + 'manifest.json',
+  BASE + 'icon.svg',
+  BASE + 'icon-192.png',
+  BASE + 'icon-512.png',
+  BASE + 'apple-touch-icon-180.png',
+  'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js',
+  'https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js',
+  'https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js',
+  'https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js',
+  'https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js',
+  'https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js',
+];
+
+self.addEventListener('install', event => {
+  self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE).then(cache =>
+      // Cachear cada recurso por separado: un fallo no aborta la instalación
+      Promise.allSettled(SHELL.map(u => cache.add(u)))
+    )
+  );
+});
+
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys()
+      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
+  );
+});
+
+// Estrategia: network-first para la navegación (HTML), cache-first para assets estáticos.
+// No se intercepta nada de Firestore/Auth/APIs (van directo a la red; Firestore maneja su offline).
+self.addEventListener('fetch', event => {
+  const req = event.request;
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+
+  // Navegación → network-first con fallback al shell cacheado
+  if (req.mode === 'navigate') {
+    event.respondWith(
+      fetch(req)
+        .then(res => { caches.open(CACHE).then(c => c.put(BASE, res.clone())); return res; })
+        .catch(() => caches.match(BASE).then(r => r || caches.match(BASE + 'index.html')))
+    );
+    return;
+  }
+
+  // Assets estáticos: mismo origen, o uno de los CDNs precacheados del shell → cache-first
+  const isStatic = url.origin === self.location.origin || SHELL.includes(url.href);
+  if (!isStatic) return;
+  event.respondWith(
+    caches.match(req).then(cached => {
+      if (cached) return cached;
+      return fetch(req).then(res => {
+        if (res && res.ok) { const clone = res.clone(); caches.open(CACHE).then(c => c.put(req, clone)); }
+        return res;
+      });
+    })
+  );
+});
 
 self.addEventListener('push', event => {
   if (!event.data) return;
@@ -14,10 +78,10 @@ self.addEventListener('push', event => {
       body:                payload.body || '',
       tag:                 payload.tag  || 'reminder',
       requireInteraction:  !!payload.requireInteraction,
-      icon:                '/Centro-de-mando/icon.svg',
-      badge:               '/Centro-de-mando/icon.svg',
+      icon:                BASE + 'icon-192.png',
+      badge:               BASE + 'icon-192.png',
       vibrate:             [200, 100, 200],
-      data:                { url: '/Centro-de-mando/' },
+      data:                { url: BASE },
     })
   );
 });
@@ -29,7 +93,7 @@ self.addEventListener('notificationclick', event => {
       for (const c of list) {
         if (c.url.includes('Centro-de-mando') && 'focus' in c) return c.focus();
       }
-      if (self.clients.openWindow) return self.clients.openWindow('/Centro-de-mando/');
+      if (self.clients.openWindow) return self.clients.openWindow(BASE);
     })
   );
 });

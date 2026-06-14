@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="CentroMando">
-<link rel="apple-touch-icon" href="icon.svg">
+<link rel="apple-touch-icon" href="apple-touch-icon-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700&family=Manrope:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -4920,6 +4920,9 @@ try {
 } catch (e) { console.warn('[appCheck] activate error:', e); }
 
 const _db  = firebase.firestore();
+// Persistencia offline (IndexedDB): los datos quedan disponibles sin conexión.
+_db.enablePersistence({ synchronizeTabs: true })
+   .catch(e => console.warn('[firestore] persistencia no disponible:', e.code));
 const _auth = firebase.auth();
 const _DOC  = () => _db.collection('appdata').doc('lifedash_v2');
 
