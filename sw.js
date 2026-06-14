@@ -1,7 +1,7 @@
 // Centro de Mando — Service Worker
 // Maneja Web Push, clicks de notificación, y caché offline del app shell.
 
-const CACHE = 'cdm-shell-v2';
+const CACHE = 'cdm-shell-v3';
 const BASE  = '/Centro-de-mando/';
 const SHELL = [
   BASE,
@@ -17,6 +17,7 @@ const SHELL = [
   'https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js',
   'https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js',
   'https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js',
+  'https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js',
 ];
 
 self.addEventListener('install', event => {

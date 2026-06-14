@@ -1,0 +1,13 @@
+rules_version = '2';
+
+// Centro de Mando — Storage de fotos de progreso.
+// Solo el dueño autenticado puede leer/escribir sus fotos (photos/{uid}/...).
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /photos/{userId}/{file=**} {
+      allow read, write: if request.auth != null
+        && request.auth.uid == "vy1BtfYJTJcbuAPWlRRPA0OKsOJ3"
+        && userId == "vy1BtfYJTJcbuAPWlRRPA0OKsOJ3";
+    }
+  }
+}
