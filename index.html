@@ -4897,6 +4897,7 @@ async function _pwaInit() {
 }
 
 async function _getOrCreateVapidKeys() {
+  if (!_auth.currentUser) return null;   // sin sesión no se puede escribir a Firestore
   try {
     const snap = await _DOC().get();
     const d = snap.data();
@@ -4922,6 +4923,7 @@ function _b64uToUint8(b64) {
 
 async function _subscribePush(pubKey) {
   if (!_swReg || Notification.permission !== 'granted') return;
+  if (!_auth.currentUser) return;   // sin sesión no se puede escribir a Firestore
   try {
     const existing = await _swReg.pushManager.getSubscription();
     const sub = existing || await _swReg.pushManager.subscribe({
@@ -5102,69 +5104,8 @@ function saveState() {
 }
 
 // ── Historical financial data ─────────────────────────────
-function loadHistoricalData() {
-  if (S.historicalDataLoaded) return;
-
-  const HIST = [
-    // ── MARZO 2026 ── Ing $1.096.300 | Gas $721.400 ──────────
-    { date:'2026-03-01', name:'Ingresos — Marzo',              type:'income',  amount:1096300, currency:'ARS', category:'salary',     accountId:'' },
-    { date:'2026-03-01', name:'Gimnasio y Deporte',            type:'expense', amount:65000,   currency:'ARS', category:'sports',     accountId:'' },
-    { date:'2026-03-03', name:'Productividad y Servicios',     type:'expense', amount:40000,   currency:'ARS', category:'productivity',accountId:'' },
-    { date:'2026-03-10', name:'Mascota',                       type:'expense', amount:112000,  currency:'ARS', category:'pet',        accountId:'' },
-    { date:'2026-03-14', name:'Alimentación Sana (Carnicería + Almacén)', type:'expense', amount:340000, currency:'ARS', category:'clean_food', accountId:'' },
-    { date:'2026-03-14', name:'Hidratación (Soda y Agua)',     type:'expense', amount:27900,   currency:'ARS', category:'hydration',  accountId:'' },
-    { date:'2026-03-20', name:'Novia',                         type:'expense', amount:50000,   currency:'ARS', category:'girlfriend', accountId:'' },
-    { date:'2026-03-25', name:'Comida Chatarra',               type:'expense', amount:86500,   currency:'ARS', category:'junk_food',  accountId:'' },
-    // Gas total: 65k+40k+112k+340k+27.9k+50k+86.5k = 721.400 ✓
-
-    // ── ABRIL 2026 ── Ing $1.134.000 | Gas $685.700 ──────────
-    { date:'2026-04-01', name:'Ingresos — Abril',              type:'income',  amount:1134000, currency:'ARS', category:'salary',     accountId:'' },
-    { date:'2026-04-01', name:'Gimnasio y Deporte',            type:'expense', amount:70000,   currency:'ARS', category:'sports',     accountId:'' },
-    { date:'2026-04-03', name:'Productividad y Servicios',     type:'expense', amount:40000,   currency:'ARS', category:'productivity',accountId:'' },
-    { date:'2026-04-10', name:'Mascota',                       type:'expense', amount:112400,  currency:'ARS', category:'pet',        accountId:'' },
-    { date:'2026-04-14', name:'Alimentación Sana (Carnicería + Almacén)', type:'expense', amount:320000, currency:'ARS', category:'clean_food', accountId:'' },
-    { date:'2026-04-14', name:'Hidratación (Soda y Agua)',     type:'expense', amount:27900,   currency:'ARS', category:'hydration',  accountId:'' },
-    { date:'2026-04-20', name:'Novia',                         type:'expense', amount:57000,   currency:'ARS', category:'girlfriend', accountId:'' },
-    { date:'2026-04-25', name:'Comida Chatarra',               type:'expense', amount:58400,   currency:'ARS', category:'junk_food',  accountId:'' },
-    // Gas total: 70k+40k+112.4k+320k+27.9k+57k+58.4k = 685.700 ✓
-
-    // ── MAYO 2026 ── Ing $1.219.000 | Gas $1.020.500 ─────────
-    { date:'2026-05-01', name:'Ingresos — Mayo',               type:'income',  amount:1219000, currency:'ARS', category:'salary',     accountId:'' },
-    { date:'2026-05-01', name:'Gimnasio + Jujitsu + Fútbol',   type:'expense', amount:111000,  currency:'ARS', category:'sports',     accountId:'' },
-    { date:'2026-05-05', name:'Productividad y Servicios',     type:'expense', amount:40000,   currency:'ARS', category:'productivity',accountId:'' },
-    { date:'2026-05-08', name:'Hidratación (Soda y Agua)',     type:'expense', amount:27900,   currency:'ARS', category:'hydration',  accountId:'' },
-    { date:'2026-05-10', name:'Mascota (Sanitario + Alimento)',type:'expense', amount:192500,  currency:'ARS', category:'pet',        accountId:'' },
-    { date:'2026-05-14', name:'Alimentación Sana (Stockeo Masivo)', type:'expense', amount:400000, currency:'ARS', category:'clean_food', accountId:'' },
-    { date:'2026-05-20', name:'Novia',                         type:'expense', amount:146300,  currency:'ARS', category:'girlfriend', accountId:'' },
-    { date:'2026-05-22', name:'Insumos del Hogar',             type:'expense', amount:22800,   currency:'ARS', category:'home',       accountId:'' },
-    { date:'2026-05-25', name:'Comida Chatarra',               type:'expense', amount:80000,   currency:'ARS', category:'junk_food',  accountId:'' },
-    // Gas total: 111k+40k+27.9k+192.5k+400k+146.3k+22.8k+80k = 1.020.500 ✓
-
-    // ── JUNIO 2026 (al 04/06) ── Ing $240.000 | Gas $93.500 ──
-    { date:'2026-06-01', name:'Ingreso',                       type:'income',  amount:80000,   currency:'ARS', category:'salary',     accountId:'' },
-    { date:'2026-06-01', name:'Claude Pro (IA)',               type:'expense', amount:32000,   currency:'ARS', category:'productivity',accountId:'' },
-    { date:'2026-06-01', name:'Mascota — Insumos / Alimento',  type:'expense', amount:18300,   currency:'ARS', category:'pet',        accountId:'' },
-    { date:'2026-06-02', name:'Ingreso',                       type:'income',  amount:60000,   currency:'ARS', category:'salary',     accountId:'' },
-    { date:'2026-06-02', name:'Regalo Cumpleaños Novia',       type:'expense', amount:13000,   currency:'ARS', category:'girlfriend', accountId:'' },
-    { date:'2026-06-02', name:'Carne — Carnicería',            type:'expense', amount:11700,   currency:'ARS', category:'clean_food', accountId:'' },
-    { date:'2026-06-03', name:'Ingreso',                       type:'income',  amount:100000,  currency:'ARS', category:'salary',     accountId:'' },
-    { date:'2026-06-03', name:'Comida Chatarra',               type:'expense', amount:7000,    currency:'ARS', category:'junk_food',  accountId:'' },
-    { date:'2026-06-03', name:'Transporte',                    type:'expense', amount:4500,    currency:'ARS', category:'productivity',accountId:'' },
-    { date:'2026-06-04', name:'Datos Móviles',                 type:'expense', amount:4000,    currency:'ARS', category:'productivity',accountId:'' },
-    { date:'2026-06-04', name:'Manteca y Almacén',             type:'expense', amount:3000,    currency:'ARS', category:'clean_food', accountId:'' },
-    // Gas total: 32k+18.3k+13k+11.7k+7k+4.5k+4k+3k = 93.500 ✓
-  ];
-
-  HIST.forEach(t => {
-    S.transactions.push({ id: uid(), ...t });
-  });
-
-  // Sort by date descending (newest first)
-  S.transactions.sort((a,b) => b.date.localeCompare(a.date));
-
-  S.historicalDataLoaded = true;
-  saveState();
-}
+// Los datos históricos (Mar–Jun 2026) ya están sincronizados en Firestore.
+// Se quitó el seed hardcodeado para no exponer información financiera en el repo público.
 
 // ── Date helpers ──────────────────────────────────────────
 function localStr(d) {
@@ -10754,7 +10695,6 @@ async function _initApp() {
 await loadState();
 _startFirestoreSync();
 if (typeof window._reloadProyectosFromState === 'function') window._reloadProyectosFromState();
-loadHistoricalData();
 // Migrate lawProgress if it contains old placeholder subjects
 if (S.lawProgress?.years?.[0]?.subjects?.[0]?.id === 's1_1') {
   S.lawProgress = JSON.parse(JSON.stringify(DEFAULT_STATE.lawProgress));
@@ -10798,7 +10738,6 @@ setTimeout(() => _msHub.showReminders(), 500);
 // ════════════════════════════════════════════════════════
 // AUTH GATE — Google Sign-In (Etapa 1: con escape; reglas Firestore aún abiertas)
 // ════════════════════════════════════════════════════════
-let _authEscaped = false;
 let _appBooted   = false;
 function _bootApp() {
   if (_appBooted) return;
@@ -10847,21 +10786,15 @@ function _showLoginGate(opts = {}) {
         <p>Iniciá sesión con Google para proteger y sincronizar tus datos entre dispositivos.</p>
         <button id="authGateBtn" class="auth-btn">Iniciar sesión con Google</button>
         <div id="authGateErr" class="auth-err" style="display:none"></div>
-        <button id="authGateEscape" class="auth-escape" style="display:none">Continuar sin iniciar sesión</button>
       </div>`;
     document.body.appendChild(g);
     const _b = document.getElementById('authGateBtn');
     _b.onclick = _signInGoogle;
     try { _b.focus(); } catch {}
-    document.getElementById('authGateEscape').onclick = () => {
-      _authEscaped = true; _hideLoginGate(); _bootApp();
-    };
   }
   if (opts.error) {
     const e = document.getElementById('authGateErr');
     if (e) { e.textContent = opts.error; e.style.display = 'block'; }
-    const esc = document.getElementById('authGateEscape');
-    if (esc) esc.style.display = 'block';   // el escape solo aparece si el login falla → nunca te bloquea
   }
 }
 
@@ -10903,8 +10836,8 @@ _auth.onAuthStateChanged(user => {
     console.log('%c[Centro de Mando] Tu UID de Firebase:', 'color:#3b82f6;font-weight:bold', user.uid);
     _hideLoginGate();
     _bootApp();
-  } else if (!_authEscaped) {
-    _showLoginGate();
+  } else {
+    _showLoginGate();   // login obligatorio: las reglas de Firestore exigen este uid
   }
 });
 
