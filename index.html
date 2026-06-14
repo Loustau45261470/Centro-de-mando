@@ -19,6 +19,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 <style>
 /* ── Reset & Variables ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -4920,6 +4921,7 @@ try {
 } catch (e) { console.warn('[appCheck] activate error:', e); }
 
 const _db  = firebase.firestore();
+const _storage = (typeof firebase.storage === 'function') ? firebase.storage() : null;
 // Persistencia offline (IndexedDB): los datos quedan disponibles sin conexión.
 _db.enablePersistence({ synchronizeTabs: true })
    .catch(e => console.warn('[firestore] persistencia no disponible:', e.code));
@@ -7172,22 +7174,67 @@ function renderPhotos() {
     const div = document.createElement('div');
     div.className = 'photo-thumb';
     div.innerHTML = `<img src="${ph.src}" alt="Progress photo"><div class="photo-meta">${fmtDate(ph.date)}${ph.weight?' · '+ph.weight+' kg':''}</div>`;
-    div.addEventListener('dblclick', () => { if (confirm('¿Eliminar esta foto?')) { S.photos=S.photos.filter(p=>p.id!==ph.id); saveState(); renderPhotos(); } });
+    div.addEventListener('dblclick', () => { if (confirm('¿Eliminar esta foto?')) _deletePhoto(ph); });
     grid.appendChild(div);
   });
 }
 
-function savePhoto() {
+// Sube un archivo a Firebase Storage en photos/{uid}/{id} y devuelve el registro con la URL.
+async function _uploadPhoto(file, date, weight) {
+  if (!_storage || !_auth.currentUser) throw new Error('storage/auth no disponible');
+  const id = uid();
+  const path = `photos/${_auth.currentUser.uid}/${id}`;
+  const ref = _storage.ref(path);
+  await ref.put(file);
+  const src = await ref.getDownloadURL();
+  return { id, date, weight, src, path };
+}
+
+async function savePhoto() {
   const file = document.getElementById('photoFile').files[0];
   const date = document.getElementById('photoDate').value;
   if (!file||!date) { showToast('Selecciona foto y fecha'); return; }
-  const reader = new FileReader();
-  reader.onload = e => {
-    S.photos.push({ id:uid(), date, weight:document.getElementById('photoWeight').value, src:e.target.result });
-    // [SUPABASE] Upload to supabase.storage.from('photos').upload(); store URL in table
+  const weight = document.getElementById('photoWeight').value;
+  showToast('📤 Subiendo foto…');
+  try {
+    const ph = await _uploadPhoto(file, date, weight);
+    S.photos.push(ph);
     saveState(); renderPhotos(); closeModal('modal-add-photo'); showToast('Foto guardada');
-  };
-  reader.readAsDataURL(file);
+  } catch (e) {
+    // Storage no disponible (no habilitado / sin reglas) → guardar como data URL embebida para no perder la foto
+    console.warn('[photos] upload fallo, fallback local:', e.message);
+    const reader = new FileReader();
+    reader.onload = ev => {
+      S.photos.push({ id:uid(), date, weight, src:ev.target.result });
+      saveState(); renderPhotos(); closeModal('modal-add-photo'); showToast('Foto guardada (local)');
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+function _deletePhoto(ph) {
+  if (ph.path && _storage) { try { _storage.ref(ph.path).delete().catch(()=>{}); } catch(e){} }
+  S.photos = S.photos.filter(p => p.id !== ph.id);
+  saveState(); renderPhotos();
+}
+
+// Migra (una vez) las fotos embebidas viejas (data URL) a Storage para encoger el documento de Firestore.
+async function _migratePhotos() {
+  if (!_storage || !_auth.currentUser) return;
+  const pending = (S.photos || []).filter(p => p.src && p.src.startsWith('data:'));
+  if (!pending.length) return;
+  let changed = false;
+  for (const p of pending) {
+    try {
+      const path = `photos/${_auth.currentUser.uid}/${p.id || uid()}`;
+      const ref = _storage.ref(path);
+      await ref.putString(p.src, 'data_url');
+      p.src = await ref.getDownloadURL();
+      p.path = path;
+      changed = true;
+    } catch (e) { console.warn('[photos] migracion pausada (Storage no listo):', e.message); break; }
+  }
+  if (changed) { saveState(); if (typeof renderPhotos === 'function') renderPhotos(); }
 }
 
 function populateCompareSelects() {
@@ -10819,6 +10866,7 @@ async function _initApp() {
 await loadState();
 _startFirestoreSync();
 if (typeof window._reloadProyectosFromState === 'function') window._reloadProyectosFromState();
+_migratePhotos();   // migra fotos embebidas viejas a Storage (una vez, cuando Storage esté listo)
 // Migrate lawProgress if it contains old placeholder subjects
 if (S.lawProgress?.years?.[0]?.subjects?.[0]?.id === 's1_1') {
   S.lawProgress = JSON.parse(JSON.stringify(DEFAULT_STATE.lawProgress));
