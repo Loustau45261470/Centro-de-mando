@@ -7215,7 +7215,7 @@ async function savePhoto() {
 }
 
 function _deletePhoto(ph) {
-  if (ph.path && _storage) { try { _storage.ref(ph.path).delete().catch(()=>{}); } catch(e){} }
+  if (ph.path && _storage) { try { _storage.ref(ph.path).delete().catch(e => console.warn('[photos] no se pudo borrar de Storage:', e.message)); } catch(e){} }
   S.photos = S.photos.filter(p => p.id !== ph.id);
   saveState(); renderPhotos();
 }
@@ -7228,7 +7228,8 @@ async function _migratePhotos() {
   let changed = false;
   for (const p of pending) {
     try {
-      const path = `photos/${_auth.currentUser.uid}/${p.id || uid()}`;
+      const photoId = p.id || (p.id = uid());   // persiste el id generado (evita ids vacíos duplicados)
+      const path = `photos/${_auth.currentUser.uid}/${photoId}`;
       const ref = _storage.ref(path);
       await ref.putString(p.src, 'data_url');
       p.src = await ref.getDownloadURL();
