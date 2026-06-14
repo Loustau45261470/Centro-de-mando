@@ -12352,11 +12352,21 @@ Instrucciones:
     return best;
   }
 
+  // Período trimestral activo de forma segura (evita crashear si no hay objetivos cargados)
+  function _activePeriod() {
+    const qo = S && S.quarterlyObjectives;
+    if (!qo || !Array.isArray(qo.periods) || !qo.periods.length) return null;
+    return qo.periods.find(x => x.id === qo.activePeriod) || qo.periods[0];
+  }
+
   /* ── Snapshot legible del estado completo ── */
   function snapshot() {
     if (typeof S === 'undefined' || !S) return 'Estado no disponible.';
     const today = _today();
     const L = ['FECHA DE HOY: ' + today];
+    const _activeTab = (typeof currentTab !== 'undefined' && currentTab)
+      || (((document.querySelector('.tab-panel.active') || {}).id) || '').replace('tab-', '');
+    if (_activeTab) L.push('TAB ACTIVO: ' + _activeTab);
 
     // Objetivos del trimestre (período activo) — la falla original
     const qo = S.quarterlyObjectives;
@@ -12410,12 +12420,31 @@ Instrucciones:
     L.push('MOVIMIENTOS DEL MES: ingresos ' + inc + ' · gastos ' + exp);
     if (S.wishlist && S.wishlist.length) L.push('OBJETIVOS DE ADQUISICIÓN: ' + S.wishlist.map(w => `${w.name} (${w.amount} ${w.currency || ''})`).join(', '));
 
+    // Gastos fijos del mes y su estado de pago
+    const fe = (S.fixedExpenses || []).map(e => {
+      const paid = S.fixedExpenseLog && S.fixedExpenseLog[mk] && S.fixedExpenseLog[mk][e.id];
+      return `  [${paid ? 'PAGADO' : 'pendiente'}] ${e.name} ${e.amount} ${e.currency || ''} (día ${e.dayOfMonth || '?'})`;
+    });
+    if (fe.length) L.push('\nGASTOS FIJOS [' + mk + ']:\n' + fe.join('\n'));
+
     // Salud
     const water = (S.waterLog && S.waterLog[today]) || 0;
     const healthBits = ['agua hoy ' + water + ' ml'];
     const supTaken = (S.supplements || []).filter(s => S.suppLog && S.suppLog[today] && S.suppLog[today][s.id]).map(s => s.name);
     if (S.supplements && S.supplements.length) healthBits.push('suplementos tomados hoy: ' + (supTaken.join(', ') || 'ninguno'));
     if (S.bodyWeight && S.bodyWeight.length) { const last = S.bodyWeight[S.bodyWeight.length - 1]; healthBits.push('peso: ' + last.value + last.unit + ' (' + last.date + ')'); }
+    // Sueño y bienestar de hoy
+    const sl = (S.sleepLog && S.sleepLog[today]) || {};
+    if (sl.hours) healthBits.push('dormí ' + sl.hours + 'h' + (sl.bedtime ? ' (' + sl.bedtime + '→' + (sl.waketime || '?') + ')' : ''));
+    if (sl.wellness) {
+      const w = sl.wellness, ws = [];
+      if (w.energy) ws.push('energía ' + w.energy + '/5');
+      if (w.mood) ws.push('ánimo ' + w.mood + '/5');
+      if (w.sleepQuality) ws.push('calidad sueño ' + w.sleepQuality + '/5');
+      if (w.stress) ws.push('estrés ' + w.stress + '/5');
+      if (w.pain) ws.push('dolor ' + w.pain + '/5');
+      if (ws.length) healthBits.push('bienestar: ' + ws.join(', '));
+    }
     L.push('\nSALUD: ' + healthBits.join(' · '));
 
     // Facultad
@@ -12437,14 +12466,15 @@ Instrucciones:
   /* ── Catálogo de acciones (para el prompt) ── */
   const ACTIONS_HELP = [
     'switch_tab {tab}  — tab: vida|finanzas|salud|conocimiento|ia',
-    'set_theme {theme}  — theme: original|bloomberg|amber|radar|infrared',
+    'set_theme {theme}  — theme: original|bloomberg|amber(ámbar)|radar|infrared(infrarrojo)',
     'add_daily_goal {text, when?(today|tomorrow), priority?(high|medium|low)}',
-    'complete_daily_goal {search}',
-    'delete_daily_goal {search}',
+    'complete_daily_goal {search}  — busca en metas de hoy y de mañana',
+    'delete_daily_goal {search}  — busca en metas de hoy y de mañana',
     'toggle_quarterly {search}  — marca/desmarca un objetivo del trimestre activo',
     'add_quarterly {text, category?(Vida|Economía|Facultad|Conocimiento|Entrenamiento|IA)}',
     'delete_quarterly {search}',
     'add_monthly_goal {text, section?(vida|finanzas|salud|conocimiento|ia), month?(YYYY-MM)}',
+    'complete_monthly_goal {search, section?(vida|finanzas|salud|conocimiento|ia)}',
     'add_project {tab, name}',
     'complete_task {search}',
     'mark_habit {search, status?(done|partial|rest)}',
@@ -12452,9 +12482,11 @@ Instrucciones:
     'add_transaction {name, type(income|expense), amount, currency?, account?}',
     'add_wishlist {name, amount, currency?}',
     'add_reminder {tab, title, datetime(YYYY-MM-DDTHH:MM), priority?(critical|high|medium|low)}',
-    'log_water {ml}',
+    'log_water {ml}  — en mililitros; si habla en litros, convertí (1 litro = 1000 ml)',
     'toggle_supplement {search}',
     'log_bodyweight {value, unit?(kg|lb)}',
+    'log_sleep {hours?, bedtime?(HH:MM), waketime?(HH:MM)}  — registra el sueño de hoy',
+    'set_wellness {metric(energia|animo|dolor|estres|calidad_sueno), value(1-5)}  — bienestar de hoy',
     'toggle_law_subject {search}'
   ].join('\n- ');
 
@@ -12482,36 +12514,42 @@ Instrucciones:
           return { ok: true };
         }
         case 'complete_daily_goal': {
-          const date = _today(); const f = _find(S.goals[date] || [], a.search, 'text');
-          if (!f) return { ok: false, msg: "I couldn't find that goal for today, sir." };
+          const td = _today(), tm = (typeof getTomorrow === 'function' ? getTomorrow() : td);
+          let date = td, f = _find(S.goals[td] || [], a.search, 'text');
+          if (!f) { f = _find(S.goals[tm] || [], a.search, 'text'); if (f) date = tm; }
+          if (!f) return { ok: false, msg: "I couldn't find that goal, sir." };
           if (!f.item.done) { f.item.done = true; saveState(); if (typeof renderGoals === 'function') renderGoals(); }
           return { ok: true };
         }
         case 'delete_daily_goal': {
-          const date = _today(); const f = _find(S.goals[date] || [], a.search, 'text');
+          const td = _today(), tm = (typeof getTomorrow === 'function' ? getTomorrow() : td);
+          let date = td, f = _find(S.goals[td] || [], a.search, 'text');
+          if (!f) { f = _find(S.goals[tm] || [], a.search, 'text'); if (f) date = tm; }
           if (!f) return { ok: false, msg: "I couldn't find that goal, sir." };
           S.goals[date].splice(f.idx, 1); saveState(); if (typeof renderGoals === 'function') renderGoals();
           return { ok: true };
         }
         case 'toggle_quarterly': {
-          const p = S.quarterlyObjectives.periods.find(x => x.id === S.quarterlyObjectives.activePeriod);
-          const f = _find(p && p.objectives, a.search, 'text');
+          const p = _activePeriod();
+          if (!p) return { ok: false, msg: 'No quarter set up yet, sir.' };
+          const f = _find(p.objectives, a.search, 'text');
           if (!f) return { ok: false, msg: "I couldn't find that quarterly objective, sir." };
           if (typeof toggleQObj === 'function') toggleQObj(p.id, f.item.id);
           else { f.item.done = !f.item.done; saveState(); if (typeof renderQuarterlyObjectives === 'function') renderQuarterlyObjectives(); }
           return { ok: true, done: f.item.done };
         }
         case 'add_quarterly': {
-          const p = S.quarterlyObjectives.periods.find(x => x.id === S.quarterlyObjectives.activePeriod);
-          if (!p) return { ok: false, msg: 'No active quarter found, sir.' };
+          const p = _activePeriod();
+          if (!p) return { ok: false, msg: 'No quarter set up yet, sir.' };
           const nid = p.objectives.length ? Math.max(...p.objectives.map(o => +o.id || 0)) + 1 : 1;
           p.objectives.push({ id: nid, text: a.text || '', done: false, category: a.category || null });
           saveState(); if (typeof renderQuarterlyObjectives === 'function') renderQuarterlyObjectives();
           return { ok: true };
         }
         case 'delete_quarterly': {
-          const p = S.quarterlyObjectives.periods.find(x => x.id === S.quarterlyObjectives.activePeriod);
-          const f = _find(p && p.objectives, a.search, 'text');
+          const p = _activePeriod();
+          if (!p) return { ok: false, msg: 'No quarter set up yet, sir.' };
+          const f = _find(p.objectives, a.search, 'text');
           if (!f) return { ok: false, msg: "I couldn't find that objective, sir." };
           if (typeof deleteQObj === 'function') deleteQObj(p.id, f.item.id);
           else { p.objectives.splice(f.idx, 1); saveState(); if (typeof renderQuarterlyObjectives === 'function') renderQuarterlyObjectives(); }
@@ -12529,6 +12567,21 @@ Instrucciones:
           if (typeof renderQObjForTab === 'function') renderQObjForTab(sec);
           if (window.JARVIS_INTEL) try { JARVIS_INTEL.renderCard(sec); } catch (e) {}
           return { ok: true };
+        }
+        case 'complete_monthly_goal': {
+          if (typeof _mgSection !== 'function') return { ok: false, msg: 'Monthly goals unavailable, sir.' };
+          const mk2 = a.month || _today().slice(0, 7);
+          const sec0 = _norm(a.section || a.tab || '');
+          const secs = TABS.includes(sec0) ? [sec0] : TABS;
+          for (const s of secs) {
+            const m = _mgSection(s);
+            const f = _find((m && m[mk2]) || [], a.search, 'text');
+            if (f) {
+              if (!f.item.done) { f.item.done = true; saveState(); if (typeof renderQObjForTab === 'function') renderQObjForTab(s); if (window.JARVIS_INTEL) try { JARVIS_INTEL.renderCard(s); } catch (e) {} }
+              return { ok: true };
+            }
+          }
+          return { ok: false, msg: "I couldn't find that monthly goal, sir." };
         }
         case 'add_project': {
           if (!window.PROY_VOICE) return { ok: false, msg: 'Projects unavailable, sir.' };
@@ -12579,8 +12632,11 @@ Instrucciones:
           return { ok: true };
         }
         case 'log_water': {
-          const ml = parseInt(a.ml, 10);
+          let ml = a.ml != null ? parseFloat(a.ml) : NaN;
+          if (isNaN(ml) && a.liters != null) ml = parseFloat(a.liters) * 1000;
           if (isNaN(ml)) return { ok: false, msg: 'How many millilitres, sir?' };
+          if (ml > 0 && ml <= 5) ml = ml * 1000;   // valores chiquitos = litros (nadie toma 2 ml)
+          ml = Math.round(ml);
           if (typeof addWater === 'function') addWater(ml);
           return { ok: true };
         }
@@ -12598,6 +12654,29 @@ Instrucciones:
           S.bodyWeight.push({ id: uid(), date, value: v, unit: a.unit || 'kg' });
           S.bodyWeight.sort((x, y) => x.date.localeCompare(y.date));
           saveState(); if (typeof renderBodyWeight === 'function') renderBodyWeight();
+          return { ok: true };
+        }
+        case 'log_sleep': {
+          const date = _today();
+          if (!S.sleepLog) S.sleepLog = {};
+          if (!S.sleepLog[date]) S.sleepLog[date] = {};
+          if (a.hours != null) { const h = parseFloat(a.hours); if (!isNaN(h)) S.sleepLog[date].hours = h; }
+          if (a.bedtime) S.sleepLog[date].bedtime = a.bedtime;
+          if (a.waketime) S.sleepLog[date].waketime = a.waketime;
+          saveState(); if (typeof renderSleepTracker === 'function') renderSleepTracker();
+          return { ok: true };
+        }
+        case 'set_wellness': {
+          const date = _today();
+          if (!S.sleepLog) S.sleepLog = {};
+          if (!S.sleepLog[date]) S.sleepLog[date] = {};
+          if (!S.sleepLog[date].wellness) S.sleepLog[date].wellness = {};
+          const M = { energia: 'energy', energy: 'energy', animo: 'mood', humor: 'mood', mood: 'mood', dolor: 'pain', pain: 'pain', estres: 'stress', stress: 'stress', sueno: 'sleepQuality', calidad: 'sleepQuality', calidad_sueno: 'sleepQuality', sleepquality: 'sleepQuality', sleep: 'sleepQuality' };
+          const key = M[_norm(a.metric).replace(/\s+/g, '_')] || M[_norm(a.metric)];
+          const val = parseInt(a.value, 10);
+          if (!key || isNaN(val)) return { ok: false, msg: 'Which metric and value from 1 to 5, sir?' };
+          S.sleepLog[date].wellness[key] = Math.max(1, Math.min(5, val));
+          saveState(); if (typeof renderSleepTracker === 'function') renderSleepTracker();
           return { ok: true };
         }
         case 'toggle_law_subject': {
@@ -13136,8 +13215,16 @@ Instrucciones:
     }
     const url  = URL.createObjectURL(blob);
     if (currentAudio) { try { currentAudio.pause(); URL.revokeObjectURL(currentAudio.src); } catch(e){} }
-    currentAudio = new Audio(url);
-    currentAudio.play();
+    const audio = currentAudio = new Audio(url);
+    // Esperar a que termine de sonar: así isSpeaking() es correcto durante toda la reproducción
+    // y se libera el ObjectURL (evita memory leak por cada frase).
+    await new Promise((resolve, reject) => {
+      const done = () => { try { URL.revokeObjectURL(url); } catch(e){} resolve(); };
+      audio.onended = done;
+      audio.onpause = done;   // interrumpido por una nueva frase o por stopSpeaking()
+      audio.onerror = done;
+      audio.play().catch(err => { try { URL.revokeObjectURL(url); } catch(e){} reject(err); });
+    });
   }
 
   // Chrome carga las voces de forma asíncrona: getVoices() devuelve [] hasta que dispara voiceschanged
@@ -13553,12 +13640,19 @@ Instrucciones:
   function _norm(s) { return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
   function say(text, dynamic) { if (window.JARVIS) JARVIS.speak(text, dynamic ? { dynamic: true } : undefined); }
 
+  let _cmdBusy = false;
   async function handleCommand(raw) {
+    if (_cmdBusy) return;   // evita doble ejecución si el STT entrega dos resultados finales seguidos
+    _cmdBusy = true;
+    try { return await _handleCommandInner(raw); }
+    finally { _cmdBusy = false; }
+  }
+  async function _handleCommandInner(raw) {
     const t = _norm(raw);
     if (typeof showToast === 'function') showToast('🎙️ ' + raw);
 
     // silenciar
-    if (/\b(silencio|callate|basta)\b/.test(t) && t.split(/\s+/).length <= 3) {
+    if (/\b(silencio|callate|basta|pará de hablar|para de hablar)\b/.test(t)) {
       if (window.JARVIS) JARVIS.stopSpeaking();
       return;
     }
@@ -13635,7 +13729,7 @@ Instrucciones:
     if (/\b(tema|modo)\b/.test(t) && typeof applyTheme === 'function') {
       const map = { bloomberg:'bloomberg', ambar:'amber', radar:'radar', infrarrojo:'infrared', normal:'', clasico:'' };
       for (const [w, th] of Object.entries(map)) {
-        if (t.includes(w)) { applyTheme(th); return; }
+        if (t.includes(w)) { applyTheme(th); say('Theme changed, sir.', true); return; }
       }
     }
 
@@ -13657,20 +13751,34 @@ Instrucciones:
     } finally { _ui(); }
   }
 
+  let _convo = [];   // memoria conversacional corta (multi-turno) para askGemini
+
+  // Extrae el primer objeto JSON balanceado (tolera texto antes o después del JSON)
+  function _extractJSON(raw) {
+    let s = ('' + raw).trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
+    const start = s.indexOf('{');
+    if (start < 0) return null;
+    let depth = 0, inStr = false, esc = false;
+    for (let i = start; i < s.length; i++) {
+      const c = s[i];
+      if (inStr) { if (esc) esc = false; else if (c === '\\') esc = true; else if (c === '"') inStr = false; }
+      else if (c === '"') inStr = true;
+      else if (c === '{') depth++;
+      else if (c === '}') { if (--depth === 0) { try { return JSON.parse(s.slice(start, i + 1)); } catch (e) { return null; } } }
+    }
+    return null;
+  }
+
   // Interpreta la respuesta JSON del cerebro: ejecuta la acción (si hay) y habla la confirmación.
   function _handleBrain(raw) {
-    let parsed = null;
-    try {
-      let s = ('' + raw).trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
-      const i = s.indexOf('{'), j = s.lastIndexOf('}');
-      if (i !== -1 && j > i) parsed = JSON.parse(s.slice(i, j + 1));
-    } catch (e) {}
+    const parsed = _extractJSON(raw);
     if (!parsed) { say(raw, true); return; } // no vino como JSON → leerlo tal cual
     const reply = ((parsed.reply || parsed.say || '') + '').trim();
     if (parsed.action && parsed.action !== 'none' && window.JARVIS_BRAIN) {
       const res = JARVIS_BRAIN.execute(parsed.action, parsed.args || {});
       if (res && res.ok === false) { say(res.msg || "I couldn't do that, sir.", true); return; }
     }
+    if (reply) { _convo.push({ role: 'model', text: reply }); if (_convo.length > 12) _convo = _convo.slice(-12); }
     say(reply || 'Done, sir.', true);
   }
 
@@ -13706,7 +13814,7 @@ Instrucciones:
       headers['Authorization'] = 'Bearer ' + key;
       body = {
         model: isGroq ? 'llama-3.3-70b-versatile' : 'meta-llama/llama-3.3-70b-instruct:free',
-        messages: [{ role: 'system', content: sys }, { role: 'user', content: question }],
+        messages: [{ role: 'system', content: sys }, ..._convo.map(mm => ({ role: mm.role === 'model' ? 'assistant' : 'user', content: mm.text })), { role: 'user', content: question }],
         max_tokens: 600, temperature: 0.6
       };
       parse = d => d.choices?.[0]?.message?.content;
@@ -13717,7 +13825,7 @@ Instrucciones:
       headers['x-goog-api-key'] = key;
       body = {
         systemInstruction: { parts: [{ text: sys }] },
-        contents: [{ role: 'user', parts: [{ text: question }] }],
+        contents: [..._convo.map(mm => ({ role: mm.role === 'model' ? 'model' : 'user', parts: [{ text: mm.text }] })), { role: 'user', parts: [{ text: question }] }],
         generationConfig: { maxOutputTokens: 600, temperature: 0.6, responseMimeType: 'application/json', thinkingConfig: { thinkingBudget: 0 } }
       };
       parse = d => d.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -13747,7 +13855,9 @@ Instrucciones:
       throw new Error('AI ' + res.status + ' ' + detail);
     }
     const data = await res.json();
-    return ((parse(data) || '') + '').trim() || null;
+    const out = ((parse(data) || '') + '').trim() || null;
+    if (out) { _convo.push({ role: 'user', text: question }); if (_convo.length > 12) _convo = _convo.slice(-12); }
+    return out;
   }
 
   /* ── Toggle wake word + guardado de keys (todo por dispositivo) ── */
