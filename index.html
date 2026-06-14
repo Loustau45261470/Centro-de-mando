@@ -13219,11 +13219,13 @@ Instrucciones:
     // Esperar a que termine de sonar: así isSpeaking() es correcto durante toda la reproducción
     // y se libera el ObjectURL (evita memory leak por cada frase).
     await new Promise((resolve, reject) => {
-      const done = () => { try { URL.revokeObjectURL(url); } catch(e){} resolve(); };
+      let settled = false;
+      const done = () => { if (settled) return; settled = true; clearTimeout(to); try { URL.revokeObjectURL(url); } catch(e){} resolve(); };
+      const to = setTimeout(done, 60000);   // hard cap: jamás colgar isSpeaking() para siempre
       audio.onended = done;
       audio.onpause = done;   // interrumpido por una nueva frase o por stopSpeaking()
       audio.onerror = done;
-      audio.play().catch(err => { try { URL.revokeObjectURL(url); } catch(e){} reject(err); });
+      audio.play().catch(err => { if (settled) return; settled = true; clearTimeout(to); try { URL.revokeObjectURL(url); } catch(e){} reject(err); });
     });
   }
 
@@ -13770,16 +13772,25 @@ Instrucciones:
   }
 
   // Interpreta la respuesta JSON del cerebro: ejecuta la acción (si hay) y habla la confirmación.
+  // Siempre registra exactamente un turno de respuesta en _convo (balanceado con el del usuario).
   function _handleBrain(raw) {
     const parsed = _extractJSON(raw);
-    if (!parsed) { say(raw, true); return; } // no vino como JSON → leerlo tal cual
-    const reply = ((parsed.reply || parsed.say || '') + '').trim();
-    if (parsed.action && parsed.action !== 'none' && window.JARVIS_BRAIN) {
-      const res = JARVIS_BRAIN.execute(parsed.action, parsed.args || {});
-      if (res && res.ok === false) { say(res.msg || "I couldn't do that, sir.", true); return; }
+    let spoken;
+    if (!parsed) {
+      spoken = ('' + raw).trim();   // no vino como JSON → leerlo tal cual
+    } else {
+      const reply = ((parsed.reply || parsed.say || '') + '').trim();
+      if (parsed.action && parsed.action !== 'none' && window.JARVIS_BRAIN) {
+        const res = JARVIS_BRAIN.execute(parsed.action, parsed.args || {});
+        spoken = (res && res.ok === false) ? (res.msg || "I couldn't do that, sir.") : (reply || 'Done, sir.');
+      } else {
+        spoken = reply || 'Done, sir.';
+      }
     }
-    if (reply) { _convo.push({ role: 'model', text: reply }); if (_convo.length > 12) _convo = _convo.slice(-12); }
-    say(reply || 'Done, sir.', true);
+    spoken = spoken || 'Done, sir.';
+    _convo.push({ role: 'model', text: spoken });
+    if (_convo.length > 12) _convo = _convo.slice(-12);
+    say(spoken, true);
   }
 
   /* ── Gemini (free tier) — key por dispositivo, nunca en el repo ── */
