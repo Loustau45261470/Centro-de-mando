@@ -4005,6 +4005,75 @@ input:focus, select:focus, textarea:focus {
 .card.sr-armed { animation: none !important; opacity: 0; transform: translateY(26px);
   transition: opacity .55s var(--ease-out-quart), transform .66s var(--ease-out-expo); will-change: opacity, transform; }
 .card.sr-armed.sr-in { opacity: 1; transform: none; }
+
+/* ── Muscle Heatmap 3D ── */
+@keyframes bodySpin {
+  from { transform: rotateY(0deg); }
+  to   { transform: rotateY(360deg); }
+}
+@keyframes scanPass {
+  0%   { top: -6px; opacity: .9; }
+  85%  { opacity: .7; }
+  100% { top: 105%; opacity: 0; }
+}
+.body-scan-scene {
+  perspective: 500px; width: 100px; height: 235px;
+  position: relative; flex-shrink: 0;
+}
+.body-scan-card {
+  width: 100%; height: 100%;
+  transform-style: preserve-3d;
+  animation: bodySpin 9s linear infinite;
+}
+.body-face {
+  position: absolute; width: 100%; height: 100%;
+  backface-visibility: hidden;
+  display: flex; align-items: center; justify-content: center;
+}
+.body-face.back { transform: rotateY(180deg); }
+.body-scan-line {
+  position: absolute; left: 0; right: 0; height: 4px; z-index: 3; pointer-events: none;
+  background: linear-gradient(transparent, rgba(0,220,255,.75), transparent);
+  animation: scanPass 3s ease-in-out infinite;
+}
+
+/* ── Exercise HUD stats ── */
+.ex-hud-scan-line {
+  position: absolute; left: 0; right: 0; height: 2px; z-index: 2; pointer-events: none;
+  background: linear-gradient(transparent, rgba(0,220,255,.5), transparent);
+  animation: scanPass 4s ease-in-out infinite;
+}
+.ex-hud-kpi-row {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 12px 0 10px;
+}
+.ex-hud-kpi {
+  background: rgba(0,200,255,.06); border: 1px solid rgba(0,200,255,.22);
+  border-radius: 8px; padding: 8px 10px; position: relative; overflow: hidden;
+}
+.ex-hud-kpi::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(0,220,255,.5), transparent);
+}
+.ex-hud-kpi-val {
+  font-family: var(--mono); font-size: 22px; font-weight: 900;
+  color: #00DCFF; line-height: 1; letter-spacing: -.03em;
+}
+.ex-hud-kpi-lbl {
+  font-size: 8px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase;
+  color: rgba(0,200,255,.5); margin-top: 5px;
+}
+.ex-hud-chart-wrap {
+  background: rgba(0,200,255,.04); border: 1px solid rgba(0,200,255,.15);
+  border-radius: 8px; padding: 8px 10px; margin-bottom: 12px;
+}
+.ex-hud-chart-title {
+  font-size: 8px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase;
+  color: rgba(0,200,255,.45); margin-bottom: 6px;
+}
+.ex-hud-hist-entry {
+  margin-bottom: 8px; padding-bottom: 8px;
+  border-bottom: 1px solid rgba(0,200,255,.1);
+}
 </style>
 </head>
 <body>
@@ -6976,15 +7045,16 @@ function renderRutinas() {
         <div id="muscle-dist-body" style="display:${_muscleDistOpen ? 'block' : 'none'}">
           ${_muscleArr.length === 0
             ? `<p style="font-size:12px;color:var(--tt);margin:0">Sin datos en este período.</p>`
-            : _muscleArr.map(([muscle, count]) => {
+            : buildMuscleHeatmap(_muscleCounts) + _muscleArr.map(([muscle, count]) => {
                 const pct = Math.round(count / _muscleTotal * 100);
+                const hc = muscleHeatColor(Math.round(count / Math.max(...Object.values(_muscleCounts), 1) * 100));
                 return `<div style="margin-bottom:6px">
                   <div style="display:flex;justify-content:space-between;margin-bottom:2px">
                     <span style="font-size:11px;color:var(--fg)">${muscle}</span>
                     <span style="font-family:var(--mono);font-size:10px;color:var(--tt)">${pct}%</span>
                   </div>
                   <div style="height:3px;background:var(--border);border-radius:2px">
-                    <div style="height:100%;width:${pct}%;background:var(--c-salud);border-radius:2px"></div>
+                    <div style="height:100%;width:${pct}%;background:${hc.fill.replace(/[\d.]+\)$/, '0.9)')};border-radius:2px;transition:width .4s"></div>
                   </div>
                 </div>`;
               }).join('')}
@@ -7130,34 +7200,217 @@ function deleteRtnEx(rtnId, exId) {
   saveState(); renderRutinas();
 }
 
+// ── Heat color helpers ──
+function muscleHeatColor(pct) {
+  if (!pct || pct <= 0)  return { fill: 'rgba(0,200,255,0.07)',  glow: 'drop-shadow(0 0 3px rgba(0,200,255,0.1))' };
+  if (pct <= 20)         return { fill: 'rgba(0,200,255,0.40)',  glow: 'drop-shadow(0 0 6px rgba(0,200,255,0.45))' };
+  if (pct <= 40)         return { fill: 'rgba(80,220,80,0.50)',  glow: 'drop-shadow(0 0 7px rgba(80,220,80,0.45))' };
+  if (pct <= 60)         return { fill: 'rgba(255,210,0,0.58)',  glow: 'drop-shadow(0 0 8px rgba(255,210,0,0.55))' };
+  if (pct <= 80)         return { fill: 'rgba(255,110,0,0.68)',  glow: 'drop-shadow(0 0 10px rgba(255,110,0,0.6))' };
+  return                        { fill: 'rgba(255,35,35,0.80)',  glow: 'drop-shadow(0 0 14px rgba(255,35,35,0.7))' };
+}
+
+function _bodyMuscleAttr(mc, name) {
+  const h = muscleHeatColor(mc[name] || 0);
+  return `fill="${h.fill}" style="filter:${h.glow}"`;
+}
+
+function buildMuscleSVGFront(mc) {
+  const a = n => _bodyMuscleAttr(mc, n);
+  const outline = `M50,3 C40,3 38,11 38,14 C38,20 43,25 50,25 C57,25 62,20 62,14 C62,11 60,3 50,3 Z
+    M50,25 C45,25 41,27 37,31 L21,35 C13,35 9,42 9,50 L9,58 L13,60 L17,92 L13,130
+    C24,136 36,140 36,140 L36,192 L30,224 L40,224 L44,192 L44,148
+    C47,145 50,144 50,144 C50,144 53,145 56,148 L56,192 L60,224 L70,224 L64,192
+    L64,140 C64,140 76,136 87,130 L83,92 L87,60 L91,58 L91,50
+    C91,42 87,35 79,35 L63,31 C59,27 55,25 50,25 Z`;
+  return `<svg viewBox="0 0 100 235" fill="none" xmlns="http://www.w3.org/2000/svg" width="100" height="235">
+    <defs><pattern id="hgf" width="8" height="8" patternUnits="userSpaceOnUse">
+      <path d="M8 0L0 0L0 8" fill="none" stroke="rgba(0,200,255,0.07)" stroke-width="0.3"/>
+    </pattern></defs>
+    <rect width="100" height="235" fill="url(#hgf)"/>
+    <path d="${outline}" fill="rgba(0,200,255,0.04)" stroke="rgba(0,200,255,0.28)" stroke-width="0.7"/>
+    <ellipse cx="22" cy="48" rx="12" ry="9" ${a('Hombro frontal')}/>
+    <ellipse cx="78" cy="48" rx="12" ry="9" ${a('Hombro frontal')}/>
+    <ellipse cx="37" cy="60" rx="14" ry="12" ${a('Pecho')}/>
+    <ellipse cx="63" cy="60" rx="14" ry="12" ${a('Pecho')}/>
+    <ellipse cx="18" cy="80" rx="4" ry="12" ${a('Tríceps')}/>
+    <ellipse cx="82" cy="80" rx="4" ry="12" ${a('Tríceps')}/>
+    <ellipse cx="15" cy="78" rx="8" ry="16" ${a('Bíceps')}/>
+    <ellipse cx="85" cy="78" rx="8" ry="16" ${a('Bíceps')}/>
+    <ellipse cx="12" cy="112" rx="7" ry="18" ${a('Antebrazos')}/>
+    <ellipse cx="88" cy="112" rx="7" ry="18" ${a('Antebrazos')}/>
+    <ellipse cx="44" cy="78" rx="7" ry="6" ${a('Abdomen')}/>
+    <ellipse cx="56" cy="78" rx="7" ry="6" ${a('Abdomen')}/>
+    <ellipse cx="44" cy="91" rx="7" ry="6" ${a('Abdomen')}/>
+    <ellipse cx="56" cy="91" rx="7" ry="6" ${a('Abdomen')}/>
+    <ellipse cx="44" cy="104" rx="7" ry="6" ${a('Abdomen')}/>
+    <ellipse cx="56" cy="104" rx="7" ry="6" ${a('Abdomen')}/>
+    <ellipse cx="36" cy="157" rx="14" ry="27" ${a('Cuádriceps')}/>
+    <ellipse cx="64" cy="157" rx="14" ry="27" ${a('Cuádriceps')}/>
+    <ellipse cx="42" cy="155" rx="7" ry="22" ${a('Aductores')}/>
+    <ellipse cx="58" cy="155" rx="7" ry="22" ${a('Aductores')}/>
+    <text x="50" y="232" text-anchor="middle" fill="rgba(0,200,255,0.35)" font-size="5" font-family="monospace" letter-spacing="2">FRONT</text>
+  </svg>`;
+}
+
+function buildMuscleSVGBack(mc) {
+  const a = n => _bodyMuscleAttr(mc, n);
+  const outline = `M50,3 C40,3 38,11 38,14 C38,20 43,25 50,25 C57,25 62,20 62,14 C62,11 60,3 50,3 Z
+    M50,25 C45,25 41,27 37,31 L21,35 C13,35 9,42 9,50 L9,58 L13,60 L17,92 L13,130
+    C24,136 36,140 36,140 L36,192 L30,224 L40,224 L44,192 L44,148
+    C47,145 50,144 50,144 C50,144 53,145 56,148 L56,192 L60,224 L70,224 L64,192
+    L64,140 C64,140 76,136 87,130 L83,92 L87,60 L91,58 L91,50
+    C91,42 87,35 79,35 L63,31 C59,27 55,25 50,25 Z`;
+  return `<svg viewBox="0 0 100 235" fill="none" xmlns="http://www.w3.org/2000/svg" width="100" height="235">
+    <defs><pattern id="hgb" width="8" height="8" patternUnits="userSpaceOnUse">
+      <path d="M8 0L0 0L0 8" fill="none" stroke="rgba(0,200,255,0.07)" stroke-width="0.3"/>
+    </pattern></defs>
+    <rect width="100" height="235" fill="url(#hgb)"/>
+    <path d="${outline}" fill="rgba(0,200,255,0.04)" stroke="rgba(0,200,255,0.28)" stroke-width="0.7"/>
+    <path d="M37,30 L50,40 L63,30 L78,26 L50,34 L22,26 Z" ${a('Trapecio')}/>
+    <ellipse cx="22" cy="48" rx="12" ry="9" ${a('Hombro posterior')}/>
+    <ellipse cx="78" cy="48" rx="12" ry="9" ${a('Hombro posterior')}/>
+    <ellipse cx="18" cy="52" rx="5" ry="8" ${a('Hombro lateral')}/>
+    <ellipse cx="82" cy="52" rx="5" ry="8" ${a('Hombro lateral')}/>
+    <path d="M37,42 C26,52 22,68 24,82 L32,118 L38,118 C38,100 45,88 50,86 C55,88 62,100 62,118 L68,118 L76,82 C78,68 74,52 63,42 L55,40 L50,43 L45,40 Z" ${a('Espalda')}/>
+    <ellipse cx="15" cy="80" rx="8" ry="16" ${a('Tríceps')}/>
+    <ellipse cx="85" cy="80" rx="8" ry="16" ${a('Tríceps')}/>
+    <ellipse cx="12" cy="112" rx="7" ry="18" ${a('Antebrazos')}/>
+    <ellipse cx="88" cy="112" rx="7" ry="18" ${a('Antebrazos')}/>
+    <ellipse cx="37" cy="138" rx="16" ry="14" ${a('Glúteo')}/>
+    <ellipse cx="63" cy="138" rx="16" ry="14" ${a('Glúteo')}/>
+    <ellipse cx="37" cy="166" rx="13" ry="24" ${a('Femorales')}/>
+    <ellipse cx="63" cy="166" rx="13" ry="24" ${a('Femorales')}/>
+    <ellipse cx="36" cy="205" rx="10" ry="20" ${a('Pantorrillas')}/>
+    <ellipse cx="64" cy="205" rx="10" ry="20" ${a('Pantorrillas')}/>
+    <text x="50" y="232" text-anchor="middle" fill="rgba(0,200,255,0.35)" font-size="5" font-family="monospace" letter-spacing="2">BACK</text>
+  </svg>`;
+}
+
+function buildMuscleHeatmap(muscleCounts) {
+  if (!muscleCounts || Object.keys(muscleCounts).length === 0) return '';
+  const maxCount = Math.max(...Object.values(muscleCounts), 1);
+  const mc = {};
+  Object.entries(muscleCounts).forEach(([n, c]) => { mc[n] = Math.round(c / maxCount * 100); });
+  const frontSVG = buildMuscleSVGFront(mc);
+  const backSVG  = buildMuscleSVGBack(mc);
+  const legendItems = [
+    ['rgba(255,35,35,0.80)',  'Muy alto'],
+    ['rgba(255,110,0,0.68)', 'Alto'],
+    ['rgba(255,210,0,0.58)', 'Medio'],
+    ['rgba(80,220,80,0.50)', 'Bajo'],
+    ['rgba(0,200,255,0.40)', 'Mínimo'],
+  ];
+  return `<div style="margin:10px 0 4px">
+    <div style="font-size:8px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:rgba(0,200,255,0.45);margin-bottom:8px">◈ ESCÁNER MUSCULAR</div>
+    <div style="display:flex;gap:14px;align-items:center">
+      <div class="body-scan-scene" style="overflow:hidden;border-radius:8px;background:rgba(0,8,18,.7);border:1px solid rgba(0,200,255,.18);box-shadow:0 0 20px rgba(0,200,255,.06)">
+        <div class="body-scan-line"></div>
+        <div class="body-scan-card">
+          <div class="body-face">${frontSVG}</div>
+          <div class="body-face back">${backSVG}</div>
+        </div>
+      </div>
+      <div style="flex:1">
+        <div style="font-size:8px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(0,200,255,.4);margin-bottom:7px">INTENSIDAD</div>
+        ${legendItems.map(([col, lbl]) => `
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+            <div style="width:10px;height:10px;border-radius:3px;background:${col};flex-shrink:0"></div>
+            <span style="font-size:10px;color:var(--ts)">${lbl}</span>
+          </div>`).join('')}
+      </div>
+    </div>
+  </div>`;
+}
+
 function openExHist(rtnId, exId) {
   const rtn = S.routines.find(r => r.id === rtnId);
   const ex = rtn && rtn.exercises.find(e => e.id === exId);
   if (!ex) return;
   const log = (S.routineLog[rtnId] || []).filter(e => e.exSets && e.exSets[exId] && e.exSets[exId].length);
   document.getElementById('modal-ex-hist-title').textContent = ex.name;
-  const body = document.getElementById('modal-ex-hist-body');
-  if (!log.length) {
-    body.innerHTML = '<p style="color:var(--tt);font-size:13px;padding:8px 0">Sin historial aún.</p>';
-  } else {
-    body.innerHTML = log.slice().reverse().map(entry => {
-      const sets = entry.exSets[exId];
-      const rows = sets.map((s, i) => `
-        <div style="display:flex;gap:10px;padding:3px 0;font-size:12px">
-          <span style="color:var(--tt);width:54px;flex-shrink:0">Serie ${i + 1}</span>
-          <span style="font-family:var(--mono)">${s.weight} kg</span>
-          <span style="color:var(--tt)">×</span>
-          <span style="font-family:var(--mono)">${s.reps} reps</span>
-        </div>`).join('');
-      return `
-        <div style="margin-bottom:14px">
-          <div style="font-size:11px;font-weight:600;color:var(--c-salud);font-family:var(--mono);letter-spacing:0.04em;margin-bottom:2px">${entry.date}</div>
-          <div style="font-size:11px;color:var(--tt);margin-bottom:5px">${sets.length} serie${sets.length !== 1 ? 's' : ''}</div>
-          ${rows}
-        </div>
-        <div style="height:1px;background:var(--border);margin-bottom:12px"></div>`;
-    }).join('');
+
+  // Compute stats
+  const monthAgo = new Date(); monthAgo.setDate(monthAgo.getDate() - 30);
+  const monthAgoStr = monthAgo.toISOString().slice(0, 10);
+  const thisMonthCount = log.filter(e => e.date >= monthAgoStr).length;
+  let maxWeight = 0, maxReps = 0, maxVol = 0;
+  log.forEach(entry => entry.exSets[exId].forEach(s => {
+    if ((s.weight || 0) > maxWeight) maxWeight = s.weight || 0;
+    if ((s.reps   || 0) > maxReps)   maxReps   = s.reps   || 0;
+    const v = (s.weight || 0) * (s.reps || 0);
+    if (v > maxVol) maxVol = v;
+  }));
+
+  // Chart: best weight per session (last 12)
+  const chartSrc = log.slice(-12).map(e => Math.max(...e.exSets[exId].map(s => s.weight || 0)));
+  const chartH = 50, chartW = 220, pad = 8;
+  let chartSvg = '<div style="font-size:11px;color:rgba(0,200,255,.35);padding:8px 0;text-align:center">Sin suficientes sesiones para el gráfico</div>';
+  if (chartSrc.length >= 2) {
+    const minV = Math.min(...chartSrc), maxV = Math.max(...chartSrc);
+    const range = maxV - minV || 1;
+    const n = chartSrc.length;
+    const gx = i => pad + i / (n - 1) * (chartW - pad * 2);
+    const gy = v => chartH - pad - (v - minV) / range * (chartH - pad * 2);
+    const pts = chartSrc.map((v, i) => `${gx(i).toFixed(1)},${gy(v).toFixed(1)}`).join(' ');
+    const firstPt = `${gx(0).toFixed(1)},${gy(chartSrc[0]).toFixed(1)}`;
+    const lastPt  = `${gx(n-1).toFixed(1)},${gy(chartSrc[n-1]).toFixed(1)}`;
+    const base    = (chartH - pad).toFixed(1);
+    const areaD   = `M ${firstPt} L ${pts.split(' ').slice(1).join(' L ')} L ${gx(n-1).toFixed(1)},${base} L ${gx(0).toFixed(1)},${base} Z`;
+    const dots    = chartSrc.map((v, i) => `<circle cx="${gx(i).toFixed(1)}" cy="${gy(v).toFixed(1)}" r="2.5" fill="#00DCFF" stroke="rgba(0,0,20,.8)" stroke-width="1.2"/>`).join('');
+    chartSvg = `<svg viewBox="0 0 ${chartW} ${chartH}" width="100%" height="${chartH}">
+      <path d="${areaD}" fill="rgba(0,200,255,0.12)"/>
+      <polyline points="${pts}" fill="none" stroke="#00DCFF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      ${dots}
+    </svg>`;
   }
+
+  const maxVolStr = maxVol >= 1000 ? `${(maxVol / 1000).toFixed(1)}<span style="font-size:11px;font-weight:400"> t</span>` : `${maxVol}<span style="font-size:11px;font-weight:400"> kg</span>`;
+
+  const histHtml = log.length === 0
+    ? '<p style="color:rgba(0,200,255,.35);font-size:12px;padding:4px 0">Sin historial aún.</p>'
+    : log.slice().reverse().map(entry => {
+        const sets = entry.exSets[exId];
+        const setRows = sets.map((s, i) => `
+          <div style="display:flex;gap:10px;padding:2px 0;font-size:12px">
+            <span style="color:rgba(0,200,255,.4);width:48px;flex-shrink:0;font-family:var(--mono)">S${i + 1}</span>
+            <span style="font-family:var(--mono);color:#00DCFF;font-weight:700">${s.weight}<span style="font-weight:400;font-size:10px"> kg</span></span>
+            <span style="color:rgba(255,255,255,.25);margin:0 2px">×</span>
+            <span style="font-family:var(--mono);font-weight:700">${s.reps}<span style="font-weight:400;font-size:10px"> reps</span></span>
+          </div>`).join('');
+        return `<div class="ex-hud-hist-entry">
+          <div style="font-size:9px;font-weight:800;letter-spacing:.1em;color:rgba(0,200,255,.6);font-family:var(--mono);margin-bottom:5px">${entry.date}</div>
+          ${setRows}
+        </div>`;
+      }).join('');
+
+  document.getElementById('modal-ex-hist-body').innerHTML = `
+    <div style="position:relative;overflow:hidden">
+      <div class="ex-hud-scan-line"></div>
+      <div class="ex-hud-kpi-row">
+        <div class="ex-hud-kpi">
+          <div class="ex-hud-kpi-val">${thisMonthCount}</div>
+          <div class="ex-hud-kpi-lbl">Sesiones / mes</div>
+        </div>
+        <div class="ex-hud-kpi">
+          <div class="ex-hud-kpi-val">${maxWeight}<span style="font-size:11px;font-weight:400"> kg</span></div>
+          <div class="ex-hud-kpi-lbl">Record Peso</div>
+        </div>
+        <div class="ex-hud-kpi">
+          <div class="ex-hud-kpi-val">${maxReps}<span style="font-size:11px;font-weight:400"> reps</span></div>
+          <div class="ex-hud-kpi-lbl">Record Reps</div>
+        </div>
+        <div class="ex-hud-kpi">
+          <div class="ex-hud-kpi-val">${maxVolStr}</div>
+          <div class="ex-hud-kpi-lbl">Record Vol</div>
+        </div>
+      </div>
+      <div class="ex-hud-chart-wrap">
+        <div class="ex-hud-chart-title">◈ PROGRESIÓN DE PESO — últimas ${Math.min(log.length, 12)} sesiones</div>
+        ${chartSvg}
+      </div>
+      ${histHtml}
+    </div>`;
   openModal('modal-ex-hist');
 }
 
