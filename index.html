@@ -3828,6 +3828,45 @@ body:has(#login-screen) #hud-frame { opacity: 0; }
 @media (prefers-reduced-motion: reduce) {
   .card-title::after { animation: none; opacity: 0; }
 }
+
+/* ═══════════════ RADAR SCOPE · pie del command rail (desktop) ═══════════════ */
+.rail-radar { display: none; }
+@keyframes radar-spin { to { transform: rotate(360deg); } }
+@keyframes radar-ping { 0% { opacity: .9; } 70%,100% { opacity: 0; } }
+@media (min-width: 980px) {
+  .rail-radar {
+    display: block; position: relative;
+    margin: auto auto 16px; width: 62px; height: 62px;
+    border-radius: 50%; opacity: .8; overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--hud) 30%, transparent);
+    background:
+      radial-gradient(circle, transparent 58%, color-mix(in srgb, var(--hud) 9%, transparent) 100%),
+      repeating-radial-gradient(circle, transparent 0 9px, color-mix(in srgb, var(--hud) 13%, transparent) 9px 10px);
+    box-shadow: inset 0 0 14px color-mix(in srgb, var(--hud) 12%, transparent), 0 0 12px rgba(56,189,248,0.08);
+  }
+  .rail-radar::before {
+    content: ''; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+    background:
+      linear-gradient(90deg, transparent 49.3%, color-mix(in srgb, var(--hud) 22%, transparent) 50%, transparent 50.7%),
+      linear-gradient(0deg,  transparent 49.3%, color-mix(in srgb, var(--hud) 22%, transparent) 50%, transparent 50.7%);
+  }
+  .rr-sweep {
+    position: absolute; inset: 0; border-radius: 50%;
+    background: conic-gradient(from 0deg, color-mix(in srgb, var(--hud) 42%, transparent), transparent 30%);
+    -webkit-mask: radial-gradient(circle, #000 98%, transparent);
+            mask: radial-gradient(circle, #000 98%, transparent);
+    animation: radar-spin 4s linear infinite;
+  }
+  .rr-dot {
+    position: absolute; top: 34%; left: 60%; width: 4px; height: 4px; border-radius: 50%;
+    background: var(--hud-bright); box-shadow: 0 0 8px var(--hud);
+    animation: radar-ping 4s ease-out infinite;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rr-sweep, .rr-dot { animation: none; }
+  .rr-dot { opacity: .6; }
+}
 </style>
 </head>
 <body>
@@ -4312,6 +4351,7 @@ body:has(#login-screen) #hud-frame { opacity: 0; }
     <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>
     IA
   </button>
+  <div class="rail-radar" aria-hidden="true"><span class="rr-sweep"></span><span class="rr-dot"></span></div>
 </nav>
 
 <!-- ── Toast ── -->
