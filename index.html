@@ -14271,7 +14271,7 @@ Instrucciones:
   let wakeOn = localStorage.getItem('jarvis_wake') === '1';
   let rec = null, mode = 'off'; // off | passive (espera wake word) | command (espera orden)
   let cmdTimer = null, recStartedAt = 0;
-  const LISTEN_MS = 14000; // ventana de escucha amplia, para que se sienta como una charla
+  const LISTEN_MS = 32000; // ventana de escucha muy amplia, para charlas largas sin repetir "Jarvis"
   let restartTimes = [], restartTimer = null; // anti-tormenta de reinicios
 
   // ── Anti-eco: NUNCA escuchar la propia voz de JARVIS ──
@@ -14300,18 +14300,6 @@ Instrucciones:
       _scheduleRestart();
     }
   }, 150);
-
-  /* ── Target de clic transparente sobre el núcleo neuronal (lo visual lo dibuja JARVIS_FX) ── */
-  const css = document.createElement('style');
-  css.textContent = `
-    #jarvis-ear{position:fixed;left:34px;bottom:calc(var(--nav) + var(--safe-b) + 34px);z-index:10000;
-      width:72px;height:72px;border-radius:50%;cursor:pointer;user-select:none;background:transparent}`;
-  document.head.appendChild(css);
-  const ear = document.createElement('div');
-  ear.id = 'jarvis-ear'; ear.title = 'JARVIS — tocá para dar una orden';
-  ear.onclick = () => { if (mode === 'command') exitCommand(); else enterCommand(); };
-  document.body.appendChild(ear);
-  if (!SR) ear.style.display = 'none';
 
   function _ui() {
     if (window.JARVIS_FX) JARVIS_FX.setState(mode === 'off' ? 'off' : mode);
