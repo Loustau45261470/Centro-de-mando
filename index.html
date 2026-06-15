@@ -3990,11 +3990,51 @@ input:focus, select:focus, textarea:focus {
 /* Scroll suave en el área principal */
 #app { scroll-behavior: smooth; }
 
+/* ── Botones: elevación física al pasar el mouse (no sólo cambio de color) ── */
+@media (hover: hover) {
+  .btn:hover, .qobj-period-trigger:hover, .qobj-month-tab:hover,
+  .law-nav-btn:hover, .water-quick button:hover {
+    transform: translateY(-1.5px);
+    box-shadow: 0 5px 16px -6px var(--hud-glow);
+  }
+  .btn:active, .qobj-period-trigger:active, .qobj-month-tab:active,
+  .law-nav-btn:active, .water-quick button:active { transform: translateY(0) scale(.97); }
+}
+
+/* ── Menús desplegables: se despliegan con animación en vez de aparecer de golpe ── */
+.qobj-period-menu.open { animation: dd-open .2s var(--ease-out-quart) both; transform-origin: top center; }
+@keyframes dd-open { from { opacity: 0; transform: translateY(-7px) scaleY(.94); } to { opacity: 1; transform: none; } }
+
+/* ── Tooltips suaves (reemplazan al title nativo en los controles marcados) ── */
+[data-tip] { position: relative; }
+[data-tip]::after {
+  content: attr(data-tip); position: absolute; left: 50%; bottom: calc(100% + 8px);
+  transform: translate(-50%, 5px); white-space: nowrap; pointer-events: none; z-index: 6000;
+  padding: 5px 9px; border-radius: 7px; font-family: var(--mono); font-size: 10.5px;
+  letter-spacing: .04em; color: #EAF6FF; background: rgba(6,12,22,0.96);
+  border: 1px solid var(--hud-dim); box-shadow: 0 8px 22px -8px rgba(0,0,0,.75);
+  opacity: 0; transition: opacity .18s var(--ease-out-quart), transform .24s var(--ease-out-expo);
+}
+[data-tip].tip-below::after { bottom: auto; top: calc(100% + 8px); transform: translate(-50%, -5px); }
+@media (hover: hover) {
+  [data-tip]:hover::after { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* ── Aparición al scroll: las cards bajo el pliegue entran al asomar en el viewport ── */
+.card.sr-armed { animation: none !important; opacity: 0; transform: translateY(26px);
+  transition: opacity .55s var(--ease-out-quart), transform .66s var(--ease-out-expo); will-change: opacity, transform; }
+.card.sr-armed.sr-in { opacity: 1; transform: none; }
+
 @media (prefers-reduced-motion: reduce) {
   .modal-overlay.open { animation: none; }
   .account-row:hover, .activity-row:hover, .order-row:hover, .sub-row:hover,
   .wish-row:hover, .month-balance-row:hover, .law-subject-row:hover,
   .qobj-category-row:hover, .rem-urgent-row:hover { transform: none; }
+  .btn:hover, .qobj-period-trigger:hover, .qobj-month-tab:hover,
+  .law-nav-btn:hover, .water-quick button:hover { transform: none; box-shadow: none; }
+  .qobj-period-menu.open { animation: none; }
+  [data-tip]::after { transition: opacity .12s linear; }
+  .card.sr-armed { opacity: 1 !important; transform: none !important; transition: none !important; }
   #app { scroll-behavior: auto; }
 }
 </style>
@@ -5804,7 +5844,36 @@ function switchTab(tab, btn) {
   checkAchievements();
   if (typeof renderProyectos === 'function') renderProyectos(tab);
   renderReminders(tab);
+  requestAnimationFrame(() => { armScrollReveal(); _armTooltips(document.getElementById('tab-' + tab)); });
 }
+
+// ── Aparición al scroll: las cards que quedan bajo el pliegue entran al asomar ──
+const _srObs = ('IntersectionObserver' in window)
+  ? new IntersectionObserver(ents => {
+      for (const e of ents) if (e.isIntersecting) { e.target.classList.add('sr-in'); _srObs.unobserve(e.target); }
+    }, { rootMargin: '0px 0px -8% 0px', threshold: 0.04 })
+  : null;
+function armScrollReveal() {
+  if (!_srObs) return;
+  const panel = document.querySelector('.tab-panel.active'); if (!panel) return;
+  const vh = window.innerHeight || document.documentElement.clientHeight;
+  // Sólo se gestionan las cards debajo del pliegue; las visibles conservan su stagger de entrada.
+  panel.querySelectorAll('.card').forEach(card => {
+    if (card.classList.contains('sr-armed')) return;
+    if (card.getBoundingClientRect().top > vh * 0.92) { card.classList.add('sr-armed'); _srObs.observe(card); }
+  });
+}
+
+// ── Tooltips suaves: pasa el title nativo a data-tip en los controles marcados ──
+function _armTooltips(root) {
+  (root || document).querySelectorAll('[title]').forEach(el => {
+    if (!el.matches('.agent-hdr-btn, #agent-fab, .card-title .btn, .qobj-act-btn, .jvoice-btn')) return;
+    const t = el.getAttribute('title'); if (!t) return;
+    el.setAttribute('data-tip', t); el.removeAttribute('title');
+    if (el.matches('.card-title .btn, .qobj-act-btn')) el.classList.add('tip-below');
+  });
+}
+window.addEventListener('load', () => { armScrollReveal(); _armTooltips(); });
 
 // ════════════════════════════════════════════════════════
 // TOAST
