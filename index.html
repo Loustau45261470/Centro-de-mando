@@ -4016,32 +4016,32 @@ input:focus, select:focus, textarea:focus {
   0%,100% { transform: translateY(0); }
   50%     { transform: translateY(-5px); }
 }
-@keyframes heatPulse {
-  0%,100% { opacity: var(--base-op); transform: translate(-50%,-50%) scale(1); }
-  50%     { opacity: calc(var(--base-op) * 1.35); transform: translate(-50%,-50%) scale(1.14); }
+@keyframes musclePulse {
+  0%,100% { opacity: var(--base-op); }
+  50%     { opacity: calc(var(--base-op) * 0.82); }
 }
 .body-scan-stage {
   position: relative; width: 100%; max-width: 188px; margin: 4px auto 0;
   aspect-ratio: 500 / 707; border-radius: 12px; overflow: hidden;
-  background: radial-gradient(ellipse at 50% 38%, rgba(0,40,70,.5), rgba(2,8,16,.92));
-  border: 1px solid rgba(0,200,255,.22);
-  box-shadow: 0 0 26px rgba(0,170,255,.12), inset 0 0 30px rgba(0,40,80,.4);
+  background: radial-gradient(ellipse at 50% 38%, rgba(14,20,30,.6), rgba(2,5,10,.95));
+  border: 1px solid rgba(120,140,160,.2);
+  box-shadow: 0 0 26px rgba(120,150,180,.08), inset 0 0 30px rgba(10,20,30,.5);
 }
 .body-scan-stage::after {
   content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 4;
-  background: repeating-linear-gradient(0deg, transparent 0 3px, rgba(0,30,50,.18) 3px 4px);
+  background: repeating-linear-gradient(0deg, transparent 0 3px, rgba(40,50,60,.14) 3px 4px);
   mix-blend-mode: overlay;
 }
 .body-scan-img {
   position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
   display: block; z-index: 1;
-  filter: saturate(1.2) hue-rotate(168deg) brightness(.62) contrast(1.12);
+  filter: grayscale(.85) brightness(1.08) contrast(1.05);
   animation: bodyFloat 6s ease-in-out infinite;
 }
-.heat-spot {
+.muscle-paint {
   position: absolute; z-index: 2; border-radius: 50%; pointer-events: none;
-  transform: translate(-50%,-50%); mix-blend-mode: screen;
-  filter: blur(1px); animation: heatPulse 2.4s ease-in-out infinite;
+  transform: translate(-50%,-50%); mix-blend-mode: multiply;
+  filter: blur(4px); animation: musclePulse 3s ease-in-out infinite;
 }
 .body-scan-line {
   position: absolute; left: 0; right: 0; height: 3px; z-index: 3; pointer-events: none;
@@ -7223,64 +7223,46 @@ function muscleHeatColor(pct) {
   return                        { fill: 'rgba(255,40,40,0.85)',  glow: '' };
 }
 
-// ── Escáner muscular (imagen real + glows de calor) ──
-// Color cálido del punto de calor según intensidad (0-100)
-function heatGlow(pct) {
-  if (pct <= 20) return '255,230,110';
-  if (pct <= 40) return '255,185,50';
-  if (pct <= 60) return '255,135,35';
-  if (pct <= 80) return '255,80,30';
-  return '255,35,30';
-}
-// Posiciones (% del lienzo) de cada músculo visible de frente; simétricos = 2 puntos
+// ── Escáner muscular (imagen real + tinte rojo por entrenamiento) ──
+// Opacidad del tinte rojo según intensidad (0-100): más entrenado → más rojo
+function redOpacity(pct) { return (0.2 + pct / 100 * 0.75).toFixed(2); }
+// Regiones musculares de frente [x%, y%, ancho px, alto px]; simétricos = 2 entradas
 const MUSCLE_SPOTS = {
-  'Trapecio':       [[42,25],[58,25]],
-  'Hombro frontal': [[31,31],[69,31]],
-  'Pecho':          [[41,37],[59,37]],
-  'Bíceps':         [[26,43],[74,43]],
-  'Tríceps':        [[22,45],[78,45]],
-  'Antebrazos':     [[20,55],[80,55]],
-  'Abdomen':        [[50,49]],
-  'Aductores':      [[50,64]],
-  'Cuádriceps':     [[42,70],[58,70]],
-  'Pantorrillas':   [[44,87],[56,87]],
+  'Trapecio':       [[44,24,18,12],[56,24,18,12]],
+  'Hombro frontal': [[31,31,24,20],[69,31,24,20]],
+  'Pecho':          [[41,37,30,24],[59,37,30,24]],
+  'Bíceps':         [[27,43,18,28],[73,43,18,28]],
+  'Tríceps':        [[23,44,14,24],[77,44,14,24]],
+  'Antebrazos':     [[21,55,16,32],[79,55,16,32]],
+  'Abdomen':        [[50,49,30,48]],
+  'Aductores':      [[50,64,18,28]],
+  'Cuádriceps':     [[42,70,24,50],[58,70,24,50]],
+  'Pantorrillas':   [[44,87,18,34],[56,87,18,34]],
 };
 
 function buildMuscleHeatmap(muscleCounts) {
   if (!muscleCounts || Object.keys(muscleCounts).length === 0) return '';
   const maxCount = Math.max(...Object.values(muscleCounts), 1);
   const spots = [];
-  let i = 0;
   Object.entries(MUSCLE_SPOTS).forEach(([muscle, coords]) => {
     const pct = Math.round((muscleCounts[muscle] || 0) / maxCount * 100);
     if (pct <= 0) return;
-    const rgb = heatGlow(pct);
-    const size = Math.round(20 + pct * 0.5);           // 20..70 px
-    const op = (0.6 + pct / 100 * 0.4).toFixed(2);     // 0.6..1.0
-    const core = pct > 75 ? 'rgba(255,255,235,0.85)' : `rgba(${rgb},1)`;
-    coords.forEach(([x, y]) => {
-      spots.push(`<div class="heat-spot" style="left:${x}%;top:${y}%;width:${size}px;height:${size}px;--base-op:${op};opacity:${op};animation-delay:${(i % 5) * 0.3}s;background:radial-gradient(circle, ${core} 0%, rgba(${rgb},0.9) 28%, rgba(${rgb},0.4) 52%, rgba(${rgb},0) 72%)"></div>`);
-      i++;
+    const op = redOpacity(pct);
+    coords.forEach(([x, y, w, h]) => {
+      spots.push(`<div class="muscle-paint" style="left:${x}%;top:${y}%;width:${w}px;height:${h}px;--base-op:${op};opacity:${op};background:radial-gradient(ellipse at center, rgba(235,20,20,1) 0%, rgba(225,15,15,0.85) 45%, rgba(200,10,10,0) 78%)"></div>`);
     });
   });
-  const legendItems = [
-    ['255,35,30',   'Máximo'],
-    ['255,80,30',   'Alto'],
-    ['255,135,35',  'Medio'],
-    ['255,185,50',  'Bajo'],
-    ['255,230,110', 'Mínimo'],
-  ];
   return `<div style="margin:10px 0 6px">
-    <div style="font-size:8px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:rgba(0,200,255,0.45);margin-bottom:8px">◈ ESCÁNER MUSCULAR</div>
+    <div style="font-size:8px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:rgba(0,200,255,0.45);margin-bottom:8px">◈ MAPA DE ENTRENAMIENTO</div>
     <div class="body-scan-stage">
       <img class="body-scan-img" src="assets/body-front.jpg" alt="" loading="lazy">
       ${spots.join('')}
       <div class="body-scan-line"></div>
     </div>
-    <div style="display:flex;flex-wrap:wrap;gap:7px 12px;justify-content:center;margin-top:11px">
-      ${legendItems.map(([rgb, lbl]) => `<div style="display:flex;align-items:center;gap:5px">
-        <div style="width:9px;height:9px;border-radius:50%;background:rgb(${rgb});box-shadow:0 0 6px rgba(${rgb},.85);flex-shrink:0"></div>
-        <span style="font-size:9px;color:var(--ts)">${lbl}</span></div>`).join('')}
+    <div style="display:flex;align-items:center;gap:8px;justify-content:center;margin-top:12px">
+      <span style="font-size:9px;color:var(--ts)">Menos</span>
+      <div style="flex:0 1 130px;height:8px;border-radius:4px;background:linear-gradient(90deg, rgba(235,20,20,0.15), rgba(235,20,20,0.95))"></div>
+      <span style="font-size:9px;color:var(--ts)">Más entrenado</span>
     </div>
   </div>`;
 }
