@@ -3583,12 +3583,6 @@ body.font-jakarta  { --sans: "Plus Jakarta Sans", sans-serif; --mono: "JetBrains
 #app::-webkit-scrollbar-thumb { background: rgba(56,189,248,0.25); border-radius: 2px; }
 #app::-webkit-scrollbar-thumb:hover { background: rgba(56,189,248,0.45); }
 
-/* ── Reduced motion: el Centro de Mando prioriza vida; solo se atenúan
-   los loops infinitos decorativos, manteniendo entradas, feedback y datos vivos. ── */
-@media (prefers-reduced-motion: reduce) {
-  #ticker-inner { animation-duration: 90s !important; }
-  .ticker-item.alert { animation: none !important; }
-}
 
 /* ══════════════════════════════════════════════════════════════
    CHROME PASS — legibilidad, profundidad de panel y command-bar
@@ -3690,10 +3684,6 @@ body.font-jakarta  { --sans: "Plus Jakarta Sans", sans-serif; --mono: "JetBrains
 
 /* Mientras el login está presente (se elimina del DOM al autenticar), ocultar marco */
 body:has(#login-screen) #hud-frame { opacity: 0; }
-
-@media (prefers-reduced-motion: reduce) {
-  .hfc { animation: none; opacity: .5; }
-}
 
 /* ═══════════════ SHELL DESKTOP · command center (≥980px) ═══════════════ */
 @media (min-width: 980px) {
@@ -3826,10 +3816,6 @@ body:has(#login-screen) #hud-frame { opacity: 0; }
 #tab-conocimiento .kpi-tile::before { background: radial-gradient(62% 52% at 50% 122%, color-mix(in srgb, var(--c-conocimiento) 20%, transparent), transparent 72%); }
 #tab-ia           .kpi-tile::before { background: radial-gradient(62% 52% at 50% 122%, color-mix(in srgb, var(--c-ia) 20%, transparent), transparent 72%); }
 
-@media (prefers-reduced-motion: reduce) {
-  .card-title::after { animation: none; opacity: 0; }
-}
-
 /* ═══════════════ RADAR SCOPE · pie del command rail (desktop) ═══════════════ */
 .rail-radar { display: none; }
 @keyframes radar-spin { to { transform: rotate(360deg); } }
@@ -3864,11 +3850,6 @@ body:has(#login-screen) #hud-frame { opacity: 0; }
     animation: radar-ping 4s ease-out infinite;
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  .rr-sweep, .rr-dot { animation: none; }
-  .rr-dot { opacity: .6; }
-}
-
 /* ═══════════════ SECCIÓN JARVIS CORE ═══════════════ */
 .nav-btn[data-tab="jarvis"].active,
 .nav-btn[data-tab="jarvis"].active svg { color: var(--c-jarvis); stroke: var(--c-jarvis); }
@@ -4024,19 +4005,6 @@ input:focus, select:focus, textarea:focus {
 .card.sr-armed { animation: none !important; opacity: 0; transform: translateY(26px);
   transition: opacity .55s var(--ease-out-quart), transform .66s var(--ease-out-expo); will-change: opacity, transform; }
 .card.sr-armed.sr-in { opacity: 1; transform: none; }
-
-@media (prefers-reduced-motion: reduce) {
-  .modal-overlay.open { animation: none; }
-  .account-row:hover, .activity-row:hover, .order-row:hover, .sub-row:hover,
-  .wish-row:hover, .month-balance-row:hover, .law-subject-row:hover,
-  .qobj-category-row:hover, .rem-urgent-row:hover { transform: none; }
-  .btn:hover, .qobj-period-trigger:hover, .qobj-month-tab:hover,
-  .law-nav-btn:hover, .water-quick button:hover { transform: none; box-shadow: none; }
-  .qobj-period-menu.open { animation: none; }
-  [data-tip]::after { transition: opacity .12s linear; }
-  .card.sr-armed { opacity: 1 !important; transform: none !important; transition: none !important; }
-  #app { scroll-behavior: auto; }
-}
 </style>
 </head>
 <body>
@@ -13578,7 +13546,7 @@ Instrucciones:
                JARVIS_FX.setLevel(0..1), JARVIS_FX.onExit = fn
    ══════════════════════════════════════════════════════ */
 (function () {
-  const REDUCED = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const REDUCED = false; // motion siempre activo, en todos los dispositivos
   const C  = { r: 56,  g: 189, b: 248 }; // #38bdf8 cian base
   const C2 = { r: 125, g: 211, b: 252 }; // #7dd3fc cian brillante
   const rgba = (c, a) => `rgba(${c.r},${c.g},${c.b},${a})`;
@@ -15928,7 +15896,7 @@ Instrucciones:
   const cv = document.getElementById('hud-ambient');
   if (!cv) return;
   const ctx = cv.getContext('2d', { alpha: true });
-  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const reduce = false; // motion siempre activo, en todos los dispositivos
 
   // Color de acento por sección (igual a --c-*). Se actualiza al cambiar de tab.
   const TINT = { jarvis:[92,246,255], vida:[0,212,255], finanzas:[34,197,94], salud:[244,63,94], conocimiento:[107,142,255], ia:[196,208,228] };
