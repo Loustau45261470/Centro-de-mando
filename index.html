@@ -13988,7 +13988,7 @@ Instrucciones:
     // y se libera el ObjectURL (evita memory leak por cada frase).
     await new Promise((resolve, reject) => {
       let settled = false;
-      const done = () => { if (settled) return; settled = true; clearTimeout(to); try { URL.revokeObjectURL(url); } catch(e){} resolve(); };
+      const done = () => { if (settled) return; settled = true; _lastSpeakEnd = Date.now(); clearTimeout(to); try { URL.revokeObjectURL(url); } catch(e){} resolve(); };
       const to = setTimeout(done, 60000);   // hard cap: jamás colgar isSpeaking() para siempre
       audio.onended = done;
       audio.onpause = done;   // interrumpido por una nueva frase o por stopSpeaking()
@@ -14015,6 +14015,8 @@ Instrucciones:
     if (!v) v = _voices.find(x => x.lang === 'en-GB') || _voices.find(x => x.lang.startsWith('en'));
     if (v) utt.voice = v;
     utt.lang = 'en-GB'; utt.pitch = 0.82; utt.rate = 0.88; utt.volume = 1;
+    utt.onend = () => { _lastSpeakEnd = Date.now(); };
+    utt.onerror = () => { _lastSpeakEnd = Date.now(); };
     speechSynthesis.speak(utt);
   }
 
@@ -14056,17 +14058,21 @@ Instrucciones:
     }
   }
 
-  let _speakAt = 0;
+  let _speakAt = 0, _lastSpeakEnd = 0;
   function isSpeaking() {
     if (currentAudio && !currentAudio.paused && !currentAudio.ended) return true;
     // speechSynthesis.speaking puede quedar trabado en true para siempre (bug de Chrome):
     // solo confiar en él durante los 25s posteriores al último speak(), si no deja sordo a JARVIS
     return !!(window.speechSynthesis && speechSynthesis.speaking && Date.now() - _speakAt < 25000);
   }
+  // ¿JARVIS habló en los últimos `ms`? — usado por EARS para descartar el eco de su propia voz,
+  // que el reconocedor finaliza un instante DESPUÉS de que isSpeaking() ya volvió a false.
+  function recentlySpoke(ms) { return Date.now() - _lastSpeakEnd < (ms || 0); }
 
   function stopSpeaking() {
     try { speechSynthesis.cancel(); } catch(e) {}
     if (currentAudio) { try { currentAudio.pause(); } catch(e) {} }
+    _lastSpeakEnd = Date.now();
   }
 
   function greeting() {
@@ -14201,7 +14207,7 @@ Instrucciones:
   }
   setTimeout(_updateBtn, 400);
 
-  window.JARVIS = { speak, greeting, onNewProject, onTaskDone, onPrioritySet, onDeleteProject, onThemeChange, checkOverdue, toggle, isSpeaking, stopSpeaking };
+  window.JARVIS = { speak, greeting, onNewProject, onTaskDone, onPrioritySet, onDeleteProject, onThemeChange, checkOverdue, toggle, isSpeaking, recentlySpoke, stopSpeaking };
 })();
 </script>
 
@@ -14218,6 +14224,33 @@ Instrucciones:
   let cmdTimer = null, recStartedAt = 0;
   const LISTEN_MS = 14000; // ventana de escucha amplia, para que se sienta como una charla
   let restartTimes = [], restartTimer = null; // anti-tormenta de reinicios
+
+  // ── Anti-eco: NUNCA escuchar la propia voz de JARVIS ──
+  // Mientras habla, se aborta el reconocimiento (descarta el buffer de audio, así su voz jamás
+  // se transcribe). Tras terminar, se espera un cooldown antes de reabrir, para tragar la cola
+  // que el reconocedor finaliza un instante después. Esto rompe el loop TTS→mic→comando.
+  const ECHO_COOLDOWN = 1400; // ms tras terminar de hablar
+  let _micSuppressed = false;
+  function _jarvisTalking() { try { return !!(window.JARVIS && JARVIS.isSpeaking()); } catch(e){ return false; } }
+  // ¿es (o acaba de ser) su propia voz? — guarda a nivel de resultado, por si algo se filtra
+  function _selfEcho() {
+    try { return !!(window.JARVIS && (JARVIS.isSpeaking() || (JARVIS.recentlySpoke && JARVIS.recentlySpoke(ECHO_COOLDOWN)))); }
+    catch(e){ return false; }
+  }
+  setInterval(() => {
+    if (mode === 'off') { _micSuppressed = false; return; }
+    const talking = _jarvisTalking();
+    if (talking && !_micSuppressed) {
+      // JARVIS empezó a hablar → apagar el micrófono para no oírse a sí mismo
+      _micSuppressed = true;
+      if (rec) { try { rec.onend = null; rec.abort(); } catch(e){} rec = null; }
+      if (restartTimer) { clearTimeout(restartTimer); restartTimer = null; }
+    } else if (_micSuppressed && !_selfEcho()) {
+      // terminó de hablar y pasó el cooldown → reabrir el micrófono fresco (eco descartado)
+      _micSuppressed = false;
+      _scheduleRestart();
+    }
+  }, 150);
 
   /* ── Target de clic transparente sobre el núcleo neuronal (lo visual lo dibuja JARVIS_FX) ── */
   const css = document.createElement('style');
@@ -14237,7 +14270,7 @@ Instrucciones:
 
   /* ── Motor de reconocimiento (es-AR) ── */
   function startRec() {
-    if (!SR || rec || mode === 'off') return;
+    if (!SR || rec || mode === 'off' || _micSuppressed) return;
     rec = new SR();
     rec.lang = 'es-AR';
     rec.continuous = true;
@@ -14249,11 +14282,11 @@ Instrucciones:
 
         if (!e.results[i].isFinal) {
           if (mode === 'command') {
-            if (window.JARVIS && JARVIS.isSpeaking()) continue; // no reaccionar a su propia voz
+            if (_selfEcho()) continue; // no reaccionar a su propia voz (ni a su eco reciente)
             // Seguís hablando: extender la ventana y mostrar transcripción en vivo
             clearTimeout(cmdTimer); cmdTimer = setTimeout(commandTimeout, LISTEN_MS);
             if (typeof showToast === 'function') showToast('🎙️ ' + text + '…');
-          } else if (mode === 'passive' && WAKE_RE.test(text) && !(window.JARVIS && JARVIS.isSpeaking())) {
+          } else if (mode === 'passive' && WAKE_RE.test(text) && !_selfEcho()) {
             // Wake word en resultado parcial: reaccionar ya (los finales a veces tardan o no llegan)
             const after = text.replace(WAKE_RE, '').replace(/^[,.\s]+/, '').trim();
             enterCommand();
@@ -14264,14 +14297,14 @@ Instrucciones:
 
         // Resultado final
         if (mode === 'command') {
-          if (window.JARVIS && JARVIS.isSpeaking()) continue; // descartar el eco de su propia voz (antes "Yes, sir?" cerraba la ventana al instante)
+          if (_selfEcho()) continue; // descartar el eco de su propia voz (incluye el cooldown posterior)
           // Quitar el wake word si vino pegado a la orden ("jarvis cambiá a finanzas")
           const cmd = text.replace(WAKE_RE, '').replace(/^[,.\s]+/, '').trim();
           if (!cmd) continue; // era solo "jarvis" — seguir esperando la orden
           clearTimeout(cmdTimer);                                   // pausar el cierre mientras procesa y responde
           Promise.resolve(handleCommand(cmd)).finally(followUp);    // tras responder, sigue escuchando (charla continua)
         } else if (mode === 'passive') {
-          if (window.JARVIS && JARVIS.isSpeaking()) continue; // no escucharse a sí mismo
+          if (_selfEcho()) continue; // no escucharse a sí mismo (ni su eco reciente)
           const m = text.match(WAKE_RE);
           if (!m) continue;
           const after = text.slice(text.search(WAKE_RE) + m[0].length).replace(/^[,.\s]+/, '').trim();
@@ -14305,7 +14338,7 @@ Instrucciones:
   // (throttling o micrófono perdido) se frena para darle tiempo a recuperarse en lugar
   // de tormentear reinicios — que es justo lo que dejaba la escucha intermitente.
   function _scheduleRestart() {
-    if (mode === 'off' || restartTimer) return;
+    if (mode === 'off' || restartTimer || _micSuppressed) return;
     const now = Date.now();
     restartTimes = restartTimes.filter(t => now - t < 10000);
     const delay = restartTimes.length >= 5 ? 2000 : 250;
@@ -14579,6 +14612,11 @@ Instrucciones:
 'If the user only asks something, use "action":"none" and answer in "reply" using the CONTEXT (e.g. the quarterly objectives are listed there). ' +
 'If he asks to create/mark/complete/edit/delete anything, choose the matching action, fill args, and confirm in "reply". ' +
 'For "search"/"name" args use a short distinctive fragment of the item so it can be matched.\n\n' +
+'CRITICAL SAFETY RULES — obey strictly:\n' +
+'1. Choose a MUTATING action (create/add/mark/complete/edit/delete/log/toggle) ONLY when THIS user message is a clear, explicit, intentional command to do exactly that.\n' +
+'2. If the message is a question, a request to list/show/tell, a greeting, ambiguous, fragmented, nonsensical, or it merely repeats or echoes something you just said, you MUST use "action":"none" and only answer or acknowledge — change NOTHING.\n' +
+'3. NEVER mark, complete, toggle or delete anything as a side effect of answering. Listing today\'s tasks must NEVER complete them.\n' +
+'4. When in any doubt, use "action":"none". Acting without an explicit request is a serious error; doing nothing is always safe.\n\n' +
 'AVAILABLE ACTIONS:\n- ' + actions + '\n\n' +
 'CONTEXT (live state of the command center):\n' + snap;
 
@@ -14594,7 +14632,7 @@ Instrucciones:
       body = {
         model: isGroq ? 'llama-3.3-70b-versatile' : 'meta-llama/llama-3.3-70b-instruct:free',
         messages: [{ role: 'system', content: sys }, ..._convo.map(mm => ({ role: mm.role === 'model' ? 'assistant' : 'user', content: mm.text })), { role: 'user', content: question }],
-        max_tokens: 600, temperature: 0.6
+        max_tokens: 600, temperature: 0.2
       };
       parse = d => d.choices?.[0]?.message?.content;
     } else {
@@ -14605,7 +14643,7 @@ Instrucciones:
       body = {
         systemInstruction: { parts: [{ text: sys }] },
         contents: [..._convo.map(mm => ({ role: mm.role === 'model' ? 'model' : 'user', parts: [{ text: mm.text }] })), { role: 'user', parts: [{ text: question }] }],
-        generationConfig: { maxOutputTokens: 600, temperature: 0.6, responseMimeType: 'application/json', thinkingConfig: { thinkingBudget: 0 } }
+        generationConfig: { maxOutputTokens: 600, temperature: 0.2, responseMimeType: 'application/json', thinkingConfig: { thinkingBudget: 0 } }
       };
       parse = d => d.candidates?.[0]?.content?.parts?.[0]?.text;
     }
