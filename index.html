@@ -3772,6 +3772,62 @@ body:has(#login-screen) #hud-frame { opacity: 0; }
   .tab-panel.active { column-count: 3; }
   .tab-panel { max-width: 1760px; }
 }
+
+/* ═══════════════ PANELES INSTRUMENTALES ═══════════════ */
+/* Acento de panel por sección: tinta brackets, labels y glow */
+#tab-vida .card         { --card-accent: var(--c-vida); }
+#tab-finanzas .card     { --card-accent: var(--c-finanzas); }
+#tab-salud .card        { --card-accent: var(--c-salud); }
+#tab-conocimiento .card { --card-accent: var(--c-conocimiento); }
+#tab-ia .card           { --card-accent: var(--c-ia); }
+
+/* Brackets de esquina más presentes + glow en hover */
+.card::after { inset: 5px; opacity: .42; }
+.card:hover::after { opacity: .9; filter: drop-shadow(0 0 4px var(--card-accent)); }
+
+/* Textura tech interna (paneles terminal) — grilla fina sobre el negro */
+#tab-vida .card, #tab-salud .card, #tab-conocimiento .card, #tab-ia .card {
+  background-color: #080A0C;
+  background-image:
+    linear-gradient(rgba(120,180,235,0.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(120,180,235,0.028) 1px, transparent 1px);
+  background-size: 26px 26px;
+}
+
+/* Hover glow tintado por sección (reemplaza el hover cian genérico) */
+.card:hover {
+  border-color: color-mix(in srgb, var(--card-accent) 42%, var(--border-h));
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.07),
+    0 24px 48px rgba(0,0,0,0.55),
+    0 0 34px color-mix(in srgb, var(--card-accent) 15%, transparent);
+}
+
+/* Header de panel: barrido de luz "instrumento en línea" + dot live */
+.card-title { position: relative; overflow: hidden; }
+.card-title::after {
+  content: ''; position: absolute; top: 0; left: -45%;
+  width: 45%; height: 100%; pointer-events: none;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--card-accent) 26%, transparent), transparent);
+  animation: hdr-sweep 7s linear infinite;
+}
+@keyframes hdr-sweep { 0% { left: -45%; } 55%, 100% { left: 145%; } }
+
+/* KPI grado-instrumento: glow radial bajo el valor + barra viva */
+.kpi-tile::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  background: radial-gradient(62% 52% at 50% 122%, color-mix(in srgb, var(--c-vida) 20%, transparent), transparent 72%);
+  opacity: .55;
+}
+.kpi-tile > * { position: relative; z-index: 1; }
+#tab-finanzas     .kpi-tile::before { background: radial-gradient(62% 52% at 50% 122%, color-mix(in srgb, var(--c-finanzas) 20%, transparent), transparent 72%); }
+#tab-salud        .kpi-tile::before { background: radial-gradient(62% 52% at 50% 122%, color-mix(in srgb, var(--c-salud) 20%, transparent), transparent 72%); }
+#tab-conocimiento .kpi-tile::before { background: radial-gradient(62% 52% at 50% 122%, color-mix(in srgb, var(--c-conocimiento) 20%, transparent), transparent 72%); }
+#tab-ia           .kpi-tile::before { background: radial-gradient(62% 52% at 50% 122%, color-mix(in srgb, var(--c-ia) 20%, transparent), transparent 72%); }
+
+@media (prefers-reduced-motion: reduce) {
+  .card-title::after { animation: none; opacity: 0; }
+}
 </style>
 </head>
 <body>
