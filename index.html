@@ -4035,13 +4035,13 @@ input:focus, select:focus, textarea:focus {
 .body-scan-img {
   position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
   display: block; z-index: 1;
-  filter: grayscale(.85) brightness(1.08) contrast(1.05);
+  filter: grayscale(.92) brightness(1.32) contrast(1.02);
   animation: bodyFloat 6s ease-in-out infinite;
 }
 .muscle-paint {
   position: absolute; z-index: 2; border-radius: 50%; pointer-events: none;
   transform: translate(-50%,-50%); mix-blend-mode: multiply;
-  filter: blur(4px); animation: musclePulse 3s ease-in-out infinite;
+  filter: blur(5px); animation: musclePulse 3s ease-in-out infinite;
 }
 .body-scan-line {
   position: absolute; left: 0; right: 0; height: 3px; z-index: 3; pointer-events: none;
@@ -7225,19 +7225,19 @@ function muscleHeatColor(pct) {
 
 // ── Escáner muscular (imagen real + tinte rojo por entrenamiento) ──
 // Opacidad del tinte rojo según intensidad (0-100): más entrenado → más rojo
-function redOpacity(pct) { return (0.2 + pct / 100 * 0.75).toFixed(2); }
+function redOpacity(pct) { return (0.55 + pct / 100 * 0.45).toFixed(2); }
 // Regiones musculares de frente [x%, y%, ancho px, alto px]; simétricos = 2 entradas
 const MUSCLE_SPOTS = {
-  'Trapecio':       [[44,24,18,12],[56,24,18,12]],
-  'Hombro frontal': [[31,31,24,20],[69,31,24,20]],
-  'Pecho':          [[41,37,30,24],[59,37,30,24]],
-  'Bíceps':         [[27,43,18,28],[73,43,18,28]],
-  'Tríceps':        [[23,44,14,24],[77,44,14,24]],
-  'Antebrazos':     [[21,55,16,32],[79,55,16,32]],
-  'Abdomen':        [[50,49,30,48]],
-  'Aductores':      [[50,64,18,28]],
-  'Cuádriceps':     [[42,70,24,50],[58,70,24,50]],
-  'Pantorrillas':   [[44,87,18,34],[56,87,18,34]],
+  'Trapecio':       [[44,24,24,16],[56,24,24,16]],
+  'Hombro frontal': [[31,31,30,26],[69,31,30,26]],
+  'Pecho':          [[41,37,38,32],[59,37,38,32]],
+  'Bíceps':         [[27,43,24,36],[73,43,24,36]],
+  'Tríceps':        [[23,44,18,30],[77,44,18,30]],
+  'Antebrazos':     [[21,55,20,42],[79,55,20,42]],
+  'Abdomen':        [[50,49,40,60]],
+  'Aductores':      [[50,64,24,36]],
+  'Cuádriceps':     [[42,70,32,64],[58,70,32,64]],
+  'Pantorrillas':   [[44,87,24,44],[56,87,24,44]],
 };
 
 function buildMuscleHeatmap(muscleCounts) {
@@ -7249,7 +7249,7 @@ function buildMuscleHeatmap(muscleCounts) {
     if (pct <= 0) return;
     const op = redOpacity(pct);
     coords.forEach(([x, y, w, h]) => {
-      spots.push(`<div class="muscle-paint" style="left:${x}%;top:${y}%;width:${w}px;height:${h}px;--base-op:${op};opacity:${op};background:radial-gradient(ellipse at center, rgba(235,20,20,1) 0%, rgba(225,15,15,0.85) 45%, rgba(200,10,10,0) 78%)"></div>`);
+      spots.push(`<div class="muscle-paint" style="left:${x}%;top:${y}%;width:${w}px;height:${h}px;--base-op:${op};opacity:${op};background:radial-gradient(ellipse at center, rgba(255,0,0,1) 0%, rgba(245,5,5,1) 62%, rgba(220,0,0,0) 90%)"></div>`);
     });
   });
   return `<div style="margin:10px 0 6px">
