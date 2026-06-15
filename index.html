@@ -13514,7 +13514,7 @@ Instrucciones:
       background:radial-gradient(ellipse at 50% 44%, rgba(8,18,30,0.50), rgba(2,5,11,0.88));
       -webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);transition:opacity .55s ease}
     #jarvis-fx-backdrop.on{opacity:1;pointer-events:auto}
-    #jarvis-fx-canvas{position:fixed;inset:0;z-index:9999;pointer-events:none}`;
+    #jarvis-fx-canvas{position:fixed;inset:0;z-index:9999;pointer-events:none;display:none}`;
   document.head.appendChild(style);
   const backdrop = document.createElement('div'); backdrop.id = 'jarvis-fx-backdrop';
   const canvas   = document.createElement('canvas'); canvas.id = 'jarvis-fx-canvas';
@@ -13590,7 +13590,11 @@ Instrucciones:
     setState(s) {
       const cfg = STATES[s] || STATES.passive; state = STATES[s] ? s : 'passive';
       energyT = cfg.e; opacityT = docked ? 1 : cfg.op; expandT = docked ? 1 : cfg.full;
-      backdrop.classList.toggle('on', cfg.full === 1 && !docked);
+      const fullscreen = cfg.full === 1 && !docked;
+      backdrop.classList.toggle('on', fullscreen);
+      // Sin montar en la sección CORE, el núcleo sólo aparece a pantalla completa cuando lo invocás
+      // por voz; en reposo no se dibuja el orbe de la esquina inferior izquierda.
+      canvas.style.display = (docked || fullscreen) ? '' : 'none';
     },
     setLevel(l) { level = clamp01(l); },
     // Montar la red neuronal confinada y permanente dentro de un contenedor (sección CORE)
