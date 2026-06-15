@@ -5860,7 +5860,12 @@ function armScrollReveal() {
   // Sólo se gestionan las cards debajo del pliegue; las visibles conservan su stagger de entrada.
   panel.querySelectorAll('.card').forEach(card => {
     if (card.classList.contains('sr-armed')) return;
-    if (card.getBoundingClientRect().top > vh * 0.92) { card.classList.add('sr-armed'); _srObs.observe(card); }
+    if (card.getBoundingClientRect().top > vh * 0.92) {
+      card.classList.add('sr-armed'); _srObs.observe(card);
+      // Red de seguridad: si el observer nunca dispara (panel oculto, layout raro, etc.)
+      // la card se revela igual a los ~5s — el contenido jamás queda invisible.
+      setTimeout(() => { if (card.classList.contains('sr-armed') && !card.classList.contains('sr-in')) { card.classList.add('sr-in'); _srObs.unobserve(card); } }, 5000);
+    }
   });
 }
 
@@ -5869,7 +5874,9 @@ function _armTooltips(root) {
   (root || document).querySelectorAll('[title]').forEach(el => {
     if (!el.matches('.agent-hdr-btn, #agent-fab, .card-title .btn, .qobj-act-btn, .jvoice-btn')) return;
     const t = el.getAttribute('title'); if (!t) return;
-    el.setAttribute('data-tip', t); el.removeAttribute('title');
+    el.setAttribute('data-tip', t);
+    if (!el.getAttribute('aria-label')) el.setAttribute('aria-label', t); // preservar nombre accesible
+    el.removeAttribute('title'); // quita el tooltip nativo (lento/feo) sin perder accesibilidad
     if (el.matches('.card-title .btn, .qobj-act-btn')) el.classList.add('tip-below');
   });
 }
