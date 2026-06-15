@@ -3588,6 +3588,63 @@ body.font-jakarta  { --sans: "Plus Jakarta Sans", sans-serif; --mono: "JetBrains
   #ticker-inner { animation-duration: 90s !important; }
   .ticker-item.alert { animation: none !important; }
 }
+
+/* ══════════════════════════════════════════════════════════════
+   CHROME PASS — legibilidad, profundidad de panel y command-bar
+   (capa aditiva: gana por orden de fuente, reversible en bloque)
+   ══════════════════════════════════════════════════════════════ */
+
+/* 1 ── Títulos de tarjeta legibles, tintados por sección ── */
+.card-title {
+  color: color-mix(in srgb, var(--card-accent, var(--hud)) 30%, #DCE7F6);
+  text-shadow: 0 0 14px color-mix(in srgb, var(--card-accent, var(--hud)) 22%, transparent);
+}
+.card-title span { color: color-mix(in srgb, var(--card-accent, var(--hud)) 18%, #9FB6D2); }
+
+/* 2 ── Paneles con profundidad glassmórfica + glow tintado (HUD sharp) ── */
+#tab-vida .card, #tab-salud .card, #tab-conocimiento .card, #tab-ia .card {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--card-accent) 8%, transparent), transparent 46%),
+    linear-gradient(180deg, rgba(140,185,230,0.05), rgba(140,185,230,0.012)),
+    #070A0F;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--card-accent) 16%, var(--tab-border, var(--border)));
+  border-top-color: color-mix(in srgb, var(--card-accent) 34%, transparent);
+  backdrop-filter: blur(18px);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.06),
+    inset 0 0 26px color-mix(in srgb, var(--card-accent) 5%, transparent),
+    0 16px 34px rgba(0,0,0,0.5);
+  transition: border-color .25s var(--ease-out-quart), box-shadow .25s var(--ease-out-quart), transform .25s var(--ease-out-quart);
+}
+#tab-vida .card:hover, #tab-salud .card:hover, #tab-conocimiento .card:hover, #tab-ia .card:hover {
+  border-color: color-mix(in srgb, var(--card-accent) 38%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.08),
+    inset 0 0 30px color-mix(in srgb, var(--card-accent) 8%, transparent),
+    0 20px 42px rgba(0,0,0,0.55),
+    0 0 26px color-mix(in srgb, var(--card-accent) 16%, transparent);
+}
+.card:hover::after { opacity: .85; }
+
+/* 3 ── Command-bar: header de pestaña como módulo de mando ── */
+.tab-header {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 10%, transparent), transparent 60%),
+    linear-gradient(180deg, rgba(140,185,230,0.06), rgba(140,185,230,0.015));
+  border-color: color-mix(in srgb, var(--accent) 22%, var(--border));
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.05),
+    0 0 26px color-mix(in srgb, var(--accent) 12%, transparent),
+    0 10px 26px rgba(0,0,0,0.4);
+}
+.tab-header::after {
+  width: 16px; height: 16px; opacity: .8;
+  border-color: var(--accent);
+  filter: drop-shadow(0 0 4px var(--accent));
+}
+.tab-header-title { font-size: 21px; text-shadow: 0 0 22px var(--accent), 0 0 2px rgba(0,0,0,.5); }
+.tab-header-super { opacity: 1; }
 </style>
 </head>
 <body>
