@@ -7068,10 +7068,14 @@ function addRoutine() {
   const name = document.getElementById('rtn-new-name').value.trim();
   const icon = document.getElementById('rtn-new-icon').value.trim() || '🏋️';
   if (!name) { showToast('Escribe el nombre'); return; }
-  S.routines.push({ id: uid(), name, icon, exercises: [] });
+  const newId = uid();
+  S.routines.push({ id: newId, name, icon, exercises: [] });
   saveState(); renderRutinas(); closeModal('modal-add-routine');
   document.getElementById('rtn-new-name').value = '';
-  showToast('Rutina creada');
+  const newCard = document.getElementById('rtn-card-' + newId);
+  if (newCard) newCard.classList.add('rtn-open');
+  showToast('Rutina creada — agregá el primer ejercicio');
+  openAddRtnEx(newId);
 }
 
 function openAddRtnEx(rtnId) {
