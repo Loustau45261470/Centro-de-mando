@@ -3875,108 +3875,79 @@ body:has(#login-screen) #hud-frame { opacity: 0; }
 #tab-jarvis { --card-accent: var(--c-jarvis); }
 #agent-fab { display: none !important; }   /* el chat ahora vive en la sección CORE */
 
-/* La sección núcleo no usa bento: una sola columna centrada */
+/* La sección núcleo no usa bento */
 #tab-jarvis.active { column-count: 1 !important; }
-#tab-jarvis.jarvis-tab { max-width: 1500px; padding: 22px 16px 30px; }
-@media (min-width: 980px) { #tab-jarvis.jarvis-tab { padding: 30px 40px 40px; } }
+#tab-jarvis.jarvis-tab { max-width: 1640px; padding: 16px 16px 26px; }
+@media (min-width: 980px) { #tab-jarvis.jarvis-tab { padding: 20px 34px 34px; } }
 
-/* Escenario: stats · núcleo · stats */
-.jarvis-stage { display: flex; flex-direction: column; align-items: center; gap: 22px; }
-.jarvis-core { order: -1; }
-.jstat-col { display: flex; flex-direction: column; gap: 13px; width: 100%; max-width: 440px; }
+/* Arena: red neuronal real al centro, stats globales a los costados */
+.jarvis-arena { position: relative; }
+.jarvis-net { position: relative; height: 46vh; min-height: 320px; z-index: 0; border-radius: 14px; overflow: hidden; }
+.jarvis-sides { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+.jstat-col { display: flex; flex-direction: column; gap: 12px; }
 @media (min-width: 980px) {
-  .jarvis-stage { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: clamp(26px, 4.5vw, 80px); }
-  .jarvis-core { order: 0; }
-  .jstat-col { max-width: none; }
-  .jstat-col.left { align-items: stretch; }
+  .jarvis-arena { display: grid; grid-template-columns: 252px 1fr 252px; align-items: center; gap: 28px; min-height: min(76vh, 800px); }
+  .jarvis-net { position: absolute; inset: 0; height: auto; min-height: 0; }
+  .jarvis-sides { display: contents; }
+  .jstat-col { position: relative; z-index: 2; gap: 18px; }
+  .jstat-col.left { grid-column: 1; }
+  .jstat-col.right { grid-column: 3; }
 }
 
-/* Tarjeta de estadística con anillo */
+/* Tarjeta de estadística ULTRA-TECH */
 .jstat {
-  display: flex; align-items: center; gap: 13px; padding: 13px 15px;
+  display: flex; align-items: center; gap: 14px; padding: 14px 16px;
   border-radius: 13px; position: relative; overflow: hidden;
-  background: rgba(9,15,25,0.62);
-  border: 1px solid color-mix(in srgb, var(--c-jarvis) 16%, var(--border));
-  backdrop-filter: blur(14px);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.045), 0 12px 28px rgba(0,0,0,.42);
+  background: linear-gradient(135deg, rgba(11,18,30,0.84), rgba(7,12,22,0.72));
+  border: 1px solid color-mix(in srgb, var(--c-jarvis) 22%, var(--border));
+  backdrop-filter: blur(16px);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 14px 30px rgba(0,0,0,.5), 0 0 22px color-mix(in srgb, var(--c-jarvis) 7%, transparent);
   transition: border-color .25s, transform .25s, box-shadow .25s;
 }
-.jstat:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--c-jarvis) 42%, transparent);
-  box-shadow: 0 16px 34px rgba(0,0,0,.5), 0 0 26px color-mix(in srgb, var(--c-jarvis) 16%, transparent); }
+.jstat:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--c-jarvis) 52%, transparent);
+  box-shadow: 0 18px 36px rgba(0,0,0,.55), 0 0 30px color-mix(in srgb, var(--c-jarvis) 20%, transparent); }
 .jstat::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px;
-  background: linear-gradient(180deg, transparent, var(--c-jarvis), transparent); opacity: .6; }
-.jstat-ring { position: relative; width: 46px; height: 46px; flex-shrink: 0; }
-.jstat-ring svg { width: 46px; height: 46px; transform: rotate(-90deg); }
+  background: linear-gradient(180deg, transparent, var(--c-jarvis), transparent); opacity: .7; }
+.jstat::after { content: ''; position: absolute; inset: 4px; pointer-events: none; border-radius: 9px;
+  background:
+    linear-gradient(var(--c-jarvis),var(--c-jarvis)) 100% 0 / 11px 1.5px no-repeat,
+    linear-gradient(var(--c-jarvis),var(--c-jarvis)) 100% 0 / 1.5px 11px no-repeat;
+  opacity: .4; }
+.jstat-ring { position: relative; width: 48px; height: 48px; flex-shrink: 0; }
+.jstat-ring svg { width: 48px; height: 48px; transform: rotate(-90deg); }
 .jr-bg { fill: none; stroke: rgba(120,180,235,.14); stroke-width: 3; }
 .jr-fg { fill: none; stroke: var(--c-jarvis); stroke-width: 3; stroke-linecap: round;
   stroke-dasharray: 119.4; stroke-dashoffset: 119.4;
   filter: drop-shadow(0 0 4px var(--c-jarvis)); transition: stroke-dashoffset .9s var(--ease-out-expo); }
 .jstat-icon { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-  font-size: 16px; color: var(--c-jarvis); text-shadow: 0 0 9px var(--c-jarvis); }
+  font-size: 17px; color: var(--c-jarvis); text-shadow: 0 0 10px var(--c-jarvis); }
 .jstat-body { min-width: 0; }
-.jstat-val { font-family: var(--mono); font-size: 21px; font-weight: 700; letter-spacing: -.02em; line-height: 1;
-  color: #EAF6FF; text-shadow: 0 0 14px color-mix(in srgb, var(--c-jarvis) 50%, transparent); }
-.jstat-lbl { font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ts); margin-top: 6px; }
+.jstat-val { font-family: var(--mono); font-size: 22px; font-weight: 700; letter-spacing: -.02em; line-height: 1;
+  color: #EAF6FF; text-shadow: 0 0 16px color-mix(in srgb, var(--c-jarvis) 55%, transparent); }
+.jstat-lbl { font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--ts); margin-top: 6px; font-family: var(--mono); }
 
-/* ── Núcleo orbital ── */
-.jarvis-core { position: relative; width: clamp(230px, 44vw, 380px); aspect-ratio: 1; display: grid; place-items: center; }
-.jcore-rings { position: absolute; inset: 0; }
-.jring { position: absolute; border-radius: 50%; }
-.jring.r1 { inset: 1%; border: 1px dashed color-mix(in srgb, var(--c-jarvis) 32%, transparent); animation: radar-spin 24s linear infinite; }
-.jring.r2 { inset: 13%; border: 1px solid color-mix(in srgb, var(--c-jarvis) 16%, transparent); animation: radar-spin 34s linear infinite reverse; }
-.jring.r4 { inset: 23%; border: 1px solid color-mix(in srgb, var(--c-jarvis) 12%, transparent); }
-.jring.r3 { inset: 7%; border-radius: 50%;
-  background: conic-gradient(from 0deg, transparent 0 62%, color-mix(in srgb, var(--c-jarvis) 65%, transparent) 82%, transparent 100%);
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
-          mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
-  filter: drop-shadow(0 0 6px var(--c-jarvis)); animation: radar-spin 6s linear infinite; }
-.jsweep { position: absolute; inset: 13%; border-radius: 50%;
-  background: conic-gradient(from 0deg, color-mix(in srgb, var(--c-jarvis) 26%, transparent), transparent 32%);
-  -webkit-mask: radial-gradient(farthest-side, #000 99%, transparent);
-          mask: radial-gradient(farthest-side, #000 99%, transparent);
-  animation: radar-spin 4.6s linear infinite; opacity: .85; }
-.jtick { position: absolute; background: color-mix(in srgb, var(--c-jarvis) 75%, transparent);
-  border-radius: 2px; box-shadow: 0 0 6px var(--c-jarvis); }
-.jtick.t1 { top: -1px; left: 50%; width: 2px; height: 9px; transform: translateX(-50%); }
-.jtick.t3 { bottom: -1px; left: 50%; width: 2px; height: 9px; transform: translateX(-50%); }
-.jtick.t2 { right: -1px; top: 50%; width: 9px; height: 2px; transform: translateY(-50%); }
-.jtick.t4 { left: -1px; top: 50%; width: 9px; height: 2px; transform: translateY(-50%); }
-.jcore-center { position: relative; width: 48%; aspect-ratio: 1; border-radius: 50%;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-align: center;
-  background: radial-gradient(circle, color-mix(in srgb, var(--c-jarvis) 24%, transparent), color-mix(in srgb, var(--c-jarvis) 7%, transparent) 58%, transparent 76%);
-  border: 1px solid color-mix(in srgb, var(--c-jarvis) 38%, transparent);
-  box-shadow: inset 0 0 32px color-mix(in srgb, var(--c-jarvis) 24%, transparent), 0 0 55px color-mix(in srgb, var(--c-jarvis) 18%, transparent); }
-.jcore-glow { position: absolute; inset: -12%; border-radius: 50%; pointer-events: none;
-  background: radial-gradient(circle, color-mix(in srgb, var(--c-jarvis) 32%, transparent), transparent 70%);
-  animation: jcore-pulse 3.4s ease-in-out infinite; }
-@keyframes jcore-pulse { 0%,100% { opacity: .5; transform: scale(.95); } 50% { opacity: 1; transform: scale(1.05); } }
-.jcore-name { font-family: var(--mono); font-weight: 700; font-size: clamp(15px, 2.5vw, 23px); letter-spacing: .26em;
-  color: #EAFBFF; text-shadow: 0 0 18px var(--c-jarvis); }
-.jcore-status { display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; color: var(--c-jarvis); }
-.jcore-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 8px var(--ok); animation: hf-breathe 2s infinite; }
-.jcore-sub { font-size: 8px; letter-spacing: .2em; text-transform: uppercase; color: var(--ts); }
+/* Barra de voz: escuchar/hablar "Hey Jarvis" */
+.jarvis-voicebar { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin: 20px auto 0; }
+.jvoice-btn { font-family: var(--mono); font-size: 11px; letter-spacing: .06em; padding: 10px 16px; border-radius: 10px; cursor: pointer;
+  color: var(--tp); background: rgba(10,16,26,0.7);
+  border: 1px solid color-mix(in srgb, var(--c-jarvis) 26%, var(--border));
+  transition: all .2s; -webkit-tap-highlight-color: transparent; }
+.jvoice-btn:hover { border-color: color-mix(in srgb, var(--c-jarvis) 55%, transparent); box-shadow: 0 0 20px color-mix(in srgb, var(--c-jarvis) 18%, transparent); }
+.jvoice-btn.on { color: #EAFBFF; background: color-mix(in srgb, var(--c-jarvis) 14%, transparent);
+  border-color: color-mix(in srgb, var(--c-jarvis) 60%, transparent); box-shadow: 0 0 22px color-mix(in srgb, var(--c-jarvis) 26%, transparent); text-shadow: 0 0 10px var(--c-jarvis); }
 
-/* ── Consola: chat/voz embebido ── */
-.jarvis-console { width: 100%; max-width: 940px; margin: 6px auto 0; position: relative;
-  height: clamp(360px, 46vh, 540px);
+/* ── Consola de chat (colapsable, se abre con el botón ⌨️) ── */
+.jarvis-console { width: 100%; max-width: 940px; margin: 14px auto 0; position: relative;
+  height: clamp(340px, 44vh, 520px);
   border: 1px solid color-mix(in srgb, var(--c-jarvis) 18%, var(--border)); border-radius: 15px; overflow: hidden;
-  background: rgba(6,10,18,0.78); backdrop-filter: blur(18px);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.045), 0 24px 56px rgba(0,0,0,.5), 0 0 30px color-mix(in srgb, var(--c-jarvis) 8%, transparent); }
-.jarvis-console::after { content: ''; position: absolute; inset: 5px; pointer-events: none; border-radius: inherit;
-  background:
-    linear-gradient(var(--c-jarvis),var(--c-jarvis)) 0 0 / 12px 1.5px no-repeat,
-    linear-gradient(var(--c-jarvis),var(--c-jarvis)) 0 0 / 1.5px 12px no-repeat,
-    linear-gradient(var(--c-jarvis),var(--c-jarvis)) 100% 100% / 12px 1.5px no-repeat,
-    linear-gradient(var(--c-jarvis),var(--c-jarvis)) 100% 100% / 1.5px 12px no-repeat;
-  opacity: .4; }
+  background: rgba(6,10,18,0.82); backdrop-filter: blur(18px);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.045), 0 24px 56px rgba(0,0,0,.5), 0 0 30px color-mix(in srgb, var(--c-jarvis) 8%, transparent);
+  transition: height .35s var(--ease-out-expo), opacity .3s, margin .35s, border-width .3s; }
+.jarvis-console:not(.open) { height: 0; opacity: 0; margin-top: 0; border-width: 0; pointer-events: none; }
 #agent-panel.embedded { position: relative !important; inset: auto !important; transform: none !important;
   height: 100%; background: transparent; backdrop-filter: none; z-index: 1; }
 #agent-panel.embedded #agent-header { padding: 13px 15px; background: rgba(0,0,0,0.25); }
 #agent-panel.embedded .agent-hdr-btn[onclick="agentToggle()"] { display: none; }
-
-@media (prefers-reduced-motion: reduce) {
-  .jring.r1, .jring.r2, .jring.r3, .jsweep, .jcore-glow { animation: none; }
-}
 </style>
 </head>
 <body>
@@ -4106,56 +4077,51 @@ body:has(#login-screen) #hud-frame { opacity: 0; }
 
   <!-- ████ JARVIS CORE TAB ████ -->
   <div id="tab-jarvis" class="tab-panel jarvis-tab active">
-    <div class="jarvis-stage">
-      <!-- Columna de stats izquierda -->
-      <div class="jstat-col left">
-        <div class="jstat" data-k="streak">
-          <div class="jstat-ring"><svg viewBox="0 0 44 44"><circle class="jr-bg" cx="22" cy="22" r="19"/><circle class="jr-fg" cx="22" cy="22" r="19"/></svg><span class="jstat-icon">⚡</span></div>
-          <div class="jstat-body"><div class="jstat-val" data-v>0</div><div class="jstat-lbl">Racha · días</div></div>
-        </div>
-        <div class="jstat" data-k="metas">
-          <div class="jstat-ring"><svg viewBox="0 0 44 44"><circle class="jr-bg" cx="22" cy="22" r="19"/><circle class="jr-fg" cx="22" cy="22" r="19"/></svg><span class="jstat-icon">◎</span></div>
-          <div class="jstat-body"><div class="jstat-val" data-v>0/0</div><div class="jstat-lbl">Metas de hoy</div></div>
-        </div>
-        <div class="jstat" data-k="dia">
-          <div class="jstat-ring"><svg viewBox="0 0 44 44"><circle class="jr-bg" cx="22" cy="22" r="19"/><circle class="jr-fg" cx="22" cy="22" r="19"/></svg><span class="jstat-icon">☉</span></div>
-          <div class="jstat-body"><div class="jstat-val" data-v>0%</div><div class="jstat-lbl">Avance del día</div></div>
-        </div>
-      </div>
+    <div class="jarvis-arena">
+      <!-- Red neuronal JARVIS real (canvas del FX, montado por JS) -->
+      <div class="jarvis-net" id="jarvis-net" aria-hidden="true"></div>
 
-      <!-- Núcleo JARVIS -->
-      <div class="jarvis-core">
-        <div class="jcore-rings" aria-hidden="true">
-          <span class="jring r1"></span><span class="jring r2"></span><span class="jring r3"></span>
-          <span class="jring r4"></span><span class="jsweep"></span>
-          <span class="jtick t1"></span><span class="jtick t2"></span><span class="jtick t3"></span><span class="jtick t4"></span>
+      <!-- Estadísticas globales ultra-tech, a los costados -->
+      <div class="jarvis-sides">
+        <div class="jstat-col left">
+          <div class="jstat" data-k="streak">
+            <div class="jstat-ring"><svg viewBox="0 0 44 44"><circle class="jr-bg" cx="22" cy="22" r="19"/><circle class="jr-fg" cx="22" cy="22" r="19"/></svg><span class="jstat-icon">⚡</span></div>
+            <div class="jstat-body"><div class="jstat-val" data-v>0</div><div class="jstat-lbl">Racha · días</div></div>
+          </div>
+          <div class="jstat" data-k="metas">
+            <div class="jstat-ring"><svg viewBox="0 0 44 44"><circle class="jr-bg" cx="22" cy="22" r="19"/><circle class="jr-fg" cx="22" cy="22" r="19"/></svg><span class="jstat-icon">◎</span></div>
+            <div class="jstat-body"><div class="jstat-val" data-v>0/0</div><div class="jstat-lbl">Metas de hoy</div></div>
+          </div>
+          <div class="jstat" data-k="dia">
+            <div class="jstat-ring"><svg viewBox="0 0 44 44"><circle class="jr-bg" cx="22" cy="22" r="19"/><circle class="jr-fg" cx="22" cy="22" r="19"/></svg><span class="jstat-icon">☉</span></div>
+            <div class="jstat-body"><div class="jstat-val" data-v>0%</div><div class="jstat-lbl">Avance del día</div></div>
+          </div>
         </div>
-        <div class="jcore-center">
-          <div class="jcore-glow"></div>
-          <div class="jcore-name">JARVIS</div>
-          <div class="jcore-status"><span class="jcore-dot"></span><span data-jclock>--:--:--</span></div>
-          <div class="jcore-sub" data-jsync>SISTEMA EN LÍNEA</div>
-        </div>
-      </div>
-
-      <!-- Columna de stats derecha -->
-      <div class="jstat-col right">
-        <div class="jstat" data-k="patrimonio">
-          <div class="jstat-ring"><svg viewBox="0 0 44 44"><circle class="jr-bg" cx="22" cy="22" r="19"/><circle class="jr-fg" cx="22" cy="22" r="19"/></svg><span class="jstat-icon">◇</span></div>
-          <div class="jstat-body"><div class="jstat-val" data-v>$0</div><div class="jstat-lbl">Patrimonio neto</div></div>
-        </div>
-        <div class="jstat" data-k="sueno">
-          <div class="jstat-ring"><svg viewBox="0 0 44 44"><circle class="jr-bg" cx="22" cy="22" r="19"/><circle class="jr-fg" cx="22" cy="22" r="19"/></svg><span class="jstat-icon">☾</span></div>
-          <div class="jstat-body"><div class="jstat-val" data-v>0h</div><div class="jstat-lbl">Último sueño</div></div>
-        </div>
-        <div class="jstat" data-k="law">
-          <div class="jstat-ring"><svg viewBox="0 0 44 44"><circle class="jr-bg" cx="22" cy="22" r="19"/><circle class="jr-fg" cx="22" cy="22" r="19"/></svg><span class="jstat-icon">§</span></div>
-          <div class="jstat-body"><div class="jstat-val" data-v>0%</div><div class="jstat-lbl">Carrera · avance</div></div>
+        <div class="jstat-col right">
+          <div class="jstat" data-k="patrimonio">
+            <div class="jstat-ring"><svg viewBox="0 0 44 44"><circle class="jr-bg" cx="22" cy="22" r="19"/><circle class="jr-fg" cx="22" cy="22" r="19"/></svg><span class="jstat-icon">◇</span></div>
+            <div class="jstat-body"><div class="jstat-val" data-v>$0</div><div class="jstat-lbl">Patrimonio neto</div></div>
+          </div>
+          <div class="jstat" data-k="sueno">
+            <div class="jstat-ring"><svg viewBox="0 0 44 44"><circle class="jr-bg" cx="22" cy="22" r="19"/><circle class="jr-fg" cx="22" cy="22" r="19"/></svg><span class="jstat-icon">☾</span></div>
+            <div class="jstat-body"><div class="jstat-val" data-v>0h</div><div class="jstat-lbl">Último sueño</div></div>
+          </div>
+          <div class="jstat" data-k="law">
+            <div class="jstat-ring"><svg viewBox="0 0 44 44"><circle class="jr-bg" cx="22" cy="22" r="19"/><circle class="jr-fg" cx="22" cy="22" r="19"/></svg><span class="jstat-icon">§</span></div>
+            <div class="jstat-body"><div class="jstat-val" data-v>0%</div><div class="jstat-lbl">Carrera · avance</div></div>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- Consola: alberga el chat/voz de JARVIS (reubicado por JS) -->
+    <!-- Barra de voz: escuchar/hablar "Hey Jarvis" -->
+    <div class="jarvis-voicebar">
+      <button class="jvoice-btn" id="jcore-wake" onclick="window.JARVIS_EARS&&JARVIS_EARS.toggleWake();setTimeout(jSyncVoiceBar,60)">🎙️ "Hey Jarvis"</button>
+      <button class="jvoice-btn" id="jcore-voice" onclick="window.JARVIS&&JARVIS.toggle();setTimeout(jSyncVoiceBar,60)">🔊 Voz</button>
+      <button class="jvoice-btn" id="jcore-chat" onclick="document.getElementById('jarvis-console').classList.toggle('open')">⌨️ Consola</button>
+    </div>
+
+    <!-- Consola: alberga el chat de JARVIS (reubicado por JS) -->
     <div class="jarvis-console" id="jarvis-console"></div>
   </div>
 
@@ -13508,9 +13474,11 @@ Instrucciones:
   backdrop.addEventListener('click', () => { if (api.onExit) api.onExit(); });
 
   let W = 0, H = 0, DPR = 1;
+  let host = null, docked = false;
   function resize() {
     DPR = Math.min(2, window.devicePixelRatio || 1);
-    W = window.innerWidth; H = window.innerHeight;
+    if (docked && host && host.clientWidth) { W = host.clientWidth; H = host.clientHeight; }
+    else { W = window.innerWidth; H = window.innerHeight; }
     canvas.width = W * DPR; canvas.height = H * DPR;
     canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -13567,14 +13535,39 @@ Instrucciones:
   let expand = 0, expandT = 0, opacity = 0, opacityT = 0.32, t = 0;
   const pulses = [], waves = [], sparks = []; let edges = [], edgeTimer = 0, lastWave = 0;
 
+  function _wakeOn(){ try { return localStorage.getItem('jarvis_wake') === '1'; } catch(e){ return false; } }
   const api = {
     onExit: null,
     setState(s) {
       const cfg = STATES[s] || STATES.passive; state = STATES[s] ? s : 'passive';
-      energyT = cfg.e; opacityT = cfg.op; expandT = cfg.full;
-      backdrop.classList.toggle('on', cfg.full === 1);
+      energyT = cfg.e; opacityT = docked ? 1 : cfg.op; expandT = docked ? 1 : cfg.full;
+      backdrop.classList.toggle('on', cfg.full === 1 && !docked);
     },
-    setLevel(l) { level = clamp01(l); }
+    setLevel(l) { level = clamp01(l); },
+    // Montar la red neuronal confinada y permanente dentro de un contenedor (sección CORE)
+    dock(el) {
+      if (!el) return;
+      host = el; docked = true;
+      canvas.style.position = 'absolute'; canvas.style.left = '0'; canvas.style.top = '0'; canvas.style.zIndex = '0';
+      el.appendChild(canvas);
+      backdrop.classList.remove('on');
+      expandT = 1; opacityT = 1; expand = 1; opacity = Math.max(opacity, 0.9);
+      resize();
+      // encajar la región a todo el host de inmediato (núcleo centrado, sin animación de despliegue)
+      const fr = fullRect();
+      R.x = RT.x = fr.x; R.y = RT.y = fr.y; R.w = RT.w = fr.w; R.h = RT.h = fr.h;
+      computeEdges();
+      api.setState(_wakeOn() ? 'command' : 'passive');
+    },
+    // Volver al overlay fullscreen disparado por voz
+    undock() {
+      host = null; docked = false;
+      canvas.style.position = 'fixed'; canvas.style.left = ''; canvas.style.top = ''; canvas.style.zIndex = '9999';
+      document.body.appendChild(canvas);
+      resize();
+      api.setState('passive');
+    },
+    isDocked(){ return docked; }
   };
   window.JARVIS_FX = api;
 
@@ -15675,10 +15668,29 @@ Instrucciones:
     setStat('sueno', (Math.round((sleep || 0) * 10) / 10) + 'h', Math.min((sleep || 0) / 9, 1));
     setStat('law', lawPct + '%', lawPct / 100);
   };
-  function tick(){
-    const c = document.querySelector('#tab-jarvis [data-jclock]');
-    if (c){ const n = new Date(); c.textContent = [n.getHours(), n.getMinutes(), n.getSeconds()].map(x => String(x).padStart(2,'0')).join(':'); }
+  // Montar la red neuronal JARVIS real (FX) confinada en la sección
+  function isJarvisActive(){ const t = document.getElementById('tab-jarvis'); return !!(t && t.classList.contains('active')); }
+  function dockJarvis(){
+    const host = document.getElementById('jarvis-net');
+    if (host && window.JARVIS_FX && JARVIS_FX.dock){
+      if (!host.clientWidth) { setTimeout(dockJarvis, 150); return; }
+      JARVIS_FX.dock(host);
+    }
   }
+  function undockJarvis(){ if (window.JARVIS_FX && JARVIS_FX.undock && JARVIS_FX.isDocked && JARVIS_FX.isDocked()) JARVIS_FX.undock(); }
+
+  // Reflejar estado de escucha/voz en los botones + en el FX
+  window.jSyncVoiceBar = function(){
+    let wake = false, voice = false;
+    try { wake = localStorage.getItem('jarvis_wake') === '1'; } catch(e){}
+    try { voice = localStorage.getItem('jarvis_enabled') === '1'; } catch(e){}
+    const wb = document.getElementById('jcore-wake');
+    if (wb){ wb.classList.toggle('on', wake); wb.textContent = wake ? '🎙️ "Hey Jarvis" · activo' : '🎙️ "Hey Jarvis"'; }
+    const vb = document.getElementById('jcore-voice');
+    if (vb){ vb.classList.toggle('on', voice); vb.textContent = voice ? '🔊 Voz · activa' : '🔊 Voz'; }
+    if (window.JARVIS_FX && JARVIS_FX.isDocked && JARVIS_FX.isDocked()) JARVIS_FX.setState(wake ? 'command' : 'passive');
+  };
+
   function embedChat(){
     const panel = document.getElementById('agent-panel');
     const host = document.getElementById('jarvis-console');
@@ -15687,28 +15699,33 @@ Instrucciones:
       panel.classList.add('embedded');
       try { if (typeof agentToggle === 'function' && !panel.classList.contains('open')) agentToggle(); }
       catch(e){ console.warn('jarvis chat init', e); }
-      // evitar que el autofocus del chat desplace el scroll al arrancar
       setTimeout(() => { const inp = document.getElementById('agent-input'); if (inp) inp.blur(); const app = document.getElementById('app'); if (app) app.scrollTop = 0; }, 480);
     }
   }
   function boot(){
     embedChat();
     renderJarvisCore();
-    tick(); setInterval(tick, 1000);
+    jSyncVoiceBar();
+    if (isJarvisActive()) dockJarvis();
     setInterval(renderJarvisCore, 10000);
     if (typeof window.switchTab === 'function' && !window._jSwitchPatched){
       const o = window.switchTab;
-      window.switchTab = function(t, b){ o(t, b); if (t === 'jarvis') renderJarvisCore(); };
+      window.switchTab = function(t, b){
+        const wasJarvis = isJarvisActive();
+        o(t, b);
+        if (t === 'jarvis'){ renderJarvisCore(); jSyncVoiceBar(); dockJarvis(); }
+        else if (wasJarvis){ undockJarvis(); }
+      };
       window._jSwitchPatched = true;
     }
     if (typeof window._bootApp === 'function' && !window._jBootPatched){
       const ob = window._bootApp;
-      window._bootApp = function(){ ob.apply(this, arguments); setTimeout(renderJarvisCore, 800); };
+      window._bootApp = function(){ ob.apply(this, arguments); setTimeout(() => { renderJarvisCore(); jSyncVoiceBar(); if (isJarvisActive()) dockJarvis(); }, 800); };
       window._jBootPatched = true;
     }
   }
-  if (document.readyState === 'complete') setTimeout(boot, 600);
-  else window.addEventListener('load', () => setTimeout(boot, 600));
+  if (document.readyState === 'complete') setTimeout(boot, 700);
+  else window.addEventListener('load', () => setTimeout(boot, 700));
 })();
 </script>
 
