@@ -3948,6 +3948,55 @@ body:has(#login-screen) #hud-frame { opacity: 0; }
   height: 100%; background: transparent; backdrop-filter: none; z-index: 1; }
 #agent-panel.embedded #agent-header { padding: 13px 15px; background: rgba(0,0,0,0.25); }
 #agent-panel.embedded .agent-hdr-btn[onclick="agentToggle()"] { display: none; }
+
+/* ═══════════════ CAPA DE MOVIMIENTO GLOBAL ═══════════════ */
+/* Transición base: todo cambio visual en elementos interactivos se anima suave */
+.btn, button, a[href], summary, label.check-wrap,
+input, select, textarea,
+.check-box, .goal-item, .planner-goal-chip,
+.account-row, .activity-row, .order-row, .sub-row, .wish-row,
+.month-balance-row, .fin-summary-row, .rem-urgent-row, .law-subject-row,
+.qobj-category-row, .qobj-progress-row, .habit-ring-row,
+[class*="-chip"], [class*="-pill"], [class*="-tag"] {
+  transition: background-color .22s var(--ease-out-quart), border-color .22s var(--ease-out-quart),
+              color .2s var(--ease-out-quart), box-shadow .25s var(--ease-out-quart),
+              transform .18s var(--ease-out-expo), opacity .25s var(--ease-out-quart);
+}
+/* Feedback de presión universal (tacto físico) */
+.btn:active, button:active, .goal-item:active, .check-wrap:active,
+.account-row:active, .activity-row:active, .order-row:active,
+[class*="-chip"]:active, [class*="-pill"]:active { transform: scale(.96); }
+/* Micro-deslizamiento + highlight en filas de lista al pasar el mouse */
+@media (hover: hover) {
+  .account-row:hover, .activity-row:hover, .order-row:hover, .sub-row:hover,
+  .wish-row:hover, .month-balance-row:hover, .law-subject-row:hover,
+  .qobj-category-row:hover, .rem-urgent-row:hover {
+    transform: translateX(2px);
+    background: var(--card-h);
+  }
+}
+/* Inputs: glow al enfocar */
+input:focus, select:focus, textarea:focus {
+  outline: none; border-color: var(--hud-dim);
+  box-shadow: 0 0 0 1px var(--hud-dim), 0 0 16px var(--hud-glow);
+}
+/* Barras de progreso: el llenado se anima cuando cambia el valor */
+.prog-fill, [class*="-fill"], [class*="-bar"] > i, .k-bar i {
+  transition: width .7s var(--ease-out-expo), background-color .3s var(--ease-out-quart);
+}
+/* Entrada de modales: fade del backdrop (la caja ya desliza con su propio slideUp) */
+@keyframes modal-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+.modal-overlay.open { animation: modal-backdrop-in .25s var(--ease-out-quart) both; }
+/* Scroll suave en el área principal */
+#app { scroll-behavior: smooth; }
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-overlay.open { animation: none; }
+  .account-row:hover, .activity-row:hover, .order-row:hover, .sub-row:hover,
+  .wish-row:hover, .month-balance-row:hover, .law-subject-row:hover,
+  .qobj-category-row:hover, .rem-urgent-row:hover { transform: none; }
+  #app { scroll-behavior: auto; }
+}
 </style>
 </head>
 <body>
@@ -14514,7 +14563,7 @@ Instrucciones:
       if (mt) { tab = TABS_VOICE[mt[1]]; name = name.slice(0, mt.index).trim(); }
       if (name) {
         PROY_VOICE.addProject(tab, name.charAt(0).toUpperCase() + name.slice(1));
-        say(`Project "${name}" created in ${tab}, sir. I'll keep an eye on it.`, true);
+        _translateEN(name).then(n => say(`Project "${n}" created in ${tab}, sir. I'll keep an eye on it.`, true));
         return;
       }
     }
@@ -14531,7 +14580,7 @@ Instrucciones:
       const marked = PROY_VOICE.markHabit(name, status);
       if (marked) {
         const w = status === 'partial' ? 'logged as partial' : status === 'rest' ? 'marked as a rest day' : 'marked as done';
-        say(`"${marked}" ${w} for today, sir.`, true);
+        _translateEN(marked).then(n => say(`"${n}" ${w} for today, sir.`, true));
       } else say(`I couldn't find a habit matching that, sir.`, true);
       return;
     }
@@ -14540,9 +14589,9 @@ Instrucciones:
     m = raw.match(/(?:marc[aá]\w*|complet[aá]\w*|termin[aá]\w*|tild[aá]\w*)\s+(?:como\s+(?:hecha|hecho|completa|completada|completado)\s+)?(?:la\s+tarea\s+)?(.+)/i);
     if (m && window.PROY_VOICE) {
       const done = PROY_VOICE.completeTask(m[1].trim());
-      if (done) { say(`"${done}" marked as complete, sir. Well done.`, true); return; }
+      if (done) { _translateEN(done).then(n => say(`"${n}" marked as complete, sir. Well done.`, true)); return; }
       const h = PROY_VOICE.markHabit(m[1].trim(), 'done');
-      if (h) { say(`"${h}" marked as done for today, sir.`, true); return; }
+      if (h) { _translateEN(h).then(n => say(`"${n}" marked as done for today, sir.`, true)); return; }
       // ni tarea ni hábito → que lo resuelva el cerebro IA (puede ser objetivo trimestral, meta del día, etc.)
     }
 
