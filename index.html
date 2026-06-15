@@ -4006,35 +4006,48 @@ input:focus, select:focus, textarea:focus {
   transition: opacity .55s var(--ease-out-quart), transform .66s var(--ease-out-expo); will-change: opacity, transform; }
 .card.sr-armed.sr-in { opacity: 1; transform: none; }
 
-/* ── Muscle Heatmap 3D ── */
-@keyframes bodySpin {
-  from { transform: rotateY(0deg); }
-  to   { transform: rotateY(360deg); }
-}
+/* ── Muscle Heatmap (imagen real) ── */
 @keyframes scanPass {
   0%   { top: -6px; opacity: .9; }
   85%  { opacity: .7; }
   100% { top: 105%; opacity: 0; }
 }
-.body-scan-scene {
-  perspective: 500px; width: 100px; height: 235px;
-  position: relative; flex-shrink: 0;
+@keyframes bodyFloat {
+  0%,100% { transform: translateY(0); }
+  50%     { transform: translateY(-5px); }
 }
-.body-scan-card {
-  width: 100%; height: 100%;
-  transform-style: preserve-3d;
-  animation: bodySpin 9s linear infinite;
+@keyframes heatPulse {
+  0%,100% { opacity: var(--base-op); transform: translate(-50%,-50%) scale(1); }
+  50%     { opacity: calc(var(--base-op) * 1.35); transform: translate(-50%,-50%) scale(1.14); }
 }
-.body-face {
-  position: absolute; width: 100%; height: 100%;
-  backface-visibility: hidden;
-  display: flex; align-items: center; justify-content: center;
+.body-scan-stage {
+  position: relative; width: 100%; max-width: 188px; margin: 4px auto 0;
+  aspect-ratio: 500 / 707; border-radius: 12px; overflow: hidden;
+  background: radial-gradient(ellipse at 50% 38%, rgba(0,40,70,.5), rgba(2,8,16,.92));
+  border: 1px solid rgba(0,200,255,.22);
+  box-shadow: 0 0 26px rgba(0,170,255,.12), inset 0 0 30px rgba(0,40,80,.4);
 }
-.body-face.back { transform: rotateY(180deg); }
+.body-scan-stage::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 4;
+  background: repeating-linear-gradient(0deg, transparent 0 3px, rgba(0,30,50,.18) 3px 4px);
+  mix-blend-mode: overlay;
+}
+.body-scan-img {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+  display: block; z-index: 1;
+  filter: saturate(1.2) hue-rotate(168deg) brightness(.62) contrast(1.12);
+  animation: bodyFloat 6s ease-in-out infinite;
+}
+.heat-spot {
+  position: absolute; z-index: 2; border-radius: 50%; pointer-events: none;
+  transform: translate(-50%,-50%); mix-blend-mode: screen;
+  filter: blur(1px); animation: heatPulse 2.4s ease-in-out infinite;
+}
 .body-scan-line {
-  position: absolute; left: 0; right: 0; height: 4px; z-index: 3; pointer-events: none;
-  background: linear-gradient(transparent, rgba(0,220,255,.75), transparent);
-  animation: scanPass 3s ease-in-out infinite;
+  position: absolute; left: 0; right: 0; height: 3px; z-index: 3; pointer-events: none;
+  background: linear-gradient(transparent, rgba(0,230,255,.85), transparent);
+  box-shadow: 0 0 12px rgba(0,220,255,.6);
+  animation: scanPass 3.4s ease-in-out infinite;
 }
 
 /* ── Exercise HUD stats ── */
@@ -7210,144 +7223,64 @@ function muscleHeatColor(pct) {
   return                        { fill: 'rgba(255,40,40,0.85)',  glow: '' };
 }
 
-// Anatomical figure — center x=90, viewBox 180x430
-const _SIL_HALF = `M90 14
-C76 14 68 26 68 40 C68 50 72 56 79 59 L80 67
-C76 70 70 72 58 78 L42 92 C30 96 23 108 22 124 C21 132 22 138 25 144
-L33 176 C31 190 29 204 27 220 L22 250 L19 270 C17 277 19 284 24 284
-C30 284 32 277 33 269 L38 250 C42 232 44 216 46 200 L50 176
-C53 166 55 158 59 150 C63 156 67 164 69 178 L73 206 L77 220
-C79 226 79 230 77 234 L72 238 C59 244 53 260 53 286 L55 322 L51 334
-C50 344 51 354 53 362 L51 404 C50 412 51 418 58 418 L72 416
-C76 416 76 410 75 404 L74 364 C73 352 74 342 76 332 L80 286
-C84 262 85 248 87 236 L89 232 L90 232 Z`;
-
-function _bodyDefs(idp) {
-  return `<defs>
-    <pattern id="grid${idp}" width="14" height="14" patternUnits="userSpaceOnUse">
-      <path d="M14 0 L0 0 L0 14" fill="none" stroke="rgba(0,200,255,0.06)" stroke-width="0.5"/>
-    </pattern>
-    <linearGradient id="bd${idp}" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="rgba(12,42,62,0.55)"/><stop offset="1" stop-color="rgba(4,14,26,0.7)"/>
-    </linearGradient>
-    <linearGradient id="sh${idp}" x1="0.2" y1="0" x2="0.7" y2="1">
-      <stop offset="0" stop-color="rgba(190,245,255,0.20)"/>
-      <stop offset="0.4" stop-color="rgba(120,220,255,0.03)"/>
-      <stop offset="1" stop-color="rgba(0,0,0,0)"/>
-    </linearGradient>
-    <radialGradient id="gl${idp}" cx="0.5" cy="0.35" r="0.65">
-      <stop offset="0" stop-color="rgba(0,200,255,0.10)"/><stop offset="1" stop-color="rgba(0,0,0,0)"/>
-    </radialGradient>
-  </defs>`;
+// ── Escáner muscular (imagen real + glows de calor) ──
+// Color cálido del punto de calor según intensidad (0-100)
+function heatGlow(pct) {
+  if (pct <= 20) return '255,230,110';
+  if (pct <= 40) return '255,185,50';
+  if (pct <= 60) return '255,135,35';
+  if (pct <= 80) return '255,80,30';
+  return '255,35,30';
 }
-function _silPair(idp) {
-  const s = `fill="url(#bd${idp})" stroke="rgba(0,200,255,0.45)" stroke-width="1" stroke-linejoin="round"`;
-  return `<path d="${_SIL_HALF}" ${s}/><path d="${_SIL_HALF}" ${s} transform="translate(180,0) scale(-1,1)"/>`;
-}
-function _sheenPair(idp) {
-  return `<path d="${_SIL_HALF}" fill="url(#sh${idp})" opacity="0.55"/><path d="${_SIL_HALF}" fill="url(#sh${idp})" opacity="0.55" transform="translate(180,0) scale(-1,1)"/>`;
-}
-
-function buildMuscleSVGFront(mc) {
-  const h = n => muscleHeatColor(mc[n] || 0).fill;
-  const pec=h('Pecho'), delt=h('Hombro frontal'), bi=h('Bíceps'), tri=h('Tríceps'),
-        fore=h('Antebrazos'), abs=h('Abdomen'), quad=h('Cuádriceps'), add=h('Aductores'),
-        calf=h('Pantorrillas'), trap=h('Trapecio');
-  const st='stroke="rgba(0,8,16,0.40)" stroke-width="0.6" stroke-linejoin="round"';
-  const ln='stroke="rgba(0,8,16,0.32)" stroke-width="0.6" fill="none"';
-  const half = `
-    <path d="M80 64 C77 71 76 79 78 86 L83 86 C85 78 85 70 83 64 Z" fill="${trap}" ${st}/>
-    <path d="M58 78 C70 73 81 76 87 82 L87 88 C79 83 70 83 60 88 Z" fill="${trap}" ${st}/>
-    <path d="M42 90 C30 95 24 108 25 124 C34 120 41 113 47 104 C47 96 47 89 42 90 Z" fill="${delt}" ${st}/>
-    <path d="M88 100 C73 95 57 98 48 108 C45 120 49 137 60 148 C72 152 83 145 88 137 Z" fill="${pec}" ${st}/>
-    <path d="M30 128 C24 138 23 159 28 182 C32 193 42 192 46 180 C48 160 44 140 39 132 C36 128 33 127 30 128 Z" fill="${bi}" ${st}/>
-    <path d="M26 196 C21 212 19 236 22 258 C25 267 34 267 37 258 C41 234 43 212 40 198 C38 191 29 189 26 196 Z" fill="${fore}" ${st}/>
-    <path d="M67 156 C63 172 63 192 67 210 L72 208 L72 158 Z" fill="${abs}" ${st} opacity="0.85"/>
-    <path d="M74 152 Q74 150 76 150 L88 150 L88 166 L76 166 Q74 166 74 164 Z" fill="${abs}" ${st}/>
-    <path d="M74 170 L88 170 L88 185 L75 185 Q74 185 74 183 Z" fill="${abs}" ${st}/>
-    <path d="M75 189 L88 189 L88 204 L77 204 Q75 204 75 202 Z" fill="${abs}" ${st}/>
-    <path d="M77 208 L88 208 L88 228 L80 228 Q77 224 77 215 Z" fill="${abs}" ${st}/>
-    <path d="M77 236 C62 240 54 262 56 292 C58 310 64 320 71 322 C77 316 80 298 81 276 C83 256 84 238 77 236 Z" fill="${quad}" ${st}/>
-    <path d="M86 238 C81 246 79 272 79 300 L85 312 L89 300 L89 240 Z" fill="${add}" ${st}/>
-    <path d="M56 332 C49 346 50 378 55 404 L67 404 C71 378 68 346 63 332 Z" fill="${calf}" ${st}/>
-    <path d="M62 110 C65 124 65 136 60 146" ${ln}/>
-    <path d="M77 240 C73 264 73 290 76 314" ${ln}/>`;
-  return `<svg viewBox="0 0 180 430" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
-    ${_bodyDefs('F')}
-    <rect width="180" height="430" fill="url(#gridF)"/>
-    <rect width="180" height="430" fill="url(#glF)"/>
-    ${_silPair('F')}
-    <g>${half}</g><g transform="translate(180,0) scale(-1,1)">${half}</g>
-    <path d="M90 100 L90 230" stroke="rgba(0,8,16,0.32)" stroke-width="0.7"/>
-    ${_sheenPair('F')}
-    <text x="90" y="426" text-anchor="middle" fill="rgba(0,200,255,0.42)" font-size="8.5" font-family="monospace" letter-spacing="3">FRONTAL</text>
-  </svg>`;
-}
-
-function buildMuscleSVGBack(mc) {
-  const h = n => muscleHeatColor(mc[n] || 0).fill;
-  const trap=h('Trapecio'), rdelt=h('Hombro posterior'), ldelt=h('Hombro lateral'),
-        back=h('Espalda'), tri=h('Tríceps'), fore=h('Antebrazos'),
-        glute=h('Glúteo'), ham=h('Femorales'), calf=h('Pantorrillas');
-  const st='stroke="rgba(0,8,16,0.40)" stroke-width="0.6" stroke-linejoin="round"';
-  const ln='stroke="rgba(0,8,16,0.32)" stroke-width="0.6" fill="none"';
-  const half = `
-    <path d="M88 64 C80 66 70 74 58 80 L42 92 C53 86 67 78 81 74 L88 72 Z" fill="${trap}" ${st}/>
-    <path d="M88 80 C76 82 64 90 57 102 L70 116 C78 108 86 104 88 104 Z" fill="${trap}" ${st} opacity="0.9"/>
-    <path d="M42 90 C30 95 24 108 25 124 C34 120 41 113 47 104 C47 96 47 89 42 90 Z" fill="${rdelt}" ${st}/>
-    <path d="M25 118 C21 128 21 140 25 148 C31 144 34 136 34 126 C33 118 29 114 25 118 Z" fill="${ldelt}" ${st}/>
-    <path d="M57 104 C47 116 45 138 51 162 L72 170 L72 114 C68 108 62 102 57 104 Z" fill="${back}" ${st}/>
-    <path d="M54 168 C57 186 65 202 73 208 L73 170 Z" fill="${back}" ${st} opacity="0.78"/>
-    <path d="M30 130 C24 140 23 161 28 184 C32 194 42 193 46 181 C48 162 44 142 39 134 C36 130 33 129 30 130 Z" fill="${tri}" ${st}/>
-    <path d="M26 196 C21 212 19 236 22 258 C25 267 34 267 37 258 C41 234 43 212 40 198 C38 191 29 189 26 196 Z" fill="${fore}" ${st}/>
-    <path d="M78 214 C62 216 54 230 55 248 C57 263 68 269 79 265 L83 234 Z" fill="${glute}" ${st}/>
-    <path d="M77 268 C61 272 55 294 57 322 C59 334 66 323 74 323 C80 321 82 296 82 274 Z" fill="${ham}" ${st}/>
-    <path d="M56 332 C49 348 50 378 55 404 L67 402 C71 376 68 346 63 332 Z" fill="${calf}" ${st}/>
-    <path d="M72 120 C76 140 76 160 73 180" ${ln}/>`;
-  return `<svg viewBox="0 0 180 430" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
-    ${_bodyDefs('B')}
-    <rect width="180" height="430" fill="url(#gridB)"/>
-    <rect width="180" height="430" fill="url(#glB)"/>
-    ${_silPair('B')}
-    <g>${half}</g><g transform="translate(180,0) scale(-1,1)">${half}</g>
-    <path d="M90 80 L90 230" stroke="rgba(0,8,16,0.34)" stroke-width="0.8"/>
-    ${_sheenPair('B')}
-    <text x="90" y="426" text-anchor="middle" fill="rgba(0,200,255,0.42)" font-size="8.5" font-family="monospace" letter-spacing="3">DORSAL</text>
-  </svg>`;
-}
+// Posiciones (% del lienzo) de cada músculo visible de frente; simétricos = 2 puntos
+const MUSCLE_SPOTS = {
+  'Trapecio':       [[42,25],[58,25]],
+  'Hombro frontal': [[31,31],[69,31]],
+  'Pecho':          [[41,37],[59,37]],
+  'Bíceps':         [[26,43],[74,43]],
+  'Tríceps':        [[22,45],[78,45]],
+  'Antebrazos':     [[20,55],[80,55]],
+  'Abdomen':        [[50,49]],
+  'Aductores':      [[50,64]],
+  'Cuádriceps':     [[42,70],[58,70]],
+  'Pantorrillas':   [[44,87],[56,87]],
+};
 
 function buildMuscleHeatmap(muscleCounts) {
   if (!muscleCounts || Object.keys(muscleCounts).length === 0) return '';
   const maxCount = Math.max(...Object.values(muscleCounts), 1);
-  const mc = {};
-  Object.entries(muscleCounts).forEach(([n, c]) => { mc[n] = Math.round(c / maxCount * 100); });
-  const frontSVG = buildMuscleSVGFront(mc);
-  const backSVG  = buildMuscleSVGBack(mc);
+  const spots = [];
+  let i = 0;
+  Object.entries(MUSCLE_SPOTS).forEach(([muscle, coords]) => {
+    const pct = Math.round((muscleCounts[muscle] || 0) / maxCount * 100);
+    if (pct <= 0) return;
+    const rgb = heatGlow(pct);
+    const size = Math.round(20 + pct * 0.5);           // 20..70 px
+    const op = (0.6 + pct / 100 * 0.4).toFixed(2);     // 0.6..1.0
+    const core = pct > 75 ? 'rgba(255,255,235,0.85)' : `rgba(${rgb},1)`;
+    coords.forEach(([x, y]) => {
+      spots.push(`<div class="heat-spot" style="left:${x}%;top:${y}%;width:${size}px;height:${size}px;--base-op:${op};opacity:${op};animation-delay:${(i % 5) * 0.3}s;background:radial-gradient(circle, ${core} 0%, rgba(${rgb},0.9) 28%, rgba(${rgb},0.4) 52%, rgba(${rgb},0) 72%)"></div>`);
+      i++;
+    });
+  });
   const legendItems = [
-    ['rgba(255,40,40,0.85)',  'Muy alto'],
-    ['rgba(255,120,20,0.74)', 'Alto'],
-    ['rgba(240,210,30,0.66)', 'Medio'],
-    ['rgba(60,210,120,0.60)', 'Bajo'],
-    ['rgba(0,170,255,0.55)',  'Mínimo'],
+    ['255,35,30',   'Máximo'],
+    ['255,80,30',   'Alto'],
+    ['255,135,35',  'Medio'],
+    ['255,185,50',  'Bajo'],
+    ['255,230,110', 'Mínimo'],
   ];
-  return `<div style="margin:10px 0 4px">
+  return `<div style="margin:10px 0 6px">
     <div style="font-size:8px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:rgba(0,200,255,0.45);margin-bottom:8px">◈ ESCÁNER MUSCULAR</div>
-    <div style="display:flex;gap:14px;align-items:center">
-      <div class="body-scan-scene" style="overflow:hidden;border-radius:8px;background:rgba(0,8,18,.7);border:1px solid rgba(0,200,255,.18);box-shadow:0 0 20px rgba(0,200,255,.06)">
-        <div class="body-scan-line"></div>
-        <div class="body-scan-card">
-          <div class="body-face">${frontSVG}</div>
-          <div class="body-face back">${backSVG}</div>
-        </div>
-      </div>
-      <div style="flex:1">
-        <div style="font-size:8px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(0,200,255,.4);margin-bottom:7px">INTENSIDAD</div>
-        ${legendItems.map(([col, lbl]) => `
-          <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
-            <div style="width:10px;height:10px;border-radius:3px;background:${col};flex-shrink:0"></div>
-            <span style="font-size:10px;color:var(--ts)">${lbl}</span>
-          </div>`).join('')}
-      </div>
+    <div class="body-scan-stage">
+      <img class="body-scan-img" src="assets/body-front.jpg" alt="" loading="lazy">
+      ${spots.join('')}
+      <div class="body-scan-line"></div>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:7px 12px;justify-content:center;margin-top:11px">
+      ${legendItems.map(([rgb, lbl]) => `<div style="display:flex;align-items:center;gap:5px">
+        <div style="width:9px;height:9px;border-radius:50%;background:rgb(${rgb});box-shadow:0 0 6px rgba(${rgb},.85);flex-shrink:0"></div>
+        <span style="font-size:9px;color:var(--ts)">${lbl}</span></div>`).join('')}
     </div>
   </div>`;
 }
