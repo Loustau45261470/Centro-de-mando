@@ -13594,7 +13594,7 @@ Instrucciones:
       backdrop.classList.toggle('on', fullscreen);
       // Sin montar en la sección CORE, el núcleo sólo aparece a pantalla completa cuando lo invocás
       // por voz; en reposo no se dibuja el orbe de la esquina inferior izquierda.
-      canvas.style.display = (docked || fullscreen) ? '' : 'none';
+      canvas.style.display = (docked || fullscreen) ? 'block' : 'none';
     },
     setLevel(l) { level = clamp01(l); },
     // Montar la red neuronal confinada y permanente dentro de un contenedor (sección CORE)
