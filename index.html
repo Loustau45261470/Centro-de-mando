@@ -281,6 +281,18 @@ body::before {
 #tab-conocimiento .kpi-tile .k-bar i { background: var(--c-conocimiento); box-shadow: 0 0 6px var(--c-conocimiento); }
 #tab-ia           .kpi-tile::after { background: linear-gradient(90deg, transparent, var(--c-ia), transparent); }
 #tab-ia           .kpi-tile .k-bar i { background: var(--c-ia); box-shadow: 0 0 6px var(--c-ia); }
+
+/* ── KPI: sparkline 14-días, count-up, flash, barra animada ── */
+.kpi-tile .k-spark { display: block; width: 100%; height: 15px; margin-top: 7px; overflow: visible; }
+.tab-panel.active .kpi-tile .k-spark { animation: spark-draw 760ms var(--ease-out-expo) both; animation-delay: 130ms; }
+@keyframes spark-draw { from { clip-path: inset(0 100% 0 0); opacity: 0; } to { clip-path: inset(0 0 0 0); opacity: 1; } }
+.kpi-tile .k-bar i { transform-origin: left center; }
+.tab-panel.active .kpi-tile .k-bar i { animation: kbar-grow 780ms var(--ease-out-expo) both; animation-delay: 160ms; }
+@keyframes kbar-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.k-val.k-pop { animation: k-pop 560ms var(--ease-out-expo) both; }
+@keyframes k-pop { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+.k-val.k-flash { animation: k-flash 620ms ease; }
+@keyframes k-flash { 0%,100% { filter: none; } 28% { filter: brightness(1.7); text-shadow: 0 0 22px currentColor; } }
 .card-title {
   font-size: 14px; font-weight: 700;
   letter-spacing: .14em; text-transform: uppercase;
@@ -3545,14 +3557,11 @@ body.font-jakarta  { --sans: "Plus Jakarta Sans", sans-serif; --mono: "JetBrains
 #app::-webkit-scrollbar-thumb { background: rgba(56,189,248,0.25); border-radius: 2px; }
 #app::-webkit-scrollbar-thumb:hover { background: rgba(56,189,248,0.45); }
 
-/* ── Reduced motion — obligatorio ── */
+/* ── Reduced motion: el Centro de Mando prioriza vida; solo se atenúan
+   los loops infinitos decorativos, manteniendo entradas, feedback y datos vivos. ── */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
+  #ticker-inner { animation-duration: 90s !important; }
+  .ticker-item.alert { animation: none !important; }
 }
 </style>
 </head>
@@ -5289,6 +5298,7 @@ function switchTab(tab, btn) {
   if (tab === 'finanzas')     { renderFinanzasTab(); }
   if (tab === 'conocimiento') { renderLawProgress(); renderLawMilestones(); renderLawPlan(); renderTabHeader('conocimientoHeaderMeta'); }
   if (tab === 'ia')           { renderTabHeader('iaHeaderMeta'); }
+  const _ks = document.getElementById('kpi-' + tab); if (_ks) delete _ks.dataset.kpiInit; // re-dispara count-up al entrar
   if (window.JARVIS_INTEL) JARVIS_INTEL.renderCard(tab);
   renderHabitsCard(tab);
   checkAchievements();
@@ -8836,7 +8846,10 @@ function renderTxnChart(transactions) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      cutout: '58%',
+      cutout: '60%',
+      _noCrosshair: true,
+      interaction: { mode: 'nearest', intersect: true },
+      animation: { animateRotate: true, animateScale: true, duration: 900, easing: 'easeOutQuart' },
       plugins: {
         legend: {
           position: 'right',
@@ -9044,27 +9057,50 @@ function _toRGBA(c, a){
 }
 function _setChartDefault(path, val){ try { const p = path.split('.'); let o = Chart.defaults; for (let i=0;i<p.length-1;i++){ if (o[p[i]]==null) o[p[i]]={}; o=o[p[i]]; } o[p[p.length-1]]=val; } catch(e){} }
 try {
-  const MONO = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
-  _setChartDefault('color', '#9FB1C6');
-  _setChartDefault('borderColor', 'rgba(120,180,230,0.08)');
+  const MONO = '"JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+  _setChartDefault('color', '#8BA5C0');
+  _setChartDefault('borderColor', 'rgba(100,160,230,0.07)');
   _setChartDefault('font.family', MONO);
   _setChartDefault('font.size', 10);
-  _setChartDefault('elements.line.tension', 0.35);
-  _setChartDefault('elements.line.borderWidth', 2);
-  _setChartDefault('elements.point.hoverRadius', 5);
+  _setChartDefault('elements.line.tension', 0.4);
+  _setChartDefault('elements.line.borderWidth', 2.5);
+  _setChartDefault('elements.line.capBezierPoints', true);
+  _setChartDefault('elements.point.radius', 0);
+  _setChartDefault('elements.point.hoverRadius', 6);
+  _setChartDefault('elements.point.hoverBorderWidth', 2.5);
   _setChartDefault('elements.point.backgroundColor', '#7DD3FC');
-  _setChartDefault('elements.point.borderColor', '#38BDF8');
-  _setChartDefault('elements.arc.borderColor', 'rgba(4,7,12,0.85)');
-  _setChartDefault('elements.arc.borderWidth', 2);
-  _setChartDefault('plugins.legend.labels.color', '#AAB6C6');
-  _setChartDefault('plugins.tooltip.backgroundColor', 'rgba(6,12,20,0.94)');
-  _setChartDefault('plugins.tooltip.borderColor', 'rgba(56,189,248,0.55)');
+  _setChartDefault('elements.point.borderColor', '#020508');
+  _setChartDefault('elements.arc.borderColor', 'rgba(2,5,8,0.9)');
+  _setChartDefault('elements.arc.borderWidth', 2.5);
+  _setChartDefault('elements.bar.borderRadius', 5);
+  // Interacción tipo terminal: la columna entera responde (mejor en touch)
+  _setChartDefault('interaction.mode', 'index');
+  _setChartDefault('interaction.intersect', false);
+  _setChartDefault('interaction.axis', 'x');
+  // Animación de entrada premium (draw-in con deceleración)
+  _setChartDefault('animation.duration', 850);
+  _setChartDefault('animation.easing', 'easeOutQuart');
+  _setChartDefault('animations.tension.duration', 900);
+  _setChartDefault('animations.tension.easing', 'easeOutQuart');
+  _setChartDefault('plugins.legend.labels.color', '#8BA5C0');
+  _setChartDefault('plugins.legend.labels.usePointStyle', true);
+  _setChartDefault('plugins.legend.labels.boxWidth', 7);
+  _setChartDefault('plugins.legend.labels.boxHeight', 7);
+  _setChartDefault('plugins.tooltip.backgroundColor', 'rgba(3,7,14,0.96)');
+  _setChartDefault('plugins.tooltip.borderColor', 'rgba(56,189,248,0.45)');
   _setChartDefault('plugins.tooltip.borderWidth', 1);
   _setChartDefault('plugins.tooltip.titleColor', '#7DD3FC');
-  _setChartDefault('plugins.tooltip.bodyColor', '#E4F4FF');
-  _setChartDefault('plugins.tooltip.cornerRadius', 6);
-  _setChartDefault('plugins.tooltip.padding', 10);
+  _setChartDefault('plugins.tooltip.titleFont.family', MONO);
+  _setChartDefault('plugins.tooltip.titleFont.size', 10);
+  _setChartDefault('plugins.tooltip.titleFont.weight', '600');
+  _setChartDefault('plugins.tooltip.bodyColor', '#EDF4FF');
+  _setChartDefault('plugins.tooltip.bodyFont.family', MONO);
+  _setChartDefault('plugins.tooltip.bodyFont.size', 12);
+  _setChartDefault('plugins.tooltip.cornerRadius', 8);
+  _setChartDefault('plugins.tooltip.padding', 11);
+  _setChartDefault('plugins.tooltip.caretSize', 5);
   _setChartDefault('plugins.tooltip.displayColors', false);
+  _setChartDefault('plugins.tooltip.animation.duration', 160);
 
   Chart.register({
     id: 'hudColors',
@@ -9081,11 +9117,24 @@ try {
       try {
         const area = chart.chartArea; if (!area) return;
         chart.data.datasets.forEach((ds, i) => {
-          if (chart.getDatasetMeta(i).type !== 'line' || !ds.fill) return;
-          const base = _hudColor(ds.borderColor) || '#38BDF8';
-          const g = chart.ctx.createLinearGradient(0, area.top, 0, area.bottom);
-          g.addColorStop(0, _toRGBA(base, 0.32)); g.addColorStop(1, _toRGBA(base, 0.0));
-          ds.backgroundColor = g;
+          const meta = chart.getDatasetMeta(i);
+          if (meta.type !== 'line') return;
+          const isDash = Array.isArray(ds.borderDash) && ds.borderDash.length > 0;
+          // Capturar el color original UNA vez (string/var); luego siempre regeneramos desde él
+          if (ds._origBorder === undefined) ds._origBorder = ds.borderColor;
+          const base = _hudColor(ds._origBorder) || '#38BDF8';
+          // Trazo con gradiente horizontal (claro→base→brillo) — se reconstruye cada draw (resize-safe)
+          if (!ds._noGrad && !isDash && (ds._origBorder == null || typeof ds._origBorder === 'string')) {
+            const gl = chart.ctx.createLinearGradient(area.left, 0, area.right, 0);
+            gl.addColorStop(0, _toRGBA(base, 0.55)); gl.addColorStop(0.5, base); gl.addColorStop(1, _hudColor('#7DD3FC') || base);
+            ds.borderColor = gl;
+          }
+          // Relleno con desvanecido vertical
+          if (ds.fill) {
+            const g = chart.ctx.createLinearGradient(0, area.top, 0, area.bottom);
+            g.addColorStop(0, _toRGBA(base, 0.34)); g.addColorStop(0.55, _toRGBA(base, 0.08)); g.addColorStop(1, _toRGBA(base, 0.0));
+            ds.backgroundColor = g;
+          }
         });
       } catch(e){}
     }
@@ -9096,13 +9145,45 @@ try {
     beforeDatasetDraw(chart, args) {
       try {
         const ds = chart.data.datasets[args.index];
-        let c = _hudColor(ds.borderColor) || _hudColor(Array.isArray(ds.backgroundColor) ? ds.backgroundColor[0] : ds.backgroundColor) || '#38BDF8';
-        if (typeof c !== 'string') c = '#38BDF8';
+        const meta = chart.getDatasetMeta(args.index);
         chart.ctx.save();
-        chart.ctx.shadowColor = c; chart.ctx.shadowBlur = ds._noGlow ? 0 : 8;
-      } catch(e){}
+        const isDash = Array.isArray(ds.borderDash) && ds.borderDash.length > 0;
+        if (meta.type === 'bar' || ds._noGlow || isDash) return; // sin glow en barras ni líneas de tendencia
+        let c = _hudColor(ds._origBorder) || _hudColor(Array.isArray(ds.backgroundColor) ? ds.backgroundColor[0] : ds.backgroundColor) || '#38BDF8';
+        if (typeof c !== 'string') c = '#38BDF8';
+        chart.ctx.shadowColor = c; chart.ctx.shadowBlur = 11; chart.ctx.shadowOffsetY = 1;
+      } catch(e){ try { chart.ctx.save(); } catch(_){} }
     },
     afterDatasetDraw(chart) { try { chart.ctx.restore(); } catch(e){} }
+  });
+
+  // ── Crosshair: línea de escaneo vertical que sigue el cursor/touch (look terminal) ──
+  Chart.register({
+    id: 'hudCrosshair',
+    afterDraw(chart) {
+      try {
+        if (chart.config.options && chart.config.options._noCrosshair) return;
+        const a = chart._active; if (!a || !a.length) return;
+        const area = chart.chartArea; if (!area) return;
+        const x = a[0].element.x;
+        const ctx = chart.ctx;
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(x, area.top); ctx.lineTo(x, area.bottom);
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = 'rgba(125,211,252,0.35)';
+        ctx.setLineDash([3, 3]);
+        ctx.stroke();
+        // Halo en el punto activo
+        a.forEach(p => {
+          const el = p.element; if (el.y==null) return;
+          ctx.beginPath(); ctx.setLineDash([]);
+          ctx.arc(el.x, el.y, 8, 0, Math.PI*2);
+          ctx.fillStyle = 'rgba(56,189,248,0.14)'; ctx.fill();
+        });
+        ctx.restore();
+      } catch(e){}
+    }
   });
 } catch (e) { console.warn('[charts] tema HUD no aplicado:', e); }
 
@@ -9192,7 +9273,7 @@ function initNWCharts() {
   nwPieInst=new Chart(pieCtx,{
     type:'doughnut',
     data:{ labels, datasets:[{ data, backgroundColor:colors, borderWidth:0, hoverOffset:6 }] },
-    options:{ responsive:true, maintainAspectRatio:false, cutout:'65%', plugins:{ legend:{ position:'bottom', labels:{ font:{size:11, weight:'600'}, padding:12, color:'#C8D5E8' } } } }
+    options:{ responsive:true, maintainAspectRatio:false, cutout:'68%', _noCrosshair:true, interaction:{ mode:'nearest', intersect:true }, animation:{ animateRotate:true, animateScale:true, duration:900, easing:'easeOutQuart' }, plugins:{ legend:{ position:'bottom', labels:{ font:{size:11, weight:'600'}, padding:12, color:'#C8D5E8' } } } }
   });
   // Line
   const lineCtx=document.getElementById('nwLineChart').getContext('2d');
@@ -14505,13 +14586,66 @@ Instrucciones:
     return lines.slice(0,3).join(' ');
   }
 
+  const _SEC_HUE = { vida:'#00D4FF', finanzas:'#22C55E', salud:'#F43F5E', conocimiento:'#6B8EFF', ia:'#C4D0E4' };
+
+  // Serie de 14 días de % de hábitos cumplidos (para sparkline real)
+  function _kSeries(sec){
+    const base = new Date(_today()+'T00:00:00'); const out = [];
+    for (let i=13;i>=0;i--){
+      const d = new Date(base); d.setDate(d.getDate()-i);
+      const ds = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+      const c = habCount(sec, ds);
+      out.push(c.tot ? (c.done/c.tot*100) : 0);
+    }
+    return out;
+  }
+
+  // Sparkline SVG inline (línea + área tenue + punto final luminoso)
+  function _sparkSVG(vals, color){
+    if (!vals || vals.length < 2) return '';
+    const min = Math.min(...vals), max = Math.max(...vals), rng = (max-min)||1, n = vals.length;
+    const pts = vals.map((y,i)=>{
+      const px = (i/(n-1))*100;
+      const py = 22 - ((y-min)/rng)*18;
+      return px.toFixed(1)+','+py.toFixed(1);
+    });
+    const last = pts[pts.length-1].split(',');
+    return `<svg class="k-spark" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true">`
+      + `<polygon points="0,24 ${pts.join(' ')} 100,24" fill="${color}" fill-opacity="0.1"/>`
+      + `<polyline points="${pts.join(' ')}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`
+      + `<circle cx="${last[0]}" cy="${last[1]}" r="2" fill="${color}"/></svg>`;
+  }
+
+  // Count-up + flash de actualización sobre los valores de KPI
+  function _animateKVals(container, firstPaint){
+    container.querySelectorAll('.k-val').forEach(el=>{
+      const txt = el.textContent;
+      if (!firstPaint){ el.classList.remove('k-flash'); void el.offsetWidth; el.classList.add('k-flash'); return; }
+      if (txt.includes('/')) { el.classList.add('k-pop'); return; }
+      const m = txt.match(/-?\d[\d.]*/);
+      if (!m || !isFinite(parseFloat(m[0]))) { el.classList.add('k-pop'); return; }
+      const target = parseFloat(m[0]);
+      const dec = (m[0].split('.')[1]||'').length;
+      const pre = txt.slice(0, m.index), suf = txt.slice(m.index + m[0].length);
+      const dur = 720, t0 = performance.now();
+      el.classList.add('k-pop');
+      (function step(t){
+        const p = Math.min(1,(t-t0)/dur), e = 1-Math.pow(1-p,3);
+        el.textContent = pre + (target*e).toFixed(dec) + suf;
+        if (p<1) requestAnimationFrame(step); else el.textContent = txt;
+      })(performance.now());
+    });
+  }
+
   function renderKPIs(sec){
     const el = document.getElementById('kpi-' + sec); if (!el) return;
+    const firstPaint = !el.dataset.kpiInit;
     const today = _today();
     const { done:hd, tot:ht } = habCount(sec, today);
     const mp = _monthPace(sec); const mpct = mp ? Math.round(mp.pct) : 0;
-    const tile = (val, lbl, bar) => `<div class="kpi-tile"><div class="k-val">${val}</div><div class="k-lbl">${lbl}</div>${bar!=null?`<div class="k-bar"><i style="width:${bar}%"></i></div>`:''}</div>`;
-    const hb = tile(hd+'/'+ht, 'Hábitos', ht?Math.round(hd/ht*100):0);
+    const hue = _SEC_HUE[sec] || '#38BDF8';
+    const tile = (val, lbl, bar, spark) => `<div class="kpi-tile"><div class="k-val">${val}</div><div class="k-lbl">${lbl}</div>${spark||''}${bar!=null?`<div class="k-bar"><i style="width:${bar}%"></i></div>`:''}</div>`;
+    const hb = tile(hd+'/'+ht, 'Hábitos', ht?Math.round(hd/ht*100):0, _sparkSVG(_kSeries(sec), hue));
     const ms = tile(mp ? (mp.done+'/'+mp.total) : '0/0', 'Mes', mpct);
     let html = '';
     if (sec === 'vida') {
@@ -14534,6 +14668,8 @@ Instrucciones:
       html = hb + tile(ts.pending,'Tareas',null) + tile(ts.overdue,'Vencidas',null) + ms;
     }
     el.innerHTML = html;
+    try { _animateKVals(el, firstPaint); } catch(e){}
+    el.dataset.kpiInit = '1';
   }
 
   function renderSection(sec){
