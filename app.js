@@ -310,22 +310,97 @@ _pwaInit();
 
 let _fbSaveTid  = null;
 let _lastWriteId = null;  // ID del último write propio — filtra el eco de onSnapshot
+let _lastSyncedSavedAt = null;  // _savedAt del estado que tenemos en mano (de la nube); null = cargado de localStorage sin confirmar nube
+let _forceSaveOnce = false;     // override puntual del guard anti-pisada (forzarGuardado())
+
+// Métrica de "cantidad de datos": permite detectar cuando un guardado achicaría fuerte el estado.
+function _dataMetric(st) {
+  if (!st || typeof st !== 'object') return 0;
+  let n = 0;
+  ['transactions','accounts','subscriptions','nwHistory','goals','tomorrowGoals','wishlist'].forEach(k => { n += (Array.isArray(st[k]) ? st[k].length : 0); });
+  const ht = st.habitTrackers || {};
+  Object.values(ht).forEach(arr => Array.isArray(arr) && arr.forEach(h => { n += Object.keys(h && h.days || {}).length; }));
+  return n;
+}
+
+// Backup diario: copia el estado de la NUBE (antes de pisarlo) a appdata/bak_<fecha>; rota ~14 días.
+async function _maybeBackup(cloudStateRaw) {
+  if (!cloudStateRaw) return;
+  const today = new Date().toISOString().slice(0, 10);
+  if (localStorage.getItem('_lastBackupDay') === today) return;
+  try {
+    await _db.collection('appdata').doc('bak_' + today).set({ state: cloudStateRaw, savedAt: Date.now() });
+    localStorage.setItem('_lastBackupDay', today);
+    const old = new Date(); old.setDate(old.getDate() - 15);
+    _db.collection('appdata').doc('bak_' + old.toISOString().slice(0, 10)).delete().catch(() => {});
+  } catch (e) { console.warn('[backup]', e.code || e.message); }
+}
 
 function _fbSave() {
   clearTimeout(_fbSaveTid);
   _fbSaveTid = setTimeout(async () => {
     _fbSaveTid = null;
+    // Leer la nube una vez para (a) guarda anti-pisada y (b) backup diario.
+    let cloudRaw = null, cloudData = null;
+    try {
+      const snap = await _DOC().get();
+      if (snap.exists && snap.data()?.state) { cloudRaw = snap.data().state; cloudData = snap.data(); }
+    } catch (e) {}
+    if (cloudRaw && !_forceSaveOnce) {
+      try {
+        const cloudM = _dataMetric(JSON.parse(cloudRaw));
+        const localM = _dataMetric(S);
+        const cloudNewer = cloudData._savedAt && (_lastSyncedSavedAt == null || cloudData._savedAt > _lastSyncedSavedAt + 1000);
+        // (a) la nube es MÁS NUEVA y tiene MÁS datos → este dispositivo está atrasado: traer la nube, no pisar.
+        if (cloudNewer && cloudM - localM >= 3) {
+          showToast('🛡️ La nube tiene datos más nuevos (este dispositivo estaba atrasado). Los traje en vez de sobrescribir.', 11000);
+          _applyRemoteState(cloudRaw, cloudData._savedAt);
+          return;
+        }
+        // (b) red de seguridad por tamaño: el guardado dejaría menos de la mitad de los datos → bloquear.
+        if (cloudM > 25 && localM < cloudM * 0.5) {
+          showToast('🛡️ Guardado en pausa: este dispositivo tiene MENOS datos que la nube (posible copia vieja). Recargá la app. Si el borrado es a propósito, ejecutá forzarGuardado() en la consola.', 14000);
+          return;
+        }
+      } catch (e) {}
+    }
+    if (cloudRaw) await _maybeBackup(cloudRaw);
+    _forceSaveOnce = false;
     const wid = Math.random().toString(36).slice(2);
     _lastWriteId = wid;
+    const savedAt = Date.now();
     // merge:true preserva los campos top-level (vapidKeys, pushSubscription, notifiedReminders)
     // que usa el cron de push en background; sin merge, cada set los borraría.
-    try { await _DOC().set({ state: JSON.stringify(S), _wid: wid }, { merge: true }); }
-    catch(e) {
+    try {
+      await _DOC().set({ state: JSON.stringify(S), _wid: wid, _savedAt: savedAt }, { merge: true });
+      _lastSyncedSavedAt = savedAt;
+    } catch (e) {
       console.warn('[fbSave] error:', e.code, e.message);
       if (e.code === 'permission-denied') showToast('⚠️ Sin permiso para guardar — iniciá sesión');
     }
   }, 2000);
 }
+
+// Override del guard para borrados grandes legítimos: forzarGuardado() en la consola.
+window.forzarGuardado = function () { _forceSaveOnce = true; saveState(); showToast('Guardado forzado…'); };
+// Recuperación manual de backups (consola): listarBackups() y restaurarBackup('2026-06-15').
+window.listarBackups = async function () {
+  try {
+    const q = await _db.collection('appdata').get();
+    const baks = q.docs.map(d => d.id).filter(id => id.startsWith('bak_')).sort().reverse();
+    console.log('Backups disponibles:', baks);
+    return baks;
+  } catch (e) { console.warn(e); return []; }
+};
+window.restaurarBackup = async function (fecha) {
+  const id = String(fecha || '').startsWith('bak_') ? fecha : 'bak_' + fecha;
+  const d = await _db.collection('appdata').doc(id).get();
+  if (!d.exists || !d.data()?.state) { showToast('No existe ese backup: ' + id, 6000); return; }
+  _forceSaveOnce = true;
+  _applyRemoteState(d.data().state, Date.now());
+  saveState();
+  showToast('✅ Restaurado backup ' + id, 8000);
+};
 
 // ── Re-render current tab after remote sync ───────────────
 function _reRenderAll() {
@@ -346,10 +421,11 @@ function _reRenderAll() {
 }
 
 // ── Apply incoming remote state safely ───────────────────
-function _applyRemoteState(raw) {
+function _applyRemoteState(raw, savedAt) {
   try {
     const incoming = JSON.parse(raw);
     S = incoming;
+    if (savedAt != null) _lastSyncedSavedAt = savedAt;
     Object.keys(DEFAULT_STATE).forEach(k => {
       if (S[k] === undefined) S[k] = JSON.parse(JSON.stringify(DEFAULT_STATE[k]));
     });
@@ -374,7 +450,7 @@ function _startFirestoreSync() {
     if (_fbSaveTid) return;                             // cambios locales pendientes
     if (!snap.exists || !snap.data()?.state) return;
     if (snap.data()._wid && snap.data()._wid === _lastWriteId) return;  // eco propio
-    _applyRemoteState(snap.data().state);
+    _applyRemoteState(snap.data().state, snap.data()._savedAt);
   }, () => {/* onSnapshot auto-reintenta en errores de red */});
 }
 
@@ -385,7 +461,7 @@ async function _syncOnFocus() {
     const snap = await _DOC().get();
     if (!snap.exists || !snap.data()?.state) return;
     if (snap.data()._wid && snap.data()._wid === _lastWriteId) return;  // ya tenemos este estado
-    _applyRemoteState(snap.data().state);
+    _applyRemoteState(snap.data().state, snap.data()._savedAt);
   } catch(e) {}
 }
 // ─────────────────────────────────────────────────────────────────────────
@@ -395,6 +471,7 @@ async function loadState() {
     const snap = await _DOC().get();
     if (snap.exists && snap.data()?.state) {
       S = JSON.parse(snap.data().state);
+      _lastSyncedSavedAt = snap.data()._savedAt || 0;  // confirmamos la nube → sabemos de qué versión partimos
     } else {
       try { S = JSON.parse(localStorage.getItem('lifedash_v2')) || {}; } catch { S = {}; }
     }
