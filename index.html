@@ -1066,7 +1066,6 @@ textarea { resize: vertical; min-height: 60px; }
   .tab-panel { max-width: 900px; }
   .tab-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   .tab-grid-2 .card { margin-bottom: 0; }
-  .fin-band { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
 }
 
 /* ── Utility ── */
@@ -3701,6 +3700,15 @@ body:has(#login-screen) #hud-frame { opacity: 0; }
   .tab-panel.active > .net-worth-hero,
   .tab-panel.active > .day-progress-card {
     column-span: all;
+  }
+  /* Finanzas: banda 2 columnas reales (rompe el masonry) ·
+     izq: objetivos/calendarios/obligaciones/recordatorios · der: patrimonio */
+  .tab-panel.active > .fin-band {
+    column-span: all;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    align-items: start;
   }
   /* cada tarjeta es una unidad de masonry: no se parte entre columnas */
   .tab-panel.active .card,
