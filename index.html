@@ -4113,6 +4113,9 @@ input:focus, select:focus, textarea:focus {
   background: linear-gradient(transparent, rgba(255,190,90,.8), transparent);
   box-shadow: 0 0 12px rgba(255,170,60,.55);
 }
+.scan-duo { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
+.scan-duo > div { flex: 1 1 130px; min-width: 130px; margin: 0 !important; }
+.scan-duo .spin-stage, .scan-duo .body-scan-stage { max-width: 100%; }
 
 /* ── Exercise HUD stats ── */
 .ex-hud-scan-line {
@@ -7145,7 +7148,7 @@ function renderRutinas() {
         <div id="muscle-dist-body" style="display:${_muscleDistOpen ? 'block' : 'none'}">
           ${_muscleArr.length === 0
             ? `<p style="font-size:12px;color:var(--tt);margin:0">Sin datos en este período.</p>`
-            : buildSpinViewer() + buildMuscleHeatmap(_muscleCounts) + _muscleArr.map(([muscle, count]) => {
+            : '<div class="scan-duo">' + buildSpinViewer() + buildMuscleHeatmap(_muscleCounts) + '</div>' + _muscleArr.map(([muscle, count]) => {
                 const pct = Math.round(count / _muscleTotal * 100);
                 const hc = muscleHeatColor(Math.round(count / Math.max(...Object.values(_muscleCounts), 1) * 100));
                 return `<div style="margin-bottom:6px">
@@ -7313,39 +7316,39 @@ function muscleHeatColor(pct) {
 
 // ── Escáner muscular 360 interactivo (3 vistas + tinte rojo + popover) ──
 function redOpacity(pct) { return (0.55 + pct / 100 * 0.45).toFixed(2); }
-// Regiones por vista [x%, y%, ancho px, alto px]; simétricos = 2 entradas
+// Regiones por vista [x%, y%, ancho%, alto%] (% del lienzo); simétricos = 2 entradas
 const MUSCLE_VIEWS = {
   front: {
-    'Trapecio':       [[44,23,22,14],[56,23,22,14]],
-    'Hombro frontal': [[33,29,26,22],[67,29,26,22]],
-    'Pecho':          [[42,35,32,26],[58,35,32,26]],
-    'Bíceps':         [[30,43,20,30],[70,43,20,30]],
-    'Antebrazos':     [[26,55,18,34],[74,55,18,34]],
-    'Abdomen':        [[50,47,30,46]],
-    'Aductores':      [[50,60,18,26]],
-    'Cuádriceps':     [[44,67,24,44],[56,67,24,44]],
-    'Pantorrillas':   [[45,84,18,32],[55,84,18,32]],
+    'Trapecio':       [[44,18,16,6],[56,18,16,6]],
+    'Hombro frontal': [[31,22,15,9],[69,22,15,9]],
+    'Pecho':          [[42,27,18,10],[58,27,18,10]],
+    'Bíceps':         [[29,30,11,10],[71,30,11,10]],
+    'Antebrazos':     [[26,43,10,12],[74,43,10,12]],
+    'Abdomen':        [[50,38,20,18]],
+    'Aductores':      [[50,54,12,9]],
+    'Cuádriceps':     [[41,61,15,16],[59,61,15,16]],
+    'Pantorrillas':   [[43,80,11,13],[57,80,11,13]],
   },
   side: {
-    'Hombro frontal': [[54,28,18,18]],
-    'Pecho':          [[58,35,16,18]],
-    'Espalda':        [[45,40,14,26]],
-    'Bíceps':         [[48,44,12,22]],
-    'Abdomen':        [[56,46,16,26]],
-    'Glúteo':         [[40,55,16,20]],
-    'Cuádriceps':     [[52,67,16,38]],
-    'Femorales':      [[44,67,14,36]],
-    'Pantorrillas':   [[49,85,14,32]],
+    'Hombro frontal': [[52,21,14,9]],
+    'Pecho':          [[58,28,12,8]],
+    'Espalda':        [[44,31,11,12]],
+    'Bíceps':         [[50,33,9,11]],
+    'Abdomen':        [[55,40,12,12]],
+    'Glúteo':         [[40,49,12,10]],
+    'Cuádriceps':     [[52,61,12,16]],
+    'Femorales':      [[44,62,10,15]],
+    'Pantorrillas':   [[48,80,10,14]],
   },
   back: {
-    'Trapecio':         [[50,23,30,16]],
-    'Hombro posterior': [[34,29,24,20],[66,29,24,20]],
-    'Espalda':          [[43,38,26,34],[57,38,26,34]],
-    'Tríceps':          [[30,42,20,30],[70,42,20,30]],
-    'Antebrazos':       [[26,55,18,34],[74,55,18,34]],
-    'Glúteo':           [[44,54,24,22],[56,54,24,22]],
-    'Femorales':        [[44,67,24,42],[56,67,24,42]],
-    'Pantorrillas':     [[45,84,18,32],[55,84,18,32]],
+    'Trapecio':         [[50,21,17,7]],
+    'Hombro posterior': [[31,22,15,9],[69,22,15,9]],
+    'Espalda':          [[40,32,15,14],[60,32,15,14]],
+    'Tríceps':          [[28,30,11,11],[72,30,11,11]],
+    'Antebrazos':       [[25,42,10,12],[75,42,10,12]],
+    'Glúteo':           [[43,49,16,9],[57,49,16,9]],
+    'Femorales':        [[41,62,15,15],[59,62,15,15]],
+    'Pantorrillas':     [[43,80,11,13],[57,80,11,13]],
   },
 };
 const SCAN_VIEWS = [
@@ -7362,9 +7365,9 @@ function _scanLayer(view, idx, counts, maxCount) {
     coords.forEach(([x, y, w, h]) => {
       if (pct > 0) {
         const op = redOpacity(pct);
-        paint += `<div class="muscle-paint" style="left:${x}%;top:${y}%;width:${w}px;height:${h}px;--base-op:${op};opacity:${op};background:radial-gradient(ellipse at center, rgba(255,0,0,1) 0%, rgba(245,5,5,1) 62%, rgba(220,0,0,0) 90%)"></div>`;
+        paint += `<div class="muscle-paint" style="left:${x}%;top:${y}%;width:${w}%;height:${h}%;--base-op:${op};opacity:${op};background:radial-gradient(ellipse at center, rgba(255,0,0,1) 0%, rgba(245,5,5,1) 62%, rgba(220,0,0,0) 90%)"></div>`;
       }
-      hot += `<div class="muscle-hot" style="left:${x}%;top:${y}%;width:${w}px;height:${h}px" onclick="scanMuscleTap(event,'${muscle}','${view.key}')"></div>`;
+      hot += `<div class="muscle-hot" style="left:${x}%;top:${y}%;width:${w}%;height:${h}%" onclick="scanMuscleTap(event,'${muscle}','${view.key}')"></div>`;
     });
   });
   return `<div class="scan-view${idx === 0 ? ' active' : ''}${view.flip ? ' flip' : ''}" data-idx="${idx}">
