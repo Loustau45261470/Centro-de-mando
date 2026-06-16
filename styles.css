@@ -3683,10 +3683,14 @@ body:has(#login-screen) #hud-frame { opacity: 0; }
   #tab-finanzas.tab-panel.active { column-count: auto; }
   #tab-finanzas .fin-cols {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 20px;
     align-items: start;
   }
+  /* min-width:0 → las columnas pueden encogerse por debajo del ancho de su contenido
+     (evita el desborde horizontal clásico de grid cuando una tarjeta tiene contenido ancho) */
+  #tab-finanzas .fin-col { min-width: 0; }
+  #tab-finanzas .fin-col > * { min-width: 0; max-width: 100%; }
   /* cada tarjeta es una unidad de masonry: no se parte entre columnas */
   .tab-panel.active .card,
   .tab-panel.active > [id^="qobj-wrap-"],
