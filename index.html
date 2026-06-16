@@ -3701,10 +3701,10 @@ body:has(#login-screen) #hud-frame { opacity: 0; }
   .tab-panel.active > .day-progress-card {
     column-span: all;
   }
-  /* Finanzas: banda 2 columnas reales (rompe el masonry) ·
-     izq: objetivos/calendarios/obligaciones/recordatorios · der: patrimonio */
-  .tab-panel.active > .fin-band {
-    column-span: all;
+  /* Finanzas: 2 columnas reales en vez del masonry (evita huecos entre tarjetas) ·
+     izq: objetivos/calendarios/obligaciones/recordatorios · der: patrimonio + resto */
+  #tab-finanzas.tab-panel.active { column-count: auto; }
+  #tab-finanzas .fin-cols {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 20px;
@@ -4538,9 +4538,9 @@ input:focus, select:focus, textarea:focus {
       <div id="intel-body-finanzas" class="intel-body"></div>
     </div>
 
-    <!-- ── Banda 2 columnas · izq: objetivos/calendarios/obligaciones/recordatorios · der: patrimonio ── -->
-    <div class="fin-band">
-      <div class="fin-band-left">
+    <!-- ── 2 columnas reales · izq: objetivos/calendarios/obligaciones/recordatorios · der: patrimonio + resto ── -->
+    <div class="fin-cols">
+      <div class="fin-col">
         <!-- Quarterly Objectives: Economía -->
         <div id="qobj-wrap-finanzas"></div>
         <!-- Habit calendars -->
@@ -4563,8 +4563,20 @@ input:focus, select:focus, textarea:focus {
         </div>
         <!-- Reminders -->
         <div id="reminders-wrap-finanzas"></div>
+        <!-- Financial objectives tracking -->
+        <div id="fin-objectives-wrap"></div>
+        <div id="proyectos-wrap-finanzas"></div>
+        <!-- Wishlist -->
+        <div class="card">
+          <div class="card-title">
+            🛒 Objetivos de Adquisición
+            <button class="btn btn-ghost btn-sm" onclick="openModal('modal-add-wish')">+ Objetivo</button>
+          </div>
+          <div id="wishList"></div>
+          <div id="wishEmpty" class="empty-state hidden">Sin objetivos registrados</div>
+        </div>
       </div>
-      <div class="fin-band-right">
+      <div class="fin-col">
         <!-- Net Worth -->
         <div class="card">
           <div class="card-title">
@@ -4580,56 +4592,40 @@ input:focus, select:focus, textarea:focus {
           </div>
           <div id="accountList"></div>
         </div>
-      </div>
-    </div>
-
-    <div id="proyectos-wrap-finanzas"></div>
-
-    <!-- Financial objectives tracking -->
-    <div id="fin-objectives-wrap"></div>
-
-    <!-- Activity log -->
-    <div class="card" id="activity-card">
-      <div class="card-title">
-        💳 Actividad
-        <button class="btn btn-ghost btn-sm" onclick="openModal('modal-add-txn')">+ Movimiento</button>
-      </div>
-      <div class="txn-month-filter" id="txnMonthFilter" style="display:none"></div>
-      <div class="fin-summary-row" id="txnSummaryRow" style="display:none">
-        <div class="fin-summary-stat">
-          <div class="fin-summary-num text-ok" id="txnSumIncome">$0</div>
-          <div class="fin-summary-lbl">Ingresos</div>
+        <!-- Activity log -->
+        <div class="card" id="activity-card">
+          <div class="card-title">
+            💳 Actividad
+            <button class="btn btn-ghost btn-sm" onclick="openModal('modal-add-txn')">+ Movimiento</button>
+          </div>
+          <div class="txn-month-filter" id="txnMonthFilter" style="display:none"></div>
+          <div class="fin-summary-row" id="txnSummaryRow" style="display:none">
+            <div class="fin-summary-stat">
+              <div class="fin-summary-num text-ok" id="txnSumIncome">$0</div>
+              <div class="fin-summary-lbl">Ingresos</div>
+            </div>
+            <div class="fin-summary-stat">
+              <div class="fin-summary-num text-danger" id="txnSumExpense">$0</div>
+              <div class="fin-summary-lbl">Gastos</div>
+            </div>
+            <div class="fin-summary-stat">
+              <div class="fin-summary-num" id="txnSumBalance">$0</div>
+              <div class="fin-summary-lbl">Balance</div>
+            </div>
+          </div>
+          <div class="chart-wrap" id="txnChartWrap" style="height:160px;display:none"><canvas id="txnExpenseChart"></canvas></div>
+          <div class="fin-col-hdr activity-hdr" id="activityColHdr" style="display:none" onclick="toggleActivityList()" title="Plegar / desplegar">
+            <span class="txn-collapse-icon" id="activityCollapseIcon">▾</span><span>Descripción</span><span class="col-r">Monto</span>
+          </div>
+          <div id="activityList"></div>
+          <div id="activityEmpty" class="empty-state hidden">Sin movimientos registrados</div>
+          <button class="push-btn" id="toggleMonthBalance" onclick="toggleMonthBalanceView()" style="display:none">↓ Historial mensual</button>
+          <div id="monthBalanceList" style="display:none"></div>
         </div>
-        <div class="fin-summary-stat">
-          <div class="fin-summary-num text-danger" id="txnSumExpense">$0</div>
-          <div class="fin-summary-lbl">Gastos</div>
-        </div>
-        <div class="fin-summary-stat">
-          <div class="fin-summary-num" id="txnSumBalance">$0</div>
-          <div class="fin-summary-lbl">Balance</div>
-        </div>
       </div>
-      <div class="chart-wrap" id="txnChartWrap" style="height:160px;display:none"><canvas id="txnExpenseChart"></canvas></div>
-      <div class="fin-col-hdr activity-hdr" id="activityColHdr" style="display:none" onclick="toggleActivityList()" title="Plegar / desplegar">
-        <span class="txn-collapse-icon" id="activityCollapseIcon">▾</span><span>Descripción</span><span class="col-r">Monto</span>
-      </div>
-      <div id="activityList"></div>
-      <div id="activityEmpty" class="empty-state hidden">Sin movimientos registrados</div>
-      <button class="push-btn" id="toggleMonthBalance" onclick="toggleMonthBalanceView()" style="display:none">↓ Historial mensual</button>
-      <div id="monthBalanceList" style="display:none"></div>
     </div>
 
     <div class="affirmation-strip aff-mid"><span id="affirmation2-finanzas"></span></div>
-
-    <!-- Wishlist -->
-    <div class="card">
-      <div class="card-title">
-        🛒 Objetivos de Adquisición
-        <button class="btn btn-ghost btn-sm" onclick="openModal('modal-add-wish')">+ Objetivo</button>
-      </div>
-      <div id="wishList"></div>
-      <div id="wishEmpty" class="empty-state hidden">Sin objetivos registrados</div>
-    </div>
   </div>
 
 </div><!-- end #app -->
