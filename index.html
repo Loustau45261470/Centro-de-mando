@@ -1150,8 +1150,10 @@ textarea { resize: vertical; min-height: 60px; }
 }
 
 /* ── Vida habit tabs ── */
-.habit-tabs { display:flex;gap:0;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--border);margin-bottom:2px; }
-.habit-tabs::-webkit-scrollbar { display:none; }
+.habit-tabs { display:flex;gap:0;overflow-x:auto;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.22) transparent;border-bottom:1px solid var(--border);margin-bottom:2px;overscroll-behavior-x:contain; }
+.habit-tabs::-webkit-scrollbar { height:5px; }
+.habit-tabs::-webkit-scrollbar-thumb { background:rgba(255,255,255,.22);border-radius:3px; }
+.habit-tabs::-webkit-scrollbar-track { background:transparent; }
 .habit-tab-btn { padding:7px 13px;font-size:13px;font-weight:600;background:none;border:none;border-bottom:2px solid transparent;color:var(--tt);cursor:pointer;white-space:nowrap;margin-bottom:-1px;transition:all .15s;flex-shrink:0; }
 .habit-tab-btn.active { color:var(--accent);border-bottom-color:var(--accent); }
 
@@ -10565,6 +10567,16 @@ function renderHabitsCard(section) {
     </div>
   </div>`;
 
+  // Permite recorrer los tabs con la rueda del mouse en desktop (sin esto,
+  // con muchos hábitos no se llega a los de la derecha porque la rueda
+  // solo scrollea vertical).
+  const tabsEl = wrap.querySelector('.habit-tabs');
+  if (tabsEl) tabsEl.addEventListener('wheel', e => {
+    if (e.deltaY === 0) return;
+    e.preventDefault();
+    tabsEl.scrollLeft += e.deltaY;
+  }, { passive: false });
+
   renderHabitCal(section);
 }
 
@@ -10596,16 +10608,18 @@ function renderHabitCal(section) {
 
   const isDone = ds => days[ds] === 'done' || days[ds] === 'studied';
 
-  // ── Stats (full month denominator) ──────────────────
-  let nDone = 0, nPartial = 0, nMissed = 0;
+  // ── Stats (los días de descanso no cuentan en el denominador) ──
+  let nDone = 0, nPartial = 0, nMissed = 0, nRest = 0;
   for (let d = 1; d <= dim; d++) {
     const ds = calDateStr(y, m, d);
     if (isDone(ds))                nDone++;
     else if (days[ds]==='partial') nPartial++;
+    else if (days[ds]==='rest')    nRest++;
     else if (!days[ds] && ds < today) nMissed++;
   }
   const nPoints = nDone + nPartial * 0.5;
-  const monthPct = Math.round(nPoints / dim * 100);
+  const denom   = Math.max(0, dim - nRest);   // mes menos descansos
+  const monthPct = denom ? Math.round(nPoints / denom * 100) : 0;
 
   // Current streak
   let curStreak = 0;
@@ -10653,7 +10667,7 @@ function renderHabitCal(section) {
           <div class="fin-summary-lbl">Racha</div>
         </div>
         <div class="fin-summary-stat">
-          <div class="fin-summary-num">${nPoints}/${dim}</div>
+          <div class="fin-summary-num">${nPoints}/${denom}</div>
           <div class="fin-summary-lbl">Completados</div>
         </div>
         <div class="fin-summary-stat">
