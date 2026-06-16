@@ -1066,6 +1066,7 @@ textarea { resize: vertical; min-height: 60px; }
   .tab-panel { max-width: 900px; }
   .tab-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   .tab-grid-2 .card { margin-bottom: 0; }
+  .fin-band { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
 }
 
 /* ── Utility ── */
@@ -1632,57 +1633,6 @@ textarea { resize: vertical; min-height: 60px; }
 /* ── Hide original page-header ── */
 #tab-finanzas .page-header { display: none; }
 
-/* ══ DASHBOARD HEADER ════════════════════════════════════════ */
-.fin-header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  padding: 2px 0 14px;
-  border-bottom: 1px solid var(--fin-border);
-  margin-bottom: 14px;
-  position: relative;
-}
-.fin-header::after {
-  content: '';
-  position: absolute;
-  bottom: -1px; left: 0;
-  width: 32px; height: 1px;
-  background: var(--fin-green);
-}
-.fin-header-super {
-  font-size: 7px;
-  font-weight: 700;
-  letter-spacing: 0.3em;
-  text-transform: uppercase;
-  color: var(--fin-t3);
-  margin-bottom: 7px;
-  font-family: var(--mono);
-}
-.fin-header-title {
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--fin-t1);
-  line-height: 1;
-}
-.fin-header-meta {
-  font-family: var(--mono);
-  font-size: 8px;
-  color: var(--fin-t3);
-  letter-spacing: 0.1em;
-  text-align: right;
-  line-height: 1.9;
-  text-transform: uppercase;
-}
-.fin-header-meta strong {
-  display: block;
-  font-size: 10px;
-  color: var(--fin-green);
-  font-weight: 700;
-  letter-spacing: 0.06em;
-}
-
 /* ══ CARDS ═══════════════════════════════════════════════════ */
 #tab-finanzas .card {
   background: #080B0F;
@@ -2187,6 +2137,8 @@ body.theme-bloomberg #tab-finanzas {
   --fin-t1: #FFFFFF; --fin-t2: rgba(220,220,220,0.65); --fin-t3: rgba(170,170,170,0.40);
   --fin-border: rgba(255,255,255,0.18); --fin-border-s: rgba(255,255,255,0.07);
   --fin-surface: rgba(255,255,255,0.04);
+  --tab-t1: #FFFFFF; --tab-t2: rgba(220,220,220,0.70); --tab-t3: rgba(170,170,170,0.45);
+  --tab-border: rgba(255,255,255,0.20); --tab-border-s: rgba(255,255,255,0.08);
 }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -3025,6 +2977,13 @@ body.font-jakarta  { --sans: "Plus Jakarta Sans", sans-serif; --mono: "JetBrains
   --tab-border:   rgba(212,220,232,0.08);
   --tab-border-s: rgba(212,220,232,0.040);
   background: #050507;
+}
+#tab-finanzas {
+  --tab-t1:       #BBF7D0;
+  --tab-t2:       rgba(134,239,172,0.50);
+  --tab-t3:       rgba(74,222,128,0.30);
+  --tab-border:   rgba(34,197,94,0.10);
+  --tab-border-s: rgba(34,197,94,0.048);
 }
 
 /* ── Enterprise dashboard header (shared) ── */
@@ -4556,12 +4515,12 @@ input:focus, select:focus, textarea:focus {
   <!-- ████ FINANCE TAB ████ -->
   <div id="tab-finanzas" class="tab-panel">
     <!-- Enterprise dashboard header -->
-    <div class="fin-header">
+    <div class="tab-header">
       <div>
-        <div class="fin-header-super">Centro de Mando</div>
-        <div class="fin-header-title">Centro de mando · Finanzas</div>
+        <div class="tab-header-super">Centro de Mando</div>
+        <div class="tab-header-title">Finanzas</div>
       </div>
-      <div class="fin-header-meta" id="finHeaderMeta"></div>
+      <div class="tab-header-meta" id="finanzasHeaderMeta"></div>
     </div>
     <div class="affirmation-strip"><span id="affirmation-finanzas"></span></div>
 
@@ -4571,25 +4530,52 @@ input:focus, select:focus, textarea:focus {
       <div id="intel-body-finanzas" class="intel-body"></div>
     </div>
 
-    <!-- Quarterly Objectives: Economía -->
-    <div id="qobj-wrap-finanzas"></div>
-    <div id="proyectos-wrap-finanzas"></div>
-
-    <!-- Net Worth -->
-    <div class="card">
-      <div class="card-title">
-        💰 Patrimonio Neto
-        <button class="btn btn-ghost btn-sm" onclick="openModal('modal-add-account')">+ Cuenta</button>
+    <!-- ── Banda 2 columnas · izq: objetivos/calendarios/obligaciones/recordatorios · der: patrimonio ── -->
+    <div class="fin-band">
+      <div class="fin-band-left">
+        <!-- Quarterly Objectives: Economía -->
+        <div id="qobj-wrap-finanzas"></div>
+        <!-- Habit calendars -->
+        <div id="finanzas-habits-wrap"></div>
+        <!-- Subscriptions -->
+        <div class="card">
+          <div class="card-title">
+            🔄 Obligaciones Recurrentes
+            <button class="btn btn-ghost btn-sm" onclick="openModal('modal-add-sub')">+ Suscripción</button>
+          </div>
+          <div class="fin-col-hdr sub-hdr">
+            <span>Servicio</span><span class="col-r">Costo</span><span></span><span></span>
+          </div>
+          <div id="subList"></div>
+          <div id="subEmpty" class="empty-state hidden">Sin suscripciones registradas</div>
+          <div class="flex items-center justify-between mt-8 text-sm text-ter">
+            <span>Total mensual:</span>
+            <span class="mono bold" id="subTotal">$0</span>
+          </div>
+        </div>
+        <!-- Reminders -->
+        <div id="reminders-wrap-finanzas"></div>
       </div>
-      <div class="nw-total" id="nwTotal">$0</div>
-      <div class="nw-1pct" id="nw1pct">1% = $0</div>
-      <div class="chart-wrap-tall"><canvas id="nwPieChart"></canvas></div>
-      <div class="chart-wrap"><canvas id="nwLineChart"></canvas></div>
-      <div class="fin-col-hdr accounts-hdr">
-        <span></span><span>Cuenta</span><span class="col-r">Saldo</span><span></span><span></span>
+      <div class="fin-band-right">
+        <!-- Net Worth -->
+        <div class="card">
+          <div class="card-title">
+            💰 Patrimonio Neto
+            <button class="btn btn-ghost btn-sm" onclick="openModal('modal-add-account')">+ Cuenta</button>
+          </div>
+          <div class="nw-total" id="nwTotal">$0</div>
+          <div class="nw-1pct" id="nw1pct">1% = $0</div>
+          <div class="chart-wrap-tall"><canvas id="nwPieChart"></canvas></div>
+          <div class="chart-wrap"><canvas id="nwLineChart"></canvas></div>
+          <div class="fin-col-hdr accounts-hdr">
+            <span></span><span>Cuenta</span><span class="col-r">Saldo</span><span></span><span></span>
+          </div>
+          <div id="accountList"></div>
+        </div>
       </div>
-      <div id="accountList"></div>
     </div>
+
+    <div id="proyectos-wrap-finanzas"></div>
 
     <!-- Financial objectives tracking -->
     <div id="fin-objectives-wrap"></div>
@@ -4625,26 +4611,7 @@ input:focus, select:focus, textarea:focus {
       <div id="monthBalanceList" style="display:none"></div>
     </div>
 
-    <div id="finanzas-habits-wrap"></div>
     <div class="affirmation-strip aff-mid"><span id="affirmation2-finanzas"></span></div>
-    <div id="reminders-wrap-finanzas"></div>
-
-    <!-- Subscriptions -->
-    <div class="card">
-      <div class="card-title">
-        🔄 Obligaciones Recurrentes
-        <button class="btn btn-ghost btn-sm" onclick="openModal('modal-add-sub')">+ Suscripción</button>
-      </div>
-      <div class="fin-col-hdr sub-hdr">
-        <span>Servicio</span><span class="col-r">Costo</span><span></span><span></span>
-      </div>
-      <div id="subList"></div>
-      <div id="subEmpty" class="empty-state hidden">Sin suscripciones registradas</div>
-      <div class="flex items-center justify-between mt-8 text-sm text-ter">
-        <span>Total mensual:</span>
-        <span class="mono bold" id="subTotal">$0</span>
-      </div>
-    </div>
 
     <!-- Wishlist -->
     <div class="card">
@@ -8575,13 +8542,7 @@ function snapshotNW() {
 }
 
 function renderFinanzasTab() {
-  const metaEl = document.getElementById('finHeaderMeta');
-  if (metaEl) {
-    const now = new Date();
-    const months = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
-    const days = ['DOM','LUN','MAR','MIÉ','JUE','VIE','SÁB'];
-    metaEl.innerHTML = `${days[now.getDay()]} ${now.getDate()} ${months[now.getMonth()]}<strong>${now.getFullYear()}</strong>`;
-  }
+  renderTabHeader('finanzasHeaderMeta');
   renderAccounts();
   renderSubscriptions();
   renderWishlist();
@@ -9831,7 +9792,8 @@ function renderTxnChart(transactions) {
             boxWidth: 10,
             color: '#FFFFFF',
             generateLabels(chart) {
-              return chart.data.labels.map((label, i) => ({
+              // Solo las 5 categorías con más gasto (el donut conserva todas las porciones)
+              return chart.data.labels.slice(0, 5).map((label, i) => ({
                 text: label + '  ' + fmtMoney(data[i], 'ARS'),
                 fillStyle: colors[i],
                 strokeStyle: 'transparent',
