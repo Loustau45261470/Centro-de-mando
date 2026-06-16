@@ -4006,48 +4006,92 @@ input:focus, select:focus, textarea:focus {
   transition: opacity .55s var(--ease-out-quart), transform .66s var(--ease-out-expo); will-change: opacity, transform; }
 .card.sr-armed.sr-in { opacity: 1; transform: none; }
 
-/* ── Muscle Heatmap (imagen real) ── */
+/* ── Escáner muscular 360 interactivo ── */
 @keyframes scanPass {
   0%   { top: -6px; opacity: .9; }
   85%  { opacity: .7; }
   100% { top: 105%; opacity: 0; }
 }
-@keyframes bodyFloat {
-  0%,100% { transform: translateY(0); }
-  50%     { transform: translateY(-5px); }
-}
 @keyframes musclePulse {
   0%,100% { opacity: var(--base-op); }
-  50%     { opacity: calc(var(--base-op) * 0.82); }
+  50%     { opacity: calc(var(--base-op) * 0.8); }
+}
+@keyframes popIn {
+  from { opacity: 0; transform: translate(-50%, calc(-100% - 4px)) scale(.85); }
+  to   { opacity: 1; transform: translate(-50%, calc(-100% - 10px)) scale(1); }
 }
 .body-scan-stage {
-  position: relative; width: 100%; max-width: 188px; margin: 4px auto 0;
-  aspect-ratio: 500 / 707; border-radius: 12px; overflow: hidden;
-  background: radial-gradient(ellipse at 50% 38%, rgba(14,20,30,.6), rgba(2,5,10,.95));
+  position: relative; width: 100%; max-width: 196px; margin: 4px auto 0;
+  aspect-ratio: 300 / 502; border-radius: 12px; overflow: hidden;
+  background: radial-gradient(ellipse at 50% 40%, rgba(14,20,30,.6), rgba(2,5,10,.96));
   border: 1px solid rgba(120,140,160,.2);
   box-shadow: 0 0 26px rgba(120,150,180,.08), inset 0 0 30px rgba(10,20,30,.5);
+  touch-action: pan-y; user-select: none;
 }
 .body-scan-stage::after {
-  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 4;
-  background: repeating-linear-gradient(0deg, transparent 0 3px, rgba(40,50,60,.14) 3px 4px);
+  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 5;
+  background: repeating-linear-gradient(0deg, transparent 0 3px, rgba(40,50,60,.13) 3px 4px);
   mix-blend-mode: overlay;
 }
-.body-scan-img {
-  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
-  display: block; z-index: 1;
-  filter: grayscale(.92) brightness(1.32) contrast(1.02);
-  animation: bodyFloat 6s ease-in-out infinite;
+.scan-view {
+  position: absolute; inset: 0; opacity: 0; pointer-events: none;
+  transition: opacity .45s ease, transform .45s ease; transform: scaleX(.82);
+}
+.scan-view.active { opacity: 1; pointer-events: auto; transform: scaleX(1); }
+.scan-view.flip { transform: scaleX(-1); }
+.scan-view.flip.active { transform: scaleX(-1); }
+.scan-view img {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain;
+  display: block; z-index: 1; filter: grayscale(.92) brightness(1.3) contrast(1.02);
+  pointer-events: none;
 }
 .muscle-paint {
   position: absolute; z-index: 2; border-radius: 50%; pointer-events: none;
   transform: translate(-50%,-50%); mix-blend-mode: multiply;
   filter: blur(5px); animation: musclePulse 3s ease-in-out infinite;
 }
+.muscle-hot {
+  position: absolute; z-index: 3; transform: translate(-50%,-50%);
+  border-radius: 50%; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.muscle-hot:active { background: radial-gradient(circle, rgba(255,255,255,.15), transparent 70%); }
 .body-scan-line {
-  position: absolute; left: 0; right: 0; height: 3px; z-index: 3; pointer-events: none;
+  position: absolute; left: 0; right: 0; height: 3px; z-index: 4; pointer-events: none;
   background: linear-gradient(transparent, rgba(0,230,255,.85), transparent);
   box-shadow: 0 0 12px rgba(0,220,255,.6);
   animation: scanPass 3.4s ease-in-out infinite;
+}
+.muscle-pop {
+  position: absolute; z-index: 6; min-width: 116px; max-width: 150px;
+  transform: translate(-50%, calc(-100% - 10px)); animation: popIn .18s ease-out;
+  background: linear-gradient(160deg, rgba(10,22,34,.97), rgba(6,12,20,.97));
+  border: 1px solid rgba(0,200,255,.35); border-radius: 9px; padding: 8px 10px 9px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.6), 0 0 16px rgba(0,170,255,.18); pointer-events: none;
+}
+.muscle-pop::after {
+  content: ''; position: absolute; left: 50%; bottom: -6px; width: 10px; height: 10px;
+  transform: translateX(-50%) rotate(45deg);
+  background: rgba(6,12,20,.97); border-right: 1px solid rgba(0,200,255,.35);
+  border-bottom: 1px solid rgba(0,200,255,.35);
+}
+.muscle-pop .mp-name {
+  font-size: 11px; font-weight: 800; letter-spacing: .04em; color: #cdeeff;
+  margin-bottom: 6px; display: flex; align-items: center; gap: 5px;
+}
+.muscle-pop .mp-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 3px; }
+.muscle-pop .mp-k { font-size: 9px; color: rgba(150,180,200,.75); text-transform: uppercase; letter-spacing: .06em; }
+.muscle-pop .mp-v { font-family: var(--mono); font-size: 11px; font-weight: 700; color: #fff; }
+.scan-controls { display: flex; justify-content: center; align-items: center; gap: 9px; margin-top: 9px; }
+.scan-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.22);
+  cursor: pointer; transition: all .2s; padding: 0; border: none;
+}
+.scan-dot.on { background: #ff3b3b; box-shadow: 0 0 8px rgba(255,59,59,.85); width: 9px; height: 9px; }
+.scan-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 6px; cursor: pointer;
+  background: rgba(0,200,255,.1); border: 1px solid rgba(0,200,255,.3);
+  color: #7fe3ff; font-size: 10px; padding: 0; margin-left: 4px;
 }
 
 /* ── Exercise HUD stats ── */
@@ -7009,6 +7053,7 @@ function renderRutinas() {
     lg5:'Aductores', lg6:'Femorales'
   };
   const _muscleCounts = {};
+  const _muscleStats = {};   // { músculo: { sets, vol, dates:Set, last } }
   _filtLog.forEach(({hist}) => {
     hist.forEach(entry => {
       if (!entry.exSets) return;
@@ -7016,11 +7061,25 @@ function renderRutinas() {
         const m = _muscleMap[exId];
         if (!m) return;
         _muscleCounts[m] = (_muscleCounts[m] || 0) + sets.length;
+        if (!_muscleStats[m]) _muscleStats[m] = { sets: 0, vol: 0, dates: new Set(), last: '' };
+        const ms = _muscleStats[m];
+        ms.sets += sets.length;
+        sets.forEach(s => { ms.vol += (s.weight || 0) * (s.reps || 0); });
+        ms.dates.add(entry.date);
+        if (entry.date > ms.last) ms.last = entry.date;
       });
     });
   });
   const _muscleArr = Object.entries(_muscleCounts).sort((a, b) => b[1] - a[1]);
   const _muscleTotal = _muscleArr.reduce((a, [, n]) => a + n, 0);
+  // Exponer datos para el escáner interactivo (popover por músculo)
+  window.SCAN_DATA = {
+    counts: _muscleCounts,
+    max: Math.max(...Object.values(_muscleCounts), 1),
+    period: _statsPeriod,
+    stats: Object.fromEntries(Object.entries(_muscleStats).map(([m, s]) =>
+      [m, { sets: s.sets, vol: s.vol, sessions: s.dates.size, last: s.last }]))
+  };
 
   // ── Records computation ──
   const _recMap = {};
@@ -7139,6 +7198,7 @@ function renderRutinas() {
       </div>
       <div id="rtn-section-estadisticas" style="display:${_statsOpen ? 'block' : 'none'}">${statsBodyHtml}</div>
     </div>`;
+  initScanner();
 }
 
 function toggleRutina(id) {
@@ -7223,47 +7283,166 @@ function muscleHeatColor(pct) {
   return                        { fill: 'rgba(255,40,40,0.85)',  glow: '' };
 }
 
-// ── Escáner muscular (imagen real + tinte rojo por entrenamiento) ──
-// Opacidad del tinte rojo según intensidad (0-100): más entrenado → más rojo
+// ── Escáner muscular 360 interactivo (3 vistas + tinte rojo + popover) ──
 function redOpacity(pct) { return (0.55 + pct / 100 * 0.45).toFixed(2); }
-// Regiones musculares de frente [x%, y%, ancho px, alto px]; simétricos = 2 entradas
-const MUSCLE_SPOTS = {
-  'Trapecio':       [[44,24,24,16],[56,24,24,16]],
-  'Hombro frontal': [[31,31,30,26],[69,31,30,26]],
-  'Pecho':          [[41,37,38,32],[59,37,38,32]],
-  'Bíceps':         [[27,43,24,36],[73,43,24,36]],
-  'Tríceps':        [[23,44,18,30],[77,44,18,30]],
-  'Antebrazos':     [[21,55,20,42],[79,55,20,42]],
-  'Abdomen':        [[50,49,40,60]],
-  'Aductores':      [[50,64,24,36]],
-  'Cuádriceps':     [[42,70,32,64],[58,70,32,64]],
-  'Pantorrillas':   [[44,87,24,44],[56,87,24,44]],
+// Regiones por vista [x%, y%, ancho px, alto px]; simétricos = 2 entradas
+const MUSCLE_VIEWS = {
+  front: {
+    'Trapecio':       [[44,23,22,14],[56,23,22,14]],
+    'Hombro frontal': [[33,29,26,22],[67,29,26,22]],
+    'Pecho':          [[42,35,32,26],[58,35,32,26]],
+    'Bíceps':         [[30,43,20,30],[70,43,20,30]],
+    'Antebrazos':     [[26,55,18,34],[74,55,18,34]],
+    'Abdomen':        [[50,47,30,46]],
+    'Aductores':      [[50,60,18,26]],
+    'Cuádriceps':     [[44,67,24,44],[56,67,24,44]],
+    'Pantorrillas':   [[45,84,18,32],[55,84,18,32]],
+  },
+  side: {
+    'Hombro frontal': [[54,28,18,18]],
+    'Pecho':          [[58,35,16,18]],
+    'Espalda':        [[45,40,14,26]],
+    'Bíceps':         [[48,44,12,22]],
+    'Abdomen':        [[56,46,16,26]],
+    'Glúteo':         [[40,55,16,20]],
+    'Cuádriceps':     [[52,67,16,38]],
+    'Femorales':      [[44,67,14,36]],
+    'Pantorrillas':   [[49,85,14,32]],
+  },
+  back: {
+    'Trapecio':         [[50,23,30,16]],
+    'Hombro posterior': [[34,29,24,20],[66,29,24,20]],
+    'Espalda':          [[43,38,26,34],[57,38,26,34]],
+    'Tríceps':          [[30,42,20,30],[70,42,20,30]],
+    'Antebrazos':       [[26,55,18,34],[74,55,18,34]],
+    'Glúteo':           [[44,54,24,22],[56,54,24,22]],
+    'Femorales':        [[44,67,24,42],[56,67,24,42]],
+    'Pantorrillas':     [[45,84,18,32],[55,84,18,32]],
+  },
 };
+const SCAN_VIEWS = [
+  { key: 'front', img: 'assets/body-front.jpg', flip: false },
+  { key: 'side',  img: 'assets/body-side.jpg',  flip: false },
+  { key: 'back',  img: 'assets/body-back.jpg',  flip: false },
+];
+
+function _scanLayer(view, idx, counts, maxCount) {
+  const regions = MUSCLE_VIEWS[view.key] || {};
+  let paint = '', hot = '';
+  Object.entries(regions).forEach(([muscle, coords]) => {
+    const pct = Math.round((counts[muscle] || 0) / maxCount * 100);
+    coords.forEach(([x, y, w, h]) => {
+      if (pct > 0) {
+        const op = redOpacity(pct);
+        paint += `<div class="muscle-paint" style="left:${x}%;top:${y}%;width:${w}px;height:${h}px;--base-op:${op};opacity:${op};background:radial-gradient(ellipse at center, rgba(255,0,0,1) 0%, rgba(245,5,5,1) 62%, rgba(220,0,0,0) 90%)"></div>`;
+      }
+      hot += `<div class="muscle-hot" style="left:${x}%;top:${y}%;width:${w}px;height:${h}px" onclick="scanMuscleTap(event,'${muscle}','${view.key}')"></div>`;
+    });
+  });
+  return `<div class="scan-view${idx === 0 ? ' active' : ''}${view.flip ? ' flip' : ''}" data-idx="${idx}">
+    <img src="${view.img}" alt="" loading="lazy">${paint}${hot}
+  </div>`;
+}
 
 function buildMuscleHeatmap(muscleCounts) {
   if (!muscleCounts || Object.keys(muscleCounts).length === 0) return '';
   const maxCount = Math.max(...Object.values(muscleCounts), 1);
-  const spots = [];
-  Object.entries(MUSCLE_SPOTS).forEach(([muscle, coords]) => {
-    const pct = Math.round((muscleCounts[muscle] || 0) / maxCount * 100);
-    if (pct <= 0) return;
-    const op = redOpacity(pct);
-    coords.forEach(([x, y, w, h]) => {
-      spots.push(`<div class="muscle-paint" style="left:${x}%;top:${y}%;width:${w}px;height:${h}px;--base-op:${op};opacity:${op};background:radial-gradient(ellipse at center, rgba(255,0,0,1) 0%, rgba(245,5,5,1) 62%, rgba(220,0,0,0) 90%)"></div>`);
-    });
-  });
+  const layers = SCAN_VIEWS.map((v, i) => _scanLayer(v, i, muscleCounts, maxCount)).join('');
+  const dots = SCAN_VIEWS.map((v, i) => `<button class="scan-dot${i === 0 ? ' on' : ''}" data-dot="${i}" onclick="scanSetView(${i})" title="${v.key}"></button>`).join('');
   return `<div style="margin:10px 0 6px">
-    <div style="font-size:8px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:rgba(0,200,255,0.45);margin-bottom:8px">◈ MAPA DE ENTRENAMIENTO</div>
-    <div class="body-scan-stage">
-      <img class="body-scan-img" src="assets/body-front.jpg" alt="" loading="lazy">
-      ${spots.join('')}
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <span style="font-size:8px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:rgba(0,200,255,0.45)">◈ MAPA DE ENTRENAMIENTO</span>
+      <span style="font-size:8px;color:rgba(0,200,255,0.4)">toca un músculo</span>
+    </div>
+    <div class="body-scan-stage" id="scan-stage">
+      ${layers}
       <div class="body-scan-line"></div>
+      <div id="scan-pop"></div>
     </div>
-    <div style="display:flex;align-items:center;gap:8px;justify-content:center;margin-top:12px">
+    <div class="scan-controls">
+      ${dots}
+      <button class="scan-btn" id="scan-play" onclick="scanToggleAuto()" title="Pausar/Reanudar">⏸</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;justify-content:center;margin-top:9px">
       <span style="font-size:9px;color:var(--ts)">Menos</span>
-      <div style="flex:0 1 130px;height:8px;border-radius:4px;background:linear-gradient(90deg, rgba(235,20,20,0.15), rgba(235,20,20,0.95))"></div>
-      <span style="font-size:9px;color:var(--ts)">Más entrenado</span>
+      <div style="flex:0 1 120px;height:7px;border-radius:4px;background:linear-gradient(90deg, rgba(235,20,20,0.15), rgba(235,20,20,0.95))"></div>
+      <span style="font-size:9px;color:var(--ts)">Más</span>
     </div>
+  </div>`;
+}
+
+// ── Estado y control del escáner ──
+let _scanView = 0, _scanAuto = true, _scanTimer = null;
+
+function initScanner() {
+  const stage = document.getElementById('scan-stage');
+  if (!stage) { if (_scanTimer) { clearInterval(_scanTimer); _scanTimer = null; } return; }
+  _scanView = 0; _scanAuto = true;
+  _scanApply();
+  _scanStart();
+  // swipe para rotar
+  let sx = null;
+  stage.addEventListener('pointerdown', e => { sx = e.clientX; }, { passive: true });
+  stage.addEventListener('pointerup', e => {
+    if (sx === null) return;
+    const dx = e.clientX - sx; sx = null;
+    if (Math.abs(dx) > 24) { scanSetView((_scanView + (dx < 0 ? 1 : -1) + SCAN_VIEWS.length) % SCAN_VIEWS.length); }
+  });
+  // cerrar popover al tocar fuera de un músculo
+  stage.addEventListener('click', e => { if (!e.target.classList.contains('muscle-hot')) scanClosePop(); });
+}
+function _scanStart() {
+  if (_scanTimer) clearInterval(_scanTimer);
+  if (!_scanAuto) return;
+  _scanTimer = setInterval(() => { _scanView = (_scanView + 1) % SCAN_VIEWS.length; _scanApply(); }, 2900);
+}
+function _scanApply() {
+  document.querySelectorAll('#scan-stage .scan-view').forEach(el => {
+    el.classList.toggle('active', +el.dataset.idx === _scanView);
+  });
+  document.querySelectorAll('.scan-dot').forEach(el => {
+    el.classList.toggle('on', +el.dataset.dot === _scanView);
+  });
+  scanClosePop();
+}
+function scanSetView(i) {
+  _scanView = i; _scanAuto = false;
+  const btn = document.getElementById('scan-play'); if (btn) btn.textContent = '▶';
+  if (_scanTimer) { clearInterval(_scanTimer); _scanTimer = null; }
+  _scanApply();
+}
+function scanToggleAuto() {
+  _scanAuto = !_scanAuto;
+  const btn = document.getElementById('scan-play'); if (btn) btn.textContent = _scanAuto ? '⏸' : '▶';
+  _scanStart();
+}
+function scanClosePop() { const p = document.getElementById('scan-pop'); if (p) p.innerHTML = ''; }
+
+function scanMuscleTap(ev, muscle, viewKey) {
+  ev.stopPropagation();
+  _scanAuto = false;
+  const btn = document.getElementById('scan-play'); if (btn) btn.textContent = '▶';
+  if (_scanTimer) { clearInterval(_scanTimer); _scanTimer = null; }
+  const pop = document.getElementById('scan-pop'); if (!pop) return;
+  const coords = (MUSCLE_VIEWS[viewKey] || {})[muscle];
+  if (!coords) return;
+  const [x, y] = coords[0];
+  const data = (window.SCAN_DATA && window.SCAN_DATA.stats[muscle]) || null;
+  const max = (window.SCAN_DATA && window.SCAN_DATA.max) || 1;
+  const cnt = (window.SCAN_DATA && window.SCAN_DATA.counts[muscle]) || 0;
+  const pct = Math.round(cnt / max * 100);
+  const volStr = data ? (data.vol >= 1000 ? (data.vol / 1000).toFixed(1) + ' t' : data.vol + ' kg') : '—';
+  const rows = data
+    ? `<div class="mp-row"><span class="mp-k">Veces</span><span class="mp-v">${data.sessions}</span></div>
+       <div class="mp-row"><span class="mp-k">Series</span><span class="mp-v">${data.sets}</span></div>
+       <div class="mp-row"><span class="mp-k">Volumen</span><span class="mp-v">${volStr}</span></div>
+       <div class="mp-row"><span class="mp-k">Último</span><span class="mp-v">${data.last ? data.last.slice(5) : '—'}</span></div>`
+    : `<div style="font-size:10px;color:rgba(150,180,200,.7);padding:2px 0">Sin entrenar en este período</div>`;
+  const below = y < 30;
+  pop.innerHTML = `<div class="muscle-pop${below ? ' below' : ''}" style="left:${x}%;top:${y}%;${below ? 'transform:translate(-50%,18px)' : ''}">
+    <div class="mp-name"><span style="width:7px;height:7px;border-radius:50%;background:rgb(255,${Math.round(60 - pct*0.6)},40);box-shadow:0 0 6px rgba(255,40,40,.8)"></span>${muscle}</div>
+    ${rows}
+    <div style="margin-top:6px;height:4px;border-radius:2px;background:rgba(255,255,255,.1)"><div style="height:100%;width:${pct}%;border-radius:2px;background:linear-gradient(90deg,#ff8a3b,#ff2b2b)"></div></div>
   </div>`;
 }
 
