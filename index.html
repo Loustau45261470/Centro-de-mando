@@ -4093,6 +4093,26 @@ input:focus, select:focus, textarea:focus {
   background: rgba(0,200,255,.1); border: 1px solid rgba(0,200,255,.3);
   color: #7fe3ff; font-size: 10px; padding: 0; margin-left: 4px;
 }
+.spin-stage {
+  position: relative; width: 100%; max-width: 200px; margin: 4px auto 0;
+  aspect-ratio: 300 / 502; border-radius: 12px; overflow: hidden;
+  background: radial-gradient(ellipse at 50% 42%, rgba(40,24,8,.55), rgba(6,4,2,.96));
+  border: 1px solid rgba(255,160,50,.28);
+  box-shadow: 0 0 28px rgba(255,150,40,.12), inset 0 0 30px rgba(30,16,4,.5);
+}
+.spin-stage::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 3;
+  background: repeating-linear-gradient(0deg, transparent 0 3px, rgba(60,40,20,.12) 3px 4px);
+  mix-blend-mode: overlay;
+}
+.spin-video {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+  display: block; z-index: 1;
+}
+.spin-stage .body-scan-line {
+  background: linear-gradient(transparent, rgba(255,190,90,.8), transparent);
+  box-shadow: 0 0 12px rgba(255,170,60,.55);
+}
 
 /* ── Exercise HUD stats ── */
 .ex-hud-scan-line {
@@ -7125,7 +7145,7 @@ function renderRutinas() {
         <div id="muscle-dist-body" style="display:${_muscleDistOpen ? 'block' : 'none'}">
           ${_muscleArr.length === 0
             ? `<p style="font-size:12px;color:var(--tt);margin:0">Sin datos en este período.</p>`
-            : buildMuscleHeatmap(_muscleCounts) + _muscleArr.map(([muscle, count]) => {
+            : buildSpinViewer() + buildMuscleHeatmap(_muscleCounts) + _muscleArr.map(([muscle, count]) => {
                 const pct = Math.round(count / _muscleTotal * 100);
                 const hc = muscleHeatColor(Math.round(count / Math.max(...Object.values(_muscleCounts), 1) * 100));
                 return `<div style="margin-bottom:6px">
@@ -7349,6 +7369,17 @@ function _scanLayer(view, idx, counts, maxCount) {
   });
   return `<div class="scan-view${idx === 0 ? ' active' : ''}${view.flip ? ' flip' : ''}" data-idx="${idx}">
     <img src="${view.img}" alt="" loading="lazy">${paint}${hot}
+  </div>`;
+}
+
+// Visor fluido: video del cuerpo girando 360 (decorativo, sin interacción)
+function buildSpinViewer() {
+  return `<div style="margin:6px 0 18px">
+    <div style="font-size:8px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,150,40,.6);margin-bottom:8px">◈ GIRO 360°</div>
+    <div class="spin-stage">
+      <video class="spin-video" src="assets/body-360.mp4" autoplay muted loop playsinline></video>
+      <div class="body-scan-line"></div>
+    </div>
   </div>`;
 }
 
