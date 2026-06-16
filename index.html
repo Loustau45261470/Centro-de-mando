@@ -1365,7 +1365,6 @@ textarea { resize: vertical; min-height: 60px; }
 .cal-week-lbl { font-size:10px; color:var(--tt); font-family:var(--mono); width:18px; flex-shrink:0; text-align:center; }
 .cal-week-bar-wrap { flex:1; height:7px; background:rgba(244,63,94,.12); border-radius:4px; overflow:hidden; display:flex; }
 .cal-week-bar-done { height:100%; background:var(--accent); transition:width .4s; }
-.cal-week-bar-rest { height:100%; background:rgba(255,255,255,.14); transition:width .4s; }
 .cal-week-num { font-size:9px; color:var(--ts); font-family:var(--mono); width:28px; text-align:right; flex-shrink:0; }
 .cal-month-row { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
 .cal-month-lbl { font-size:10px; color:var(--tt); font-family:var(--mono); width:28px; flex-shrink:0; }
@@ -10349,30 +10348,27 @@ function renderHabitCalendar(calKey, wrapId, title, labelPlural, labelSingle) {
 
   // ── Weekly breakdown (past days of displayed month) ──
   const weeks = [];
-  let week = { done: 0, rest: 0, total: 0 };
+  let week = { done: 0, active: 0 };   // active = días no-descanso hasta hoy
   for (let d = 1; d <= daysInMonth; d++) {
     const ds = calDateStr(y, m, d);
-    if (ds <= today) {
-      week.total++;
+    if (ds <= today && days[ds] !== 'rest') {   // los descansos no cuentan
+      week.active++;
       if (isDone(ds))                week.done++;
       else if (days[ds]==='partial') week.done += 0.5;
-      else if (days[ds] === 'rest')  week.rest++;
     }
     if ((startDow + d - 1) % 7 === 6 || d === daysInMonth) {
-      if (week.total > 0) weeks.push({ ...week });
-      week = { done: 0, rest: 0, total: 0 };
+      if (week.active > 0) weeks.push({ ...week });
+      week = { done: 0, active: 0 };
     }
   }
   const weekBarsHTML = weeks.map((w, i) => {
-    const donePct = Math.round(w.done / w.total * 100);
-    const restPct = Math.round(w.rest / w.total * 100);
+    const donePct = Math.round(w.done / w.active * 100);
     return `<div class="cal-week-row">
       <span class="cal-week-lbl">S${i + 1}</span>
       <div class="cal-week-bar-wrap">
         <div class="cal-week-bar-done" style="width:${donePct}%"></div>
-        <div class="cal-week-bar-rest" style="width:${restPct}%"></div>
       </div>
-      <span class="cal-week-num">${w.done}/${w.total}</span>
+      <span class="cal-week-num">${w.done}/${w.active}</span>
     </div>`;
   }).join('');
 
@@ -10386,6 +10382,7 @@ function renderHabitCalendar(calKey, wrapId, title, labelPlural, labelSingle) {
     for (let d = 1; d <= dim; d++) {
       const ds = calDateStr(cy, cm, d);
       if (ds > today) continue;
+      if (days[ds] === 'rest') continue;   // los descansos no cuentan
       mtotal++;
       if (isDone(ds))                      mdone++;
       else if (days[ds] === 'partial')     mdone += 0.5;
@@ -10800,15 +10797,17 @@ function _renderHabitChart(section, habit) {
     const d   = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const y2  = d.getFullYear(), m2 = d.getMonth();
     const dim = new Date(y2, m2+1, 0).getDate();
-    let done = 0;
+    let done = 0, denom = 0;
     for (let dd = 1; dd <= dim; dd++) {
       const ds = _dStr(y2, m2, dd);
       const st = habit.days?.[ds];
+      if (st==='rest') continue;            // los descansos no cuentan
+      denom++;
       if (st==='done'||st==='studied') done++;
       else if (st==='partial')         done += 0.5;
     }
     labels.push(CAL_MONTHS[m2].slice(0,3));
-    data.push(Math.round(done / dim * 100));
+    data.push(denom ? Math.round(done / denom * 100) : 0);
   }
 
   if (!data.some(v => v > 0)) { wrapEl.style.display='none'; return; }
@@ -15492,7 +15491,7 @@ Instrucciones:
   // ── Actividad de una sección (hábitos; vida suma metas del día) ──
   function habCount(sec, ds){
     const hs = (S.habitTrackers && S.habitTrackers[sec]) || []; let done = 0, tot = 0;
-    hs.forEach(h => { tot++; const v = (h.days||{})[ds]; if (v==='done' || v==='partial') done++; });
+    hs.forEach(h => { const v = (h.days||{})[ds]; if (v==='rest') return; tot++; if (v==='done' || v==='partial') done++; });
     return { done, tot };
   }
   function taskStats(sec){
