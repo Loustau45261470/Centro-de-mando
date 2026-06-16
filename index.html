@@ -4413,7 +4413,7 @@ input:focus, select:focus, textarea:focus {
         </div>
       </div>
       <div id="plannerMotivation" style="display:flex;align-items:center;justify-content:center;min-height:36px;margin-bottom:12px;padding:8px 10px;background:rgba(124,142,232,0.08);border-left:3px solid var(--accent);border-radius:6px">
-        <span id="plannerQuoteText" style="font-size:13.5px;color:var(--accent);font-style:italic;text-align:center;letter-spacing:.02em;line-height:1.5;font-weight:600;transition:opacity .45s ease"></span>
+        <span id="plannerQuoteText" style="font-size:13.5px;color:var(--accent);font-style:italic;text-align:center;letter-spacing:.02em;line-height:1.5;font-weight:600;transition:opacity .45s ease;display:block;max-width:100%;white-space:nowrap;overflow:hidden"></span>
       </div>
       <div class="planner-swiper" id="plannerSwiper">
         <div class="planner-slide" id="dayPlannerList"></div>
@@ -12166,12 +12166,22 @@ _auth.onAuthStateChanged(user => {
     'Lista de 3: trabaja con máximo 3 tareas importantes al día; lo demás es secundario',
   ];
   let idx = 0;
+  const BASE_FONT = 13.5, MIN_FONT = 8;
+  function fitOneLine(el) {
+    let size = BASE_FONT;
+    el.style.fontSize = size + 'px';
+    while (el.scrollWidth > el.clientWidth && size > MIN_FONT) {
+      size -= 0.5;
+      el.style.fontSize = size + 'px';
+    }
+  }
   function rotate() {
     const el = document.getElementById('plannerQuoteText');
     if (!el) return;
     el.style.opacity = '0';
     setTimeout(() => {
       el.textContent = quotes[idx];
+      fitOneLine(el);
       el.style.opacity = '1';
       idx = (idx + 1) % quotes.length;
     }, 460);
