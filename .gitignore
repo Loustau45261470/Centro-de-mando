@@ -1,1 +1,7 @@
 node_modules/
+
+# Artefactos locales de verificación visual (auth bypass + screenshots) — nunca al repo
+_make_preview.js
+_preview_finanzas.html
+_verify_*.png
+_shot_*.png
