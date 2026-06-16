@@ -14536,6 +14536,25 @@ Instrucciones:
   // Cuota de ElevenLabs: se consulta una vez por hora. Las respuestas dinámicas usan la voz
   // de JARVIS mientras queden créditos, reservando 1500 para las frases fijas nuevas.
   let _elQuota = { checked: 0, ok: true };
+  // Nivel de aviso ya mostrado para no repetir: 0 ninguno · 1 "se está por agotar" · 2 "agotada"
+  let _elWarnLevel = 0;
+  const EL_WARN_LOW = 2500;  // umbral de aviso anticipado (caracteres restantes)
+  function _elMaybeWarn(remaining) {
+    if (typeof showToast !== 'function') return;
+    if (remaining <= 0) {
+      if (_elWarnLevel < 2) {
+        _elWarnLevel = 2;
+        showToast('🔇 Se agotó la cuota de voz premium de ElevenLabs. JARVIS usa la voz del navegador hasta que se renueven los créditos.', 10000);
+      }
+    } else if (remaining <= EL_WARN_LOW) {
+      if (_elWarnLevel < 1) {
+        _elWarnLevel = 1;
+        showToast(`⚠️ A la voz premium de JARVIS (ElevenLabs) le quedan ~${remaining.toLocaleString('es')} caracteres. Se está por agotar.`, 10000);
+      }
+    } else {
+      _elWarnLevel = 0;  // se renovó la cuota → rearmar avisos
+    }
+  }
   async function _elQuotaOk() {
     const now = Date.now();
     if (now - _elQuota.checked < 3600000) return _elQuota.ok;
@@ -14544,10 +14563,18 @@ Instrucciones:
       const res = await fetch('https://api.elevenlabs.io/v1/user/subscription', { headers: { 'xi-api-key': _elKey() } });
       if (res.ok) {
         const d = await res.json();
-        _elQuota.ok = (d.character_limit - d.character_count) > 1500;
+        const remaining = d.character_limit - d.character_count;
+        _elQuota.ok = remaining > 1500;
+        _elMaybeWarn(remaining);
       }
     } catch(e) {}
     return _elQuota.ok;
+  }
+  // Chequeo proactivo de cuota (avisa aunque no se dispare una respuesta dinámica)
+  async function _elQuotaCheckProactive() {
+    if (!_elKey()) return;
+    _elQuota.checked = 0;   // fuerza el refresco saltando el cache horario
+    try { await _elQuotaOk(); } catch(e) {}
   }
 
   async function speak(text, opts) {
@@ -14708,7 +14735,7 @@ Instrucciones:
     enabled = !enabled;
     localStorage.setItem('jarvis_enabled', enabled ? '1' : '0');
     _updateBtn();
-    if (enabled) speak('Voice systems online, sir.');
+    if (enabled) { speak('Voice systems online, sir.'); _elQuotaCheckProactive(); }
   }
 
   function _updateBtn() {
@@ -14720,7 +14747,7 @@ Instrucciones:
   }
   setTimeout(_updateBtn, 400);
 
-  window.JARVIS = { speak, greeting, onNewProject, onTaskDone, onPrioritySet, onDeleteProject, onThemeChange, checkOverdue, toggle, isSpeaking, recentlySpoke, stopSpeaking };
+  window.JARVIS = { speak, greeting, onNewProject, onTaskDone, onPrioritySet, onDeleteProject, onThemeChange, checkOverdue, toggle, isSpeaking, recentlySpoke, stopSpeaking, checkVoiceQuota: _elQuotaCheckProactive };
 })();
 </script>
 
@@ -15948,7 +15975,7 @@ Instrucciones:
       btnEl.style.color  = '#00FF88';
       btnEl.style.borderColor = '#00FF88';
       btnEl.style.boxShadow   = '0 0 24px rgba(0,255,136,0.45)';
-      if (window.JARVIS) { JARVIS.greeting(); JARVIS.checkOverdue(); }
+      if (window.JARVIS) { JARVIS.greeting(); JARVIS.checkOverdue(); setTimeout(() => JARVIS.checkVoiceQuota && JARVIS.checkVoiceQuota(), 4000); }
       setTimeout(() => {
         screen.classList.add('exit');
         setTimeout(() => { screen.remove(); running = false; }, 1700);
