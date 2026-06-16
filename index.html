@@ -15545,26 +15545,30 @@ Instrucciones:
       return { cur, avg, diff: (cur-avg)/avg*100 };
     } catch(e) { return null; }
   }
-  function _monthlyFin(mk){
+  function _monthlyFin(mk, maxDay){
     let inc = 0, exp = 0;
-    (S.transactions||[]).forEach(t => { if ((t.date||'').slice(0,7) !== mk) return; const a = +t.amount||0; if (t.type==='expense') exp+=a; else if (t.type==='income') inc+=a; });
+    (S.transactions||[]).forEach(t => { if (!_inMonthUpToDay(t.date||'', mk, maxDay)) return; const a = +t.amount||0; if (t.type==='expense') exp+=a; else if (t.type==='income') inc+=a; });
     return { inc, exp, bal: inc-exp };
   }
   function _monthBalance(){ try { return _monthlyFin(_today().slice(0,7)); } catch(e) { return null; } }
   function _prevMonth(mk){ const [y,m] = mk.split('-').map(Number); const d = new Date(y, m-2, 1); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
-  function _habitMonthCount(habit, mk){
+  function _inMonthUpToDay(ds, mk, maxDay){ // maxDay: nulo = mes completo; si no, solo días <= maxDay (comparación fecha con fecha)
+    if (ds.slice(0,7) !== mk) return false;
+    return maxDay == null || (+ds.slice(8,10)) <= maxDay;
+  }
+  function _habitMonthCount(habit, mk, maxDay){
     const days = habit.days || {}; let c = 0;
-    for (const ds in days){ if (ds.slice(0,7) === mk){ const v = days[ds]; if (v==='done') c+=1; else if (v==='partial') c+=0.5; } }
+    for (const ds in days){ if (_inMonthUpToDay(ds, mk, maxDay)){ const v = days[ds]; if (v==='done') c+=1; else if (v==='partial') c+=0.5; } }
     return c;
   }
-  function _monthWellnessAvg(mk, metric){ // metric: 'energy' | 'hours'
+  function _monthWellnessAvg(mk, metric, maxDay){ // metric: 'energy' | 'hours'
     const sl = S.sleepLog || {}; let sum = 0, n = 0;
-    for (const ds in sl){ if (ds.slice(0,7) !== mk) continue; const e = sl[ds]; const v = metric==='hours' ? (e && e.hours) : (e && e.wellness && e.wellness[metric]); if (v){ sum += v; n++; } }
+    for (const ds in sl){ if (!_inMonthUpToDay(ds, mk, maxDay)) continue; const e = sl[ds]; const v = metric==='hours' ? (e && e.hours) : (e && e.wellness && e.wellness[metric]); if (v){ sum += v; n++; } }
     return n ? sum/n : null;
   }
-  function _monthGoalsDone(mk){
+  function _monthGoalsDone(mk, maxDay){
     const goals = S.goals || {}; let c = 0;
-    for (const ds in goals){ if (ds.slice(0,7) === mk) c += (goals[ds]||[]).filter(x => x.done).length; }
+    for (const ds in goals){ if (_inMonthUpToDay(ds, mk, maxDay)) c += (goals[ds]||[]).filter(x => x.done).length; }
     return c;
   }
 
@@ -15602,24 +15606,25 @@ Instrucciones:
   }
   function variationBlock(sec){
     const cur = _today().slice(0,7), prev = _prevMonth(cur);
+    const day = +_today().slice(8,10); // comparación fecha con fecha: ambos meses solo hasta el día de hoy
     const metricRows = [];
     if (sec === 'finanzas') {
-      const c = _monthlyFin(cur), p = _monthlyFin(prev);
+      const c = _monthlyFin(cur, day), p = _monthlyFin(prev, day);
       metricRows.push(_varRow('Gasto',   _fmtM(c.exp), _delta(c.exp, p.exp, false, 'pct')));
       metricRows.push(_varRow('Ingreso', _fmtM(c.inc), _delta(c.inc, p.inc, true,  'pct')));
       metricRows.push(_varRow('Balance', _fmtM(c.bal), _delta(c.bal, p.bal, true,  'pct')));
     } else if (sec === 'salud') {
-      const ce = _monthWellnessAvg(cur,'energy'), pe = _monthWellnessAvg(prev,'energy');
+      const ce = _monthWellnessAvg(cur,'energy',day), pe = _monthWellnessAvg(prev,'energy',day);
       if (ce != null) metricRows.push(_varRow('Energía prom', ce.toFixed(1)+'/5', _delta(ce, pe, true, 'abs')));
-      const ch = _monthWellnessAvg(cur,'hours'), ph = _monthWellnessAvg(prev,'hours');
+      const ch = _monthWellnessAvg(cur,'hours',day), ph = _monthWellnessAvg(prev,'hours',day);
       if (ch != null) metricRows.push(_varRow('Sueño prom', ch.toFixed(1)+'h', _delta(ch, ph, true, 'abs')));
     } else if (sec === 'vida') {
-      const cg = _monthGoalsDone(cur), pg = _monthGoalsDone(prev);
+      const cg = _monthGoalsDone(cur, day), pg = _monthGoalsDone(prev, day);
       metricRows.push(_varRow('Metas cumplidas', String(cg), _delta(cg, pg, true, 'abs')));
     }
     const habits = (S.habitTrackers && S.habitTrackers[sec]) || [];
     const habitRows = habits.map(h => {
-      const cc = _habitMonthCount(h, cur), pc = _habitMonthCount(h, prev);
+      const cc = _habitMonthCount(h, cur, day), pc = _habitMonthCount(h, prev, day);
       const name = (h.emoji ? h.emoji + ' ' : '') + (h.name || 'Hábito');
       return _varRow(name, _fmtCount(cc)+'×', _delta(cc, pc, true, 'abs'));
     });
