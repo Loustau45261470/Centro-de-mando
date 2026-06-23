@@ -16,7 +16,7 @@
   // se transcribe). Tras terminar, se espera un cooldown antes de reabrir, para tragar la cola
   // que el reconocedor finaliza un instante después. Esto rompe el loop TTS→mic→comando.
   const ECHO_COOLDOWN = 1400; // ms tras terminar de hablar
-  let _micSuppressed = false;
+  let _micSuppressed = false, _suppressedAt = 0;
   function _jarvisTalking() { try { return !!(window.JARVIS && JARVIS.isSpeaking()); } catch(e){ return false; } }
   // ¿es (o acaba de ser) su propia voz? — guarda a nivel de resultado, por si algo se filtra
   function _selfEcho() {
@@ -28,11 +28,11 @@
     const talking = _jarvisTalking();
     if (talking && !_micSuppressed) {
       // JARVIS empezó a hablar → apagar el micrófono para no oírse a sí mismo
-      _micSuppressed = true;
+      _micSuppressed = true; _suppressedAt = Date.now();
       if (rec) { try { rec.onend = null; rec.abort(); } catch(e){} rec = null; }
       if (restartTimer) { clearTimeout(restartTimer); restartTimer = null; }
-    } else if (_micSuppressed && !_selfEcho()) {
-      // terminó de hablar y pasó el cooldown → reabrir el micrófono fresco (eco descartado)
+    } else if (_micSuppressed && (!_selfEcho() || Date.now() - _suppressedAt > 8000)) {
+      // terminó de hablar (o safety: 8s máx) → reabrir el micrófono fresco
       _micSuppressed = false;
       _scheduleRestart();
     }
@@ -40,6 +40,7 @@
 
   function _ui() {
     if (window.JARVIS_FX) JARVIS_FX.setState(mode === 'off' ? 'off' : mode);
+    _updateWakeBtn();
   }
 
   /* ── Motor de reconocimiento (es-AR) ── */
@@ -259,10 +260,10 @@
 
   let _cmdBusy = false;
   async function handleCommand(raw) {
-    if (_cmdBusy) return;   // evita doble ejecución si el STT entrega dos resultados finales seguidos
-    _cmdBusy = true;
+    if (_cmdBusy) { if (typeof showToast === 'function') showToast('⚙️ Procesando tu comando anterior…', 2000); return; }
+    _cmdBusy = true; _updateWakeBtn();
     try { return await _handleCommandInner(raw); }
-    finally { _cmdBusy = false; }
+    finally { _cmdBusy = false; _updateWakeBtn(); }
   }
   async function _handleCommandInner(raw) {
     const t = _norm(raw);
@@ -504,9 +505,19 @@
   function _updateWakeBtn() {
     const b = document.getElementById('jarvis-wake-btn');
     if (!b) return;
-    b.textContent = wakeOn ? '🎙️ "Hey Jarvis" activo' : '🎙️ "Hey Jarvis" apagado';
-    b.style.color = wakeOn ? 'rgba(0,255,136,0.75)' : 'rgba(255,255,255,0.28)';
-    b.style.borderColor = wakeOn ? 'rgba(0,255,136,0.25)' : 'rgba(255,255,255,0.08)';
+    if (mode === 'command' && _cmdBusy) {
+      b.textContent = '⚙️ Procesando…';
+      b.style.color = 'rgba(255,200,0,0.95)'; b.style.borderColor = 'rgba(255,200,0,0.3)';
+    } else if (mode === 'command') {
+      b.textContent = '🎙️ Escuchando…';
+      b.style.color = 'rgba(0,255,136,1)'; b.style.borderColor = 'rgba(0,255,136,0.4)';
+    } else if (mode === 'passive') {
+      b.textContent = '👁️ Esperando "Jarvis"…';
+      b.style.color = 'rgba(0,200,255,0.75)'; b.style.borderColor = 'rgba(0,200,255,0.25)';
+    } else {
+      b.textContent = '🎙️ "Hey Jarvis" apagado';
+      b.style.color = 'rgba(255,255,255,0.28)'; b.style.borderColor = 'rgba(255,255,255,0.08)';
+    }
   }
 
   function saveKey(name, val) {
