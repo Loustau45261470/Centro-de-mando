@@ -390,41 +390,39 @@ function _fbSave() {
   clearTimeout(_fbSaveTid);
   _fbSaveTid = setTimeout(async () => {
     _fbSaveTid = null;
-    if (_fbSaveInProgress) return;
+    if (_fbSaveInProgress) { console.log('[sync] skip: save en vuelo'); return; }
     _fbSaveInProgress = true;
     const localObj = JSON.parse(JSON.stringify(S));
-    // ¿Ya confirmamos Firestore en esta sesión? (loadState lo seteó, o un write anterior lo seteó)
-    // Si sí: escribir local directo — el guard de timestamp causaba falsos positivos en uso normal.
-    // Si no (cargamos desde localStorage): aplicar rescue para no pisar la nube con estado viejo.
     const sessionConfirmed = _lastSyncedSavedAt !== null;
+    console.log('[sync] _fbSave START — sessionConfirmed:', sessionConfirmed, '_lastSyncedSavedAt:', _lastSyncedSavedAt);
     try {
       let cloudRaw = null, cloudData = null;
       try {
         const snap = await _DOC().get();
         if (snap.exists && snap.data()?.state) { cloudRaw = snap.data().state; cloudData = snap.data(); }
-      } catch (e) {}
+        console.log('[sync] cloud leído — cloudSavedAt:', cloudData?._savedAt, 'cloudM:', _dataMetric(cloudData?._savedAt ? JSON.parse(cloudRaw) : {}), 'localM:', _dataMetric(localObj));
+      } catch (e) { console.warn('[sync] error leyendo cloud:', e); }
 
       let toSave = localObj;
 
       if (cloudRaw && !_forceSaveOnce && !sessionConfirmed) {
-        // Solo llegamos aquí si cargamos desde localStorage (sin confirmación de Firestore).
-        // Comparar tamaños: si cloud tiene significativamente más datos, es que este dispositivo
-        // perdió actualizaciones. Rescatar lo local que sea nuevo y partir desde cloud.
         try {
           const cloudObj = JSON.parse(cloudRaw);
           const cloudM = _dataMetric(cloudObj);
           const localM = _dataMetric(localObj);
           if (cloudM > localM + 3) {
+            console.log('[sync] rescue: cloud tiene más datos, partiendo desde cloud');
             toSave = _rescueLocal(cloudObj, localObj);
             S = toSave;
             localStorage.setItem('lifedash_v2', JSON.stringify(S));
             _lastSyncedSavedAt = cloudData._savedAt;
             _reRenderAll();
           } else if (cloudM > 50 && localM < cloudM * 0.2) {
+            console.warn('[sync] BLOCKED: local < 20% de cloud');
             showToast('⚠️ Estado local muy pequeño — recargá. Si es intencional: forzarGuardado()', 14000);
             return;
           }
-        } catch (e) {}
+        } catch (e) { console.warn('[sync] error en rescue:', e); }
       }
 
       if (cloudRaw) await _maybeBackup(cloudRaw);
@@ -436,8 +434,9 @@ function _fbSave() {
         await _DOC().set({ state: JSON.stringify(toSave), _wid: wid, _savedAt: savedAt }, { merge: true });
         _lastSyncedSavedAt = savedAt;
         _saveSnap(JSON.stringify(toSave), savedAt);
+        console.log('[sync] ✅ write OK — savedAt:', savedAt);
       } catch (e) {
-        console.warn('[fbSave] error:', e.code, e.message);
+        console.error('[sync] ❌ write FAILED:', e.code, e.message);
         if (e.code === 'permission-denied') showToast('⚠️ Sin permiso para guardar — iniciá sesión');
       }
     } finally {
@@ -525,6 +524,7 @@ function _reRenderAll() {
 function _applyRemoteState(raw, savedAt) {
   try {
     const incoming = JSON.parse(raw);
+    console.log('[sync] _applyRemoteState — savedAt:', savedAt, 'items:', _dataMetric(incoming));
     S = incoming;
     if (savedAt != null) _lastSyncedSavedAt = savedAt;
     Object.keys(DEFAULT_STATE).forEach(k => {
@@ -572,12 +572,15 @@ async function loadState() {
     const snap = await _DOC().get();
     if (snap.exists && snap.data()?.state) {
       S = JSON.parse(snap.data().state);
-      _lastSyncedSavedAt = snap.data()._savedAt || 0;  // confirmamos la nube → sabemos de qué versión partimos
+      _lastSyncedSavedAt = snap.data()._savedAt || 0;
+      console.log('[sync] loadState: desde FIRESTORE — savedAt:', _lastSyncedSavedAt, 'items:', _dataMetric(S));
     } else {
       try { S = JSON.parse(localStorage.getItem('lifedash_v2')) || {}; } catch { S = {}; }
+      console.warn('[sync] loadState: Firestore vacío, usando localStorage — items:', _dataMetric(S));
     }
-  } catch {
+  } catch(e) {
     try { S = JSON.parse(localStorage.getItem('lifedash_v2')) || {}; } catch { S = {}; }
+    console.error('[sync] loadState: Firestore FALLÓ, usando localStorage — error:', e.code || e.message, '— items:', _dataMetric(S));
   }
   // Merge defaults for any missing keys
   Object.keys(DEFAULT_STATE).forEach(k => {
