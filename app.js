@@ -386,79 +386,20 @@ function _rescueLocal(cloudObj, localObj) {
   return r;
 }
 
-// ── Panel de diagnóstico de sync visible en pantalla ─────────────────────────
-// Se muestra en el corner inferior-izquierdo. Tapping lo expande con historial.
-// Se desactiva automáticamente después de 10 minutos o al llamar _syncDiag(false).
-(function _initSyncPanel() {
-  const MAX = 20;
-  const log = [];
-  let expanded = false;
-  let autoOffTid = null;
-
-  function ts() { return new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }); }
-
-  function render() {
-    let el = document.getElementById('_syncPanel');
-    if (!el) {
-      el = document.createElement('div');
-      el.id = '_syncPanel';
-      el.style.cssText = 'position:fixed;bottom:4px;left:4px;z-index:99999;font:11px/1.4 monospace;' +
-        'background:rgba(0,0,0,.82);color:#eee;border-radius:8px;max-width:96vw;cursor:pointer;user-select:none;';
-      el.addEventListener('click', () => { expanded = !expanded; render(); });
-      document.body.appendChild(el);
-    }
-    if (!log.length) { el.style.display = 'none'; return; }
-    el.style.display = 'block';
-    const last = log[log.length - 1];
-    const dot = last.ok === false ? '🔴' : last.ok === true ? '🟢' : '🟡';
-    if (!expanded) {
-      el.innerHTML = `<div style="padding:4px 8px">${dot} ${last.msg}</div>`;
-    } else {
-      el.innerHTML = '<div style="padding:4px 8px;border-bottom:1px solid #444;font-weight:bold">📡 Sync log (toca para cerrar)</div>' +
-        log.slice(-MAX).reverse().map(e => {
-          const c = e.ok === false ? '#f88' : e.ok === true ? '#8f8' : '#ff8';
-          return `<div style="padding:2px 8px;color:${c}">[${e.t}] ${e.msg}</div>`;
-        }).join('');
-    }
-  }
-
-  window._syncLog = function(msg, ok) {
-    log.push({ t: ts(), msg, ok });
-    if (log.length > MAX) log.shift();
-    render();
-    // Auto-desactivar después de 10 min
-    clearTimeout(autoOffTid);
-    autoOffTid = setTimeout(() => {
-      const el = document.getElementById('_syncPanel');
-      if (el) el.style.display = 'none';
-    }, 10 * 60 * 1000);
-  };
-
-  // Activar/desactivar desde consola: _syncDiag(true/false)
-  window._syncDiag = function(on = true) {
-    const el = document.getElementById('_syncPanel');
-    if (el) el.style.display = on ? 'block' : 'none';
-    if (!on) log.length = 0;
-  };
-})();
-
 function _fbSave() {
   clearTimeout(_fbSaveTid);
   _fbSaveTid = setTimeout(async () => {
     _fbSaveTid = null;
-    if (_fbSaveInProgress) { _syncLog('save en vuelo, skip'); return; }
+    if (_fbSaveInProgress) return;
     _fbSaveInProgress = true;
     const localObj = JSON.parse(JSON.stringify(S));
     const sessionConfirmed = _lastSyncedSavedAt !== null;
-    _syncLog(`fbSave — confirmed:${sessionConfirmed} localM:${_dataMetric(localObj)}`);
     try {
       let cloudRaw = null, cloudData = null;
       try {
         const snap = await _DOC().get();
         if (snap.exists && snap.data()?.state) { cloudRaw = snap.data().state; cloudData = snap.data(); }
-        if (cloudData) _syncLog(`cloud OK — cloudM:${_dataMetric(JSON.parse(cloudRaw))} cloudSavedAt:${cloudData._savedAt}`);
-        else _syncLog('cloud vacío / sin conexión');
-      } catch (e) { _syncLog('ERROR leyendo cloud: ' + (e.code || e.message), false); }
+      } catch (e) {}
 
       let toSave = localObj;
 
@@ -468,18 +409,16 @@ function _fbSave() {
           const cloudM = _dataMetric(cloudObj);
           const localM = _dataMetric(localObj);
           if (cloudM > localM + 3) {
-            _syncLog(`rescue: cloudM(${cloudM}) > localM(${localM})+3 → partiendo desde cloud`);
             toSave = _rescueLocal(cloudObj, localObj);
             S = toSave;
             localStorage.setItem('lifedash_v2', JSON.stringify(S));
             _lastSyncedSavedAt = cloudData._savedAt;
             _reRenderAll();
           } else if (cloudM > 50 && localM < cloudM * 0.2) {
-            _syncLog(`BLOCKED: localM(${localM}) < 20% de cloudM(${cloudM})`, false);
             showToast('⚠️ Estado local muy pequeño — recargá. Si es intencional: forzarGuardado()', 14000);
             return;
           }
-        } catch (e) { _syncLog('ERROR en rescue: ' + e.message, false); }
+        } catch (e) {}
       }
 
       if (cloudRaw) await _maybeBackup(cloudRaw);
@@ -491,9 +430,8 @@ function _fbSave() {
         await _DOC().set({ state: JSON.stringify(toSave), _wid: wid, _savedAt: savedAt }, { merge: true });
         _lastSyncedSavedAt = savedAt;
         _saveSnap(JSON.stringify(toSave), savedAt);
-        _syncLog('✅ guardado en nube OK', true);
       } catch (e) {
-        _syncLog('❌ write FAILED: ' + (e.code || e.message), false);
+        console.warn('[fbSave]', e.code, e.message);
         if (e.code === 'permission-denied') showToast('⚠️ Sin permiso para guardar — iniciá sesión');
       }
     } finally {
@@ -581,7 +519,6 @@ function _reRenderAll() {
 function _applyRemoteState(raw, savedAt) {
   try {
     const incoming = JSON.parse(raw);
-    _syncLog(`📡 remoteState — savedAt:${savedAt} items:${_dataMetric(incoming)}`, true);
     S = incoming;
     if (savedAt != null) _lastSyncedSavedAt = savedAt;
     Object.keys(DEFAULT_STATE).forEach(k => {
@@ -630,14 +567,11 @@ async function loadState() {
     if (snap.exists && snap.data()?.state) {
       S = JSON.parse(snap.data().state);
       _lastSyncedSavedAt = snap.data()._savedAt || 0;
-      _syncLog(`loadState: FIRESTORE OK — items:${_dataMetric(S)}`, true);
     } else {
       try { S = JSON.parse(localStorage.getItem('lifedash_v2')) || {}; } catch { S = {}; }
-      _syncLog(`loadState: Firestore vacío → localStorage items:${_dataMetric(S)}`);
     }
   } catch(e) {
     try { S = JSON.parse(localStorage.getItem('lifedash_v2')) || {}; } catch { S = {}; }
-    _syncLog(`loadState: Firestore FALLÓ (${e.code||e.message}) → localStorage items:${_dataMetric(S)}`, false);
   }
   // Merge defaults for any missing keys
   Object.keys(DEFAULT_STATE).forEach(k => {
