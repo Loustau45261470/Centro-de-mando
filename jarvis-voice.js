@@ -109,7 +109,11 @@
     if (now - _elQuota.checked < 3600000) return _elQuota.ok;
     _elQuota.checked = now;
     try {
-      const res = await fetch('https://api.elevenlabs.io/v1/user/subscription', { headers: { 'xi-api-key': _elKey() } });
+      const ctrl = new AbortController();
+      const tout = setTimeout(() => ctrl.abort(), 2000);
+      let res;
+      try { res = await fetch('https://api.elevenlabs.io/v1/user/subscription', { headers: { 'xi-api-key': _elKey() }, signal: ctrl.signal }); }
+      finally { clearTimeout(tout); }
       if (res.ok) {
         const d = await res.json();
         const remaining = d.character_limit - d.character_count;

@@ -7,7 +7,7 @@
                JARVIS_FX.setLevel(0..1), JARVIS_FX.onExit = fn
    ══════════════════════════════════════════════════════ */
 (function () {
-  const REDUCED = false; // motion siempre activo, en todos los dispositivos
+  const REDUCED = /Mobi|Android/i.test(navigator.userAgent) || window.innerWidth < 768;
   const C  = { r: 56,  g: 189, b: 248 }; // #38bdf8 cian base
   const C2 = { r: 125, g: 211, b: 252 }; // #7dd3fc cian brillante
   const rgba = (c, a) => `rgba(${c.r},${c.g},${c.b},${a})`;
@@ -37,7 +37,9 @@
     canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   }
-  window.addEventListener('resize', resize); resize();
+  let _resizeTimer = 0;
+  window.addEventListener('resize', () => { clearTimeout(_resizeTimer); _resizeTimer = setTimeout(resize, 150); });
+  resize();
 
   /* ── Paleta extendida ── */
   const CW = { r: 224, g: 248, b: 255 }; // blanco-cian: núcleos calientes / picos de voz
@@ -87,7 +89,7 @@
 
   let state = 'off', energy = 0.05, energyT = 0.05, level = 0, levelS = 0, levelPk = 0;
   let expand = 0, expandT = 0, opacity = 0, opacityT = 0.32, t = 0;
-  const pulses = [], waves = [], sparks = []; let edges = [], edgeTimer = 0, lastWave = 0;
+  const pulses = [], waves = [], sparks = []; let edges = [], edgeTimer = 0, lastWave = 0, idleTimer = 0;
 
   function _wakeOn(){ try { return localStorage.getItem('jarvis_wake') === '1'; } catch(e){ return false; } }
   const api = {
@@ -382,7 +384,7 @@
     }
     nodes[0].fire = Math.max(nodes[0].fire, 0.5 + 0.5 * energy);
 
-    if (--edgeTimer <= 0) { computeEdges(); edgeTimer = 10; }
+    if (--edgeTimer <= 0) { computeEdges(); edgeTimer = REDUCED ? 45 : 30; }
     if (!REDUCED) {
       const rate = 0.10 + energy * (state === 'thinking' ? 1.0 : 0.5);
       if (Math.random() < rate) igniteRandom();
@@ -396,6 +398,11 @@
     if (speaking() && !REDUCED && t - lastWave > 0.5) { waves.push({ t: 0 }); lastWave = t; }
 
     ctx.clearRect(0, 0, W, H);
+    // Pausar el loop cuando el canvas está oculto (reposo sin dock): retomar en 800ms en vez de cada frame
+    if (canvas.style.display === 'none' && !docked) {
+      idleTimer = setTimeout(() => { idleTimer = 0; raf = requestAnimationFrame(frame); }, 800);
+      return;
+    }
     if (opacity <= 0.012) { raf = requestAnimationFrame(frame); return; }
     ctx.globalCompositeOperation = 'lighter';
     const cx = R.x + 0.5 * R.w, cy = R.y + 0.5 * R.h;
@@ -487,7 +494,7 @@
   }
   raf = requestAnimationFrame(frame);
   document.addEventListener('visibilitychange', () => {
-    cancelAnimationFrame(raf);
+    cancelAnimationFrame(raf); clearTimeout(idleTimer); idleTimer = 0;
     if (!document.hidden) raf = requestAnimationFrame(frame);
   });
 })();
