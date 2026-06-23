@@ -380,6 +380,7 @@ function _fbSave() {
       try {
         await _DOC().set({ state: localSnapshot, _wid: wid, _savedAt: savedAt }, { merge: true });
         _lastSyncedSavedAt = savedAt;
+        _saveSnap(localSnapshot, savedAt);  // snapshot post-write, fire-and-forget
       } catch (e) {
         console.warn('[fbSave] error:', e.code, e.message);
         if (e.code === 'permission-denied') showToast('⚠️ Sin permiso para guardar — iniciá sesión');
@@ -390,14 +391,50 @@ function _fbSave() {
   }, 2000);
 }
 
+// Guarda un snapshot post-write (fire-and-forget). Mantiene los últimos 20.
+async function _saveSnap(stateStr, savedAt) {
+  try {
+    await _db.collection('appdata').doc('snap_' + savedAt).set({ state: stateStr, savedAt });
+    // Trim: mantener solo los últimos 20 snaps
+    const q = await _db.collection('appdata').get();
+    const snaps = q.docs
+      .filter(d => d.id.startsWith('snap_'))
+      .sort((a, b) => (parseInt(b.id.slice(5)) || 0) - (parseInt(a.id.slice(5)) || 0));
+    if (snaps.length > 20) snaps.slice(20).forEach(d => d.ref.delete().catch(() => {}));
+  } catch (e) { console.warn('[snap]', e); }
+}
+
 // Override del guard para borrados grandes legítimos: forzarGuardado() en la consola.
 window.forzarGuardado = function () { _forceSaveOnce = true; saveState(); showToast('Guardado forzado…'); };
-// Recuperación manual de backups (consola): listarBackups() y restaurarBackup('2026-06-15').
+
+// ── Recuperación manual (consola del navegador) ───────────────────────────────
+// listarSnaps()  → lista los últimos 20 snapshots con fecha/hora exacta
+// restaurarSnap('snap_1750000000000') o restaurarSnap(1750000000000)
+// listarBackups() → backups diarios (bak_<fecha>)
+// restaurarBackup('2026-06-22')
+window.listarSnaps = async function () {
+  const q = await _db.collection('appdata').get();
+  const snaps = q.docs
+    .filter(d => d.id.startsWith('snap_'))
+    .sort((a, b) => (parseInt(b.id.slice(5)) || 0) - (parseInt(a.id.slice(5)) || 0))
+    .map(d => ({ id: d.id, fecha: new Date(parseInt(d.id.slice(5))).toLocaleString('es-AR') }));
+  console.table(snaps);
+  return snaps.map(s => s.id);
+};
+window.restaurarSnap = async function (snapRef) {
+  const id = String(snapRef).startsWith('snap_') ? snapRef : 'snap_' + snapRef;
+  const d = await _db.collection('appdata').doc(id).get();
+  if (!d.exists || !d.data()?.state) { showToast('No existe ese snap: ' + id, 6000); return; }
+  _forceSaveOnce = true;
+  _applyRemoteState(d.data().state, Date.now());
+  saveState();
+  showToast('✅ Restaurado snap ' + new Date(parseInt(id.slice(5))).toLocaleString('es-AR'), 8000);
+};
 window.listarBackups = async function () {
   try {
     const q = await _db.collection('appdata').get();
     const baks = q.docs.map(d => d.id).filter(id => id.startsWith('bak_')).sort().reverse();
-    console.log('Backups disponibles:', baks);
+    console.log('Backups diarios disponibles:', baks);
     return baks;
   } catch (e) { console.warn(e); return []; }
 };
