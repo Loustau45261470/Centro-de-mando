@@ -324,127 +324,6 @@ function _dataMetric(st) {
   return n;
 }
 
-// Merge cloud + local: nunca pierde datos de ninguno de los dos lados.
-// Arrays con .id → unión (local gana en conflicto de mismo id).
-// Arrays con .date → unión por fecha (local gana en conflicto).
-// goals/habitTrackers → merge profundo por sección/fecha/id.
-// Campos escalares y config → local gana.
-function _mergeStates(cloudObj, localObj) {
-  if (!cloudObj || typeof cloudObj !== 'object') return localObj;
-  if (!localObj || typeof localObj !== 'object') return cloudObj;
-
-  const merged = { ...localObj };
-
-  // Arrays con .id único: unión, local gana en conflicto de id
-  const ID_ARRAYS = [
-    'transactions','accounts','subscriptions','orders','wishlist',
-    'supplements','photos','finObjectives','fixedExpenses',
-    'lawMilestones','lawPlanItems','routines'
-  ];
-  ID_ARRAYS.forEach(key => {
-    const c = Array.isArray(cloudObj[key]) ? cloudObj[key] : [];
-    if (!c.length) return;
-    const l = Array.isArray(localObj[key]) ? localObj[key] : [];
-    const map = {};
-    c.forEach(item => { if (item?.id) map[item.id] = item; });
-    l.forEach(item => { if (item?.id) map[item.id] = item; });  // local pisa en conflicto
-    merged[key] = Object.values(map);
-  });
-
-  // Arrays con .date: unión, local gana en conflicto de fecha
-  const DATE_ARRAYS = ['nwHistory','bodyWeightLog','sleepLog'];
-  DATE_ARRAYS.forEach(key => {
-    const c = Array.isArray(cloudObj[key]) ? cloudObj[key] : [];
-    if (!c.length) return;
-    const l = Array.isArray(localObj[key]) ? localObj[key] : [];
-    const map = {};
-    [...c, ...l].forEach(item => { if (item?.date) map[item.date] = item; });
-    merged[key] = Object.values(map).sort((a, b) => (a.date > b.date ? 1 : -1));
-  });
-
-  // goals / tomorrowGoals: {date: [{text, done}]} — unión de fechas, local gana si tiene ≥ items
-  ['goals','tomorrowGoals'].forEach(key => {
-    const c = (cloudObj[key] && typeof cloudObj[key] === 'object') ? cloudObj[key] : {};
-    const l = (localObj[key] && typeof localObj[key] === 'object') ? localObj[key] : {};
-    const result = { ...c };  // base = cloud (días que local no tiene)
-    Object.keys(l).forEach(date => {
-      const cArr = Array.isArray(c[date]) ? c[date] : [];
-      const lArr = Array.isArray(l[date]) ? l[date] : [];
-      if (lArr.length >= cArr.length) { result[date] = lArr; return; }
-      // cloud tiene más items ese día: unión por texto
-      const byText = {};
-      cArr.forEach(it => { if (it?.text) byText[it.text] = it; });
-      lArr.forEach(it => { if (it?.text) byText[it.text] = it; });
-      result[date] = Object.values(byText);
-    });
-    merged[key] = result;
-  });
-
-  // habitTrackers: {section: [{id, name, days:{date:bool}}]} — unión de hábitos y días
-  {
-    const c = (cloudObj.habitTrackers && typeof cloudObj.habitTrackers === 'object') ? cloudObj.habitTrackers : {};
-    const l = (localObj.habitTrackers && typeof localObj.habitTrackers === 'object') ? localObj.habitTrackers : {};
-    const sections = new Set([...Object.keys(c), ...Object.keys(l)]);
-    const result = {};
-    sections.forEach(sec => {
-      const cH = Array.isArray(c[sec]) ? c[sec] : [];
-      const lH = Array.isArray(l[sec]) ? l[sec] : [];
-      const byId = {};
-      cH.forEach(h => { if (h?.id) byId[h.id] = { ...h }; });
-      lH.forEach(h => {
-        if (!h?.id) return;
-        byId[h.id] = byId[h.id]
-          ? { ...byId[h.id], ...h, days: { ...(byId[h.id].days || {}), ...(h.days || {}) } }
-          : h;
-      });
-      result[sec] = Object.values(byId);
-    });
-    merged.habitTrackers = result;
-  }
-
-  // reminders: {section: [{id,...}]} — unión por id por sección
-  {
-    const c = (cloudObj.reminders && typeof cloudObj.reminders === 'object') ? cloudObj.reminders : {};
-    const l = (localObj.reminders && typeof localObj.reminders === 'object') ? localObj.reminders : {};
-    if (Object.keys(c).length) {
-      const sections = new Set([...Object.keys(c), ...Object.keys(l)]);
-      const result = {};
-      sections.forEach(sec => {
-        const cR = Array.isArray(c[sec]) ? c[sec] : [];
-        const lR = Array.isArray(l[sec]) ? l[sec] : [];
-        const byId = {};
-        [...cR, ...lR].forEach(r => { if (r?.id) byId[r.id] = r; });
-        result[sec] = Object.values(byId);
-      });
-      merged.reminders = result;
-    }
-  }
-
-  // quarterlyObjectives.periods — unión por id, local gana en conflicto
-  if (cloudObj.quarterlyObjectives?.periods && localObj.quarterlyObjectives) {
-    const byId = {};
-    (cloudObj.quarterlyObjectives.periods || []).forEach(p => { if (p?.id) byId[p.id] = p; });
-    (localObj.quarterlyObjectives.periods || []).forEach(p => { if (p?.id) byId[p.id] = p; });
-    merged.quarterlyObjectives = { ...localObj.quarterlyObjectives, periods: Object.values(byId) };
-  }
-
-  // monthlyGoals: {year: {month: data}} — preserva meses que solo existen en cloud
-  if (cloudObj.monthlyGoals && localObj.monthlyGoals && typeof cloudObj.monthlyGoals === 'object') {
-    const result = { ...localObj.monthlyGoals };
-    Object.keys(cloudObj.monthlyGoals).forEach(year => {
-      if (!result[year]) { result[year] = cloudObj.monthlyGoals[year]; return; }
-      if (typeof cloudObj.monthlyGoals[year] === 'object') {
-        Object.keys(cloudObj.monthlyGoals[year]).forEach(month => {
-          if (result[year][month] == null) result[year][month] = cloudObj.monthlyGoals[year][month];
-        });
-      }
-    });
-    merged.monthlyGoals = result;
-  }
-
-  return merged;
-}
-
 // Backup diario: copia el estado de la NUBE (antes de pisarlo) a appdata/bak_<fecha>; rota ~14 días.
 async function _maybeBackup(cloudStateRaw) {
   if (!cloudStateRaw) return;
@@ -458,14 +337,55 @@ async function _maybeBackup(cloudStateRaw) {
   } catch (e) { console.warn('[backup]', e.code || e.message); }
 }
 
+// Cuando la nube es más completa que local (dispositivo atrasado), parte desde la nube
+// y agrega solo los items con IDs que local tiene y la nube no tiene (datos genuinamente nuevos).
+// NO toca goals, config ni campos escalares — evita reaparecer items borrados.
+function _rescueLocalIds(cloudObj, localObj) {
+  const result = { ...cloudObj };
+  const ID_KEYS = [
+    'transactions','accounts','subscriptions','orders','wishlist',
+    'supplements','photos','finObjectives','fixedExpenses','lawMilestones','routines'
+  ];
+  ID_KEYS.forEach(key => {
+    const c = Array.isArray(cloudObj[key]) ? cloudObj[key] : [];
+    const l = Array.isArray(localObj[key]) ? localObj[key] : [];
+    if (!l.length) return;
+    const cloudIds = new Set(c.map(i => i?.id).filter(Boolean));
+    const newLocal = l.filter(i => i?.id && !cloudIds.has(i.id));
+    if (newLocal.length) result[key] = [...c, ...newLocal];
+  });
+  // Hábitos: agregar días marcados en local que la nube no tiene (nunca quitar días de la nube)
+  if (cloudObj.habitTrackers && localObj.habitTrackers) {
+    const c = cloudObj.habitTrackers, l = localObj.habitTrackers;
+    const htResult = {};
+    Object.keys(c).forEach(sec => {
+      const cH = Array.isArray(c[sec]) ? c[sec] : [];
+      const lH = Array.isArray(l[sec]) ? l[sec] : [];
+      const byId = {};
+      cH.forEach(h => { if (h?.id) byId[h.id] = { ...h }; });
+      lH.forEach(h => {
+        if (!h?.id || !byId[h.id]) return;
+        const extraDays = Object.fromEntries(
+          Object.entries(h.days || {}).filter(([d]) => byId[h.id].days?.[d] == null)
+        );
+        if (Object.keys(extraDays).length)
+          byId[h.id] = { ...byId[h.id], days: { ...extraDays, ...(byId[h.id].days || {}) } };
+      });
+      htResult[sec] = Object.values(byId);
+    });
+    result.habitTrackers = htResult;
+  }
+  return result;
+}
+
 function _fbSave() {
   clearTimeout(_fbSaveTid);
   _fbSaveTid = setTimeout(async () => {
     _fbSaveTid = null;
     if (_fbSaveInProgress) return;
     _fbSaveInProgress = true;
-    // Capturar S antes de cualquier await: _fbSaveInProgress ya bloquea onSnapshot,
-    // pero capturar aquí es una segunda capa de seguridad.
+    // Capturar S ANTES de cualquier await — _fbSaveInProgress bloquea onSnapshot,
+    // pero clonar aquí garantiza que ningún otro código síncrono toque S.
     const localObj = JSON.parse(JSON.stringify(S));
     try {
       let cloudRaw = null, cloudData = null;
@@ -474,37 +394,38 @@ function _fbSave() {
         if (snap.exists && snap.data()?.state) { cloudRaw = snap.data().state; cloudData = snap.data(); }
       } catch (e) {}
 
-      // Guard de emergencia: si el dispositivo tiene menos del 30% de los datos de la nube
-      // y no es un borrado intencional, abortar (evita borrar masivamente por corrupción).
+      let toSave = localObj;
+
       if (cloudRaw && !_forceSaveOnce) {
         try {
-          const cloudM = _dataMetric(JSON.parse(cloudRaw));
+          const cloudObj = JSON.parse(cloudRaw);
+          const cloudM = _dataMetric(cloudObj);
           const localM = _dataMetric(localObj);
-          if (cloudM > 40 && localM < cloudM * 0.3) {
-            showToast('⚠️ Estado local muy pequeño vs nube — recargá la app. Si es intencional: forzarGuardado()', 14000);
+          const cloudNewer = cloudData._savedAt > (_lastSyncedSavedAt || 0) + 1000;
+
+          // (a) La nube es más reciente Y tiene más datos: este dispositivo está atrasado.
+          // Partimos desde la nube y rescatamos cualquier item con ID que local haya creado
+          // mientras estaba sin sync. Esto preserva ambos lados sin hacer merge total.
+          if (cloudNewer && cloudM > localM) {
+            const rescued = _rescueLocalIds(cloudObj, localObj);
+            S = rescued;
+            localStorage.setItem('lifedash_v2', JSON.stringify(S));
+            _lastSyncedSavedAt = cloudData._savedAt;
+            _reRenderAll();
+            toSave = rescued;
+            // Caemos al write abajo con el estado rescatado
+          }
+
+          // (b) Guard de emergencia: local es <30% de la nube (corrupción severa).
+          // Solo bloquea si local no es claramente más nuevo que la nube.
+          else if (!(_lastSyncedSavedAt > cloudData._savedAt) && cloudM > 40 && localM < cloudM * 0.3) {
+            showToast('⚠️ Estado local muy reducido vs nube — recargá. Si es intencional: forzarGuardado()', 14000);
             return;
           }
         } catch (e) {}
       }
 
       if (cloudRaw) await _maybeBackup(cloudRaw);
-
-      // Merge: fusionar cloud + local. Nunca pierde datos de ninguno de los dos lados.
-      let toSave = localObj;
-      let mergeChanged = false;
-      if (cloudRaw) {
-        try {
-          const cloudObj = JSON.parse(cloudRaw);
-          toSave = _mergeStates(cloudObj, localObj);
-          // Si el merge agregó cosas que local no tenía, actualizar S y localStorage
-          if (JSON.stringify(toSave) !== JSON.stringify(localObj)) {
-            mergeChanged = true;
-            S = toSave;
-            localStorage.setItem('lifedash_v2', JSON.stringify(S));
-          }
-        } catch (e) { console.warn('[merge]', e); toSave = localObj; }
-      }
-
       _forceSaveOnce = false;
       const wid = Math.random().toString(36).slice(2);
       _lastWriteId = wid;
@@ -513,7 +434,6 @@ function _fbSave() {
         await _DOC().set({ state: JSON.stringify(toSave), _wid: wid, _savedAt: savedAt }, { merge: true });
         _lastSyncedSavedAt = savedAt;
         _saveSnap(JSON.stringify(toSave), savedAt);
-        if (mergeChanged) _reRenderAll();  // re-render si el merge trajo datos nuevos
       } catch (e) {
         console.warn('[fbSave] error:', e.code, e.message);
         if (e.code === 'permission-denied') showToast('⚠️ Sin permiso para guardar — iniciá sesión');
