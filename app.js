@@ -309,6 +309,7 @@ async function _subscribePush(pubKey) {
 _pwaInit();
 
 let _fbSaveTid  = null;
+let _fbSaveInProgress = false;  // true mientras el async de _fbSave está corriendo (guard para onSnapshot)
 let _lastWriteId = null;  // ID del último write propio — filtra el eco de onSnapshot
 let _lastSyncedSavedAt = null;  // _savedAt del estado que tenemos en mano (de la nube); null = cargado de localStorage sin confirmar nube
 let _forceSaveOnce = false;     // override puntual del guard anti-pisada (forzarGuardado())
@@ -340,43 +341,51 @@ function _fbSave() {
   clearTimeout(_fbSaveTid);
   _fbSaveTid = setTimeout(async () => {
     _fbSaveTid = null;
-    // Leer la nube una vez para (a) guarda anti-pisada y (b) backup diario.
-    let cloudRaw = null, cloudData = null;
+    if (_fbSaveInProgress) return;  // ya hay un save en vuelo
+    _fbSaveInProgress = true;
+    // Capturar S ANTES de cualquier await para que onSnapshot no lo corrompa durante la escritura.
+    const localSnapshot = JSON.stringify(S);
+    const localM = _dataMetric(S);
     try {
-      const snap = await _DOC().get();
-      if (snap.exists && snap.data()?.state) { cloudRaw = snap.data().state; cloudData = snap.data(); }
-    } catch (e) {}
-    if (cloudRaw && !_forceSaveOnce) {
+      // Leer la nube una vez para (a) guarda anti-pisada y (b) backup diario.
+      let cloudRaw = null, cloudData = null;
       try {
-        const cloudM = _dataMetric(JSON.parse(cloudRaw));
-        const localM = _dataMetric(S);
-        const cloudNewer = cloudData._savedAt && (_lastSyncedSavedAt == null || cloudData._savedAt > _lastSyncedSavedAt + 1000);
-        // (a) la nube es MÁS NUEVA y tiene MÁS datos → este dispositivo está atrasado: traer la nube, no pisar.
-        if (cloudNewer && cloudM - localM >= 3) {
-          showToast('🛡️ La nube tiene datos más nuevos (este dispositivo estaba atrasado). Los traje en vez de sobrescribir.', 11000);
-          _applyRemoteState(cloudRaw, cloudData._savedAt);
-          return;
-        }
-        // (b) red de seguridad por tamaño: el guardado dejaría menos de la mitad de los datos → bloquear.
-        if (cloudM > 25 && localM < cloudM * 0.5) {
-          showToast('🛡️ Guardado en pausa: este dispositivo tiene MENOS datos que la nube (posible copia vieja). Recargá la app. Si el borrado es a propósito, ejecutá forzarGuardado() en la consola.', 14000);
-          return;
-        }
+        const snap = await _DOC().get();
+        if (snap.exists && snap.data()?.state) { cloudRaw = snap.data().state; cloudData = snap.data(); }
       } catch (e) {}
-    }
-    if (cloudRaw) await _maybeBackup(cloudRaw);
-    _forceSaveOnce = false;
-    const wid = Math.random().toString(36).slice(2);
-    _lastWriteId = wid;
-    const savedAt = Date.now();
-    // merge:true preserva los campos top-level (vapidKeys, pushSubscription, notifiedReminders)
-    // que usa el cron de push en background; sin merge, cada set los borraría.
-    try {
-      await _DOC().set({ state: JSON.stringify(S), _wid: wid, _savedAt: savedAt }, { merge: true });
-      _lastSyncedSavedAt = savedAt;
-    } catch (e) {
-      console.warn('[fbSave] error:', e.code, e.message);
-      if (e.code === 'permission-denied') showToast('⚠️ Sin permiso para guardar — iniciá sesión');
+      if (cloudRaw && !_forceSaveOnce) {
+        try {
+          const cloudM = _dataMetric(JSON.parse(cloudRaw));
+          const cloudNewer = cloudData._savedAt && (_lastSyncedSavedAt == null || cloudData._savedAt > _lastSyncedSavedAt + 1000);
+          // (a) la nube es MÁS NUEVA y tiene MÁS datos → este dispositivo está atrasado: traer la nube, no pisar.
+          if (cloudNewer && cloudM > localM) {
+            showToast('🛡️ La nube tiene datos más nuevos (este dispositivo estaba atrasado). Los traje en vez de sobrescribir.', 11000);
+            _applyRemoteState(cloudRaw, cloudData._savedAt);
+            return;
+          }
+          // (b) red de seguridad por tamaño: el guardado dejaría menos de la mitad de los datos → bloquear.
+          if (cloudM > 25 && localM < cloudM * 0.5) {
+            showToast('🛡️ Guardado en pausa: este dispositivo tiene MENOS datos que la nube (posible copia vieja). Recargá la app. Si el borrado es a propósito, ejecutá forzarGuardado() en la consola.', 14000);
+            return;
+          }
+        } catch (e) {}
+      }
+      if (cloudRaw) await _maybeBackup(cloudRaw);
+      _forceSaveOnce = false;
+      const wid = Math.random().toString(36).slice(2);
+      _lastWriteId = wid;
+      const savedAt = Date.now();
+      // merge:true preserva los campos top-level (vapidKeys, pushSubscription, notifiedReminders)
+      // que usa el cron de push en background; sin merge, cada set los borraría.
+      try {
+        await _DOC().set({ state: localSnapshot, _wid: wid, _savedAt: savedAt }, { merge: true });
+        _lastSyncedSavedAt = savedAt;
+      } catch (e) {
+        console.warn('[fbSave] error:', e.code, e.message);
+        if (e.code === 'permission-denied') showToast('⚠️ Sin permiso para guardar — iniciá sesión');
+      }
+    } finally {
+      _fbSaveInProgress = false;
     }
   }, 2000);
 }
@@ -447,7 +456,7 @@ function _applyRemoteState(raw, savedAt) {
 // ── Real-time Firestore listener ──────────────────────────
 function _startFirestoreSync() {
   _DOC().onSnapshot(snap => {
-    if (_fbSaveTid) return;                             // cambios locales pendientes
+    if (_fbSaveTid || _fbSaveInProgress) return;        // save local en vuelo — no pisar S
     if (!snap.exists || !snap.data()?.state) return;
     if (snap.data()._wid && snap.data()._wid === _lastWriteId) return;  // eco propio
     _applyRemoteState(snap.data().state, snap.data()._savedAt);
@@ -456,7 +465,7 @@ function _startFirestoreSync() {
 
 // ── On visibility restore (iOS kills WS in background) ───
 async function _syncOnFocus() {
-  if (_fbSaveTid) return;
+  if (_fbSaveTid || _fbSaveInProgress) return;
   try {
     const snap = await _DOC().get();
     if (!snap.exists || !snap.data()?.state) return;
