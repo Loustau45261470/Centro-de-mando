@@ -7,7 +7,7 @@
                JARVIS_FX.setLevel(0..1), JARVIS_FX.onExit = fn
    ══════════════════════════════════════════════════════ */
 (function () {
-  const REDUCED = /Mobi|Android/i.test(navigator.userAgent) || window.innerWidth < 768;
+  const REDUCED = false; // motion siempre activo, en todos los dispositivos
   const C  = { r: 56,  g: 189, b: 248 }; // #38bdf8 cian base
   const C2 = { r: 125, g: 211, b: 252 }; // #7dd3fc cian brillante
   const rgba = (c, a) => `rgba(${c.r},${c.g},${c.b},${a})`;
