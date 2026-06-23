@@ -243,7 +243,11 @@
           generationConfig: { maxOutputTokens: 300, temperature: 0, thinkingConfig: { thinkingBudget: 0 } } };
         parse = d => d.candidates && d.candidates[0] && d.candidates[0].content && d.candidates[0].content.parts[0].text;
       }
-      const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+      const ctrl = new AbortController();
+      const tout = setTimeout(() => ctrl.abort(), 5000);
+      let res;
+      try { res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: ctrl.signal }); }
+      finally { clearTimeout(tout); }
       if (!res.ok) return text;
       const data = await res.json();
       return ((parse(data) || '') + '').trim() || text;
