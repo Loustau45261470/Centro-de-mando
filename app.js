@@ -337,45 +337,53 @@ async function _maybeBackup(cloudStateRaw) {
   } catch (e) { console.warn('[backup]', e.code || e.message); }
 }
 
-// Cuando la nube es más completa que local (dispositivo atrasado), parte desde la nube
-// y agrega solo los items con IDs que local tiene y la nube no tiene (datos genuinamente nuevos).
-// NO toca goals, config ni campos escalares — evita reaparecer items borrados.
-function _rescueLocalIds(cloudObj, localObj) {
-  const result = { ...cloudObj };
-  const ID_KEYS = [
-    'transactions','accounts','subscriptions','orders','wishlist',
-    'supplements','photos','finObjectives','fixedExpenses','lawMilestones','routines'
-  ];
-  ID_KEYS.forEach(key => {
+// Parte desde cloudObj y agrega lo que local tiene y cloud no:
+// items por ID (transacciones, etc.), goals por texto (por fecha), y días de hábitos.
+// Nunca borra nada de cloud. Solo suma lo que local creó mientras estaba sin sync.
+function _rescueLocal(cloudObj, localObj) {
+  const r = { ...cloudObj };
+  // Arrays con ID
+  ['transactions','accounts','subscriptions','orders','wishlist',
+   'supplements','photos','finObjectives','fixedExpenses','lawMilestones','routines'
+  ].forEach(key => {
     const c = Array.isArray(cloudObj[key]) ? cloudObj[key] : [];
     const l = Array.isArray(localObj[key]) ? localObj[key] : [];
-    if (!l.length) return;
-    const cloudIds = new Set(c.map(i => i?.id).filter(Boolean));
-    const newLocal = l.filter(i => i?.id && !cloudIds.has(i.id));
-    if (newLocal.length) result[key] = [...c, ...newLocal];
+    const cIds = new Set(c.map(i => i?.id).filter(Boolean));
+    const news = l.filter(i => i?.id && !cIds.has(i.id));
+    if (news.length) r[key] = [...c, ...news];
   });
-  // Hábitos: agregar días marcados en local que la nube no tiene (nunca quitar días de la nube)
+  // Goals / tomorrowGoals: agrega items por texto que cloud no tenga
+  ['goals','tomorrowGoals'].forEach(key => {
+    const cG = (cloudObj[key] && typeof cloudObj[key]==='object') ? cloudObj[key] : {};
+    const lG = (localObj[key] && typeof localObj[key]==='object') ? localObj[key] : {};
+    const merged = { ...cG };
+    Object.keys(lG).forEach(date => {
+      const cArr = Array.isArray(cG[date]) ? cG[date] : [];
+      const lArr = Array.isArray(lG[date]) ? lG[date] : [];
+      const cTexts = new Set(cArr.map(g => g?.text).filter(Boolean));
+      const newGoals = lArr.filter(g => g?.text && !cTexts.has(g.text));
+      if (newGoals.length) merged[date] = [...cArr, ...newGoals];
+      else if (!merged[date] && lArr.length) merged[date] = lArr;
+    });
+    r[key] = merged;
+  });
+  // Hábitos: agrega días que cloud no tiene
   if (cloudObj.habitTrackers && localObj.habitTrackers) {
     const c = cloudObj.habitTrackers, l = localObj.habitTrackers;
-    const htResult = {};
+    const ht = {};
     Object.keys(c).forEach(sec => {
-      const cH = Array.isArray(c[sec]) ? c[sec] : [];
-      const lH = Array.isArray(l[sec]) ? l[sec] : [];
       const byId = {};
-      cH.forEach(h => { if (h?.id) byId[h.id] = { ...h }; });
-      lH.forEach(h => {
+      (Array.isArray(c[sec]) ? c[sec] : []).forEach(h => { if (h?.id) byId[h.id] = { ...h }; });
+      (Array.isArray(l[sec]) ? l[sec] : []).forEach(h => {
         if (!h?.id || !byId[h.id]) return;
-        const extraDays = Object.fromEntries(
-          Object.entries(h.days || {}).filter(([d]) => byId[h.id].days?.[d] == null)
-        );
-        if (Object.keys(extraDays).length)
-          byId[h.id] = { ...byId[h.id], days: { ...extraDays, ...(byId[h.id].days || {}) } };
+        const extra = Object.fromEntries(Object.entries(h.days||{}).filter(([d]) => byId[h.id].days?.[d]==null));
+        if (Object.keys(extra).length) byId[h.id] = { ...byId[h.id], days: { ...extra, ...(byId[h.id].days||{}) } };
       });
-      htResult[sec] = Object.values(byId);
+      ht[sec] = Object.values(byId);
     });
-    result.habitTrackers = htResult;
+    r.habitTrackers = ht;
   }
-  return result;
+  return r;
 }
 
 function _fbSave() {
@@ -384,9 +392,11 @@ function _fbSave() {
     _fbSaveTid = null;
     if (_fbSaveInProgress) return;
     _fbSaveInProgress = true;
-    // Capturar S ANTES de cualquier await — _fbSaveInProgress bloquea onSnapshot,
-    // pero clonar aquí garantiza que ningún otro código síncrono toque S.
     const localObj = JSON.parse(JSON.stringify(S));
+    // ¿Ya confirmamos Firestore en esta sesión? (loadState lo seteó, o un write anterior lo seteó)
+    // Si sí: escribir local directo — el guard de timestamp causaba falsos positivos en uso normal.
+    // Si no (cargamos desde localStorage): aplicar rescue para no pisar la nube con estado viejo.
+    const sessionConfirmed = _lastSyncedSavedAt !== null;
     try {
       let cloudRaw = null, cloudData = null;
       try {
@@ -396,30 +406,22 @@ function _fbSave() {
 
       let toSave = localObj;
 
-      if (cloudRaw && !_forceSaveOnce) {
+      if (cloudRaw && !_forceSaveOnce && !sessionConfirmed) {
+        // Solo llegamos aquí si cargamos desde localStorage (sin confirmación de Firestore).
+        // Comparar tamaños: si cloud tiene significativamente más datos, es que este dispositivo
+        // perdió actualizaciones. Rescatar lo local que sea nuevo y partir desde cloud.
         try {
           const cloudObj = JSON.parse(cloudRaw);
           const cloudM = _dataMetric(cloudObj);
           const localM = _dataMetric(localObj);
-          const cloudNewer = cloudData._savedAt > (_lastSyncedSavedAt || 0) + 1000;
-
-          // (a) La nube es más reciente Y tiene más datos: este dispositivo está atrasado.
-          // Partimos desde la nube y rescatamos cualquier item con ID que local haya creado
-          // mientras estaba sin sync. Esto preserva ambos lados sin hacer merge total.
-          if (cloudNewer && cloudM > localM) {
-            const rescued = _rescueLocalIds(cloudObj, localObj);
-            S = rescued;
+          if (cloudM > localM + 3) {
+            toSave = _rescueLocal(cloudObj, localObj);
+            S = toSave;
             localStorage.setItem('lifedash_v2', JSON.stringify(S));
             _lastSyncedSavedAt = cloudData._savedAt;
             _reRenderAll();
-            toSave = rescued;
-            // Caemos al write abajo con el estado rescatado
-          }
-
-          // (b) Guard de emergencia: local es <30% de la nube (corrupción severa).
-          // Solo bloquea si local no es claramente más nuevo que la nube.
-          else if (!(_lastSyncedSavedAt > cloudData._savedAt) && cloudM > 40 && localM < cloudM * 0.3) {
-            showToast('⚠️ Estado local muy reducido vs nube — recargá. Si es intencional: forzarGuardado()', 14000);
+          } else if (cloudM > 50 && localM < cloudM * 0.2) {
+            showToast('⚠️ Estado local muy pequeño — recargá. Si es intencional: forzarGuardado()', 14000);
             return;
           }
         } catch (e) {}
