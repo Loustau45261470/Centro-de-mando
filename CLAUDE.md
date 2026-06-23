@@ -51,3 +51,20 @@ Nunca leer el archivo completo. Siempre:
 - No repitas código sin cambios en las respuestas.
 - Sin preámbulos ni resúmenes al final; no expliques lo obvio.
 - Testea el comportamiento antes de dar una tarea por terminada.
+
+## Regla crítica: bugs de sync/datos — DIAGNÓSTICO PRIMERO
+
+El sistema de sync (Firestore ↔ localStorage ↔ múltiples dispositivos) es complejo. Ante cualquier problema de sincronización o pérdida de datos:
+
+1. **No tocar `_fbSave`, `_applyRemoteState`, `loadState` ni ninguna lógica de sync sin primero agregar visibilidad** (panel de diagnóstico en UI, toasts con info de estado, etc.) y confirmar qué path está tomando el código.
+2. **Un cambio a la vez.** Commitear y esperar confirmación del usuario de que el comportamiento cambió antes de hacer el siguiente cambio de lógica.
+3. **No encadenar fixes.** Si el primer fix no resolvió el problema, volver al paso 1 (más diagnóstico), no proponer otro fix distinto.
+4. **No reemplazar sistemas enteros** (ej: "cambio todo el sistema de sync") sin entender qué parte puntual falla. Siempre fix quirúrgico.
+
+### Arquitectura de sync actual (no cambiar sin entender esto)
+- `loadState()`: lee de Firestore al arrancar. Si falla → localStorage. Setea `_lastSyncedSavedAt`.
+- `saveState()`: guarda en localStorage + llama `_fbSave()` (debounce 2s).
+- `_fbSave()`: si `_lastSyncedSavedAt !== null` (sesión confirmada) → escribe local directo. Si es null (cargó de localStorage) → rescue desde cloud + guarda.
+- `_fbSaveInProgress`: flag que bloquea `onSnapshot` y `_syncOnFocus` mientras hay un write en vuelo. **No eliminar.**
+- `onSnapshot`: listener real-time. Solo aplica si no hay write en vuelo.
+- `snap_<timestamp>`: snapshots post-write (últimos 20) para recuperación. `listarSnaps()` / `restaurarSnap()` en consola.
