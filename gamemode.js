@@ -11,12 +11,12 @@
 const GM_CATEGORIES = ['cuerpo', 'mente', 'finanzas', 'espiritu', 'vinculos', 'trabajo'];
 
 const GM_CAT_META = {
-  cuerpo:   { icon: '💪', name: 'Cuerpo',   color: '--c-salud',        titulo: 'El Forjado' },
-  mente:    { icon: '🧠', name: 'Mente',    color: '--c-conocimiento', titulo: 'El Erudito' },
-  finanzas: { icon: '💰', name: 'Finanzas', color: '--c-finanzas',     titulo: 'El Estratega' },
-  espiritu: { icon: '🙏', name: 'Espíritu', color: '--c-jarvis',       titulo: 'El Custodio' },
+  cuerpo:   { icon: '💪', name: 'Cuerpo',   color: '--c-salud',        titulo: 'El Titán' },
+  mente:    { icon: '🧠', name: 'Mente',    color: '--c-conocimiento', titulo: 'El Sabio' },
+  finanzas: { icon: '💰', name: 'Finanzas', color: '--c-finanzas',     titulo: 'El Inversor' },
+  espiritu: { icon: '🙏', name: 'Espíritu', color: '--c-jarvis',       titulo: 'El Devoto' },
   vinculos: { icon: '❤️', name: 'Vínculos', color: '--c-vida',         titulo: 'El Pilar' },
-  trabajo:  { icon: '⚙️', name: 'Trabajo',  color: '--c-ia',           titulo: 'El Constructor' },
+  trabajo:  { icon: '⚙️', name: 'Trabajo',  color: '--c-ia',           titulo: 'El Ejecutor' },
 };
 
 // Colores de rareza fijos, independientes del tema.
