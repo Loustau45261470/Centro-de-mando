@@ -28,7 +28,15 @@ const GM_RARITY = {
 };
 
 const GM_PLAYER_NAME = 'Tobías';
-const GM_XP_HABIT_DAY = 10;   // XP base por día cumplido de un hábito
+// XP por día cumplido, por hábito (para mostrar en las misiones del día)
+const GM_HABIT_XP = [
+  { kw: ['entrenamiento'], xp: 10 }, { kw: ['boxeo', 'box'], xp: 10 }, { kw: ['jujitsu', 'jiu'], xp: 10 },
+  { kw: ['comer sano', 'liviano', 'nutric'], xp: 10 }, { kw: ['estudiar'], xp: 15 }, { kw: ['leer'], xp: 8 },
+  { kw: ['enfoque'], xp: 5 }, { kw: ['meditar', 'visualiz'], xp: 8 }, { kw: ['despertar'], xp: 10 }, { kw: ['planificar'], xp: 5 },
+  { kw: ['aprendizaje econ', 'económic', 'economic'], xp: 5 }, { kw: ['registro financiero'], xp: 8 }, { kw: ['austeridad'], xp: 10 },
+  { kw: ['aplicación de ideas', 'aplicacion de ideas'], xp: 6 }, { kw: ['trabajo en proyecto'], xp: 10 },
+];
+function gmHabitDisplayXp(name) { const n = (name || '').toLowerCase(); const m = GM_HABIT_XP.find(x => x.kw.some(k => n.includes(k))); return m ? m.xp : 0; }
 
 let GM = null;
 let _gmLevelUps = [];   // skills que subieron de nivel vs run anterior
@@ -43,6 +51,7 @@ function gmLevelInfo(xp) {
   const cost = gmXpCost(lvl);
   return { nivel: lvl, xpEnNivel: xp - acc, xpParaSiguiente: cost, pct: cost ? (xp - acc) / cost : 0 };
 }
+function gmXpThreshold(level) { let acc = 0; for (let n = 1; n < level; n++) acc += gmXpCost(n); return acc; }
 
 // ── Helpers de lectura sobre S (read-only) ───────────────────────────────
 function gmHabitDone(h, d) { const v = h && h.days && h.days[d]; return v === 'done' || v === 'studied'; }
@@ -74,13 +83,37 @@ function gmDoneProyectos() {
   return ids;
 }
 function gmMilestonesOnTime() { return (S.lawMilestones || []).filter(m => m.real != null && m.expected != null && m.real >= m.expected).length; }
-function gmNwGrowthMonths() {
-  const byMonth = {};
-  (S.nwHistory || []).slice().sort((a, b) => a.date < b.date ? -1 : 1).forEach(r => { byMonth[r.date.slice(0, 7)] = r.value; });
-  const months = Object.keys(byMonth).sort();
-  let n = 0;
-  for (let i = 1; i < months.length; i++) if (byMonth[months[i]] > byMonth[months[i - 1]]) n++;
-  return n;
+// Estudiar: +15 XP/día hasta que su aporte cruza nivel 5, después +10/día.
+function gmEstudiarXp() {
+  const h = gmKwHabit(['estudiar']); if (!h) return 0;
+  const days = Object.keys(h.days || {}).filter(d => gmHabitDone(h, d)).sort();
+  const L5 = gmXpThreshold(5);
+  let xp = 0;
+  days.forEach(() => { xp += xp < L5 ? 15 : 10; });
+  return xp;
+}
+function gmNwSorted() { return (S.nwHistory || []).slice().sort((a, b) => a.date < b.date ? -1 : 1); }
+function gmNwByMonth() { const o = {}; gmNwSorted().forEach(r => { o[r.date.slice(0, 7)] = r.value; }); return o; }
+function gmNwGrowthMonths() { const m = gmNwByMonth(), ks = Object.keys(m).sort(); let n = 0; for (let i = 1; i < ks.length; i++) if (m[ks[i]] > m[ks[i - 1]]) n++; return n; }
+function gmNwMaxGrowthStreak() { const m = gmNwByMonth(), ks = Object.keys(m).sort(); let max = 0, cur = 0; for (let i = 1; i < ks.length; i++) { if (m[ks[i]] > m[ks[i - 1]]) { cur++; max = Math.max(max, cur); } else cur = 0; } return max; }
+function gmNwRatio12() {
+  const nw = gmNwSorted(); if (nw.length < 2) return 0;
+  const latest = nw[nw.length - 1];
+  const cut = new Date(latest.date + 'T12:00:00'); cut.setFullYear(cut.getFullYear() - 1);
+  const cs = localStr(cut);
+  let base = null; for (const r of nw) if (r.date <= cs) base = r.value;
+  if (base == null) base = nw[0].value;
+  return base > 0 ? latest.value / base : 0;
+}
+function gmRiquezaXp() {
+  let xp = gmNwGrowthMonths() * 50;
+  const st = gmNwMaxGrowthStreak();
+  if (st >= 6) xp += 100;
+  if (st >= 12) xp += 250;
+  const r = gmNwRatio12();
+  if (r >= 1.5) xp += 250;
+  if (r >= 2) xp += 500;
+  return xp;
 }
 function gmFixedPaidCount() {
   let n = 0;
@@ -92,41 +125,43 @@ function gmFixedPaidCount() {
 // ── SKILLS — cada una con su función de XP determinista (null = sin tracker) ──
 const GM_SKILLS = [
   // 💪 Cuerpo
-  { id: 'fortaleza_fisica', cat: 'cuerpo', name: 'Fortaleza física', xp: () => gmKwDays(['entrenamiento']) * GM_XP_HABIT_DAY },
-  { id: 'combate',          cat: 'cuerpo', name: 'Habilidad de combate', xp: () => gmKwDays(['boxeo', 'box', 'jujitsu', 'jiu']) * GM_XP_HABIT_DAY },
-  { id: 'nutricion',        cat: 'cuerpo', name: 'Nutrición / Salud', xp: () => gmKwDays(['comer sano', 'liviano', 'nutric']) * GM_XP_HABIT_DAY },
+  { id: 'fortaleza_fisica', cat: 'cuerpo', name: 'Fortaleza física', xp: () => gmKwDays(['entrenamiento']) * 10 },
+  { id: 'combate',          cat: 'cuerpo', name: 'Habilidad de combate', xp: () => gmKwDays(['boxeo', 'box', 'jujitsu', 'jiu']) * 10 },
+  { id: 'nutricion',        cat: 'cuerpo', name: 'Nutrición / Salud', xp: () => gmKwDays(['comer sano', 'liviano', 'nutric']) * 10 },
   { id: 'agilidad',         cat: 'cuerpo', name: 'Agilidad', xp: null },
   { id: 'resistencia',      cat: 'cuerpo', name: 'Resistencia', xp: null },
   // 🧠 Mente
-  { id: 'intelecto',        cat: 'mente', name: 'Intelecto', xp: () => gmKwDays(['estudiar', 'leer']) * GM_XP_HABIT_DAY + gmDoneMaterias().length * 100 + gmMilestonesOnTime() * 25 },
-  { id: 'concentracion',    cat: 'mente', name: 'Concentración', xp: () => gmKwDays(['enfoque']) * GM_XP_HABIT_DAY },
-  { id: 'fortaleza_mental', cat: 'mente', name: 'Fortaleza mental', xp: () => gmKwDays(['meditar', 'visualiz']) * GM_XP_HABIT_DAY },
-  { id: 'responsabilidad',  cat: 'mente', name: 'Responsabilidad', xp: () => gmKwDays(['despertar', 'planificar']) * GM_XP_HABIT_DAY },
+  { id: 'intelecto',        cat: 'mente', name: 'Intelecto', xp: () => gmEstudiarXp() + gmKwDays(['leer']) * 8 + gmDoneMaterias().length * 150 + gmMilestonesOnTime() * 200 },
+  { id: 'concentracion',    cat: 'mente', name: 'Concentración', xp: () => gmKwDays(['enfoque']) * 5 },
+  { id: 'fortaleza_mental', cat: 'mente', name: 'Fortaleza mental', xp: () => gmKwDays(['meditar', 'visualiz']) * 8 },
+  { id: 'responsabilidad',  cat: 'mente', name: 'Responsabilidad', xp: () => gmKwDays(['despertar']) * 10 + gmKwDays(['planificar']) * 5 },
   // 💰 Finanzas
-  { id: 'economista',       cat: 'finanzas', name: 'Economista', xp: () => gmKwDays(['aprendizaje econ', 'económic', 'economic']) * GM_XP_HABIT_DAY },
-  { id: 'riqueza',          cat: 'finanzas', name: 'Riqueza', xp: () => gmNwGrowthMonths() * 30 },
-  { id: 'gerente',          cat: 'finanzas', name: 'Gerente de finanzas', xp: () => gmKwDays(['registro financiero', 'austeridad']) * GM_XP_HABIT_DAY + gmFixedPaidCount() * 10 },
+  { id: 'economista',       cat: 'finanzas', name: 'Economista', xp: () => gmKwDays(['aprendizaje econ', 'económic', 'economic']) * 5 },
+  { id: 'riqueza',          cat: 'finanzas', name: 'Riqueza', xp: () => gmRiquezaXp() },
+  { id: 'gerente',          cat: 'finanzas', name: 'Gerente de finanzas', xp: () => gmKwDays(['austeridad']) * 10 + gmKwDays(['registro financiero']) * 8 + gmFixedPaidCount() * 5 },
   // 🙏 Espíritu
-  { id: 'fe',               cat: 'espiritu', name: 'Fe', xp: () => gmEvCount('mision') * 10 + gmEvCount('lectura') * 10 + gmEvCount('reflexion') * 15 },
+  { id: 'fe',               cat: 'espiritu', name: 'Fe', xp: () => gmEvCount('mision') * 5 + gmEvCount('lectura') * 5 + gmEvCount('reflexion') * 15 },
   { id: 'templanza',        cat: 'espiritu', name: 'Templanza', xp: null },
   // ❤️ Vínculos
   { id: 'buen_novio',       cat: 'vinculos', name: 'Buen novio', xp: () => gmEvCount('novia_tiempo', 'novia') * 10 + gmEvCount('novia_gesto') * 10 },
   { id: 'buen_hijo',        cat: 'vinculos', name: 'Buen hijo', xp: () => gmEvCount('padres_gesto', 'padres') * 10 },
-  { id: 'buen_padre',       cat: 'vinculos', name: 'Buen padre', xp: null },
+  { id: 'buen_padre',       cat: 'vinculos', name: 'Buen padre', xp: () => gmEvCount('gatitas_mimar') * 3 + gmEvCount('gatitas_caja') * 3 },
   { id: 'buen_amigo',       cat: 'vinculos', name: 'Buen amigo', xp: null },
   // ⚙️ Trabajo
-  { id: 'ejecucion',        cat: 'trabajo', name: 'Ejecución', xp: () => gmKwDays(['aplicación de ideas', 'aplicacion de ideas', 'trabajo en proyecto']) * GM_XP_HABIT_DAY + gmDoneProyectos().length * 100 },
+  { id: 'ejecucion',        cat: 'trabajo', name: 'Ejecución', xp: () => gmKwDays(['aplicación de ideas', 'aplicacion de ideas']) * 6 + gmKwDays(['trabajo en proyecto']) * 10 + gmDoneProyectos().length * 200 },
 ];
 const GM_SKILLS_BY_CAT = cat => GM_SKILLS.filter(s => s.cat === cat);
 
 // Input manual: hábitos que no viven en S (Espíritu y Vínculos)
 const GM_EV_FIELDS = [
-  { key: 'mision',       label: 'Oración / misa',           cat: 'espiritu', skill: 'fe',         xp: 10 },
-  { key: 'lectura',      label: 'Lectura espiritual',        cat: 'espiritu', skill: 'fe',         xp: 10 },
-  { key: 'reflexion',    label: 'Reflexión',                 cat: 'espiritu', skill: 'fe',         xp: 15 },
-  { key: 'novia_tiempo', label: 'Tiempo de calidad (novia)', cat: 'vinculos', skill: 'buen_novio', xp: 10 },
-  { key: 'novia_gesto',  label: 'Gesto especial (novia)',    cat: 'vinculos', skill: 'buen_novio', xp: 10 },
-  { key: 'padres_gesto', label: 'Gesto especial (padres)',   cat: 'vinculos', skill: 'buen_hijo',  xp: 10 },
+  { key: 'mision',        label: 'Oración / misa',           cat: 'espiritu', skill: 'fe',         xp: 5 },
+  { key: 'lectura',       label: 'Lectura espiritual',        cat: 'espiritu', skill: 'fe',         xp: 5 },
+  { key: 'reflexion',     label: 'Reflexión',                 cat: 'espiritu', skill: 'fe',         xp: 15 },
+  { key: 'novia_tiempo',  label: 'Tiempo de calidad (novia)', cat: 'vinculos', skill: 'buen_novio', xp: 10 },
+  { key: 'novia_gesto',   label: 'Gesto especial (novia)',    cat: 'vinculos', skill: 'buen_novio', xp: 10 },
+  { key: 'padres_gesto',  label: 'Gesto especial (padres)',   cat: 'vinculos', skill: 'buen_hijo',  xp: 10 },
+  { key: 'gatitas_mimar', label: 'Mimar gatitas',             cat: 'vinculos', skill: 'buen_padre', xp: 3 },
+  { key: 'gatitas_caja',  label: 'Limpiar caja de arena',     cat: 'vinculos', skill: 'buen_padre', xp: 3 },
 ];
 
 // ── Estado por defecto ───────────────────────────────────────────────────
@@ -227,7 +262,7 @@ function gmBuildDailyMissions(today) {
       if (!s.xp) return;
       gmKwHabits(_gmSkillKw(s)).forEach(h => {
         if (seen.has(h.id)) return; seen.add(h.id);
-        items.push({ texto: h.name, xp: GM_XP_HABIT_DAY, completada: gmHabitDone(h, today) });
+        items.push({ texto: h.name, xp: gmHabitDisplayXp(h.name), completada: gmHabitDone(h, today) });
       });
     });
     GM_EV_FIELDS.filter(f => f.cat === cat).forEach(f => items.push({ texto: f.label, xp: f.xp, completada: !!ev[f.key], ev: f.key }));
