@@ -4,8 +4,9 @@
    ════════════════════════════════════════════════════════════════════ */
 
 #tab-game { padding-bottom: calc(var(--nav) + 24px); }
-.gm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
-.gm-span { grid-column: span 1; }
+/* min-width:0 → las cards pueden encogerse bajo el ancho de su contenido (evita
+   desborde horizontal); el masonry del proyecto (styles.css) acomoda las columnas. */
+#tab-game .card { min-width: 0; max-width: 100%; }
 .gm-card { padding: 16px; }
 .gm-card-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; font-weight: 600; color: var(--tp); font-size: 14px; }
 .gm-empty { color: var(--tt); font-size: 13px; padding: 10px 0; }
@@ -22,14 +23,14 @@
 .gm-hud { display: flex; flex-direction: column; gap: 16px; }
 .gm-hud-id { display: flex; align-items: center; gap: 14px; }
 .gm-avatar { width: 56px; height: 56px; border-radius: 16px; display: grid; place-items: center; font-size: 30px; background: var(--card-h); border: 1px solid var(--border-h); }
-.gm-id-text { flex: 1; min-width: 0; }
+.gm-id-text { flex: 1; min-width: 0; overflow: hidden; }
 .gm-name { font-size: 18px; font-weight: 700; color: var(--tp); }
 .gm-title { font-size: 13px; color: var(--accent); font-weight: 600; letter-spacing: .3px; }
-.gm-genlevel { text-align: center; display: flex; flex-direction: column; }
+.gm-genlevel { text-align: center; display: flex; flex-direction: column; flex-shrink: 0; }
 .gm-genlevel-num { font-family: var(--mono); font-size: 36px; font-weight: 700; line-height: 1; color: var(--tp); }
 .gm-genlevel-lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--tt); }
 .gm-stats-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
-.gm-stat { display: flex; flex-direction: column; gap: 5px; }
+.gm-stat { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 .gm-stat-top { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--ts); }
 .gm-stat-ico { font-size: 14px; }
 .gm-stat-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -116,13 +117,18 @@
 .gm-floatxp { position: fixed; transform: translate(-50%, 0); z-index: 9600; font-family: var(--mono); font-weight: 700; font-size: 14px; color: var(--accent); pointer-events: none; transition: transform 1s ease-out, opacity 1s ease-out; opacity: 1; }
 .gm-floatxp.go { transform: translate(-50%, -42px); opacity: 0; }
 
+/* ── Desktop: HUD y buffs ocupan ancho completo sobre el masonry de 2 columnas ── */
+@media (min-width: 980px) {
+  #tab-game.tab-panel.active > .gm-hud,
+  #tab-game.tab-panel.active > .gm-buffs { column-span: all; }
+}
+
 /* ── Responsive ── */
 @media (max-width: 820px) {
-  .gm-grid { grid-template-columns: 1fr; }
   .gm-stats-grid { grid-template-columns: repeat(3, 1fr); }
   .gm-hud-id { flex-wrap: wrap; }
   .gm-ev-list { grid-template-columns: 1fr; }
 }
-@media (max-width: 480px) {
+@media (max-width: 600px) {
   .gm-stats-grid { grid-template-columns: repeat(2, 1fr); }
 }

@@ -14,6 +14,12 @@ function _gmThemeColor(varName) {
 
 // ── Entrada: abre la pestaña, corre el motor y renderiza ─────────────────
 async function openGameMode() {
+  // Guard: no correr el motor (ni persistir) si S aún no cargó desde Firestore,
+  // para no pisar appdata/playerstate con XP recalculado en 0.
+  if (typeof S === 'undefined' || !S || !S.habitTrackers) {
+    if (typeof showToast === 'function') showToast('Cargando datos…');
+    return;
+  }
   if (!GM) await gmLoad();
   gmRunEngine();
   _gmShowTab();
@@ -33,16 +39,19 @@ function _gmShowTab() {
 function gmRenderAll() {
   const panel = document.getElementById('tab-game');
   if (!panel) return;
+  // Destruir la instancia Chart antes de reemplazar el DOM (su canvas se borra
+  // con innerHTML y Chart.js no se entera → leak por cada ciclo de re-render).
+  if (_gmRadar) { _gmRadar.destroy(); _gmRadar = null; }
+  // Zonas como .card hijas directas de #tab-game → el masonry del proyecto
+  // (column-count:2 en ≥980px, 1 columna en mobile) las acomoda igual que el resto de tabs.
   panel.innerHTML =
     gmRenderHud() +
     gmRenderBuffs() +
-    `<div class="gm-grid">` +
-      gmRenderDaily() +
-      gmRenderEpics() +
-      gmRenderLogros() +
-      gmRenderManual() +
-      gmRenderRadar() +
-    `</div>`;
+    gmRenderDaily() +
+    gmRenderEpics() +
+    gmRenderLogros() +
+    gmRenderManual() +
+    gmRenderRadar();
   requestAnimationFrame(gmDrawRadar);
 }
 
@@ -100,7 +109,7 @@ function gmRenderDaily() {
       ${m.xp ? `<span class="gm-mission-xp">+${m.xp}</span>` : ''}
     </div>`).join('');
   const perfect = GM.dia_perfecto_count ? `<span class="gm-perfect">★ ${GM.dia_perfecto_count} días perfectos</span>` : '';
-  return `<div class="gm-card card gm-span">
+  return `<div class="gm-card card">
     <div class="gm-card-h"><span>Misiones del día</span><span class="gm-prog-lbl">${done}/${dm.length}</span></div>
     <div class="gm-bar gm-bar-lg"><div class="gm-bar-fill" style="width:${pct}%"></div></div>
     ${perfect}
@@ -123,7 +132,7 @@ function gmRenderEpics() {
       <div class="gm-epic-meta">${e.done}/${e.total} · ${pct}% <span class="gm-epic-exp">esperado ${espPct}%</span></div>
     </div>`;
   }).join('');
-  return `<div class="gm-card card gm-span"><div class="gm-card-h"><span>Misiones épicas</span></div><div class="gm-epics">${cards}</div></div>`;
+  return `<div class="gm-card card"><div class="gm-card-h"><span>Misiones épicas</span></div><div class="gm-epics">${cards}</div></div>`;
 }
 
 // ── Zona 5 — Logros ──────────────────────────────────────────────────────
@@ -142,7 +151,7 @@ function gmRenderLogros() {
   const unlocked = all.filter(l => l.desbloqueado).sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
   const closest = all.filter(l => !l.desbloqueado && l.meta).sort((a, b) => (b.progreso / b.meta) - (a.progreso / a.meta));
   const feat = unlocked.slice(0, 3).concat(closest.slice(0, 3)).slice(0, 6);
-  return `<div class="gm-card card gm-span">
+  return `<div class="gm-card card">
     <div class="gm-card-h"><span>Logros</span><button class="gm-link" onclick="gmOpenLogrosModal()">Ver todos (${all.length})</button></div>
     <div class="gm-logros-grid">${feat.map(gmRenderLogroCard).join('') || '<div class="gm-empty">Sin logros aún.</div>'}</div>
   </div>`;
@@ -163,7 +172,7 @@ function gmCloseLogrosModal() { const ov = document.getElementById('gm-logros-ov
 // ── Zona 6 — Comparativa (radar) + config ────────────────────────────────
 function gmRenderRadar() {
   const sel = [1, 3, 12].map(mo => `<button class="gm-fchip ${_gmRadarMonths === mo ? 'on' : ''}" onclick="gmSetRadarPeriod(${mo})">${mo === 12 ? '1 año' : mo + ' mes' + (mo > 1 ? 'es' : '')}</button>`).join('');
-  return `<div class="gm-card card gm-span">
+  return `<div class="gm-card card">
     <div class="gm-card-h"><span>Comparativa histórica</span><div class="gm-filters">${sel}</div></div>
     <div class="gm-radar-wrap"><canvas id="gm-radar-canvas"></canvas></div>
     <div class="gm-config">
@@ -220,9 +229,9 @@ function gmRenderManual() {
   const rows = GM_EV_FIELDS.map(f => `<label class="gm-ev ${log[f.key] ? 'on' : ''}">
       <input type="checkbox" ${log[f.key] ? 'checked' : ''} onchange="gmToggleEV('${f.key}', this)">
       <span class="gm-ev-ico">${GM_STAT_META[f.stat].icon}</span>
-      <span class="gm-ev-txt">${f.label}</span><span class="gm-ev-xp">+${f.xp}</span>
+      <span class="gm-ev-txt">${_gmEsc(f.label)}</span><span class="gm-ev-xp">+${f.xp}</span>
     </label>`).join('');
-  return `<div class="gm-card card gm-span"><div class="gm-card-h"><span>Espíritu &amp; Vínculos · hoy</span></div><div class="gm-ev-list">${rows}</div></div>`;
+  return `<div class="gm-card card"><div class="gm-card-h"><span>Espíritu &amp; Vínculos · hoy</span></div><div class="gm-ev-list">${rows}</div></div>`;
 }
 function gmToggleEV(key, el) {
   const today = getActiveDate();
