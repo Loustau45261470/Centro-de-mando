@@ -29,13 +29,22 @@
 .gm-genlevel { text-align: center; display: flex; flex-direction: column; flex-shrink: 0; }
 .gm-genlevel-num { font-family: var(--mono); font-size: 36px; font-weight: 700; line-height: 1; color: var(--tp); }
 .gm-genlevel-lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--tt); }
-.gm-stats-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
-.gm-stat { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
-.gm-stat-top { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--ts); }
-.gm-stat-ico { font-size: 14px; }
-.gm-stat-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.gm-stat-lv { font-family: var(--mono); font-weight: 600; color: var(--tp); }
-.gm-stat-xp { font-size: 10px; color: var(--tt); font-family: var(--mono); }
+/* ── Categorías → skills ── */
+.gm-cats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 18px; }
+.gm-cat { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.gm-cat-h { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.gm-cat-ico { font-size: 17px; }
+.gm-cat-name { flex: 1; min-width: 0; font-weight: 700; color: var(--tp); font-size: 14px; }
+.gm-cat-lv { font-family: var(--mono); font-weight: 700; color: var(--sc, var(--accent)); font-size: 13px; }
+.gm-cat-chev { color: var(--tt); font-size: 12px; width: 12px; }
+.gm-bar-sm { height: 5px; }
+.gm-skills { display: flex; flex-direction: column; gap: 7px; padding: 4px 0 2px 26px; }
+.gm-skill { display: flex; flex-direction: column; gap: 3px; }
+.gm-skill-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.gm-skill-name { font-size: 12px; color: var(--ts); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gm-skill-lv { font-family: var(--mono); font-size: 11px; color: var(--tp); flex-shrink: 0; }
+.gm-skill-tag { font-size: 9px; text-transform: uppercase; letter-spacing: .5px; color: var(--tt); border: 1px solid var(--border); border-radius: 999px; padding: 1px 6px; flex-shrink: 0; }
+.gm-skill-off { opacity: .55; }
 
 /* ── Zona 2: Buffs ── */
 .gm-buffs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
@@ -94,6 +103,7 @@
 .gm-fchip { background: var(--card); border: 1px solid var(--border); color: var(--ts); border-radius: 999px; padding: 5px 12px; font-size: 12px; cursor: pointer; }
 .gm-fchip.on { background: var(--accent); color: var(--bg); border-color: var(--accent); }
 .gm-filters + .gm-logros-grid { margin-top: 12px; }
+.gm-logros-count { font-size: 12px; color: var(--ts); font-family: var(--mono); margin: 10px 0; }
 
 /* ── Zona 6: Radar + config ── */
 .gm-radar-wrap { height: 280px; position: relative; }
@@ -130,10 +140,9 @@
 
 /* ── Responsive ── */
 @media (max-width: 820px) {
-  .gm-stats-grid { grid-template-columns: repeat(3, 1fr); }
   .gm-hud-id { flex-wrap: wrap; }
   .gm-ev-list { grid-template-columns: 1fr; }
 }
 @media (max-width: 600px) {
-  .gm-stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .gm-cats { grid-template-columns: 1fr; }
 }
