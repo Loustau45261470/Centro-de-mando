@@ -123,21 +123,41 @@ function gmFixedPaidCount() {
 }
 // Bonus por hitos de racha (una vez cada hito, según la racha más larga del hábito)
 const GM_STREAK_MILESTONES = [{ d: 7, xp: 20 }, { d: 30, xp: 50 }, { d: 90, xp: 150 }, { d: 365, xp: 500 }];
-function gmHabitMaxStreak(h) {
-  const days = Object.keys((h && h.days) || {}).filter(d => gmHabitDone(h, d)).sort();
-  if (!days.length) return 0;
-  let max = 1, cur = 1;
-  for (let i = 1; i < days.length; i++) {
-    const prev = new Date(days[i - 1] + 'T12:00:00'); prev.setDate(prev.getDate() + 1);
-    if (localStr(prev) === days[i]) { cur++; if (cur > max) max = cur; } else cur = 1;
+// Corridas de racha: un día (pasado) no cumplido corta la corrida; 'rest' es neutral (puentea, no suma ni corta).
+function gmHabitRuns(h) {
+  const map = (h && h.days) || {};
+  const done = Object.keys(map).filter(d => gmHabitDone(h, d)).sort();
+  if (!done.length) return [];
+  const runs = []; let len = 0;
+  const cur = new Date(done[0] + 'T12:00:00');
+  const last = new Date(done[done.length - 1] + 'T12:00:00');
+  while (cur <= last) {
+    const st = map[localStr(cur)];
+    if (st === 'done' || st === 'studied') len++;
+    else if (st !== 'rest') { if (len > 0) { runs.push(len); len = 0; } }   // gap/partial corta; rest neutral
+    cur.setDate(cur.getDate() + 1);
   }
-  return max;
+  if (len > 0) runs.push(len);
+  return runs;
 }
+// Bonus REPETIBLE: cada corrida otorga los hitos que alcanza. Al cortar la racha el contador
+// se reinicia y una corrida nueva los vuelve a dar; la XP de corridas previas se conserva.
 function gmKwStreakBonus(kws) {
-  return gmKwHabits(kws).reduce((tot, h) => {
-    const ms = gmHabitMaxStreak(h);
-    return tot + GM_STREAK_MILESTONES.filter(x => ms >= x.d).reduce((a, b) => a + b.xp, 0);
-  }, 0);
+  return gmKwHabits(kws).reduce((tot, h) =>
+    tot + gmHabitRuns(h).reduce((a, L) => a + GM_STREAK_MILESTONES.filter(m => L >= m.d).reduce((x, y) => x + y.xp, 0), 0), 0);
+}
+// Racha actual (buffs): hacia atrás desde hoy; 'rest' neutral, hoy sin marcar neutral, día pasado no cumplido corta.
+function gmHabitConsec(h) {
+  const map = (h && h.days) || {};
+  let n = 0, started = false;
+  const dd = new Date(getActiveDate() + 'T12:00:00');
+  for (let i = 0; i < 400; i++) {
+    const st = map[localStr(dd)];
+    if (st === 'done' || st === 'studied') { n++; started = true; }
+    else if (st !== 'rest') { if (started || i > 0) break; }
+    dd.setDate(dd.getDate() - 1);
+  }
+  return n;
 }
 
 // ── SKILLS — cada una con su función de XP determinista (null = sin tracker) ──
@@ -357,7 +377,7 @@ function gmLogro(id, cat, rareza, name, desc, progreso, meta) {
 function gmCheckLogros() {
   const entreno = gmKwHabit(['entrenamiento']);
   gmLogro('primera_sangre', 'cuerpo', 'comun', 'Primera Sangre', 'Primera sesión de entreno logueada', entreno && gmHabitTotalDone(entreno) > 0 ? 1 : 0, 1);
-  gmLogro('hierro_forjado', 'cuerpo', 'epico', 'Hierro Forjado', '100 días seguidos entrenando', gmConsec(d => entreno && gmHabitDone(entreno, d)), 100);
+  gmLogro('hierro_forjado', 'cuerpo', 'epico', 'Hierro Forjado', '100 días seguidos entrenando', entreno ? gmHabitConsec(entreno) : 0, 100);
   const combate = gmKwHabit(['boxeo', 'box', 'jujitsu', 'jiu']);
   gmLogro('primeros_guantes', 'cuerpo', 'comun', 'Primeros Guantes', 'Primera sesión de combate logueada', combate && gmHabitTotalDone(combate) > 0 ? 1 : 0, 1);
   const materias = gmDoneMaterias().length;
@@ -378,9 +398,9 @@ function gmCheckLogros() {
 function gmCheckBuffs() {
   const buffs = [];
   const add = (tipo, label, dias) => { if (dias >= 3) buffs.push({ tipo, label, dias }); };
-  const entreno = gmKwHabit(['entrenamiento']); if (entreno) add('racha_entreno', 'Entrenamiento', gmConsec(d => gmHabitDone(entreno, d)));
-  const estudio = gmKwHabit(['estudiar']); if (estudio) add('racha_estudio', 'Estudio', gmConsec(d => gmHabitDone(estudio, d)));
-  const reg = gmKwHabit(['registro financiero']); if (reg) add('racha_finanzas', 'Finanzas', gmConsec(d => gmHabitDone(reg, d)));
+  const entreno = gmKwHabit(['entrenamiento']); if (entreno) add('racha_entreno', 'Entrenamiento', gmHabitConsec(entreno));
+  const estudio = gmKwHabit(['estudiar']); if (estudio) add('racha_estudio', 'Estudio', gmHabitConsec(estudio));
+  const reg = gmKwHabit(['registro financiero']); if (reg) add('racha_finanzas', 'Finanzas', gmHabitConsec(reg));
   add('racha_metas', 'Metas diarias', (S.streak && S.streak.count) || 0);
   GM.buffs_activos = buffs;
 }
