@@ -59,7 +59,7 @@ function gmDefault() {
     nivel_general: 1, titulo_actual: 'El Equilibrado', ultima_actualizacion: null,
     stats,
     dia_perfecto_count: 0,
-    buffs_activos: [], misiones_diarias: [], misiones_semanales: [], misiones_epicas: [],
+    buffs_activos: [], misiones_diarias: [], misiones_generales: [], misiones_semanales: [], misiones_epicas: [],
     logros: {}, snapshots: [], espiritu_vinculos_log: {},
     config: {
       animaciones: true, voz_jarvis_levelup: false,
@@ -74,7 +74,7 @@ function gmMergeDefault(g) {
   GM_STATS.forEach(s => { if (!out.stats[s]) out.stats[s] = { xp: 0, nivel: 1 }; });
   out.config = Object.assign({}, d.config, g.config || {});
   out.config.ponderacion_stats = Object.assign({}, d.config.ponderacion_stats, (g.config && g.config.ponderacion_stats) || {});
-  ['buffs_activos', 'misiones_diarias', 'misiones_semanales', 'misiones_epicas', 'snapshots'].forEach(k => { if (!Array.isArray(out[k])) out[k] = []; });
+  ['buffs_activos', 'misiones_diarias', 'misiones_generales', 'misiones_semanales', 'misiones_epicas', 'snapshots'].forEach(k => { if (!Array.isArray(out[k])) out[k] = []; });
   if (!out.logros) out.logros = {};
   if (!out.espiritu_vinculos_log) out.espiritu_vinculos_log = {};
   return out;
@@ -208,18 +208,42 @@ function gmProcessBooleanSources() {
 }
 
 // ── Misiones (vista del día/semana/trimestre actual) ─────────────────────
+function _gmHabitXp(section, h) {
+  if (section === 'salud') return h.id === 'habit-entrenamientos' ? 15 : 5;
+  if (section === 'conocimiento') return h.id === 'habit-estudio' ? 10 : 5;
+  if (section === 'finanzas' || section === 'ia') return 5;
+  return 0;
+}
+function _gmSectionHabits(section, today) {
+  return (S.habitTrackers && S.habitTrackers[section] || []).map(h => ({ texto: h.name || h.id, xp: _gmHabitXp(section, h), completada: gmHabitDone(h, today) }));
+}
+// Misiones del día agrupadas por las 6 categorías de stat: todos los hábitos de
+// cada sección bajo su stat (salud→cuerpo, conocimiento→mente, finanzas→riqueza,
+// ia→creacion) + los checks manuales de espíritu/vínculos. Vida + goals → General.
 function gmBuildDailyMissions(today) {
-  const m = [];
-  const tEnt = gmFindHabit('salud', 'habit-entrenamientos');
-  m.push({ texto: 'Entrenar hoy', xp: 15, completada: tEnt ? gmHabitDone(tEnt, today) : false });
-  m.push({ texto: 'Dormir 00:00–07:00', xp: 10, completada: gmSleepInRange(today) });
-  m.push({ texto: 'Hidratación', xp: 5, completada: gmWaterGoalMet(today) });
-  const tEst = gmFindHabit('conocimiento', 'habit-estudio');
-  m.push({ texto: 'Estudiar', xp: 10, completada: tEst ? gmHabitDone(tEst, today) : false });
-  const tFin = gmFindHabit('finanzas', 'habit-registro-financiero');
-  m.push({ texto: 'Registro financiero', xp: 5, completada: tFin ? gmHabitDone(tFin, today) : false });
-  ((S.goals && S.goals[today]) || []).forEach(g => m.push({ texto: g.text, xp: 0, completada: !!g.done, esGoal: true }));
-  GM.misiones_diarias = m;
+  const ev = GM.espiritu_vinculos_log[today] || {};
+  const cuerpo = _gmSectionHabits('salud', today);
+  cuerpo.push({ texto: 'Dormir 00:00–07:00', xp: 10, completada: gmSleepInRange(today) });
+  cuerpo.push({ texto: 'Hidratación', xp: 5, completada: gmWaterGoalMet(today) });
+  GM.misiones_diarias = [
+    { cat: 'cuerpo', items: cuerpo },
+    { cat: 'mente', items: _gmSectionHabits('conocimiento', today) },
+    { cat: 'espiritu', items: [
+      { texto: 'Misa / oración', xp: 10, completada: !!ev.mision },
+      { texto: 'Lectura espiritual', xp: 10, completada: !!ev.lectura },
+      { texto: 'Reflexión semanal', xp: 20, completada: !!ev.reflexion },
+    ] },
+    { cat: 'riqueza', items: _gmSectionHabits('finanzas', today) },
+    { cat: 'creacion', items: _gmSectionHabits('ia', today) },
+    { cat: 'vinculos', items: [
+      { texto: 'Tiempo con novia', xp: 10, completada: !!ev.novia },
+      { texto: 'Llamada/visita a padres', xp: 10, completada: !!ev.padres },
+      { texto: 'Cuidado de las gatitas', xp: 5, completada: !!ev.gatitas },
+    ] },
+  ];
+  const general = _gmSectionHabits('vida', today);
+  ((S.goals && S.goals[today]) || []).forEach(g => general.push({ texto: g.text, xp: 0, completada: !!g.done, esGoal: true }));
+  GM.misiones_generales = general;
 }
 function gmBuildWeeklyMissions(today) {
   const days = gmWeekDays(today);

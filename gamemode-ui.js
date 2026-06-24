@@ -99,23 +99,40 @@ function gmRenderBuffs() {
 }
 
 // ── Zona 3 — Misiones del día ────────────────────────────────────────────
-function gmRenderDaily() {
-  const dm = GM.misiones_diarias;
-  const done = dm.filter(m => m.completada).length;
-  const pct = dm.length ? Math.round(done / dm.length * 100) : 0;
-  const rows = dm.map(m => `<div class="gm-mission ${m.completada ? 'done' : ''}">
+function _gmMissionRow(m) {
+  return `<div class="gm-mission ${m.completada ? 'done' : ''}">
       <span class="gm-check">${m.completada ? '✓' : ''}</span>
       <span class="gm-mission-txt">${_gmEsc(m.texto)}</span>
       ${m.xp ? `<span class="gm-mission-xp">+${m.xp}</span>` : ''}
-    </div>`).join('');
+    </div>`;
+}
+function gmRenderDaily() {
+  const groups = GM.misiones_diarias || [];
+  const general = GM.misiones_generales || [];
+  let done = 0, total = 0;
+  groups.forEach(g => (g.items || []).forEach(m => { total++; if (m.completada) done++; }));
+  general.forEach(m => { total++; if (m.completada) done++; });
+  const pct = total ? Math.round(done / total * 100) : 0;
+  const groupHtml = groups.map(g => {
+    if (!g.items || !g.items.length) return '';
+    const meta = GM_STAT_META[g.cat];
+    return `<div class="gm-mgroup">
+      <div class="gm-mgroup-h" style="--sc:var(${meta.color})"><span class="gm-mgroup-ico">${meta.icon}</span><span>${meta.short}</span></div>
+      ${g.items.map(_gmMissionRow).join('')}
+    </div>`;
+  }).join('');
+  const generalHtml = general.length ? `<div class="gm-mgroup">
+      <div class="gm-mgroup-h gm-mgroup-gen"><span class="gm-mgroup-ico">📋</span><span>General</span></div>
+      ${general.map(_gmMissionRow).join('')}
+    </div>` : '';
   const perfect = GM.dia_perfecto_count ? `<span class="gm-perfect">★ ${GM.dia_perfecto_count} días perfectos</span>` : '';
   return `<div class="gm-card card">
-    <div class="gm-card-h"><span>Misiones del día</span><span class="gm-prog-lbl">${done}/${dm.length}</span></div>
+    <div class="gm-card-h"><span>Misiones del día</span><span class="gm-prog-lbl">${done}/${total}</span></div>
     <div class="gm-bar gm-bar-lg"><div class="gm-bar-fill" style="width:${pct}%"></div></div>
     ${perfect}
-    <div class="gm-missions">${rows || '<div class="gm-empty">Sin misiones hoy.</div>'}</div>
+    <div class="gm-missions-grouped">${(groupHtml + generalHtml) || '<div class="gm-empty">Sin misiones hoy.</div>'}</div>
     <div class="gm-weekly-h">Semanales</div>
-    <div class="gm-missions">${GM.misiones_semanales.map(m => `<div class="gm-mission ${m.completada ? 'done' : ''}"><span class="gm-check">${m.completada ? '✓' : ''}</span><span class="gm-mission-txt">${_gmEsc(m.texto)}</span></div>`).join('')}</div>
+    <div class="gm-missions">${GM.misiones_semanales.map(_gmMissionRow).join('')}</div>
   </div>`;
 }
 
