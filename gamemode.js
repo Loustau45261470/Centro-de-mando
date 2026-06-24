@@ -117,11 +117,6 @@ function gmSleepInRange(d) {
   const wakeOk = w >= 6 * 60 + 30 && w <= 7 * 60 + 30;  // ~07:00 ±30 min
   return bedOk && wakeOk;
 }
-function gmWaterGoalMet(d) {
-  const ml = S.waterLog && S.waterLog[d]; if (!ml) return false;
-  const goal = (typeof calcWaterGoal === 'function') ? calcWaterGoal() : 2000;
-  return ml >= goal;
-}
 function gmDoneMaterias() {
   const out = [];
   ((S.lawProgress && S.lawProgress.years) || []).forEach(y => (y.subjects || []).forEach(s => { if (s.done) out.push(s.id); }));
@@ -139,7 +134,7 @@ function gmCollectAllDates() {
   const set = new Set();
   const add = obj => { if (obj) Object.keys(obj).forEach(k => set.add(k)); };
   Object.values((S.habitTrackers) || {}).forEach(arr => (arr || []).forEach(h => add(h.days)));
-  add(S.sleepLog); add(S.waterLog); add(S.goals); add(GM.espiritu_vinculos_log);
+  add(S.sleepLog); add(S.goals); add(GM.espiritu_vinculos_log);
   return set;
 }
 function gmWeekDays(today) {
@@ -179,7 +174,6 @@ function gmConsec(pred) {
 function gmProcessDate(d) {
   (S.habitTrackers && S.habitTrackers.salud || []).forEach(h => { if (gmHabitDone(h, d)) gmAddXp('cuerpo', h.id === 'habit-entrenamientos' ? 15 : 5); });
   if (gmSleepInRange(d)) gmAddXp('cuerpo', 10);
-  if (gmWaterGoalMet(d)) gmAddXp('cuerpo', 5);
   (S.habitTrackers && S.habitTrackers.conocimiento || []).forEach(h => { if (gmHabitDone(h, d)) gmAddXp('mente', h.id === 'habit-estudio' ? 10 : 5); });
   (S.habitTrackers && S.habitTrackers.finanzas || []).forEach(h => { if (gmHabitDone(h, d)) gmAddXp('riqueza', 5); });
   (S.habitTrackers && S.habitTrackers.ia || []).forEach(h => { if (gmHabitDone(h, d)) gmAddXp('creacion', 5); });
@@ -224,7 +218,6 @@ function gmBuildDailyMissions(today) {
   const ev = GM.espiritu_vinculos_log[today] || {};
   const cuerpo = _gmSectionHabits('salud', today);
   cuerpo.push({ texto: 'Dormir 00:00–07:00', xp: 10, completada: gmSleepInRange(today) });
-  cuerpo.push({ texto: 'Hidratación', xp: 5, completada: gmWaterGoalMet(today) });
   GM.misiones_diarias = [
     { cat: 'cuerpo', items: cuerpo },
     { cat: 'mente', items: _gmSectionHabits('conocimiento', today) },
@@ -252,7 +245,6 @@ function gmBuildWeeklyMissions(today) {
     { texto: '6 días de registro financiero', completada: countHabit('finanzas', 'habit-registro-financiero') >= 6 },
     { texto: '5 días de estudio', completada: countHabit('conocimiento', 'habit-estudio') >= 5 },
     { texto: '4 entrenamientos', completada: countHabit('salud', 'habit-entrenamientos') >= 4 },
-    { texto: '5 días de hidratación', completada: days.filter(d => gmWaterGoalMet(d)).length >= 5 },
   ];
 }
 function gmBuildEpicMissions(today) {
@@ -277,7 +269,7 @@ function gmDayPerfect(d) {
   const tEnt = gmFindHabit('salud', 'habit-entrenamientos');
   const tEst = gmFindHabit('conocimiento', 'habit-estudio');
   const tFin = gmFindHabit('finanzas', 'habit-registro-financiero');
-  const checks = [tEnt && gmHabitDone(tEnt, d), gmSleepInRange(d), gmWaterGoalMet(d), tEst && gmHabitDone(tEst, d), tFin && gmHabitDone(tFin, d)];
+  const checks = [tEnt && gmHabitDone(tEnt, d), gmSleepInRange(d), tEst && gmHabitDone(tEst, d), tFin && gmHabitDone(tFin, d)];
   if (!checks.every(Boolean)) return false;
   const goals = (S.goals && S.goals[d]) || [];
   if (goals.length && !goals.every(g => g.done)) return false;
@@ -293,7 +285,7 @@ function gmComputeWeeklyBonuses(allDates, today) {
   weeks.forEach(wkStart => {
     const days = gmWeekDaysFrom(wkStart, today);
     const c = (sec, id, n) => { const h = gmFindHabit(sec, id); return h && days.filter(d => gmHabitDone(h, d)).length >= n; };
-    const ok = c('finanzas', 'habit-registro-financiero', 6) && c('conocimiento', 'habit-estudio', 5) && c('salud', 'habit-entrenamientos', 4) && days.filter(d => gmWaterGoalMet(d)).length >= 5;
+    const ok = c('finanzas', 'habit-registro-financiero', 6) && c('conocimiento', 'habit-estudio', 5) && c('salud', 'habit-entrenamientos', 4);
     if (ok) gmAddXpAll(100);
   });
 }

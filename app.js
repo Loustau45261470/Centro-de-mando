@@ -8,11 +8,6 @@ const DEFAULT_STATE = {
   goals: {},        // { 'YYYY-MM-DD': [{ id, text, done, priority, time? }] }
   dayPlanner: {},   // { 'YYYY-MM-DD': { 'HH:00': noteText } }
   streak: { count: 0, lastDate: null },
-  // Health
-  supplements: [],  // [{ id, name, dose, unit, timing, runningLow }]
-  suppLog: {},      // { 'YYYY-MM-DD': { [suppId]: true } }
-  waterCfg: { weight: 70, weightUnit: 'kg', age: 25, gender: 'male', training: 5, caffeine: 200, stimulants: 'none', stimDose: 0, container: 500 },
-  waterLog: {},     // { 'YYYY-MM-DD': totalMl }
   // Gym
   gyms: [],         // [{ id, name }]
   currentGym: null,
@@ -344,7 +339,7 @@ function _rescueLocal(cloudObj, localObj) {
   const r = { ...cloudObj };
   // Arrays con ID
   ['transactions','accounts','subscriptions','orders','wishlist',
-   'supplements','photos','finObjectives','fixedExpenses','lawMilestones','routines'
+   'photos','finObjectives','fixedExpenses','lawMilestones','routines'
   ].forEach(key => {
     const c = Array.isArray(cloudObj[key]) ? cloudObj[key] : [];
     const l = Array.isArray(localObj[key]) ? localObj[key] : [];
@@ -812,18 +807,6 @@ function buildTickerAlerts() {
         alerts.push({ text: `${habit.emoji || '📌'} ${habit.name} pendiente`, cls: 'warn' });
       }
     });
-  });
-
-  // Supplement alerts
-  const suppLog = S.suppLog[today] || {};
-  S.supplements.forEach(sup => {
-    const done = suppLog[sup.id];
-    if (done) return;
-    const missed =
-      (sup.timing === 'morning' && h >= 10) ||
-      (sup.timing === 'lunch'   && h >= 14) ||
-      (sup.timing === 'night'   && h >= 22);
-    if (missed) alerts.push({ text: `⚠️ ${sup.name} no tomado`, cls: 'alert' });
   });
 
   // Subscription alerts (3-5 days)
@@ -1461,163 +1444,6 @@ function saveFinObjective() {
 function deleteFinObjective(id) {
   S.finObjectives = (S.finObjectives || []).filter(o => o.id !== id);
   saveState(); renderFinObjectives();
-}
-
-// ════════════════════════════════════════════════════════
-// HEALTH — SUPPLEMENTS
-// ════════════════════════════════════════════════════════
-function renderSupplements() {
-  const today = getActiveDate();
-  const log = S.suppLog[today] || {};
-  const now = new Date();
-  const h = now.getHours();
-
-  ['morning','lunch','night'].forEach(timing => {
-    const listId = `supp${timing.charAt(0).toUpperCase()+timing.slice(1)}List`;
-    const listEl = document.getElementById(listId);
-    listEl.innerHTML = '';
-    const supps = S.supplements.filter(s=>s.timing===timing);
-    supps.forEach(sup => {
-      const checked = !!log[sup.id];
-      const missed = !checked && (
-        (timing==='morning'&&h>=10) ||
-        (timing==='lunch'&&h>=14) ||
-        (timing==='night'&&h>=22)
-      );
-      const div = document.createElement('div');
-      div.className = `supp-card${missed?' missed':''}`;
-      div.innerHTML = `
-        <span class="check-box ${checked?'checked':''}" data-sup="${sup.id}"></span>
-        <span class="supp-name">${sup.name}</span>
-        <span class="supp-dose">${sup.dose}${sup.unit}</span>
-        ${sup.runningLow?'<span class="pill pill-warn low-badge">⚠️ Poco</span>':''}
-        <button class="icon-btn" onclick="toggleLowSup('${sup.id}')" title="Queda poco" style="font-size:11px;color:var(--warn)">📦</button>
-        <button class="icon-btn" onclick="deleteSup('${sup.id}')" style="color:var(--tt)"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg></button>
-      `;
-      div.querySelector('.check-box').addEventListener('click', () => { toggleSup(sup.id, today); });
-      listEl.appendChild(div);
-    });
-  });
-  const total = S.supplements.length;
-  document.getElementById('suppEmpty').classList.toggle('hidden', total>0);
-  buildTickerAlerts();
-}
-
-function toggleSup(id, date) {
-  if (!S.suppLog[date]) S.suppLog[date] = {};
-  S.suppLog[date][id] = !S.suppLog[date][id];
-  saveState(); renderSupplements();
-  if (S.suppLog[date][id]) {
-    const log = S.suppLog[date];
-    const allDone = S.supplements.every(s => log[s.id]);
-    if (allDone && S.supplements.length > 0) {
-      showSparkle(window.innerWidth/2, window.innerHeight*0.35);
-      showToast('✨ ¡Todos los suplementos del día!', 3000);
-    }
-  }
-}
-
-function toggleLowSup(id) {
-  const sup = S.supplements.find(s=>s.id===id);
-  if (sup) { sup.runningLow = !sup.runningLow; saveState(); renderSupplements(); }
-}
-
-function deleteSup(id) {
-  S.supplements = S.supplements.filter(s=>s.id!==id);
-  saveState(); renderSupplements();
-}
-
-function addSupplement() {
-  const name = document.getElementById('suppName').value.trim();
-  const dose = document.getElementById('suppDose').value.trim();
-  if (!name||!dose) { showToast('Completa nombre y dosis'); return; }
-  S.supplements.push({
-    id: uid(), name, dose, unit: document.getElementById('suppUnit').value,
-    timing: document.getElementById('suppTiming').value, runningLow: false
-  });
-  // [SUPABASE] await supabase.from('supplements').insert({ name, dose, unit, timing, user_id });
-  saveState(); renderSupplements();
-  document.getElementById('suppName').value = '';
-  document.getElementById('suppDose').value = '';
-  closeModal('modal-add-supp');
-  showToast('Suplemento agregado');
-}
-
-// ════════════════════════════════════════════════════════
-// HEALTH — WATER
-// ════════════════════════════════════════════════════════
-function calcWaterGoal() {
-  const c = S.waterCfg;
-  const kg = c.weightUnit==='lb' ? c.weight*0.453592 : c.weight;
-  let base = kg * 35;
-  base += (c.training/7) * 600;
-  base += c.caffeine * 1.5;
-  if (c.stimulants !== 'none') base *= 1.12;
-  if (c.gender === 'female') base *= 0.92;
-  if (c.age > 55) base *= 1.10;
-  return Math.round(base / 50) * 50;
-}
-
-function getTodayWater() { return S.waterLog[getActiveDate()] || 0; }
-
-function renderWater() {
-  const goal = calcWaterGoal();
-  const current = getTodayWater();
-  const pct = Math.min(100, Math.round(current/goal*100));
-  document.getElementById('waterMlEl').textContent = current >= 1000 ? `${(current/1000).toFixed(1)} L` : `${current} ml`;
-  document.getElementById('waterGoalText').textContent = `Meta: ${goal>=1000?(goal/1000).toFixed(1)+' L':goal+' ml'} · ${pct}%`;
-  document.getElementById('waterProgFill').style.width = pct + '%';
-  document.getElementById('waterContainerBtn').textContent = `+${S.waterCfg.container} ml`;
-  // Bottles display
-  const bPerGoal = Math.ceil(goal / S.waterCfg.container);
-  const filled = Math.floor(current / S.waterCfg.container);
-  const bEl = document.getElementById('waterBottles');
-  bEl.innerHTML = Array.from({length:bPerGoal},(_,i)=>`<span class="water-bottle ${i<filled?'filled':''}" title="${S.waterCfg.container}ml">🍶</span>`).join('');
-  // Update water chart if exists
-  if (waterChartInst) updateWaterChart();
-}
-
-function addWater(ml) {
-  const today = getActiveDate();
-  S.waterLog[today] = (S.waterLog[today]||0) + ml;
-  // [SUPABASE] await supabase.from('water_log').upsert({ date: today, total_ml: S.waterLog[today], user_id });
-  saveState(); renderWater(); showToast(`+${ml} ml 💧`);
-}
-function addWaterContainer() { addWater(S.waterCfg.container); }
-function resetWater() {
-  if (!confirm('¿Resetear agua de hoy?')) return;
-  S.waterLog[getActiveDate()] = 0;
-  saveState(); renderWater();
-}
-function quickAddWater() { addWater(S.waterCfg.container); }
-
-function fillWaterCfgForm() {
-  const c = S.waterCfg;
-  document.getElementById('wcWeight').value = c.weight;
-  document.getElementById('wcWeightUnit').value = c.weightUnit;
-  document.getElementById('wcAge').value = c.age;
-  document.getElementById('wcGender').value = c.gender;
-  document.getElementById('wcTraining').value = c.training;
-  document.getElementById('wcCaffeine').value = c.caffeine;
-  document.getElementById('wcStimulants').value = c.stimulants;
-  document.getElementById('wcStimDose').value = c.stimDose;
-  document.getElementById('wcContainer').value = c.container;
-  document.getElementById('wcStimDoseWrap').style.display = c.stimulants!=='none' ? '' : 'none';
-}
-
-function saveWaterConfig() {
-  S.waterCfg = {
-    weight: +document.getElementById('wcWeight').value || 70,
-    weightUnit: document.getElementById('wcWeightUnit').value,
-    age: +document.getElementById('wcAge').value || 25,
-    gender: document.getElementById('wcGender').value,
-    training: +document.getElementById('wcTraining').value || 0,
-    caffeine: +document.getElementById('wcCaffeine').value || 0,
-    stimulants: document.getElementById('wcStimulants').value,
-    stimDose: +document.getElementById('wcStimDose').value || 0,
-    container: +document.getElementById('wcContainer').value || 500,
-  };
-  saveState(); renderWater(); closeModal('modal-water-cfg'); showToast('Configuración guardada');
 }
 
 // ════════════════════════════════════════════════════════
@@ -4895,7 +4721,7 @@ try {
   });
 } catch (e) { console.warn('[charts] tema HUD no aplicado:', e); }
 
-let waterChartInst=null, weightChartInst=null, nwPieInst=null, nwLineInst=null, txnChartInst=null, sleepChartInst=null;
+let weightChartInst=null, nwPieInst=null, nwLineInst=null, txnChartInst=null, sleepChartInst=null;
 
 function initChartsForTab(tab) {
   if (tab==='finanzas') { initNWCharts(); }
@@ -4905,31 +4731,6 @@ function getLast14Days() {
   const days=[]; const now=new Date();
   for (let i=13;i>=0;i--) { const d=new Date(now); d.setDate(d.getDate()-i); days.push(localStr(d)); }
   return days;
-}
-
-function initWaterChart() {
-  const ctx=document.getElementById('waterChart').getContext('2d');
-  const days=getLast14Days();
-  const goal=calcWaterGoal();
-  waterChartInst=new Chart(ctx,{
-    type:'bar',
-    data:{
-      labels:days.map(d=>d.slice(5)),
-      datasets:[
-        { label:'Agua (ml)', data:days.map(d=>S.waterLog[d]||0), backgroundColor:'rgba(124,142,232,.45)', borderRadius:4 },
-        { label:'Meta', data:days.map(()=>goal), type:'line', borderColor:'rgba(124,142,232,.4)', borderDash:[4,4], pointRadius:0, borderWidth:1 }
-      ]
-    },
-    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } }, scales:{ x:{ ticks:{ font:{size:9} } }, y:{ ticks:{ font:{size:9} } } } }
-  });
-}
-
-function updateWaterChart() {
-  if (!waterChartInst) return;
-  const days=getLast14Days(); const goal=calcWaterGoal();
-  waterChartInst.data.datasets[0].data=days.map(d=>S.waterLog[d]||0);
-  waterChartInst.data.datasets[1].data=days.map(()=>goal);
-  waterChartInst.update('none');
 }
 
 function initWeightChart() {
@@ -6400,17 +6201,6 @@ const ACHIEVEMENTS = [
     name:'Deportista de Élite',
     desc:'12 meses consecutivos completos con +75% de asistencia al gym, sin contar días de descanso',
     check() { return {metric:achGymStreak75(), threshold:12}; } },
-
-  { id:'rigorous', section:'salud', icon:'💊', rarity:'silver',
-    name:'Riguroso',
-    desc:'30 días seguidos tomando todos los suplementos',
-    check() {
-      const m=achConsecDays(ds=>{
-        const log=S.suppLog?.[ds]||{};
-        return S.supplements?.length>0 && S.supplements.every(s=>log[s.id]);
-      });
-      return {metric:m, threshold:30};
-    } },
 
   // ── CONOCIMIENTO ──────────────────────────────────────
   { id:'reader',  section:'conocimiento', icon:'📖', rarity:'gold',

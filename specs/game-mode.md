@@ -16,7 +16,7 @@ Nueva pestaña ("Game Mode", en el lugar del ícono del trofeo) que convierte el
 - [ ] HUD principal se entiende sin scroll; la profundidad (scroll/clicks) es siempre opcional
 
 **Las 6 stats con sus fuentes de XP** (tabla completa en sección Inputs & Outputs)
-- [ ] 💪 Cuerpo ← tab Salud (gym/box/jiujitsu, sueño, hidratación, hábitos de salud)
+- [ ] 💪 Cuerpo ← tab Salud (gym/box/jiujitsu, sueño, hábitos de salud)
 - [ ] 🧠 Mente ← tab Conocimiento (materias done, días de estudio, milestones a tiempo)
 - [ ] 🙏 Espíritu ← input manual (misa/oración, lectura espiritual, reflexión semanal)
 - [ ] 💰 Riqueza ← tab Finanzas (hábitos financieros, gastos fijos a tiempo, snapshot patrimonio)
@@ -80,7 +80,6 @@ El motor lee, sin escribir: `habits`, sesiones de gym/box/jiujitsu, `materias`, 
 |---|---|---|
 | Cuerpo | Sesión gym / box / jiujitsu (cada una) | +15 |
 | Cuerpo | Día de sueño en rango 00:00–07:00 (±30 min) | +10 |
-| Cuerpo | Hidratación del día cumplida | +5 |
 | Cuerpo | Habit de salud personalizado (c/u) | +5 |
 | Cuerpo | Bonus 3 entrenos el mismo día | +10 |
 | Mente | Materia marcada "done" (una vez por materia) | +100 |

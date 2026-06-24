@@ -100,10 +100,7 @@
     if (fe.length) L.push('\nGASTOS FIJOS [' + mk + ']:\n' + fe.join('\n'));
 
     // Salud
-    const water = (S.waterLog && S.waterLog[today]) || 0;
-    const healthBits = ['agua hoy ' + water + ' ml'];
-    const supTaken = (S.supplements || []).filter(s => S.suppLog && S.suppLog[today] && S.suppLog[today][s.id]).map(s => s.name);
-    if (S.supplements && S.supplements.length) healthBits.push('suplementos tomados hoy: ' + (supTaken.join(', ') || 'ninguno'));
+    const healthBits = [];
     if (S.bodyWeight && S.bodyWeight.length) { const last = S.bodyWeight[S.bodyWeight.length - 1]; healthBits.push('peso: ' + last.value + last.unit + ' (' + last.date + ')'); }
     // Sueño y bienestar de hoy
     const sl = (S.sleepLog && S.sleepLog[today]) || {};
@@ -154,8 +151,6 @@
     'add_transaction {name, type(income|expense), amount, currency?, account?}',
     'add_wishlist {name, amount, currency?}',
     'add_reminder {tab, title, datetime(YYYY-MM-DDTHH:MM), priority?(critical|high|medium|low)}',
-    'log_water {ml}  — en mililitros; si habla en litros, convertí (1 litro = 1000 ml)',
-    'toggle_supplement {search}',
     'log_bodyweight {value, unit?(kg|lb)}',
     'log_sleep {hours?, bedtime?(HH:MM), waketime?(HH:MM)}  — registra el sueño de hoy',
     'set_wellness {metric(energia|animo|dolor|estres|calidad_sueno), value(1-5)}  — bienestar de hoy',
@@ -307,21 +302,6 @@
           if (!S.reminders[tab]) S.reminders[tab] = [];
           S.reminders[tab].push({ id: uid(), title: a.title || '', datetime: a.datetime || '', priority: a.priority || 'medium' });
           saveState(); if (typeof renderReminders === 'function') renderReminders(tab);
-          return { ok: true };
-        }
-        case 'log_water': {
-          let ml = a.ml != null ? parseFloat(a.ml) : NaN;
-          if (isNaN(ml) && a.liters != null) ml = parseFloat(a.liters) * 1000;
-          if (isNaN(ml)) return { ok: false, msg: 'How many millilitres, sir?' };
-          if (ml > 0 && ml <= 5) ml = ml * 1000;   // valores chiquitos = litros (nadie toma 2 ml)
-          ml = Math.round(ml);
-          if (typeof addWater === 'function') addWater(ml);
-          return { ok: true };
-        }
-        case 'toggle_supplement': {
-          const f = _find(S.supplements || [], a.search, 'name');
-          if (!f) return { ok: false, msg: "I couldn't find that supplement, sir." };
-          if (typeof toggleSup === 'function') toggleSup(f.item.id, _today());
           return { ok: true };
         }
         case 'log_bodyweight': {
