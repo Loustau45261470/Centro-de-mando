@@ -6862,6 +6862,7 @@ _auth.onAuthStateChanged(user => {
     checkEl.onclick = e => {
       e.stopPropagation();
       node.done = !node.done;
+      if (node.done) { node.advances = node.advances || []; node.advances.push(getActiveDate()); }
       checkEl.classList.toggle('done', node.done);
       checkEl.title = node.done ? 'Marcar como pendiente' : 'Marcar como completado';
       labelEl.classList.toggle('done', node.done);
@@ -6949,7 +6950,14 @@ _auth.onAuthStateChanged(user => {
     (node.children || []).forEach(child => childrenEl.appendChild(buildNodeEl(tab, child, depth + 1)));
     childrenEl.appendChild(buildAddRow(tab, node));
 
-    wrapper.append(headerEl, detailPanel, childrenEl);
+    const _prog = node.done ? 100 : (+node.progress || 0);
+    let progEl = null;
+    if (_prog > 0 && _prog < 100) {
+      progEl = document.createElement('div');
+      progEl.className = 'proy-progress';
+      progEl.innerHTML = `<div class="proy-progress-track"><div class="proy-progress-fill" style="width:${_prog}%"></div></div><span class="proy-progress-pct">${_prog}%</span>`;
+    }
+    wrapper.append(headerEl, ...(progEl ? [progEl] : []), detailPanel, childrenEl);
     return wrapper;
   }
 
@@ -7053,6 +7061,9 @@ _auth.onAuthStateChanged(user => {
     document.getElementById('proyDetailNotes').value    = node.notes || '';
     document.getElementById('proyDetailPriority').value = node.priority || '';
     document.getElementById('proyDetailDue').value      = node.dueDate || '';
+    const _dp = node.done ? 100 : (+node.progress || 0);
+    document.getElementById('proyDetailProg').value = _dp;
+    document.getElementById('proyDetailProgVal').textContent = _dp;
     openModal('modal-proy-detail');
   }
 
@@ -7070,6 +7081,10 @@ _auth.onAuthStateChanged(user => {
     if (newPriority === '1' && node.priority !== '1' && window.JARVIS) JARVIS.onPrioritySet();
     node.priority    = newPriority;
     node.dueDate     = document.getElementById('proyDetailDue').value;
+    const _newP = +document.getElementById('proyDetailProg').value || 0;
+    const _oldP = node.done ? 100 : (+node.progress || 0);
+    node.progress = _newP;
+    if (_newP > _oldP) { node.advances = node.advances || []; node.advances.push(getActiveDate()); }
     saveTree(tab, trees[tab]);
     closeModal('modal-proy-detail');
     renderProyectos(tab);

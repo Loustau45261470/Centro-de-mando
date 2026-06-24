@@ -2424,6 +2424,10 @@ body.font-jakarta  { --sans: "Plus Jakarta Sans", sans-serif; --mono: "JetBrains
   padding: 1px 5px; border-radius: 4px;
   background: rgba(255,255,255,.07); color: var(--tt);
 }
+.proy-progress { display: flex; align-items: center; gap: 8px; margin: 2px 8px 6px 30px; }
+.proy-progress-track { flex: 1; min-width: 0; height: 5px; border-radius: 4px; background: rgba(255,255,255,.08); overflow: hidden; }
+.proy-progress-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--card-accent, var(--hud)), var(--accent)); }
+.proy-progress-pct { font-size: 9px; font-family: var(--mono); color: var(--ts); flex-shrink: 0; width: 30px; text-align: right; }
 .proy-due.overdue { background: rgba(239,68,68,.18); color: #F87171; }
 .proy-due.soon { background: rgba(251,146,60,.15); color: #FB923C; }
 

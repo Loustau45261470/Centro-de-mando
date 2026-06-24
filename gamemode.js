@@ -82,6 +82,15 @@ function gmDoneProyectos() {
   Object.values(S.proyectos || {}).forEach(tree => (tree || []).forEach(walk));
   return ids;
 }
+function gmProyectoNodes() { const out = []; const walk = n => { if (!n) return; out.push(n); (n.children || []).forEach(walk); }; Object.values(S.proyectos || {}).forEach(tree => (tree || []).forEach(walk)); return out; }
+// XP de Ejecución por avance: cada proyecto aporta proporcional a su % (completado = 200).
+function gmProyectoProgressXp() { return Math.round(gmProyectoNodes().reduce((a, n) => a + (n.done ? 200 : (+n.progress || 0) / 100 * 200), 0)); }
+// Builder Activo: máximo de proyectos distintos con avance en un mismo mes.
+function gmBuilderActivoMax() {
+  const m = {};
+  gmProyectoNodes().forEach(n => (n.advances || []).forEach(d => { const k = (d || '').slice(0, 7); if (k) (m[k] = m[k] || new Set()).add(n.id); }));
+  let mx = 0; Object.values(m).forEach(s => { if (s.size > mx) mx = s.size; }); return mx;
+}
 function gmMilestonesOnTime() { return (S.lawMilestones || []).filter(m => m.real != null && m.expected != null && m.real >= m.expected).length; }
 // Estudiar: +15 XP/día hasta que su aporte cruza nivel 5, después +10/día.
 function gmEstudiarXp() {
@@ -186,7 +195,7 @@ const GM_SKILLS = [
   { id: 'buen_padre',       cat: 'vinculos', name: 'Buen padre', xp: () => gmEvCount('gatitas_mimar') * 3 + gmEvCount('gatitas_caja') * 3 },
   { id: 'buen_amigo',       cat: 'vinculos', name: 'Buen amigo', xp: null },
   // ⚙️ Trabajo
-  { id: 'ejecucion',        cat: 'trabajo', name: 'Ejecución', xp: () => gmKwDays(['aplicación de ideas', 'aplicacion de ideas']) * 6 + gmKwDays(['trabajo en proyecto']) * 10 + gmKwStreakBonus(['aplicación de ideas', 'aplicacion de ideas', 'trabajo en proyecto']) + gmDoneProyectos().length * 200 },
+  { id: 'ejecucion',        cat: 'trabajo', name: 'Ejecución', xp: () => gmKwDays(['aplicación de ideas', 'aplicacion de ideas']) * 6 + gmKwDays(['trabajo en proyecto']) * 10 + gmKwStreakBonus(['aplicación de ideas', 'aplicacion de ideas', 'trabajo en proyecto']) + gmProyectoProgressXp() },
 ];
 const GM_SKILLS_BY_CAT = cat => GM_SKILLS.filter(s => s.cat === cat);
 
@@ -465,6 +474,7 @@ const GM_LOGROS_DEFS = [
   { id: 'arquitecto', cat: 'trabajo', rarity: 'legendario', name: 'Arquitecto de Sistemas', desc: '15 proyectos completados', prog: () => gmDoneProyectos().length, meta: 15 },
   { id: 'trabajador_constante', cat: 'trabajo', rarity: 'comun', name: 'Trabajador Constante', desc: '7 días seguidos de trabajo en proyectos', prog: () => gmKwMaxRun(['trabajo en proyecto']), meta: 7 },
   { id: 'ejecutor_disciplinado', cat: 'trabajo', rarity: 'raro', name: 'Ejecutor Disciplinado', desc: '30 días seguidos de trabajo en proyectos', prog: () => gmKwMaxRun(['trabajo en proyecto']), meta: 30 },
+  { id: 'builder_activo', cat: 'trabajo', rarity: 'raro', name: 'Builder Activo', desc: '3 proyectos con avance en el mismo mes', prog: () => gmBuilderActivoMax(), meta: 3 },
   // 🌐 Generales / cross-stat
   { id: 'dia_perfecto', cat: 'general', rarity: 'comun', name: 'Día Perfecto', desc: 'Un día con todos los hábitos cumplidos', prog: () => GM.dia_perfecto_count > 0 ? 1 : 0, meta: 1 },
   { id: 'semana_perfecta', cat: 'general', rarity: 'raro', name: 'Semana Perfecta', desc: '7 días perfectos', prog: () => GM.dia_perfecto_count, meta: 7 },
