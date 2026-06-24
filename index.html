@@ -548,6 +548,14 @@
   </div>
 </div>
 
+<!-- ── Game Mode: árbol de habilidades ── -->
+<div id="gm-tree-overlay" onclick="if(event.target===this)gmCloseTree()">
+  <div id="gm-tree-panel">
+    <div class="gm-modal-h"><b>Árbol de habilidades</b><button class="gm-modal-close" onclick="gmCloseTree()">✕</button></div>
+    <div id="gm-tree-body"></div>
+  </div>
+</div>
+
 <!-- ── Bottom Nav ── -->
 <nav id="nav">
   <button class="nav-btn active" data-tab="jarvis" onclick="switchTab('jarvis',this)">

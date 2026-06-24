@@ -42,6 +42,7 @@ function gmHabitDisplayXp(name) { const n = (name || '').toLowerCase(); const m 
 let GM = null;
 let _gmLevelUps = [];   // skills que subieron de nivel vs run anterior
 let _gmNewLogros = [];
+let _gmNewTreeNodes = [];   // nodos del árbol recién desbloqueados
 const _GM_KEY = 'gamemode_v1';
 
 // ── Curva de niveles: costo para subir de nivel n = 100 * n^1.5 ──────────
@@ -222,6 +223,7 @@ function gmDefault() {
     dia_perfecto_count: 0,
     buffs_activos: [], misiones_diarias: [], misiones_generales: [], misiones_semanales: [], misiones_epicas: [],
     logros: {}, snapshots: [], espiritu_vinculos_log: {},
+    tree: { unlocked: [], claimed: [] },
     config: { animaciones: true, voz_jarvis_levelup: false },
   };
 }
@@ -233,6 +235,9 @@ function gmMergeDefault(g) {
   ['buffs_activos', 'misiones_diarias', 'misiones_generales', 'misiones_semanales', 'misiones_epicas', 'snapshots'].forEach(k => { if (!Array.isArray(out[k])) out[k] = []; });
   if (!out.logros) out.logros = {};
   if (!out.espiritu_vinculos_log) out.espiritu_vinculos_log = {};
+  if (!out.tree || typeof out.tree !== 'object') out.tree = { unlocked: [], claimed: [] };
+  if (!Array.isArray(out.tree.unlocked)) out.tree.unlocked = [];
+  if (!Array.isArray(out.tree.claimed)) out.tree.claimed = [];
   return out;
 }
 
@@ -566,6 +571,60 @@ function gmCheckLogros() {
   GM_LOGROS_DEFS.forEach(d => gmLogro(d.id, d.cat, d.rarity, d.name, d.desc, d.prog(), d.meta));
 }
 
+// ── ÁRBOL DE HABILIDADES (talent tree / DAG con ramas que se unen) ───────
+// Cada nodo se desbloquea cuando se cumplen TODOS sus requisitos:
+//   requires.metrics: condiciones de datos [{ metric, value }] (umbral >=)
+//   requires.nodes:   nodos previos que deben estar desbloqueados (uniones)
+//   manual: true → además requiere ser "reclamado" (no hay dato que lo mida)
+const GM_TREE_NODES = [
+  { id: 'boxeador_amateur', name: 'Boxeador Amateur', icon: '🥊', desc: '100 entrenamientos de boxeo', pos: { x: 60, y: 50 }, requires: { metrics: [{ metric: 'boxeo', value: 100 }] } },
+  { id: 'boxeador_pro', name: 'Boxeador Profesional', icon: '🥊', desc: '500 boxeo + Boxeador Amateur', pos: { x: 60, y: 190 }, requires: { metrics: [{ metric: 'boxeo', value: 500 }], nodes: ['boxeador_amateur'] } },
+  { id: 'jujitsu_pro', name: 'Jiujitsu Pro', icon: '🥋', desc: '500 entrenamientos de jiujitsu', pos: { x: 300, y: 190 }, requires: { metrics: [{ metric: 'jujitsu', value: 500 }] } },
+  { id: 'peleador_pro', name: 'Peleador Profesional', icon: '🤼', desc: 'Boxeador Pro + Jiujitsu Pro', pos: { x: 180, y: 330 }, requires: { nodes: ['boxeador_pro', 'jujitsu_pro'] } },
+  { id: 'manejo_armas', name: 'Manejo de Armas', icon: '🔫', desc: 'Habilidad manual (reclamable)', pos: { x: 430, y: 330 }, manual: true, requires: {} },
+  { id: 'tenencia', name: 'Tenencia', icon: '📜', desc: 'Manejo de Armas (manual)', pos: { x: 470, y: 470 }, manual: true, requires: { nodes: ['manejo_armas'] } },
+  { id: 'maquina_matar', name: 'Máquina de Matar', icon: '💀', desc: 'Peleador Pro + Armas + Tenencia', pos: { x: 280, y: 480 }, requires: { nodes: ['peleador_pro', 'manejo_armas', 'tenencia'] } },
+];
+function gmMetric(name) {
+  switch (name) {
+    case 'boxeo': return gmKwDays(['boxeo', 'box']);
+    case 'jujitsu': return gmKwDays(['jujitsu', 'jiu']);
+    case 'gym': return gmKwDays(['entrenamiento']);
+    case 'caminar': return gmKwDays(['caminar', 'caminata']);
+    case 'materias': return gmDoneMaterias().length;
+    case 'proyectos': return gmDoneProyectos().length;
+    case 'nivel_general': return GM.nivel_general;
+    default:
+      if (name.indexOf('lvl_cat_') === 0) return (GM.cats[name.slice(8)] || {}).nivel || 0;
+      if (name.indexOf('lvl_') === 0) return (GM.skills[name.slice(4)] || {}).nivel || 0;
+      return 0;
+  }
+}
+function gmTreeReqMet(n, unlocked) {
+  const r = n.requires || {};
+  const mOk = (r.metrics || []).every(c => gmMetric(c.metric) >= c.value);
+  const nOk = (r.nodes || []).every(id => unlocked.has(id));
+  return mOk && nOk;
+}
+function gmEvalTree() {
+  GM.tree = GM.tree || { unlocked: [], claimed: [] };
+  if (!Array.isArray(GM.tree.unlocked)) GM.tree.unlocked = [];
+  if (!Array.isArray(GM.tree.claimed)) GM.tree.claimed = [];
+  const prev = new Set(GM.tree.unlocked);
+  const unlocked = new Set();
+  let changed = true, guard = 0;
+  while (changed && guard++ < 30) {
+    changed = false;
+    GM_TREE_NODES.forEach(n => {
+      if (unlocked.has(n.id)) return;
+      const claimOk = n.manual ? GM.tree.claimed.includes(n.id) : true;
+      if (claimOk && gmTreeReqMet(n, unlocked)) { unlocked.add(n.id); changed = true; }
+    });
+  }
+  GM.tree.unlocked = GM_TREE_NODES.filter(n => unlocked.has(n.id)).map(n => n.id);
+  _gmNewTreeNodes = GM.tree.unlocked.filter(id => !prev.has(id)).map(id => GM_TREE_NODES.find(n => n.id === id)).filter(Boolean);
+}
+
 // ── Buffs (rachas) ───────────────────────────────────────────────────────
 function gmCheckBuffs() {
   const buffs = [];
@@ -588,7 +647,7 @@ function gmMaybeSnapshot(today) {
 
 // ── Orquestador ──────────────────────────────────────────────────────────
 function gmRunEngine() {
-  _gmLevelUps = []; _gmNewLogros = [];
+  _gmLevelUps = []; _gmNewLogros = []; _gmNewTreeNodes = [];
   const today = getActiveDate();
   const firstRun = !GM.ultima_actualizacion;
   const oldSkill = {}; GM_SKILLS.forEach(s => oldSkill[s.id] = (GM.skills[s.id] || {}).nivel || 1);
@@ -601,11 +660,12 @@ function gmRunEngine() {
   gmBuildWeeklyMissions(today);
   gmBuildEpicMissions(today);
   gmCheckLogros();
+  gmEvalTree();
   gmCheckBuffs();
   gmMaybeSnapshot(today);
 
   if (!firstRun) GM_SKILLS.forEach(s => { const nv = (GM.skills[s.id] || {}).nivel || 1; if (nv > oldSkill[s.id]) _gmLevelUps.push({ skill: s.id, to: nv }); });
-  else _gmNewLogros = [];
+  else { _gmNewLogros = []; _gmNewTreeNodes = []; }
   GM.ultima_actualizacion = today;
   gmSave();
 }
