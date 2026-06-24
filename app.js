@@ -3394,11 +3394,15 @@ function renderLawProgress() {
   const totalSubs = years.reduce((s, y) => s + y.subjects.length, 0);
   const totalDone = years.reduce((s, y) => s + y.subjects.filter(sub => sub.done).length, 0);
   const totalPct  = totalSubs ? Math.round(totalDone / totalSubs * 100) : 0;
+  const allGrades = years.flatMap(y => y.subjects.map(s => s.grade)).filter(g => g != null && !isNaN(g));
+  const careerAvg = allGrades.length ? allGrades.reduce((a, b) => a + (+b), 0) / allGrades.length : null;
 
   const slideHTML = years.map((y, yi) => {
     const yDone  = y.subjects.filter(s => s.done).length;
     const yTotal = y.subjects.length;
     const yPct   = yTotal ? Math.round(yDone / yTotal * 100) : 0;
+    const yGrades = y.subjects.map(s => s.grade).filter(g => g != null && !isNaN(g));
+    const yAvg = yGrades.length ? yGrades.reduce((a, b) => a + (+b), 0) / yGrades.length : null;
     return `<div class="law-year-slide">
       <div class="law-nav">
         <button class="law-nav-btn" onclick="lawNav(-1)" ${yi === 0 ? 'style="visibility:hidden"' : ''}>‹ Anterior</button>
@@ -3407,13 +3411,16 @@ function renderLawProgress() {
       </div>
       <div class="law-year-top">
         <span class="law-year-name">${y.label}</span>
-        <span class="law-year-pct">${yPct}%</span>
+        <span class="law-year-pct">${yAvg != null ? `<span class="law-year-avg">prom ${yAvg.toFixed(1)}</span>` : ''}${yPct}%</span>
       </div>
       <div class="law-year-bar"><div class="law-year-bar-fill" style="width:${yPct}%"></div></div>
       <div class="law-subjects">
         ${y.subjects.map(sub => `
           <div class="law-subject-row${sub.done ? ' done' : ''}">
             <span class="law-subject-name">${sub.name}</span>
+            <input type="number" class="law-grade" min="1" max="10" step="0.1"
+              value="${sub.grade != null ? sub.grade : ''}" placeholder="–" title="Nota del final"
+              onclick="event.stopPropagation()" onchange="setLawGrade('${y.id}','${sub.id}',this.value)">
             <input type="checkbox" class="law-check" ${sub.done ? 'checked' : ''}
               onchange="toggleLawSubject('${y.id}','${sub.id}')">
           </div>`).join('')}
@@ -3440,6 +3447,7 @@ function renderLawProgress() {
     <div class="law-total-bar"><div class="law-total-bar-fill" style="width:${totalPct}%"></div></div>
     <div class="law-total-caption">
       <span>${years.filter(y => y.subjects.every(s => s.done)).length} años completos</span>
+      ${careerAvg != null ? `<span>Promedio carrera: <strong style="color:var(--c-conocimiento)">${careerAvg.toFixed(2)}</strong></span>` : ''}
       <span>${totalSubs - totalDone} materias restantes</span>
     </div>
     <div class="law-scroller" id="law-scroller">${slideHTML.join('')}</div>
@@ -3482,6 +3490,16 @@ function lawGoTo(idx) {
   const sc = document.getElementById('law-scroller');
   if (sc) sc.scrollTo({ left: idx * sc.offsetWidth, behavior: 'smooth' });
   setTimeout(_updateLawDots, 350);
+}
+
+function setLawGrade(yearId, subId, value) {
+  const y = S.lawProgress.years.find(y => y.id === yearId);
+  if (!y) return;
+  const sub = y.subjects.find(s => s.id === subId);
+  if (!sub) return;
+  const v = parseFloat(String(value).replace(',', '.'));
+  sub.grade = (value === '' || isNaN(v)) ? null : Math.max(1, Math.min(10, Math.round(v * 10) / 10));
+  saveState(); renderLawProgress();
 }
 
 function toggleLawSubject(yearId, subId) {

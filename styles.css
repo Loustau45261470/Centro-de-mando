@@ -1214,6 +1214,11 @@ textarea { resize: vertical; min-height: 60px; }
 .law-subject-name { flex:1; font-size:14px; line-height:1.35; }
 .law-subject-row.done .law-subject-name { text-decoration:line-through; color:var(--tt); }
 .law-check { width:20px; height:20px; flex-shrink:0; accent-color:var(--accent); cursor:pointer; }
+.law-grade { width:48px; flex-shrink:0; text-align:center; font-family:var(--mono); font-size:13px; font-weight:600;
+  color:var(--c-conocimiento); background:var(--card); border:1px solid var(--border); border-radius:8px; padding:5px 4px; }
+.law-grade::placeholder { color:var(--tt); font-weight:400; }
+.law-grade:focus { outline:none; border-color:var(--c-conocimiento); }
+.law-year-avg { font-size:12px; font-weight:600; color:var(--c-conocimiento); font-family:var(--mono); margin-right:8px; opacity:.85; }
 
 .law-dots { display:flex; justify-content:center; gap:7px; padding-top:14px; }
 .law-dot { width:7px; height:7px; border-radius:50%; background:rgba(255,255,255,.14); cursor:pointer; transition:all .2s; flex-shrink:0; }
