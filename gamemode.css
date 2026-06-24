@@ -49,6 +49,11 @@
 
 /* ── Zona 3: Misiones ── */
 .gm-missions { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; }
+.gm-missions-grouped { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+.gm-mgroup { display: flex; flex-direction: column; gap: 4px; }
+.gm-mgroup-h { display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--sc, var(--ts)); padding-bottom: 3px; border-bottom: 1px solid var(--border); margin-bottom: 3px; }
+.gm-mgroup-h.gm-mgroup-gen { color: var(--ts); }
+.gm-mgroup-ico { font-size: 14px; }
 .gm-mission { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 10px; background: var(--card); font-size: 13px; color: var(--ts); }
 .gm-mission.done { color: var(--tp); }
 .gm-mission.done .gm-check { background: var(--ok); border-color: var(--ok); color: #001; }
