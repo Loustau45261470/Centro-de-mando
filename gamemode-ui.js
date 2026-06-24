@@ -38,6 +38,7 @@ function gmRenderAll() {
     gmRenderDaily() +
     gmRenderEpics() +
     gmRenderLogros() +
+    gmRenderTree() +
     gmRenderManual() +
     gmRenderRadar();
   requestAnimationFrame(gmDrawRadar);
@@ -179,6 +180,49 @@ function gmOpenLogrosModal(catF, rarF) {
 }
 function gmCloseLogrosModal() { const ov = document.getElementById('gm-logros-overlay'); if (ov) ov.classList.remove('show'); }
 
+// ── Árbol de habilidades ─────────────────────────────────────────────────
+function gmRenderTree() {
+  const total = GM_TREE_NODES.length;
+  const unl = ((GM.tree && GM.tree.unlocked) || []).length;
+  return `<div class="gm-card card"><div class="gm-card-h"><span>Árbol de habilidades</span><button class="gm-link" onclick="gmOpenTree()">Abrir (${unl}/${total})</button></div>
+    <div class="gm-empty">Desbloqueá habilidades especiales combinando entrenamientos, logros y rachas. Las ramas se unen.</div></div>`;
+}
+function gmOpenTree() {
+  const ov = document.getElementById('gm-tree-overlay'), body = document.getElementById('gm-tree-body');
+  if (!ov || !body) return;
+  const unlocked = new Set((GM.tree && GM.tree.unlocked) || []);
+  const claimed = new Set((GM.tree && GM.tree.claimed) || []);
+  const W = Math.max(...GM_TREE_NODES.map(n => n.pos.x)) + 170;
+  const H = Math.max(...GM_TREE_NODES.map(n => n.pos.y)) + 120;
+  let lines = '';
+  GM_TREE_NODES.forEach(n => ((n.requires && n.requires.nodes) || []).forEach(pid => {
+    const p = GM_TREE_NODES.find(x => x.id === pid); if (!p) return;
+    const on = unlocked.has(n.id) && unlocked.has(pid);
+    lines += `<line x1="${p.pos.x + 56}" y1="${p.pos.y + 64}" x2="${n.pos.x + 56}" y2="${n.pos.y}" class="gm-tline${on ? ' on' : ''}"/>`;
+  }));
+  let nodes = '';
+  GM_TREE_NODES.forEach(n => {
+    const on = unlocked.has(n.id);
+    const reqOk = gmTreeReqMet(n, unlocked);
+    const claimable = !on && n.manual && reqOk && !claimed.has(n.id);
+    const reqTxt = ((n.requires && n.requires.metrics) || []).map(c => `${Math.min(gmMetric(c.metric), c.value)}/${c.value}`).join(' · ');
+    nodes += `<div class="gm-tnode${on ? ' on' : ''}${n.manual ? ' manual' : ''}" style="left:${n.pos.x}px;top:${n.pos.y}px" title="${_gmEsc(n.desc)}">
+      <span class="gm-tnode-ico">${n.icon}</span>
+      <span class="gm-tnode-name">${_gmEsc(n.name)}</span>
+      ${on ? '<span class="gm-tnode-on">✓ desbloqueada</span>' : `<span class="gm-tnode-req">${_gmEsc(reqTxt || (n.manual ? 'manual' : ''))}</span>`}
+      ${claimable ? `<button class="gm-tnode-claim" onclick="gmClaimNode('${n.id}')">Reclamar</button>` : ''}
+    </div>`;
+  });
+  body.innerHTML = `<div class="gm-tree-scroll"><div class="gm-tree-canvas" style="width:${W}px;height:${H}px"><svg class="gm-tree-svg" width="${W}" height="${H}">${lines}</svg>${nodes}</div></div>`;
+  ov.classList.add('show');
+}
+function gmCloseTree() { const ov = document.getElementById('gm-tree-overlay'); if (ov) ov.classList.remove('show'); }
+function gmClaimNode(id) {
+  GM.tree.claimed = GM.tree.claimed || [];
+  if (!GM.tree.claimed.includes(id)) GM.tree.claimed.push(id);
+  gmRunEngine(); gmRenderAll(); gmOpenTree(); gmFlushFeedback();
+}
+
 // ── Zona 6 — Radar por categoría + config ────────────────────────────────
 function gmRenderRadar() {
   const sel = [1, 3, 12].map(mo => `<button class="gm-fchip ${_gmRadarMonths === mo ? 'on' : ''}" onclick="gmSetRadarPeriod(${mo})">${mo === 12 ? '1 año' : mo + ' mes' + (mo > 1 ? 'es' : '')}</button>`).join('');
@@ -241,14 +285,23 @@ function gmToggleConfig(key) { GM.config[key] = !GM.config[key]; gmSave(); }
 // ── Microinteracciones ───────────────────────────────────────────────────
 function _gmSkillMeta(skillId) { const s = GM_SKILLS.find(x => x.id === skillId); return s ? { name: s.name, cat: s.cat } : { name: skillId, cat: 'mente' }; }
 function gmFlushFeedback() {
-  if (!GM.config.animaciones) { _gmLevelUps = []; _gmNewLogros = []; return; }
+  if (!GM.config.animaciones) { _gmLevelUps = []; _gmNewLogros = []; _gmNewTreeNodes = []; return; }
   _gmLevelUps.forEach((lu, i) => setTimeout(() => gmLevelUpToast(lu), i * 700));
   _gmNewLogros.forEach((l, i) => setTimeout(() => gmLogroToast(l), (_gmLevelUps.length + i) * 700));
+  _gmNewTreeNodes.forEach((n, i) => setTimeout(() => gmTreeToast(n), (_gmLevelUps.length + _gmNewLogros.length + i) * 700));
   if (GM.config.voz_jarvis_levelup && _gmLevelUps.length && window.JARVIS_VOICE && typeof JARVIS_VOICE.speak === 'function') {
     const m = _gmSkillMeta(_gmLevelUps[0].skill);
     try { JARVIS_VOICE.speak(`Subiste a nivel ${_gmLevelUps[0].to} en ${m.name}`); } catch (e) {}
   }
-  _gmLevelUps = []; _gmNewLogros = [];
+  _gmLevelUps = []; _gmNewLogros = []; _gmNewTreeNodes = [];
+}
+function gmTreeToast(n) {
+  const el = document.createElement('div');
+  el.className = 'gm-toast gm-toast-tree';
+  el.innerHTML = `<span class="gm-toast-ico">${n.icon}</span><div><div class="gm-toast-t">¡Habilidad desbloqueada!</div><div class="gm-toast-s">${_gmEsc(n.name)}</div></div>`;
+  _gmToastEl().appendChild(el);
+  requestAnimationFrame(() => el.classList.add('in'));
+  setTimeout(() => { el.classList.remove('in'); setTimeout(() => el.remove(), 350); }, 3000);
 }
 function _gmToastEl() { let t = document.getElementById('gm-toast-stack'); if (!t) { t = document.createElement('div'); t.id = 'gm-toast-stack'; document.body.appendChild(t); } return t; }
 function gmLevelUpToast(lu) {

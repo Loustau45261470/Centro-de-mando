@@ -105,6 +105,25 @@
 .gm-filters + .gm-logros-grid { margin-top: 12px; }
 .gm-logros-count { font-size: 12px; color: var(--ts); font-family: var(--mono); margin: 10px 0; }
 
+/* ── Árbol de habilidades ── */
+#gm-tree-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); backdrop-filter: blur(6px); z-index: 9000; display: none; align-items: flex-end; justify-content: center; }
+#gm-tree-overlay.show { display: flex; }
+#gm-tree-panel { background: var(--bg2); border: 1px solid var(--border-h); border-radius: 18px 18px 0 0; width: min(860px, 100%); max-height: 88vh; padding: 18px; display: flex; flex-direction: column; }
+.gm-tree-scroll { overflow: auto; flex: 1; -webkit-overflow-scrolling: touch; }
+.gm-tree-canvas { position: relative; }
+.gm-tree-svg { position: absolute; left: 0; top: 0; pointer-events: none; }
+.gm-tline { stroke: rgba(255,255,255,.12); stroke-width: 2; }
+.gm-tline.on { stroke: var(--accent); stroke-width: 2.5; filter: drop-shadow(0 0 4px var(--accent)); }
+.gm-tnode { position: absolute; width: 112px; min-height: 56px; box-sizing: border-box; padding: 8px 6px; border-radius: 12px; background: var(--card); border: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; opacity: .55; transition: opacity .25s, box-shadow .25s; }
+.gm-tnode.on { opacity: 1; border-color: var(--accent); background: var(--card-h); box-shadow: 0 0 18px -5px var(--accent); }
+.gm-tnode.manual:not(.on) { border-style: dashed; }
+.gm-tnode-ico { font-size: 22px; line-height: 1; }
+.gm-tnode-name { font-size: 11px; font-weight: 600; color: var(--tp); line-height: 1.15; }
+.gm-tnode-req { font-size: 9px; font-family: var(--mono); color: var(--tt); }
+.gm-tnode-on { font-size: 9px; color: var(--ok); font-weight: 600; }
+.gm-tnode-claim { margin-top: 3px; font-size: 10px; padding: 3px 9px; border-radius: 6px; border: 1px solid var(--accent); background: transparent; color: var(--accent); cursor: pointer; }
+.gm-toast-tree { border-left: 3px solid var(--accent); }
+
 /* ── Zona 6: Radar + config ── */
 .gm-radar-wrap { height: 280px; position: relative; }
 .gm-config { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; }
