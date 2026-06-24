@@ -21,6 +21,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 <link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="gamemode.css">
 </head>
 <body>
 
@@ -526,14 +527,25 @@
     <div class="affirmation-strip aff-mid"><span id="affirmation2-finanzas"></span></div>
   </div>
 
+  <!-- ── Game Mode ── -->
+  <div id="tab-game" class="tab-panel"></div>
+
 </div><!-- end #app -->
 
-<!-- ── Trophy button (persistent, all sections) ── -->
-<button id="trophy-btn" onclick="openAchievements()" title="Logros">🏆</button>
+<!-- ── Game Mode button (persistent, all sections) ── -->
+<button id="trophy-btn" onclick="openGameMode()" title="Game Mode">🎮</button>
 
-<!-- ── Achievements overlay ── -->
+<!-- ── Achievements overlay (legacy, alcanzable por consola/command palette) ── -->
 <div id="ach-overlay" onclick="if(event.target===this)closeAchievements()">
   <div id="ach-panel"></div>
+</div>
+
+<!-- ── Game Mode: logros modal ── -->
+<div id="gm-logros-overlay" onclick="if(event.target===this)gmCloseLogrosModal()">
+  <div id="gm-logros-panel">
+    <div class="gm-modal-h"><b>Logros</b><button class="gm-modal-close" onclick="gmCloseLogrosModal()">✕</button></div>
+    <div id="gm-logros-body"></div>
+  </div>
 </div>
 
 <!-- ── Bottom Nav ── -->
@@ -1298,6 +1310,9 @@
 </div>
 
 <script src="app.js"></script>
+
+<script src="gamemode.js"></script>
+<script src="gamemode-ui.js"></script>
 
 <script src="jarvis-agent.js"></script>
 
