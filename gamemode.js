@@ -121,24 +121,42 @@ function gmFixedPaidCount() {
   Object.keys(log).forEach(mk => Object.values(log[mk] || {}).forEach(v => { if (v) n++; }));
   return n;
 }
+// Bonus por hitos de racha (una vez cada hito, según la racha más larga del hábito)
+const GM_STREAK_MILESTONES = [{ d: 7, xp: 20 }, { d: 30, xp: 50 }, { d: 90, xp: 150 }, { d: 365, xp: 500 }];
+function gmHabitMaxStreak(h) {
+  const days = Object.keys((h && h.days) || {}).filter(d => gmHabitDone(h, d)).sort();
+  if (!days.length) return 0;
+  let max = 1, cur = 1;
+  for (let i = 1; i < days.length; i++) {
+    const prev = new Date(days[i - 1] + 'T12:00:00'); prev.setDate(prev.getDate() + 1);
+    if (localStr(prev) === days[i]) { cur++; if (cur > max) max = cur; } else cur = 1;
+  }
+  return max;
+}
+function gmKwStreakBonus(kws) {
+  return gmKwHabits(kws).reduce((tot, h) => {
+    const ms = gmHabitMaxStreak(h);
+    return tot + GM_STREAK_MILESTONES.filter(x => ms >= x.d).reduce((a, b) => a + b.xp, 0);
+  }, 0);
+}
 
 // ── SKILLS — cada una con su función de XP determinista (null = sin tracker) ──
 const GM_SKILLS = [
   // 💪 Cuerpo
-  { id: 'fortaleza_fisica', cat: 'cuerpo', name: 'Fortaleza física', xp: () => gmKwDays(['entrenamiento']) * 10 },
-  { id: 'combate',          cat: 'cuerpo', name: 'Habilidad de combate', xp: () => gmKwDays(['boxeo', 'box', 'jujitsu', 'jiu']) * 10 },
-  { id: 'nutricion',        cat: 'cuerpo', name: 'Nutrición / Salud', xp: () => gmKwDays(['comer sano', 'liviano', 'nutric']) * 10 },
+  { id: 'fortaleza_fisica', cat: 'cuerpo', name: 'Fortaleza física', xp: () => gmKwDays(['entrenamiento']) * 10 + gmKwStreakBonus(['entrenamiento']) },
+  { id: 'combate',          cat: 'cuerpo', name: 'Habilidad de combate', xp: () => gmKwDays(['boxeo', 'box', 'jujitsu', 'jiu']) * 10 + gmKwStreakBonus(['boxeo', 'box', 'jujitsu', 'jiu']) },
+  { id: 'nutricion',        cat: 'cuerpo', name: 'Nutrición / Salud', xp: () => gmKwDays(['comer sano', 'liviano', 'nutric']) * 10 + gmKwStreakBonus(['comer sano', 'liviano', 'nutric']) },
   { id: 'agilidad',         cat: 'cuerpo', name: 'Agilidad', xp: null },
   { id: 'resistencia',      cat: 'cuerpo', name: 'Resistencia', xp: null },
   // 🧠 Mente
-  { id: 'intelecto',        cat: 'mente', name: 'Intelecto', xp: () => gmEstudiarXp() + gmKwDays(['leer']) * 8 + gmDoneMaterias().length * 150 + gmMilestonesOnTime() * 200 },
-  { id: 'concentracion',    cat: 'mente', name: 'Concentración', xp: () => gmKwDays(['enfoque']) * 5 },
-  { id: 'fortaleza_mental', cat: 'mente', name: 'Fortaleza mental', xp: () => gmKwDays(['meditar', 'visualiz']) * 8 },
-  { id: 'responsabilidad',  cat: 'mente', name: 'Responsabilidad', xp: () => gmKwDays(['despertar']) * 10 + gmKwDays(['planificar']) * 5 },
+  { id: 'intelecto',        cat: 'mente', name: 'Intelecto', xp: () => gmEstudiarXp() + gmKwDays(['leer']) * 8 + gmKwStreakBonus(['estudiar', 'leer']) + gmDoneMaterias().length * 150 + gmMilestonesOnTime() * 200 },
+  { id: 'concentracion',    cat: 'mente', name: 'Concentración', xp: () => gmKwDays(['enfoque']) * 5 + gmKwStreakBonus(['enfoque']) },
+  { id: 'fortaleza_mental', cat: 'mente', name: 'Fortaleza mental', xp: () => gmKwDays(['meditar', 'visualiz']) * 8 + gmKwStreakBonus(['meditar', 'visualiz']) },
+  { id: 'responsabilidad',  cat: 'mente', name: 'Responsabilidad', xp: () => gmKwDays(['despertar']) * 10 + gmKwDays(['planificar']) * 5 + gmKwStreakBonus(['despertar', 'planificar']) },
   // 💰 Finanzas
-  { id: 'economista',       cat: 'finanzas', name: 'Economista', xp: () => gmKwDays(['aprendizaje econ', 'económic', 'economic']) * 5 },
+  { id: 'economista',       cat: 'finanzas', name: 'Economista', xp: () => gmKwDays(['aprendizaje econ', 'económic', 'economic']) * 5 + gmKwStreakBonus(['aprendizaje econ', 'económic', 'economic']) },
   { id: 'riqueza',          cat: 'finanzas', name: 'Riqueza', xp: () => gmRiquezaXp() },
-  { id: 'gerente',          cat: 'finanzas', name: 'Gerente de finanzas', xp: () => gmKwDays(['austeridad']) * 10 + gmKwDays(['registro financiero']) * 8 + gmFixedPaidCount() * 5 },
+  { id: 'gerente',          cat: 'finanzas', name: 'Gerente de finanzas', xp: () => gmKwDays(['austeridad']) * 10 + gmKwDays(['registro financiero']) * 8 + gmKwStreakBonus(['austeridad', 'registro financiero']) + gmFixedPaidCount() * 5 },
   // 🙏 Espíritu
   { id: 'fe',               cat: 'espiritu', name: 'Fe', xp: () => gmEvCount('mision') * 5 + gmEvCount('lectura') * 5 + gmEvCount('reflexion') * 15 },
   { id: 'templanza',        cat: 'espiritu', name: 'Templanza', xp: null },
@@ -148,7 +166,7 @@ const GM_SKILLS = [
   { id: 'buen_padre',       cat: 'vinculos', name: 'Buen padre', xp: () => gmEvCount('gatitas_mimar') * 3 + gmEvCount('gatitas_caja') * 3 },
   { id: 'buen_amigo',       cat: 'vinculos', name: 'Buen amigo', xp: null },
   // ⚙️ Trabajo
-  { id: 'ejecucion',        cat: 'trabajo', name: 'Ejecución', xp: () => gmKwDays(['aplicación de ideas', 'aplicacion de ideas']) * 6 + gmKwDays(['trabajo en proyecto']) * 10 + gmDoneProyectos().length * 200 },
+  { id: 'ejecucion',        cat: 'trabajo', name: 'Ejecución', xp: () => gmKwDays(['aplicación de ideas', 'aplicacion de ideas']) * 6 + gmKwDays(['trabajo en proyecto']) * 10 + gmKwStreakBonus(['aplicación de ideas', 'aplicacion de ideas', 'trabajo en proyecto']) + gmDoneProyectos().length * 200 },
 ];
 const GM_SKILLS_BY_CAT = cat => GM_SKILLS.filter(s => s.cat === cat);
 
