@@ -374,24 +374,112 @@ function gmLogro(id, cat, rareza, name, desc, progreso, meta) {
   GM.logros[id] = { cat, rareza, name, desc, progreso, meta, desbloqueado, fecha: prev.fecha || (justUnlocked ? getActiveDate() : null) };
   if (justUnlocked) _gmNewLogros.push(GM.logros[id]);
 }
+// Helpers de métricas para logros
+function gmKwMaxRun(kws) { return gmKwHabits(kws).reduce((m, h) => Math.max(m, gmHabitRuns(h).reduce((a, b) => Math.max(a, b), 0)), 0); }
+function gmCareerAvg() { const g = []; ((S.lawProgress && S.lawProgress.years) || []).forEach(y => (y.subjects || []).forEach(s => { if (s.grade != null && !isNaN(s.grade)) g.push(+s.grade); })); return g.length ? g.reduce((a, b) => a + b, 0) / g.length : 0; }
+function gmMaxGrade() { let mx = 0; ((S.lawProgress && S.lawProgress.years) || []).forEach(y => (y.subjects || []).forEach(s => { if (s.grade != null && +s.grade > mx) mx = +s.grade; })); return mx; }
+function gmBalancePositiveMonths() { const m = {}; (S.transactions || []).forEach(t => { const k = (t.date || '').slice(0, 7); if (!k) return; m[k] = m[k] || { i: 0, e: 0 }; if (t.type === 'income') m[k].i += (+t.amount || 0); else m[k].e += (+t.amount || 0); }); return Object.values(m).filter(x => x.i > x.e).length; }
+function gmWeekKeyOf(d) { const dd = new Date(d + 'T12:00:00'); dd.setDate(dd.getDate() - ((dd.getDay() + 6) % 7)); return localStr(dd); }
+function gmCierreSemanas() { const h = gmKwHabit(['registro financiero']); if (!h) return 0; const w = {}; Object.keys(h.days || {}).forEach(d => { if (gmHabitDone(h, d)) { const k = gmWeekKeyOf(d); w[k] = (w[k] || 0) + 1; } }); return Object.values(w).filter(n => n >= 7).length; }
+function gmMaxAnyStreak() { let m = 0; Object.values(S.habitTrackers || {}).forEach(arr => (arr || []).forEach(h => { const r = gmHabitRuns(h).reduce((a, b) => Math.max(a, b), 0); if (r > m) m = r; })); return m; }
+function gmStatsBalanced() { const lv = GM_CATEGORIES.map(c => GM.cats[c].nivel); return Math.max(...lv) - Math.min(...lv) <= 2 ? 1 : 0; }
+function gmQuarterlyCumplidos() { return (GM.misiones_epicas || []).filter(e => e.progreso >= 1).length; }
+
+// ── Tabla de logros (table-driven): { id, cat, rarity, name, desc, prog, meta } ──
+const GM_LOGROS_DEFS = [
+  // 💪 Cuerpo
+  { id: 'primera_sangre', cat: 'cuerpo', rarity: 'comun', name: 'Primera Sangre', desc: 'Primera sesión de gym logueada', prog: () => gmKwDays(['entrenamiento']) > 0 ? 1 : 0, meta: 1 },
+  { id: 'rutina_marcha', cat: 'cuerpo', rarity: 'comun', name: 'Rutina en Marcha', desc: '10 sesiones de gym', prog: () => gmKwDays(['entrenamiento']), meta: 10 },
+  { id: 'hierro_venas', cat: 'cuerpo', rarity: 'raro', name: 'Hierro en las Venas', desc: '50 sesiones de gym', prog: () => gmKwDays(['entrenamiento']), meta: 50 },
+  { id: 'bestia_hierro', cat: 'cuerpo', rarity: 'epico', name: 'Bestia de Hierro', desc: '200 sesiones de gym', prog: () => gmKwDays(['entrenamiento']), meta: 200 },
+  { id: 'leyenda_hierro', cat: 'cuerpo', rarity: 'legendario', name: 'Leyenda del Hierro', desc: '500 sesiones de gym', prog: () => gmKwDays(['entrenamiento']), meta: 500 },
+  { id: 'constancia_fisica', cat: 'cuerpo', rarity: 'raro', name: 'Sin Excusas', desc: '30 días seguidos de gym', prog: () => gmKwMaxRun(['entrenamiento']), meta: 30 },
+  { id: 'cuerpo_forjado', cat: 'cuerpo', rarity: 'epico', name: 'Cuerpo Forjado', desc: '90 días seguidos de gym', prog: () => gmKwMaxRun(['entrenamiento']), meta: 90 },
+  { id: 'primeros_guantes', cat: 'cuerpo', rarity: 'comun', name: 'Primeros Guantes', desc: 'Primera sesión de combate', prog: () => gmKwDays(['boxeo', 'box', 'jujitsu', 'jiu']) > 0 ? 1 : 0, meta: 1 },
+  { id: 'ritmo_combate', cat: 'cuerpo', rarity: 'raro', name: 'Ritmo de Combate', desc: '50 sesiones de combate', prog: () => gmKwDays(['boxeo', 'box', 'jujitsu', 'jiu']), meta: 50 },
+  { id: 'puno_acero', cat: 'cuerpo', rarity: 'epico', name: 'Puño de Acero', desc: '150 sesiones de combate', prog: () => gmKwDays(['boxeo', 'box', 'jujitsu', 'jiu']), meta: 150 },
+  { id: 'campeon_sombra', cat: 'cuerpo', rarity: 'legendario', name: 'Campeón de Sombra', desc: '400 sesiones de combate', prog: () => gmKwDays(['boxeo', 'box', 'jujitsu', 'jiu']), meta: 400 },
+  { id: 'habito_saludable', cat: 'cuerpo', rarity: 'comun', name: 'Hábito Saludable', desc: '7 días seguidos comiendo sano', prog: () => gmKwMaxRun(['comer sano', 'liviano']), meta: 7 },
+  { id: 'estilo_vida', cat: 'cuerpo', rarity: 'raro', name: 'Estilo de Vida', desc: '30 días seguidos comiendo sano', prog: () => gmKwMaxRun(['comer sano', 'liviano']), meta: 30 },
+  { id: 'disciplina_nutricional', cat: 'cuerpo', rarity: 'epico', name: 'Disciplina Nutricional', desc: '90 días seguidos comiendo sano', prog: () => gmKwMaxRun(['comer sano', 'liviano']), meta: 90 },
+  // 🧠 Mente
+  { id: 'primer_aprobado', cat: 'mente', rarity: 'comun', name: 'Primer Aprobado', desc: 'Primera materia aprobada', prog: () => gmDoneMaterias().length > 0 ? 1 : 0, meta: 1 },
+  { id: 'cuatri_marcha', cat: 'mente', rarity: 'raro', name: 'Cuatrimestre en Marcha', desc: '5 materias aprobadas', prog: () => gmDoneMaterias().length, meta: 5 },
+  { id: 'mente_brillante', cat: 'mente', rarity: 'raro', name: 'Mente Brillante', desc: '10 materias aprobadas', prog: () => gmDoneMaterias().length, meta: 10 },
+  { id: 'mitad_camino', cat: 'mente', rarity: 'epico', name: 'Mitad de Camino', desc: '20 materias aprobadas', prog: () => gmDoneMaterias().length, meta: 20 },
+  { id: 'recta_final', cat: 'mente', rarity: 'epico', name: 'Recta Final', desc: '35 materias aprobadas', prog: () => gmDoneMaterias().length, meta: 35 },
+  { id: 'camino_doctorado', cat: 'mente', rarity: 'legendario', name: 'Camino al Doctorado', desc: 'Carrera completa: 40 materias', prog: () => gmDoneMaterias().length, meta: 40 },
+  { id: 'primer_diez', cat: 'mente', rarity: 'raro', name: 'Sobresaliente', desc: 'Una materia con nota 9 o más', prog: () => gmMaxGrade() >= 9 ? 1 : 0, meta: 1 },
+  { id: 'disciplina_total', cat: 'mente', rarity: 'legendario', name: 'Disciplina Total', desc: 'Promedio de carrera 8.5+', prog: () => gmCareerAvg(), meta: 8.5 },
+  { id: 'constante_estudio', cat: 'mente', rarity: 'comun', name: 'Constante en el Estudio', desc: '7 días seguidos estudiando', prog: () => gmKwMaxRun(['estudiar']), meta: 7 },
+  { id: 'disciplina_academica', cat: 'mente', rarity: 'raro', name: 'Disciplina Académica', desc: '30 días seguidos estudiando', prog: () => gmKwMaxRun(['estudiar']), meta: 30 },
+  { id: 'erudito', cat: 'mente', rarity: 'epico', name: 'Erudito', desc: '90 días seguidos estudiando', prog: () => gmKwMaxRun(['estudiar']), meta: 90 },
+  { id: 'lector', cat: 'mente', rarity: 'comun', name: 'Lector', desc: '7 días seguidos leyendo', prog: () => gmKwMaxRun(['leer']), meta: 7 },
+  { id: 'devorador_libros', cat: 'mente', rarity: 'raro', name: 'Devorador de Libros', desc: '30 días seguidos leyendo', prog: () => gmKwMaxRun(['leer']), meta: 30 },
+  { id: 'adelantado', cat: 'mente', rarity: 'raro', name: 'Por Delante del Plan', desc: '3 milestones a tiempo', prog: () => gmMilestonesOnTime(), meta: 3 },
+  { id: 'por_delante', cat: 'mente', rarity: 'epico', name: 'Adelantado', desc: '10 milestones a tiempo', prog: () => gmMilestonesOnTime(), meta: 10 },
+  { id: 'enfoque_inicial', cat: 'mente', rarity: 'comun', name: 'Enfoque Inicial', desc: '7 días seguidos de foco', prog: () => gmKwMaxRun(['enfoque']), meta: 7 },
+  { id: 'mente_laser', cat: 'mente', rarity: 'raro', name: 'Mente Láser', desc: '30 días seguidos de foco', prog: () => gmKwMaxRun(['enfoque']), meta: 30 },
+  { id: 'primer_silencio', cat: 'mente', rarity: 'comun', name: 'Primer Silencio', desc: '7 días seguidos meditando', prog: () => gmKwMaxRun(['meditar', 'visualiz']), meta: 7 },
+  { id: 'calma_interior', cat: 'mente', rarity: 'raro', name: 'Calma Interior', desc: '30 días seguidos meditando', prog: () => gmKwMaxRun(['meditar', 'visualiz']), meta: 30 },
+  { id: 'madrugador', cat: 'mente', rarity: 'comun', name: 'Madrugador', desc: '7 días seguidos despertando temprano', prog: () => gmKwMaxRun(['despertar']), meta: 7 },
+  { id: 'disciplina_matinal', cat: 'mente', rarity: 'raro', name: 'Disciplina Matinal', desc: '30 días seguidos despertando temprano', prog: () => gmKwMaxRun(['despertar']), meta: 30 },
+  { id: 'planificador', cat: 'mente', rarity: 'comun', name: 'Planificador', desc: '7 días seguidos planificando el día', prog: () => gmKwMaxRun(['planificar']), meta: 7 },
+  // 💰 Finanzas
+  { id: 'primer_registro', cat: 'finanzas', rarity: 'comun', name: 'Primer Registro', desc: 'Primera transacción logueada', prog: () => (S.transactions || []).length > 0 ? 1 : 0, meta: 1 },
+  { id: 'racha_registro', cat: 'finanzas', rarity: 'comun', name: 'Racha de Registro', desc: '7 días seguidos registrando', prog: () => gmKwMaxRun(['registro financiero']), meta: 7 },
+  { id: 'contador_constante', cat: 'finanzas', rarity: 'raro', name: 'Contador Constante', desc: '30 días seguidos registrando', prog: () => gmKwMaxRun(['registro financiero']), meta: 30 },
+  { id: 'libro_mayor', cat: 'finanzas', rarity: 'epico', name: 'Libro Mayor Personal', desc: '90 días seguidos registrando', prog: () => gmKwMaxRun(['registro financiero']), meta: 90 },
+  { id: 'cierre_semanal', cat: 'finanzas', rarity: 'comun', name: 'Cierre Semanal', desc: 'Una semana con registro completo', prog: () => gmCierreSemanas(), meta: 1 },
+  { id: 'cierre_prolijo', cat: 'finanzas', rarity: 'raro', name: 'Cierre Prolijo', desc: '8 semanas con registro completo', prog: () => gmCierreSemanas(), meta: 8 },
+  { id: 'primera_leccion', cat: 'finanzas', rarity: 'comun', name: 'Primera Lección', desc: '7 días seguidos de aprendizaje económico', prog: () => gmKwMaxRun(['aprendizaje econ', 'económic', 'economic']), meta: 7 },
+  { id: 'aprendiz_constante', cat: 'finanzas', rarity: 'raro', name: 'Aprendiz Constante', desc: '30 días seguidos de aprendizaje económico', prog: () => gmKwMaxRun(['aprendizaje econ', 'económic', 'economic']), meta: 30 },
+  { id: 'estratega_financiero', cat: 'finanzas', rarity: 'epico', name: 'Estratega Financiero', desc: '90 días seguidos de aprendizaje económico', prog: () => gmKwMaxRun(['aprendizaje econ', 'económic', 'economic']), meta: 90 },
+  { id: 'mes_presupuesto', cat: 'finanzas', rarity: 'raro', name: 'Mes Bajo Presupuesto', desc: '30 días seguidos de austeridad', prog: () => gmKwMaxRun(['austeridad']), meta: 30 },
+  { id: 'ano_control', cat: 'finanzas', rarity: 'legendario', name: 'Año de Control', desc: '365 días de austeridad sostenida', prog: () => gmKwMaxRun(['austeridad']), meta: 365 },
+  { id: 'primer_crecimiento', cat: 'finanzas', rarity: 'comun', name: 'Primer Crecimiento', desc: 'Primer mes con patrimonio en alza', prog: () => gmNwGrowthMonths() > 0 ? 1 : 0, meta: 1 },
+  { id: 'camino_crecimiento', cat: 'finanzas', rarity: 'raro', name: 'Camino al Crecimiento', desc: 'Patrimonio en alza 6 meses seguidos', prog: () => gmNwMaxGrowthStreak(), meta: 6 },
+  { id: 'patrimonio_x15', cat: 'finanzas', rarity: 'epico', name: 'Patrimonio x1.5', desc: 'Patrimonio +50% en 12 meses', prog: () => gmNwRatio12(), meta: 1.5 },
+  { id: 'patrimonio_x2', cat: 'finanzas', rarity: 'legendario', name: 'Patrimonio x2', desc: 'Patrimonio duplicado en 12 meses', prog: () => gmNwRatio12(), meta: 2 },
+  { id: 'balance_positivo', cat: 'finanzas', rarity: 'comun', name: 'Balance Positivo', desc: 'Un mes con balance positivo', prog: () => gmBalancePositiveMonths(), meta: 1 },
+  { id: 'balance_sostenido', cat: 'finanzas', rarity: 'raro', name: 'Balance Sostenido', desc: '6 meses con balance positivo', prog: () => gmBalancePositiveMonths(), meta: 6 },
+  { id: 'solidez_financiera', cat: 'finanzas', rarity: 'epico', name: 'Solidez Financiera', desc: '12 meses con balance positivo', prog: () => gmBalancePositiveMonths(), meta: 12 },
+  // 🙏 Espíritu
+  { id: 'primer_paso_fe', cat: 'espiritu', rarity: 'comun', name: 'Primer Paso', desc: 'Primera práctica espiritual', prog: () => gmEvCount('mision') > 0 ? 1 : 0, meta: 1 },
+  { id: 'fe_constante', cat: 'espiritu', rarity: 'raro', name: 'Fe Constante', desc: '21 prácticas espirituales', prog: () => gmEvCount('mision'), meta: 21 },
+  { id: 'custodio_fe', cat: 'espiritu', rarity: 'epico', name: 'Custodio de la Fe', desc: '90 prácticas espirituales', prog: () => gmEvCount('mision'), meta: 90 },
+  { id: 'lector_espiritual', cat: 'espiritu', rarity: 'comun', name: 'Lector Espiritual', desc: 'Primera lectura espiritual', prog: () => gmEvCount('lectura') > 0 ? 1 : 0, meta: 1 },
+  { id: 'introspeccion', cat: 'espiritu', rarity: 'raro', name: 'Introspección Constante', desc: '12 reflexiones', prog: () => gmEvCount('reflexion'), meta: 12 },
+  // ❤️ Vínculos
+  { id: 'presente', cat: 'vinculos', rarity: 'comun', name: 'Presente', desc: 'Primer tiempo de calidad con novia', prog: () => gmEvCount('novia_tiempo', 'novia') > 0 ? 1 : 0, meta: 1 },
+  { id: 'companero_constante', cat: 'vinculos', rarity: 'raro', name: 'Compañero Constante', desc: '30 días de tiempo de calidad', prog: () => gmEvCount('novia_tiempo', 'novia'), meta: 30 },
+  { id: 'detallista', cat: 'vinculos', rarity: 'raro', name: 'Detallista', desc: '10 gestos especiales hacia la novia', prog: () => gmEvCount('novia_gesto'), meta: 10 },
+  { id: 'hijo_presente', cat: 'vinculos', rarity: 'raro', name: 'Hijo Presente', desc: '5 gestos especiales hacia los padres', prog: () => gmEvCount('padres_gesto', 'padres'), meta: 5 },
+  { id: 'mimos_felinos', cat: 'vinculos', rarity: 'comun', name: 'Mimos Felinos', desc: 'Primer momento con las gatitas', prog: () => gmEvCount('gatitas_mimar') > 0 ? 1 : 0, meta: 1 },
+  { id: 'responsable_felino', cat: 'vinculos', rarity: 'raro', name: 'Responsable Felino', desc: 'Limpiar la caja 20 veces', prog: () => gmEvCount('gatitas_caja'), meta: 20 },
+  { id: 'familia_primero', cat: 'vinculos', rarity: 'epico', name: 'Familia Primero', desc: 'Novia + padres + gatitas, 10 veces cada uno', prog: () => Math.min(gmEvCount('novia_tiempo', 'novia'), gmEvCount('padres_gesto', 'padres'), gmEvCount('gatitas_mimar')), meta: 10 },
+  // ⚙️ Trabajo
+  { id: 'primer_proyecto', cat: 'trabajo', rarity: 'comun', name: 'Primer Commit', desc: 'Primer día de trabajo en proyectos', prog: () => gmKwDays(['trabajo en proyecto']) > 0 ? 1 : 0, meta: 1 },
+  { id: 'shippeado', cat: 'trabajo', rarity: 'raro', name: 'Shippeado', desc: 'Primer proyecto completado', prog: () => gmDoneProyectos().length, meta: 1 },
+  { id: 'constructor_serial', cat: 'trabajo', rarity: 'epico', name: 'Constructor Serial', desc: '5 proyectos completados', prog: () => gmDoneProyectos().length, meta: 5 },
+  { id: 'arquitecto', cat: 'trabajo', rarity: 'legendario', name: 'Arquitecto de Sistemas', desc: '15 proyectos completados', prog: () => gmDoneProyectos().length, meta: 15 },
+  { id: 'trabajador_constante', cat: 'trabajo', rarity: 'comun', name: 'Trabajador Constante', desc: '7 días seguidos de trabajo en proyectos', prog: () => gmKwMaxRun(['trabajo en proyecto']), meta: 7 },
+  { id: 'ejecutor_disciplinado', cat: 'trabajo', rarity: 'raro', name: 'Ejecutor Disciplinado', desc: '30 días seguidos de trabajo en proyectos', prog: () => gmKwMaxRun(['trabajo en proyecto']), meta: 30 },
+  // 🌐 Generales / cross-stat
+  { id: 'dia_perfecto', cat: 'general', rarity: 'comun', name: 'Día Perfecto', desc: 'Un día con todos los hábitos cumplidos', prog: () => GM.dia_perfecto_count > 0 ? 1 : 0, meta: 1 },
+  { id: 'semana_perfecta', cat: 'general', rarity: 'raro', name: 'Semana Perfecta', desc: '7 días perfectos', prog: () => GM.dia_perfecto_count, meta: 7 },
+  { id: 'mes_perfecto', cat: 'general', rarity: 'epico', name: 'Mes Perfecto', desc: '30 días perfectos', prog: () => GM.dia_perfecto_count, meta: 30 },
+  { id: 'racha_hierro', cat: 'general', rarity: 'raro', name: 'Racha de Hierro', desc: 'Una racha llega a 21 días', prog: () => gmMaxAnyStreak(), meta: 21 },
+  { id: 'racha_legendaria', cat: 'general', rarity: 'legendario', name: 'Racha Legendaria', desc: 'Una racha llega a 100 días', prog: () => gmMaxAnyStreak(), meta: 100 },
+  { id: 'equilibrio', cat: 'general', rarity: 'raro', name: 'Equilibrio', desc: 'Las 6 categorías con diferencia ≤2 niveles', prog: () => gmStatsBalanced(), meta: 1 },
+  { id: 'ascenso_general', cat: 'general', rarity: 'comun', name: 'Ascenso General', desc: 'Nivel general 5', prog: () => GM.nivel_general, meta: 5 },
+  { id: 'doble_digito', cat: 'general', rarity: 'raro', name: 'Doble Dígito', desc: 'Nivel general 10', prog: () => GM.nivel_general, meta: 10 },
+  { id: 'nivel_elite', cat: 'general', rarity: 'epico', name: 'Nivel de Élite', desc: 'Nivel general 25', prog: () => GM.nivel_general, meta: 25 },
+  { id: 'maestria_vida', cat: 'general', rarity: 'legendario', name: 'Maestría de Vida', desc: 'Nivel general 50', prog: () => GM.nivel_general, meta: 50 },
+  { id: 'mision_epica', cat: 'general', rarity: 'raro', name: 'Misión Épica Cumplida', desc: 'Un objetivo trimestral al 100%', prog: () => gmQuarterlyCumplidos(), meta: 1 },
+];
 function gmCheckLogros() {
-  const entreno = gmKwHabit(['entrenamiento']);
-  gmLogro('primera_sangre', 'cuerpo', 'comun', 'Primera Sangre', 'Primera sesión de entreno logueada', entreno && gmHabitTotalDone(entreno) > 0 ? 1 : 0, 1);
-  gmLogro('hierro_forjado', 'cuerpo', 'epico', 'Hierro Forjado', '100 días seguidos entrenando', entreno ? gmHabitConsec(entreno) : 0, 100);
-  const combate = gmKwHabit(['boxeo', 'box', 'jujitsu', 'jiu']);
-  gmLogro('primeros_guantes', 'cuerpo', 'comun', 'Primeros Guantes', 'Primera sesión de combate logueada', combate && gmHabitTotalDone(combate) > 0 ? 1 : 0, 1);
-  const materias = gmDoneMaterias().length;
-  gmLogro('primer_aprobado', 'mente', 'comun', 'Primer Aprobado', 'Primera materia aprobada', materias > 0 ? 1 : 0, 1);
-  gmLogro('mente_brillante', 'mente', 'raro', 'Mente Brillante', '10 materias aprobadas', Math.min(materias, 10), 10);
-  gmLogro('camino_doctorado', 'mente', 'legendario', 'Camino al Doctorado', '40 materias aprobadas', Math.min(materias, 40), 40);
-  gmLogro('primer_registro', 'finanzas', 'comun', 'Primer Registro', 'Primera transacción logueada', (S.transactions || []).length > 0 ? 1 : 0, 1);
-  gmLogro('patrimonio_crece', 'finanzas', 'raro', 'Camino al Crecimiento', 'Patrimonio en alza 6 meses', Math.min(gmNwGrowthMonths(), 6), 6);
-  gmLogro('shippeado', 'trabajo', 'raro', 'Shippeado', 'Primer proyecto completado', gmDoneProyectos().length > 0 ? 1 : 0, 1);
-  gmLogro('constructor_serial', 'trabajo', 'epico', 'Constructor Serial', '5 proyectos completados', Math.min(gmDoneProyectos().length, 5), 5);
-  gmLogro('fe_constante', 'espiritu', 'raro', 'Fe Constante', '21 prácticas espirituales', Math.min(gmEvCount('mision'), 21), 21);
-  gmLogro('presente', 'vinculos', 'comun', 'Presente', 'Primer tiempo de calidad con novia', gmEvCount('novia_tiempo', 'novia') > 0 ? 1 : 0, 1);
-  gmLogro('dia_perfecto', 'mente', 'comun', 'Día Perfecto', 'Primer día con todos los hábitos cumplidos', GM.dia_perfecto_count > 0 ? 1 : 0, 1);
-  gmLogro('ascenso_general', 'mente', 'comun', 'Ascenso General', 'Nivel general 5', Math.min(GM.nivel_general, 5), 5);
+  GM_LOGROS_DEFS.forEach(d => gmLogro(d.id, d.cat, d.rarity, d.name, d.desc, d.prog(), d.meta));
 }
 
 // ── Buffs (rachas) ───────────────────────────────────────────────────────
@@ -422,14 +510,14 @@ function gmRunEngine() {
   const oldSkill = {}; GM_SKILLS.forEach(s => oldSkill[s.id] = (GM.skills[s.id] || {}).nivel || 1);
 
   gmRecalcSkillsAndCats();
+  gmRecalcGeneral();      // antes de los logros: los logros de nivel general dependen de esto
+  gmRecalcTitulo();
   gmCountPerfectDays();
   gmBuildDailyMissions(today);
   gmBuildWeeklyMissions(today);
   gmBuildEpicMissions(today);
   gmCheckLogros();
   gmCheckBuffs();
-  gmRecalcGeneral();
-  gmRecalcTitulo();
   gmMaybeSnapshot(today);
 
   if (!firstRun) GM_SKILLS.forEach(s => { const nv = (GM.skills[s.id] || {}).nivel || 1; if (nv > oldSkill[s.id]) _gmLevelUps.push({ skill: s.id, to: nv }); });

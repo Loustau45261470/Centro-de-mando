@@ -169,7 +169,7 @@ function gmOpenLogrosModal(catF, rarF) {
   let list = gmLogroList();
   if (_gmLogroFilterCat !== 'all') list = list.filter(l => l.cat === _gmLogroFilterCat);
   if (_gmLogroFilterRar !== 'all') list = list.filter(l => l.rareza === _gmLogroFilterRar);
-  const catChips = ['all'].concat(GM_CATEGORIES).map(c => `<button class="gm-fchip ${_gmLogroFilterCat === c ? 'on' : ''}" onclick="gmOpenLogrosModal('${c}', undefined)">${c === 'all' ? 'Todas' : GM_CAT_META[c].name}</button>`).join('');
+  const catChips = ['all'].concat(GM_CATEGORIES, ['general']).map(c => `<button class="gm-fchip ${_gmLogroFilterCat === c ? 'on' : ''}" onclick="gmOpenLogrosModal('${c}', undefined)">${c === 'all' ? 'Todas' : (GM_CAT_META[c] ? GM_CAT_META[c].name : 'General')}</button>`).join('');
   const rarChips = ['all', 'comun', 'raro', 'epico', 'legendario'].map(f => `<button class="gm-fchip ${_gmLogroFilterRar === f ? 'on' : ''}" onclick="gmOpenLogrosModal(undefined, '${f}')">${f === 'all' ? 'Rareza' : GM_RARITY[f].label}</button>`).join('');
   const unlocked = list.filter(l => l.desbloqueado).length;
   body.innerHTML = `<div class="gm-filters">${catChips}</div><div class="gm-filters">${rarChips}</div>
