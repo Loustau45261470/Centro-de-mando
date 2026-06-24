@@ -1069,6 +1069,10 @@
         <input class="inp" type="date" id="proyDetailDue">
       </div>
     </div>
+    <div class="field"><label>Avance — <span id="proyDetailProgVal">0</span>%</label>
+      <input type="range" id="proyDetailProg" min="0" max="100" step="5" value="0"
+        style="width:100%" oninput="document.getElementById('proyDetailProgVal').textContent=this.value">
+    </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('modal-proy-detail')">Cancelar</button>
       <button class="btn btn-primary" onclick="proyDetailSave()">Guardar</button>
