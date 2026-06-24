@@ -35,6 +35,7 @@ const GM_HABIT_XP = [
   { kw: ['enfoque'], xp: 5 }, { kw: ['meditar', 'visualiz'], xp: 8 }, { kw: ['despertar'], xp: 10 }, { kw: ['planificar'], xp: 5 },
   { kw: ['aprendizaje econ', 'económic', 'economic'], xp: 5 }, { kw: ['registro financiero'], xp: 8 }, { kw: ['austeridad'], xp: 10 },
   { kw: ['aplicación de ideas', 'aplicacion de ideas'], xp: 6 }, { kw: ['trabajo en proyecto'], xp: 10 },
+  { kw: ['caminar', 'caminata'], xp: 8 }, { kw: ['dormir temprano'], xp: 10 }, { kw: ['aprendizaje de herramientas'], xp: 8 },
 ];
 function gmHabitDisplayXp(name) { const n = (name || '').toLowerCase(); const m = GM_HABIT_XP.find(x => x.kw.some(k => n.includes(k))); return m ? m.xp : 0; }
 
@@ -176,12 +177,12 @@ const GM_SKILLS = [
   { id: 'combate',          cat: 'cuerpo', name: 'Habilidad de combate', xp: () => gmKwDays(['boxeo', 'box', 'jujitsu', 'jiu']) * 10 + gmKwStreakBonus(['boxeo', 'box', 'jujitsu', 'jiu']) },
   { id: 'nutricion',        cat: 'cuerpo', name: 'Nutrición / Salud', xp: () => gmKwDays(['comer sano', 'liviano', 'nutric']) * 10 + gmKwStreakBonus(['comer sano', 'liviano', 'nutric']) },
   { id: 'agilidad',         cat: 'cuerpo', name: 'Agilidad', xp: null },
-  { id: 'resistencia',      cat: 'cuerpo', name: 'Resistencia', xp: null },
+  { id: 'resistencia',      cat: 'cuerpo', name: 'Resistencia', xp: () => gmKwDays(['caminar', 'caminata']) * 8 + gmKwStreakBonus(['caminar', 'caminata']) },
   // 🧠 Mente
   { id: 'intelecto',        cat: 'mente', name: 'Intelecto', xp: () => gmEstudiarXp() + gmKwDays(['leer']) * 8 + gmKwStreakBonus(['estudiar', 'leer']) + gmDoneMaterias().length * 150 + gmMilestonesOnTime() * 200 },
   { id: 'concentracion',    cat: 'mente', name: 'Concentración', xp: () => gmKwDays(['enfoque']) * 5 + gmKwStreakBonus(['enfoque']) },
   { id: 'fortaleza_mental', cat: 'mente', name: 'Fortaleza mental', xp: () => gmKwDays(['meditar', 'visualiz']) * 8 + gmKwStreakBonus(['meditar', 'visualiz']) },
-  { id: 'responsabilidad',  cat: 'mente', name: 'Responsabilidad', xp: () => gmKwDays(['despertar']) * 10 + gmKwDays(['planificar']) * 5 + gmKwStreakBonus(['despertar', 'planificar']) },
+  // (Responsabilidad se movió a la categoría Trabajo, ver abajo)
   // 💰 Finanzas
   { id: 'economista',       cat: 'finanzas', name: 'Economista', xp: () => gmKwDays(['aprendizaje econ', 'económic', 'economic']) * 5 + gmKwStreakBonus(['aprendizaje econ', 'económic', 'economic']) },
   { id: 'riqueza',          cat: 'finanzas', name: 'Riqueza', xp: () => gmRiquezaXp() },
@@ -196,6 +197,8 @@ const GM_SKILLS = [
   { id: 'buen_amigo',       cat: 'vinculos', name: 'Buen amigo', xp: null },
   // ⚙️ Trabajo
   { id: 'ejecucion',        cat: 'trabajo', name: 'Ejecución', xp: () => gmKwDays(['aplicación de ideas', 'aplicacion de ideas']) * 6 + gmKwDays(['trabajo en proyecto']) * 10 + gmKwStreakBonus(['aplicación de ideas', 'aplicacion de ideas', 'trabajo en proyecto']) + gmProyectoProgressXp() },
+  { id: 'responsabilidad',  cat: 'trabajo', name: 'Responsabilidad', xp: () => gmKwDays(['despertar']) * 10 + gmKwDays(['dormir temprano']) * 10 + gmKwDays(['planificar']) * 5 + gmKwStreakBonus(['despertar', 'dormir temprano', 'planificar']) },
+  { id: 'dominio_herramientas', cat: 'trabajo', name: 'Dominio de herramientas', xp: () => gmKwDays(['aprendizaje de herramientas', 'herramienta']) * 8 + gmKwStreakBonus(['aprendizaje de herramientas', 'herramienta']) },
 ];
 const GM_SKILLS_BY_CAT = cat => GM_SKILLS.filter(s => s.cat === cat);
 
@@ -326,10 +329,10 @@ function gmBuildDailyMissions(today) {
 // keywords de un skill (para juntar sus hábitos en las misiones)
 function _gmSkillKw(s) {
   return ({
-    fortaleza_fisica: ['entrenamiento'], combate: ['boxeo', 'box', 'jujitsu', 'jiu'], nutricion: ['comer sano', 'liviano', 'nutric'],
-    intelecto: ['estudiar', 'leer'], concentracion: ['enfoque'], fortaleza_mental: ['meditar', 'visualiz'], responsabilidad: ['despertar', 'planificar'],
+    fortaleza_fisica: ['entrenamiento'], combate: ['boxeo', 'box', 'jujitsu', 'jiu'], nutricion: ['comer sano', 'liviano', 'nutric'], resistencia: ['caminar', 'caminata'],
+    intelecto: ['estudiar', 'leer'], concentracion: ['enfoque'], fortaleza_mental: ['meditar', 'visualiz'], responsabilidad: ['despertar', 'dormir temprano', 'planificar'],
     economista: ['aprendizaje econ', 'económic', 'economic'], gerente: ['registro financiero', 'austeridad'],
-    ejecucion: ['aplicación de ideas', 'aplicacion de ideas', 'trabajo en proyecto'],
+    ejecucion: ['aplicación de ideas', 'aplicacion de ideas', 'trabajo en proyecto'], dominio_herramientas: ['aprendizaje de herramientas', 'herramienta'],
   })[s.id] || [];
 }
 function gmBuildWeeklyMissions(today) {
@@ -431,9 +434,9 @@ const GM_LOGROS_DEFS = [
   { id: 'mente_laser', cat: 'mente', rarity: 'raro', name: 'Mente Láser', desc: '30 días seguidos de foco', prog: () => gmKwMaxRun(['enfoque']), meta: 30 },
   { id: 'primer_silencio', cat: 'mente', rarity: 'comun', name: 'Primer Silencio', desc: '7 días seguidos meditando', prog: () => gmKwMaxRun(['meditar', 'visualiz']), meta: 7 },
   { id: 'calma_interior', cat: 'mente', rarity: 'raro', name: 'Calma Interior', desc: '30 días seguidos meditando', prog: () => gmKwMaxRun(['meditar', 'visualiz']), meta: 30 },
-  { id: 'madrugador', cat: 'mente', rarity: 'comun', name: 'Madrugador', desc: '7 días seguidos despertando temprano', prog: () => gmKwMaxRun(['despertar']), meta: 7 },
-  { id: 'disciplina_matinal', cat: 'mente', rarity: 'raro', name: 'Disciplina Matinal', desc: '30 días seguidos despertando temprano', prog: () => gmKwMaxRun(['despertar']), meta: 30 },
-  { id: 'planificador', cat: 'mente', rarity: 'comun', name: 'Planificador', desc: '7 días seguidos planificando el día', prog: () => gmKwMaxRun(['planificar']), meta: 7 },
+  { id: 'madrugador', cat: 'trabajo', rarity: 'comun', name: 'Madrugador', desc: '7 días seguidos despertando temprano', prog: () => gmKwMaxRun(['despertar']), meta: 7 },
+  { id: 'disciplina_matinal', cat: 'trabajo', rarity: 'raro', name: 'Disciplina Matinal', desc: '30 días seguidos despertando temprano', prog: () => gmKwMaxRun(['despertar']), meta: 30 },
+  { id: 'planificador', cat: 'trabajo', rarity: 'comun', name: 'Planificador', desc: '7 días seguidos planificando el día', prog: () => gmKwMaxRun(['planificar']), meta: 7 },
   // 💰 Finanzas
   { id: 'primer_registro', cat: 'finanzas', rarity: 'comun', name: 'Primer Registro', desc: 'Primera transacción logueada', prog: () => (S.transactions || []).length > 0 ? 1 : 0, meta: 1 },
   { id: 'racha_registro', cat: 'finanzas', rarity: 'comun', name: 'Racha de Registro', desc: '7 días seguidos registrando', prog: () => gmKwMaxRun(['registro financiero']), meta: 7 },
@@ -501,11 +504,11 @@ const GM_LOGROS_DEFS = [
   { id: 'foco_legendario', cat: 'mente', rarity: 'legendario', name: 'Monje del Foco', desc: '365 días seguidos de foco', prog: () => gmKwMaxRun(['enfoque']), meta: 365 },
   { id: 'meditar_epico', cat: 'mente', rarity: 'epico', name: 'Inquebrantable', desc: '90 días seguidos meditando', prog: () => gmKwMaxRun(['meditar', 'visualiz']), meta: 90 },
   { id: 'meditar_legendario', cat: 'mente', rarity: 'legendario', name: 'Paz Inalterable', desc: '365 días seguidos meditando', prog: () => gmKwMaxRun(['meditar', 'visualiz']), meta: 365 },
-  { id: 'despertar_epico', cat: 'mente', rarity: 'epico', name: 'Dueño del Amanecer', desc: '90 días seguidos despertando temprano', prog: () => gmKwMaxRun(['despertar']), meta: 90 },
-  { id: 'despertar_legendario', cat: 'mente', rarity: 'legendario', name: 'Reloj Viviente', desc: '365 días seguidos despertando temprano', prog: () => gmKwMaxRun(['despertar']), meta: 365 },
-  { id: 'planificar_raro', cat: 'mente', rarity: 'raro', name: 'Organizado', desc: '30 días seguidos planificando el día', prog: () => gmKwMaxRun(['planificar']), meta: 30 },
-  { id: 'planificar_epico', cat: 'mente', rarity: 'epico', name: 'Maestro del Tiempo', desc: '90 días seguidos planificando el día', prog: () => gmKwMaxRun(['planificar']), meta: 90 },
-  { id: 'planificar_legendario', cat: 'mente', rarity: 'legendario', name: 'Arquitecto del Día', desc: '365 días seguidos planificando el día', prog: () => gmKwMaxRun(['planificar']), meta: 365 },
+  { id: 'despertar_epico', cat: 'trabajo', rarity: 'epico', name: 'Dueño del Amanecer', desc: '90 días seguidos despertando temprano', prog: () => gmKwMaxRun(['despertar']), meta: 90 },
+  { id: 'despertar_legendario', cat: 'trabajo', rarity: 'legendario', name: 'Reloj Viviente', desc: '365 días seguidos despertando temprano', prog: () => gmKwMaxRun(['despertar']), meta: 365 },
+  { id: 'planificar_raro', cat: 'trabajo', rarity: 'raro', name: 'Organizado', desc: '30 días seguidos planificando el día', prog: () => gmKwMaxRun(['planificar']), meta: 30 },
+  { id: 'planificar_epico', cat: 'trabajo', rarity: 'epico', name: 'Maestro del Tiempo', desc: '90 días seguidos planificando el día', prog: () => gmKwMaxRun(['planificar']), meta: 90 },
+  { id: 'planificar_legendario', cat: 'trabajo', rarity: 'legendario', name: 'Arquitecto del Día', desc: '365 días seguidos planificando el día', prog: () => gmKwMaxRun(['planificar']), meta: 365 },
   // 💰 Finanzas
   { id: 'registro_legendario', cat: 'finanzas', rarity: 'legendario', name: 'Cronista Financiero', desc: '365 días seguidos registrando', prog: () => gmKwMaxRun(['registro financiero']), meta: 365 },
   { id: 'cierre_epico', cat: 'finanzas', rarity: 'epico', name: 'Cierre Impecable', desc: '26 semanas con registro completo', prog: () => gmCierreSemanas(), meta: 26 },
@@ -545,6 +548,19 @@ const GM_LOGROS_DEFS = [
   { id: 'racha_epico', cat: 'general', rarity: 'epico', name: 'Racha Imparable', desc: 'Una racha llega a 50 días', prog: () => gmMaxAnyStreak(), meta: 50 },
   { id: 'conquistador_trimestral', cat: 'general', rarity: 'epico', name: 'Conquistador Trimestral', desc: '4 objetivos trimestrales al 100%', prog: () => gmQuarterlyCumplidos(), meta: 4 },
   { id: 'equilibrio_maestro', cat: 'general', rarity: 'epico', name: 'Equilibrio Maestro', desc: 'Las 6 categorías con diferencia ≤1 nivel', prog: () => { const lv = GM_CATEGORIES.map(c => GM.cats[c].nivel); return Math.max(...lv) - Math.min(...lv) <= 1 ? 1 : 0; }, meta: 1 },
+  // ── Hábitos nuevos: Caminar (Resistencia), Dormir temprano, Aprendizaje de herramientas ──
+  { id: 'caminante', cat: 'cuerpo', rarity: 'comun', name: 'Caminante', desc: '7 días seguidos caminando', prog: () => gmKwMaxRun(['caminar', 'caminata']), meta: 7 },
+  { id: 'senderista', cat: 'cuerpo', rarity: 'raro', name: 'Senderista', desc: '30 días seguidos caminando', prog: () => gmKwMaxRun(['caminar', 'caminata']), meta: 30 },
+  { id: 'maraton_vida', cat: 'cuerpo', rarity: 'epico', name: 'Maratón de Vida', desc: '90 días seguidos caminando', prog: () => gmKwMaxRun(['caminar', 'caminata']), meta: 90 },
+  { id: 'viajero_infatigable', cat: 'cuerpo', rarity: 'legendario', name: 'Viajero Infatigable', desc: '365 días seguidos caminando', prog: () => gmKwMaxRun(['caminar', 'caminata']), meta: 365 },
+  { id: 'buen_dormir', cat: 'trabajo', rarity: 'comun', name: 'Buen Dormir', desc: '7 días seguidos durmiendo temprano', prog: () => gmKwMaxRun(['dormir temprano']), meta: 7 },
+  { id: 'descanso_disciplinado', cat: 'trabajo', rarity: 'raro', name: 'Descanso Disciplinado', desc: '30 días seguidos durmiendo temprano', prog: () => gmKwMaxRun(['dormir temprano']), meta: 30 },
+  { id: 'maestro_descanso', cat: 'trabajo', rarity: 'epico', name: 'Maestro del Descanso', desc: '90 días seguidos durmiendo temprano', prog: () => gmKwMaxRun(['dormir temprano']), meta: 90 },
+  { id: 'reloj_nocturno', cat: 'trabajo', rarity: 'legendario', name: 'Reloj Nocturno', desc: '365 días seguidos durmiendo temprano', prog: () => gmKwMaxRun(['dormir temprano']), meta: 365 },
+  { id: 'aprendiz_herramientas', cat: 'trabajo', rarity: 'comun', name: 'Aprendiz de Herramientas', desc: '7 días seguidos aprendiendo herramientas', prog: () => gmKwMaxRun(['aprendizaje de herramientas', 'herramienta']), meta: 7 },
+  { id: 'artesano_digital', cat: 'trabajo', rarity: 'raro', name: 'Artesano Digital', desc: '30 días seguidos aprendiendo herramientas', prog: () => gmKwMaxRun(['aprendizaje de herramientas', 'herramienta']), meta: 30 },
+  { id: 'maestro_herramientas', cat: 'trabajo', rarity: 'epico', name: 'Maestro de Herramientas', desc: '90 días seguidos aprendiendo herramientas', prog: () => gmKwMaxRun(['aprendizaje de herramientas', 'herramienta']), meta: 90 },
+  { id: 'polimata_tecnico', cat: 'trabajo', rarity: 'legendario', name: 'Polímata Técnico', desc: '365 días seguidos aprendiendo herramientas', prog: () => gmKwMaxRun(['aprendizaje de herramientas', 'herramienta']), meta: 365 },
 ];
 function gmCheckLogros() {
   GM_LOGROS_DEFS.forEach(d => gmLogro(d.id, d.cat, d.rarity, d.name, d.desc, d.prog(), d.meta));
