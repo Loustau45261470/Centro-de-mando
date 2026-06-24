@@ -172,21 +172,6 @@ body::after {
 .nav-btn[data-tab="conocimiento"].active, .nav-btn[data-tab="conocimiento"].active svg { color: var(--c-conocimiento); stroke: var(--c-conocimiento); }
 .nav-btn[data-tab="ia"].active,           .nav-btn[data-tab="ia"].active svg       { color: var(--c-ia);           stroke: var(--c-ia); }
 
-/* ── Water FAB ── */
-#water-fab {
-  position: fixed; right: 16px;
-  bottom: calc(var(--nav) + var(--safe-b) + 16px);
-  width: 52px; height: 52px;
-  border-radius: 50%; border: none; cursor: pointer;
-  background: var(--accent);
-  color: #fff; font-size: 22px;
-  display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 6px 20px rgba(124,142,232,.45);
-  z-index: 90;
-  transition: transform .15s;
-}
-#water-fab:active { transform: scale(.93); }
-
 /* ── Collapsible card body (generic) ── */
 .card-body {
   overflow: hidden;
@@ -500,43 +485,10 @@ textarea { resize: vertical; min-height: 60px; }
 /* ══════════════════════════════
    HEALTH TAB
 ══════════════════════════════ */
-.supp-timing-block { margin-bottom: 10px; }
-.supp-timing-label {
-  font-size: 9.5px; font-weight: 700; letter-spacing: .14em;
-  text-transform: uppercase; color: var(--tt);
-  margin-bottom: 6px; display: flex; align-items: center; gap: 8px;
-}
-.supp-timing-label .time-range { font-weight: 500; color: var(--tt); opacity: .7; }
-.supp-card {
-  display: flex; align-items: center; gap: 10px;
-  padding: 10px 13px; border-radius: 11px;
-  background: rgba(255,255,255,.035); border: 1px solid var(--border);
-  margin-bottom: 5px; transition: all .2s;
-}
-.supp-card.missed { border-color: rgba(255,0,0,.6); background: rgba(255,0,0,.1); animation: blink .85s ease-in-out infinite; }
 @keyframes blink {
   0%,100% { border-color: rgba(255,0,0,.3);  box-shadow: none; background-color: rgba(255,0,0,.07); }
   50%      { border-color: #FF0000;           box-shadow: 0 0 30px rgba(255,0,0,.85), 0 0 60px rgba(255,0,0,.3), inset 0 0 20px rgba(255,0,0,.1); background-color: rgba(255,0,0,.17); }
 }
-.supp-name { flex: 1; font-size: 13px; font-weight: 600; }
-.supp-dose { font-family: var(--mono); font-size: 11px; color: var(--ts); margin-right: 6px; }
-.low-badge { font-size: 10px; padding: 2px 7px; }
-.supp-actions { display: flex; gap: 4px; }
-
-.water-display { text-align: center; padding: 12px 0 6px; }
-.water-ml { font-size: 46px; font-weight: 800; letter-spacing: -.04em; color: var(--accent); }
-.water-goal-text { font-size: 12px; color: var(--ts); margin-top: 2px; }
-.water-quick { display: flex; gap: 8px; margin: 12px 0; }
-.water-quick button {
-  flex: 1; padding: 10px 4px; border-radius: 10px;
-  border: 1px solid var(--border); background: var(--card);
-  color: var(--tp); font-size: 12.5px; font-weight: 600; cursor: pointer;
-  transition: all .15s;
-}
-.water-quick button:hover { background: var(--card-h); border-color: var(--accent); color: var(--accent); }
-.water-bottles { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
-.water-bottle { font-size: 20px; opacity: .2; transition: opacity .2s; cursor: pointer; }
-.water-bottle.filled { opacity: 1; }
 
 /* ══════════════════════════════
    GYM TAB
@@ -1036,7 +988,6 @@ textarea { resize: vertical; min-height: 60px; }
 /* ── Responsive desktop ── */
 @media (min-width: 640px) {
   .tab-panel { padding: 20px 24px; max-width: 720px; margin: 0 auto; }
-  .water-quick { gap: 12px; }
   .split-grid { grid-template-columns: repeat(7, 1fr); gap: 8px; }
 }
 @media (min-width: 1024px) {
@@ -3661,7 +3612,6 @@ body:has(#login-screen) #hud-frame { opacity: 0; }
   #app { top: 38px; left: var(--rail); right: 0; bottom: 0; }
 
   /* FABs reubicados (no chocan con el rail) */
-  #water-fab { bottom: 24px; right: 24px; }
   #agent-fab { left: auto; }
 
   /* Lienzo bento: contenido centrado y ancho, masonry multi-columna */
@@ -3923,12 +3873,12 @@ input:focus, select:focus, textarea:focus {
 /* ── Botones: elevación física al pasar el mouse (no sólo cambio de color) ── */
 @media (hover: hover) {
   .btn:hover, .qobj-period-trigger:hover, .qobj-month-tab:hover,
-  .law-nav-btn:hover, .water-quick button:hover {
+  .law-nav-btn:hover {
     transform: translateY(-1.5px);
     box-shadow: 0 5px 16px -6px var(--hud-glow);
   }
   .btn:active, .qobj-period-trigger:active, .qobj-month-tab:active,
-  .law-nav-btn:active, .water-quick button:active { transform: translateY(0) scale(.97); }
+  .law-nav-btn:active { transform: translateY(0) scale(.97); }
 }
 
 /* ── Menús desplegables: se despliegan con animación en vez de aparecer de golpe ── */

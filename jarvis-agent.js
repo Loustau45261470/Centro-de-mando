@@ -184,9 +184,6 @@
       const a = +t.amount || 0;
       if (t.type === 'income') inc += a; else exp += a;
     });
-    // Suplementos (estado de hoy)
-    const supps = (S.supplements || [])
-      .map(s => `${S.suppLog?.[today]?.[s.id] ? '✓' : '○'} ${s.name}`).join(', ') || 'ninguno';
     // Último peso registrado
     const bw = (S.bodyWeight || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1))[0];
     // Objetivos del trimestre activo
@@ -211,7 +208,6 @@
       sleep: sleep?.hours ? `${sleep.hours}h (${sleep.bedtime||'?'} → ${sleep.waketime||'?'})` : 'No registrado',
       streak: S.streak,
       finanzasMes: `ingreso ${inc}, gasto ${exp}, balance ${inc - exp} ARS`,
-      suplementosHoy: supps,
       ultimoPeso: bw ? `${bw.value} ${bw.unit || 'kg'} (${bw.date})` : 'No registrado',
       objetivosTrimestre: quarter,
       habitosHoy: habitsToday.join(', ') || 'ninguno',
@@ -231,7 +227,7 @@
   const TOOLS = [
     {
       name: 'get_app_state',
-      description: 'Obtiene el estado actual del dashboard: metas del día, proyectos (todos los tabs), bienestar, sueño, racha, finanzas del mes (ingreso/gasto/balance), suplementos de hoy, último peso, objetivos del trimestre y hábitos de hoy.',
+      description: 'Obtiene el estado actual del dashboard: metas del día, proyectos (todos los tabs), bienestar, sueño, racha, finanzas del mes (ingreso/gasto/balance), último peso, objetivos del trimestre y hábitos de hoy.',
       input_schema: { type: 'object', properties: {} },
     },
     {
