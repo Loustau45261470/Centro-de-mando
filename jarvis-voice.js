@@ -36,7 +36,11 @@
           voice_settings: { stability: 0.38, similarity_boost: 0.85, style: 0.12, use_speaker_boost: true }
         })
       });
-      if (!res.ok) throw new Error(`EL ${res.status}`);
+      if (!res.ok) {
+        let detail = '';
+        try { detail = (await res.text()).slice(0, 220); } catch(e) {}
+        throw new Error(`EL ${res.status} ${detail}`);
+      }
       blob = await res.blob();
       try {
         const c = await caches.open('jarvis-tts-v1');
