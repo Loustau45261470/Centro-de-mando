@@ -10,8 +10,6 @@
   let cmdTimer = null, recStartedAt = 0;
   const LISTEN_MS = 32000; // ventana de escucha muy amplia, para charlas largas sin repetir "Jarvis"
   let restartTimes = [], restartTimer = null; // anti-tormenta de reinicios
-  // [DIAG] traza del ciclo de reconocimiento en consola (F12) — quitar tras diagnosticar
-  function _elog(){ try { console.log('[EARS]', ...arguments, '| mode=' + mode + ' wakeOn=' + wakeOn + ' rec=' + (!!rec) + ' supp=' + _micSuppressed); } catch(e){} }
 
   // ── Anti-eco: NUNCA escuchar la propia voz de JARVIS ──
   // Mientras habla, se aborta el reconocimiento (descarta el buffer de audio, así su voz jamás
@@ -31,13 +29,11 @@
     if (talking && !_micSuppressed) {
       // JARVIS empezó a hablar → apagar el micrófono para no oírse a sí mismo
       _micSuppressed = true; _suppressedAt = Date.now();
-      _elog('anti-eco: SUPRIMIENDO mic (JARVIS habla)');
       if (rec) { try { rec.onend = null; rec.abort(); } catch(e){} rec = null; }
       if (restartTimer) { clearTimeout(restartTimer); restartTimer = null; }
     } else if (_micSuppressed && (!_selfEcho() || Date.now() - _suppressedAt > 8000)) {
       // terminó de hablar (o safety: 8s máx) → reabrir el micrófono fresco
       _micSuppressed = false;
-      _elog('anti-eco: REABRIENDO mic');
       _scheduleRestart();
     }
   }, 150);
@@ -49,10 +45,8 @@
 
   /* ── Motor de reconocimiento (es-AR) ── */
   function startRec() {
-    if (!SR || rec || mode === 'off' || _micSuppressed) { _elog('startRec BAIL', 'SR=' + !!SR, 'recYa=' + !!rec); return; }
-    _elog('startRec → creando SpeechRecognition');
+    if (!SR || rec || mode === 'off' || _micSuppressed) return;
     rec = new SR();
-    rec.onstart = () => _elog('rec.onstart (capturando audio)');
     rec.lang = 'es-AR';
     rec.continuous = true;
     rec.interimResults = true;
@@ -60,7 +54,6 @@
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const text = (e.results[i][0].transcript || '').trim();
         if (!text) continue;
-        _elog('onresult:', JSON.stringify(text), 'final=' + e.results[i].isFinal, 'selfEcho=' + _selfEcho());
 
         if (!e.results[i].isFinal) {
           if (mode === 'command') {
@@ -96,7 +89,6 @@
       }
     };
     rec.onerror = e => {
-      _elog('rec.onerror →', e.error);
       if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
         wakeOn = false; localStorage.setItem('jarvis_wake', '0');
         mode = 'off'; stopRec(); _ui(); _updateWakeBtn();
@@ -110,12 +102,11 @@
       // 'no-speech' y 'aborted' son normales — el reinicio automático de onend los cubre
     };
     rec.onend = () => {
-      _elog('rec.onend (sesión cortada)');
       rec = null;
       _scheduleRestart(); // reinicio automático (Chrome corta la sesión solo)
     };
-    try { rec.start(); recStartedAt = Date.now(); restartTimes.push(recStartedAt); _elog('rec.start() OK'); }
-    catch(e) { _elog('rec.start() THREW', e && e.message); rec = null; _scheduleRestart(); }
+    try { rec.start(); recStartedAt = Date.now(); restartTimes.push(recStartedAt); }
+    catch(e) { rec = null; _scheduleRestart(); }
   }
 
   // Reinicio resiliente: espaciado normal, pero si Chrome entra en bucle de cortes
@@ -505,7 +496,6 @@
   /* ── Toggle wake word + guardado de keys (todo por dispositivo) ── */
   function toggleWake() {
     wakeOn = !wakeOn;
-    _elog('toggleWake → wakeOn=' + wakeOn);
     localStorage.setItem('jarvis_wake', wakeOn ? '1' : '0'); // solo este dispositivo — no sincroniza
     if (wakeOn) { mode = 'passive'; startRec(); say('Listening for your call, sir.'); }
     else { mode = 'off'; stopRec(); }
@@ -546,9 +536,7 @@
 
   if (window.JARVIS_FX) JARVIS_FX.onExit = exitCommand; // clic en el HUD a pantalla completa = salir del modo comando
 
-  _elog('INIT', 'SR disponible=' + !!SR, 'wakeOn(localStorage)=' + wakeOn);
   if (wakeOn && SR) { mode = 'passive'; startRec(); }
-  else _elog('INIT: NO arranca reconocimiento (wakeOn apagado o navegador sin SpeechRecognition)');
   _ui();
 
   window.JARVIS_EARS = { toggleWake, saveKey, handleCommand };
