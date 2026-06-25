@@ -114,8 +114,9 @@
 .gm-tree-svg { position: absolute; left: 0; top: 0; pointer-events: none; }
 .gm-tline { stroke: rgba(255,255,255,.12); stroke-width: 2; }
 .gm-tline.on { stroke: var(--accent); stroke-width: 2.5; filter: drop-shadow(0 0 4px var(--accent)); }
-.gm-tnode { position: absolute; width: 112px; min-height: 56px; box-sizing: border-box; padding: 8px 6px; border-radius: 12px; background: var(--card); border: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; opacity: .55; transition: opacity .25s, box-shadow .25s; }
-.gm-tnode.on { opacity: 1; border-color: var(--accent); background: var(--card-h); box-shadow: 0 0 18px -5px var(--accent); }
+.gm-tnode { position: absolute; width: 116px; min-height: 56px; box-sizing: border-box; padding: 7px 6px; border-radius: 12px; background: var(--card); border: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; gap: 1px; text-align: center; opacity: .5; transition: opacity .25s, box-shadow .25s; }
+.gm-tnode.on { opacity: 1; border-color: var(--nc, var(--accent)); background: var(--card-h); box-shadow: 0 0 18px -5px var(--nc, var(--accent)); }
+.gm-tnode.on .gm-tnode-name { color: var(--nc, var(--tp)); }
 .gm-tnode.manual:not(.on) { border-style: dashed; }
 .gm-tnode-ico { font-size: 22px; line-height: 1; }
 .gm-tnode-name { font-size: 11px; font-weight: 600; color: var(--tp); line-height: 1.15; }

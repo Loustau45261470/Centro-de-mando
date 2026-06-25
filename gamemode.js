@@ -46,7 +46,7 @@ let _gmNewTreeNodes = [];   // nodos del árbol recién desbloqueados
 const _GM_KEY = 'gamemode_v1';
 
 // ── Curva de niveles: costo para subir de nivel n = 100 * n^1.5 ──────────
-function gmXpCost(n) { return Math.round(100 * Math.pow(n, 1.5)); }
+function gmXpCost(n) { return 12 * n; }   // curva lineal: costo del nivel n→n+1 = 12·n (acum. nivel N = 6·N·(N-1))
 function gmLevelInfo(xp) {
   let lvl = 1, acc = 0;
   while (lvl < 999) { const c = gmXpCost(lvl); if (acc + c <= xp) { acc += c; lvl++; } else break; }
@@ -576,14 +576,109 @@ function gmCheckLogros() {
 //   requires.metrics: condiciones de datos [{ metric, value }] (umbral >=)
 //   requires.nodes:   nodos previos que deben estar desbloqueados (uniones)
 //   manual: true → además requiere ser "reclamado" (no hay dato que lo mida)
+// Niveles de referencia (curva 12·i): nivel 10 = 540 XP, nivel 25 = 3600, nivel 50 = 14700.
 const GM_TREE_NODES = [
-  { id: 'boxeador_amateur', name: 'Boxeador Amateur', icon: '🥊', desc: '100 entrenamientos de boxeo', pos: { x: 60, y: 50 }, requires: { metrics: [{ metric: 'boxeo', value: 100 }] } },
-  { id: 'boxeador_pro', name: 'Boxeador Profesional', icon: '🥊', desc: '500 boxeo + Boxeador Amateur', pos: { x: 60, y: 190 }, requires: { metrics: [{ metric: 'boxeo', value: 500 }], nodes: ['boxeador_amateur'] } },
-  { id: 'jujitsu_pro', name: 'Jiujitsu Pro', icon: '🥋', desc: '500 entrenamientos de jiujitsu', pos: { x: 300, y: 190 }, requires: { metrics: [{ metric: 'jujitsu', value: 500 }] } },
-  { id: 'peleador_pro', name: 'Peleador Profesional', icon: '🤼', desc: 'Boxeador Pro + Jiujitsu Pro', pos: { x: 180, y: 330 }, requires: { nodes: ['boxeador_pro', 'jujitsu_pro'] } },
-  { id: 'manejo_armas', name: 'Manejo de Armas', icon: '🔫', desc: 'Habilidad manual (reclamable)', pos: { x: 430, y: 330 }, manual: true, requires: {} },
-  { id: 'tenencia', name: 'Tenencia', icon: '📜', desc: 'Manejo de Armas (manual)', pos: { x: 470, y: 470 }, manual: true, requires: { nodes: ['manejo_armas'] } },
-  { id: 'maquina_matar', name: 'Máquina de Matar', icon: '💀', desc: 'Peleador Pro + Armas + Tenencia', pos: { x: 280, y: 480 }, requires: { nodes: ['peleador_pro', 'manejo_armas', 'tenencia'] } },
+  // ── TIER 0 — Iniciado (nivel de skill ≥ 10) ──
+  { id: 'hombre_de_hierro', name: 'Hombre de Hierro', icon: '💪', cat: 'cuerpo', tier: 0, requires: { metrics: [{ metric: 'lvl_fortaleza_fisica', value: 10 }] } },
+  { id: 'combatiente', name: 'Combatiente', icon: '🥊', cat: 'cuerpo', tier: 0, requires: { metrics: [{ metric: 'lvl_combate', value: 10 }] } },
+  { id: 'saludable', name: 'Saludable', icon: '🥗', cat: 'cuerpo', tier: 0, requires: { metrics: [{ metric: 'lvl_nutricion', value: 10 }] } },
+  { id: 'resistente', name: 'Resistente', icon: '🏃', cat: 'cuerpo', tier: 0, requires: { metrics: [{ metric: 'lvl_resistencia', value: 10 }] } },
+  { id: 'estudiante', name: 'Estudiante', icon: '📚', cat: 'mente', tier: 0, requires: { metrics: [{ metric: 'lvl_intelecto', value: 10 }] } },
+  { id: 'alerta', name: 'Alerta', icon: '🎯', cat: 'mente', tier: 0, requires: { metrics: [{ metric: 'lvl_concentracion', value: 10 }] } },
+  { id: 'sereno', name: 'Sereno', icon: '🧘', cat: 'mente', tier: 0, requires: { metrics: [{ metric: 'lvl_fortaleza_mental', value: 10 }] } },
+  { id: 'aprendiz_de_capital', name: 'Aprendiz de Capital', icon: '💵', cat: 'finanzas', tier: 0, requires: { metrics: [{ metric: 'lvl_economista', value: 10 }] } },
+  { id: 'ordenado', name: 'Ordenado', icon: '📊', cat: 'finanzas', tier: 0, requires: { metrics: [{ metric: 'lvl_gerente', value: 10 }] } },
+  { id: 'creyente', name: 'Creyente', icon: '✝️', cat: 'espiritu', tier: 0, requires: { metrics: [{ metric: 'lvl_fe', value: 10 }] } },
+  { id: 'atento', name: 'Atento', icon: '💖', cat: 'vinculos', tier: 0, requires: { metrics: [{ metric: 'lvl_buen_novio', value: 10 }] } },
+  { id: 'hijo_presente_n', name: 'Hijo Presente', icon: '👨‍👦', cat: 'vinculos', tier: 0, requires: { metrics: [{ metric: 'lvl_buen_hijo', value: 10 }] } },
+  { id: 'protector_felino', name: 'Protector Felino', icon: '🐱', cat: 'vinculos', tier: 0, requires: { metrics: [{ metric: 'lvl_buen_padre', value: 10 }] } },
+  { id: 'hacedor', name: 'Hacedor', icon: '🔨', cat: 'trabajo', tier: 0, requires: { metrics: [{ metric: 'lvl_ejecucion', value: 10 }] } },
+  { id: 'confiable', name: 'Confiable', icon: '⏰', cat: 'trabajo', tier: 0, requires: { metrics: [{ metric: 'lvl_responsabilidad', value: 10 }] } },
+  { id: 'aprendiz', name: 'Aprendiz', icon: '🔧', cat: 'trabajo', tier: 0, requires: { metrics: [{ metric: 'lvl_dominio_herramientas', value: 10 }] } },
+  // ── TIER 1 — Profesional (nivel ≥ 25 + nodo Tier 0) ──
+  { id: 'hombre_de_acero', name: 'Hombre de Acero', icon: '💪', cat: 'cuerpo', tier: 1, requires: { metrics: [{ metric: 'lvl_fortaleza_fisica', value: 25 }], nodes: ['hombre_de_hierro'] } },
+  { id: 'veterano_de_combate', name: 'Veterano de Combate', icon: '🥊', cat: 'cuerpo', tier: 1, requires: { metrics: [{ metric: 'lvl_combate', value: 25 }], nodes: ['combatiente'] } },
+  { id: 'nutricionista', name: 'Nutricionista', icon: '🥗', cat: 'cuerpo', tier: 1, requires: { metrics: [{ metric: 'lvl_nutricion', value: 25 }], nodes: ['saludable'] } },
+  { id: 'incansable', name: 'Incansable', icon: '🏃', cat: 'cuerpo', tier: 1, requires: { metrics: [{ metric: 'lvl_resistencia', value: 25 }], nodes: ['resistente'] } },
+  { id: 'letrado', name: 'Letrado', icon: '📚', cat: 'mente', tier: 1, requires: { metrics: [{ metric: 'lvl_intelecto', value: 25 }], nodes: ['estudiante'] } },
+  { id: 'enfocado', name: 'Enfocado', icon: '🎯', cat: 'mente', tier: 1, requires: { metrics: [{ metric: 'lvl_concentracion', value: 25 }], nodes: ['alerta'] } },
+  { id: 'estoico', name: 'Estoico', icon: '🧘', cat: 'mente', tier: 1, requires: { metrics: [{ metric: 'lvl_fortaleza_mental', value: 25 }], nodes: ['sereno'] } },
+  { id: 'inversor', name: 'Inversor', icon: '💵', cat: 'finanzas', tier: 1, requires: { metrics: [{ metric: 'lvl_economista', value: 25 }], nodes: ['aprendiz_de_capital'] } },
+  { id: 'austero', name: 'Austero', icon: '📊', cat: 'finanzas', tier: 1, requires: { metrics: [{ metric: 'lvl_gerente', value: 25 }], nodes: ['ordenado'] } },
+  { id: 'devoto_n', name: 'Devoto', icon: '✝️', cat: 'espiritu', tier: 1, requires: { metrics: [{ metric: 'lvl_fe', value: 25 }], nodes: ['creyente'] } },
+  { id: 'companero', name: 'Compañero', icon: '💖', cat: 'vinculos', tier: 1, requires: { metrics: [{ metric: 'lvl_buen_novio', value: 25 }], nodes: ['atento'] } },
+  { id: 'hijo_ejemplar', name: 'Hijo Ejemplar', icon: '👨‍👦', cat: 'vinculos', tier: 1, requires: { metrics: [{ metric: 'lvl_buen_hijo', value: 25 }], nodes: ['hijo_presente_n'] } },
+  { id: 'padre_felino', name: 'Padre Felino', icon: '🐱', cat: 'vinculos', tier: 1, requires: { metrics: [{ metric: 'lvl_buen_padre', value: 25 }], nodes: ['protector_felino'] } },
+  { id: 'ejecutor', name: 'Ejecutor', icon: '🔨', cat: 'trabajo', tier: 1, requires: { metrics: [{ metric: 'lvl_ejecucion', value: 25 }], nodes: ['hacedor'] } },
+  { id: 'responsable', name: 'Responsable', icon: '⏰', cat: 'trabajo', tier: 1, requires: { metrics: [{ metric: 'lvl_responsabilidad', value: 25 }], nodes: ['confiable'] } },
+  { id: 'programador', name: 'Programador', icon: '🔧', cat: 'trabajo', tier: 1, requires: { metrics: [{ metric: 'lvl_dominio_herramientas', value: 25 }], nodes: ['aprendiz'] } },
+  // ── Escalera de patrimonio (paralela, montos en ARS) ──
+  { id: 'patrimonio_en_marcha', name: 'Patrimonio en Marcha', icon: '📈', cat: 'patrimonio', tier: 1, requires: { metrics: [{ metric: 'patrimonio', value: 5000000 }] } },
+  { id: 'base_solida', name: 'Base Sólida', icon: '📈', cat: 'patrimonio', tier: 1.3, requires: { metrics: [{ metric: 'patrimonio', value: 10000000 }], nodes: ['patrimonio_en_marcha'] } },
+  { id: 'capital_creciente', name: 'Capital Creciente', icon: '📈', cat: 'patrimonio', tier: 1.6, requires: { metrics: [{ metric: 'patrimonio', value: 25000000 }], nodes: ['base_solida'] } },
+  { id: 'independencia_visible', name: 'Independencia Visible', icon: '💎', cat: 'patrimonio', tier: 2, requires: { metrics: [{ metric: 'patrimonio', value: 50000000 }], nodes: ['capital_creciente'] } },
+  { id: 'umbral_de_libertad', name: 'Umbral de Libertad', icon: '💎', cat: 'patrimonio', tier: 2.3, requires: { metrics: [{ metric: 'patrimonio', value: 75000000 }], nodes: ['independencia_visible'] } },
+  { id: 'patrimonio_de_elite', name: 'Patrimonio de Élite', icon: '👑', cat: 'patrimonio', tier: 2.6, requires: { metrics: [{ metric: 'patrimonio', value: 100000000 }], nodes: ['umbral_de_libertad'] } },
+  // ── TIER 1.5 — Maestría individual (nivel ≥ 50 + nodo Tier 1) ──
+  { id: 'hombre_de_titanio', name: 'Hombre de Titanio', icon: '💪', cat: 'cuerpo', tier: 1.5, requires: { metrics: [{ metric: 'lvl_fortaleza_fisica', value: 50 }], nodes: ['hombre_de_acero'] } },
+  { id: 'letal', name: 'Letal', icon: '🥊', cat: 'cuerpo', tier: 1.5, requires: { metrics: [{ metric: 'lvl_combate', value: 50 }], nodes: ['veterano_de_combate'] } },
+  { id: 'impecable', name: 'Impecable', icon: '🥗', cat: 'cuerpo', tier: 1.5, requires: { metrics: [{ metric: 'lvl_nutricion', value: 50 }], nodes: ['nutricionista'] } },
+  { id: 'inagotable', name: 'Inagotable', icon: '🏃', cat: 'cuerpo', tier: 1.5, requires: { metrics: [{ metric: 'lvl_resistencia', value: 50 }], nodes: ['incansable'] } },
+  { id: 'jurista', name: 'Jurista', icon: '⚖️', cat: 'mente', tier: 1.5, requires: { metrics: [{ metric: 'lvl_intelecto', value: 50 }], nodes: ['letrado'] } },
+  { id: 'imperturbable', name: 'Imperturbable', icon: '🎯', cat: 'mente', tier: 1.5, requires: { metrics: [{ metric: 'lvl_concentracion', value: 50 }], nodes: ['enfocado'] } },
+  { id: 'inquebrantable', name: 'Inquebrantable', icon: '🧘', cat: 'mente', tier: 1.5, requires: { metrics: [{ metric: 'lvl_fortaleza_mental', value: 50 }], nodes: ['estoico'] } },
+  { id: 'visionario_del_capital', name: 'Visionario del Capital', icon: '💵', cat: 'finanzas', tier: 1.5, requires: { metrics: [{ metric: 'lvl_economista', value: 50 }], nodes: ['inversor'] } },
+  { id: 'patrimonial', name: 'Patrimonial', icon: '📊', cat: 'finanzas', tier: 1.5, requires: { metrics: [{ metric: 'lvl_gerente', value: 50 }], nodes: ['austero'] } },
+  { id: 'consagrado', name: 'Consagrado', icon: '✝️', cat: 'espiritu', tier: 1.5, requires: { metrics: [{ metric: 'lvl_fe', value: 50 }], nodes: ['devoto_n'] } },
+  { id: 'incondicional', name: 'Incondicional', icon: '💖', cat: 'vinculos', tier: 1.5, requires: { metrics: [{ metric: 'lvl_buen_novio', value: 50 }], nodes: ['companero'] } },
+  { id: 'hijo_de_honor', name: 'Hijo de Honor', icon: '👨‍👦', cat: 'vinculos', tier: 1.5, requires: { metrics: [{ metric: 'lvl_buen_hijo', value: 50 }], nodes: ['hijo_ejemplar'] } },
+  { id: 'guardian_felino', name: 'Guardián Felino', icon: '🐱', cat: 'vinculos', tier: 1.5, requires: { metrics: [{ metric: 'lvl_buen_padre', value: 50 }], nodes: ['padre_felino'] } },
+  { id: 'implacable', name: 'Implacable', icon: '🔨', cat: 'trabajo', tier: 1.5, requires: { metrics: [{ metric: 'lvl_ejecucion', value: 50 }], nodes: ['ejecutor'] } },
+  { id: 'inflexible', name: 'Inflexible', icon: '⏰', cat: 'trabajo', tier: 1.5, requires: { metrics: [{ metric: 'lvl_responsabilidad', value: 50 }], nodes: ['responsable'] } },
+  { id: 'arquitecto_digital', name: 'Arquitecto Digital', icon: '🔧', cat: 'trabajo', tier: 1.5, requires: { metrics: [{ metric: 'lvl_dominio_herramientas', value: 50 }], nodes: ['programador'] } },
+  // ── Nodos manuales / libres ──
+  { id: 'manejo_de_armas', name: 'Manejo de Armas', icon: '🔫', cat: 'cuerpo', tier: 1, manual: true, requires: {} },
+  { id: 'tenencia', name: 'Tenencia', icon: '📜', cat: 'cuerpo', tier: 1.5, manual: true, requires: { nodes: ['manejo_de_armas'] } },
+  { id: 'templanza_real', name: 'Templanza Real', icon: '🛡️', cat: 'espiritu', tier: 1, manual: true, requires: {} },
+  { id: 'catolico_practicante', name: 'Católico Practicante', icon: '⛪', cat: 'espiritu', tier: 1.5, manual: true, requires: { metrics: [{ metric: 'lvl_fe', value: 25 }] } },
+  { id: 'graduado', name: 'Graduado', icon: '🎓', cat: 'mente', tier: 2, requires: { metrics: [{ metric: 'materias', value: 47 }] } },
+  { id: 'primer_ingreso_negocio_ia', name: 'Primer Ingreso del Negocio IA', icon: '🤖', cat: 'trabajo', tier: 2, manual: true, requires: {} },
+  { id: 'coleccionista', name: 'Coleccionista', icon: '🏅', cat: 'cross', tier: 2, requires: { metrics: [{ metric: 'logros_desbloqueados', value: 50 }] } },
+  // ── TIER 2 — Techo de categoría ──
+  { id: 'comandante_de_combate', name: 'Comandante de Combate', icon: '🎖️', cat: 'cuerpo', tier: 2, requires: { metrics: [{ metric: 'lvl_combate', value: 50 }], nodes: ['hombre_de_acero', 'veterano_de_combate'] } },
+  { id: 'cuerpo_operativo', name: 'Cuerpo Operativo', icon: '🦾', cat: 'cuerpo', tier: 2, requires: { nodes: ['impecable', 'inagotable', 'hombre_de_acero'] } },
+  { id: 'mente_templada', name: 'Mente Templada', icon: '🧠', cat: 'mente', tier: 2, requires: { nodes: ['letrado', 'enfocado', 'estoico'] } },
+  { id: 'doctor_en_potencia', name: 'Doctor en Potencia', icon: '🎓', cat: 'mente', tier: 2, requires: { metrics: [{ metric: 'materias', value: 35 }], nodes: ['letrado'] } },
+  { id: 'forjador_de_riqueza', name: 'Forjador de Riqueza', icon: '🏦', cat: 'finanzas', tier: 2, requires: { nodes: ['inversor', 'austero', 'capital_creciente'] } },
+  { id: 'vida_ordenada', name: 'Vida Ordenada', icon: '🕊️', cat: 'espiritu', tier: 2, requires: { nodes: ['devoto_n', 'templanza_real'] } },
+  { id: 'pilar_del_hogar', name: 'Pilar del Hogar', icon: '🏡', cat: 'vinculos', tier: 2, requires: { nodes: ['companero', 'hijo_ejemplar', 'padre_felino'] } },
+  { id: 'arquitecto_de_sistemas', name: 'Arquitecto de Sistemas', icon: '🏗️', cat: 'trabajo', tier: 2, requires: { nodes: ['ejecutor', 'responsable', 'programador'] } },
+  // ── TIER 2.5 — Escalón intermedio de combinación ──
+  { id: 'centinela', name: 'Centinela', icon: '🛡️', cat: 'cuerpo', tier: 2.5, requires: { nodes: ['comandante_de_combate', 'manejo_de_armas'] } },
+  { id: 'calculador', name: 'Calculador', icon: '🧮', cat: 'mente', tier: 2.5, requires: { nodes: ['mente_templada', 'capital_creciente'] } },
+  { id: 'metodico', name: 'Metódico', icon: '📐', cat: 'trabajo', tier: 2.5, requires: { metrics: [{ metric: 'lvl_fortaleza_mental', value: 25 }], nodes: ['responsable'] } },
+  { id: 'sosten', name: 'Sostén', icon: '🤝', cat: 'finanzas', tier: 2.5, requires: { nodes: ['forjador_de_riqueza', 'companero'] } },
+  { id: 'templado', name: 'Templado', icon: '🔥', cat: 'cuerpo', tier: 2.5, requires: { nodes: ['cuerpo_operativo', 'creyente'] } },
+  { id: 'estudioso_del_sistema', name: 'Estudioso del Sistema', icon: '💻', cat: 'mente', tier: 2.5, requires: { nodes: ['letrado', 'programador'] } },
+  { id: 'recto', name: 'Recto', icon: '⚖️', cat: 'espiritu', tier: 2.5, requires: { nodes: ['templanza_real', 'ordenado'] } },
+  { id: 'presente_en_casa', name: 'Presente en Casa', icon: '🏠', cat: 'vinculos', tier: 2.5, requires: { nodes: ['pilar_del_hogar', 'hacedor'] } },
+  { id: 'templado_de_acero', name: 'Templado de Acero', icon: '⚔️', cat: 'cuerpo', tier: 2.5, requires: { nodes: ['comandante_de_combate', 'alerta'] } },
+  // ── TIER 3 — Combinaciones cruzadas ──
+  { id: 'protector', name: 'Protector', icon: '🛡️', cat: 'cuerpo', tier: 3, requires: { nodes: ['centinela', 'tenencia'] } },
+  { id: 'estratega_total', name: 'Estratega Total', icon: '♟️', cat: 'finanzas', tier: 3, requires: { nodes: ['calculador', 'forjador_de_riqueza'] } },
+  { id: 'disciplinado', name: 'Disciplinado', icon: '🎯', cat: 'trabajo', tier: 3, requires: { nodes: ['metodico', 'inquebrantable'] } },
+  { id: 'proveedor', name: 'Proveedor', icon: '🏆', cat: 'finanzas', tier: 3, requires: { nodes: ['sosten', 'pilar_del_hogar'] } },
+  { id: 'resiliente', name: 'Resiliente', icon: '🌟', cat: 'espiritu', tier: 3, requires: { nodes: ['templado', 'devoto_n'] } },
+  { id: 'visionario', name: 'Visionario', icon: '🔮', cat: 'trabajo', tier: 3, requires: { nodes: ['estudioso_del_sistema', 'arquitecto_de_sistemas'] } },
+  { id: 'sobrio', name: 'Sobrio', icon: '🕊️', cat: 'espiritu', tier: 3, requires: { nodes: ['recto', 'vida_ordenada'] } },
+  { id: 'lider_silencioso', name: 'Líder Silencioso', icon: '👑', cat: 'vinculos', tier: 3, requires: { nodes: ['presente_en_casa', 'ejecutor'] } },
+  { id: 'inquebrantable_total', name: 'Inquebrantable', icon: '💠', cat: 'mente', tier: 3, requires: { nodes: ['templado_de_acero', 'enfocado'] } },
+  // ── TIER 4 — Convergencias mayores ──
+  { id: 'hombre_de_familia', name: 'Hombre de Familia', icon: '👨‍👩‍👧', cat: 'cross', tier: 4, requires: { nodes: ['proveedor', 'pilar_del_hogar', 'vida_ordenada'] } },
+  { id: 'polimata', name: 'Polímata', icon: '🧠', cat: 'cross', tier: 4, requires: { nodes: ['estratega_total', 'visionario', 'doctor_en_potencia'] } },
+  { id: 'guerrero_sabio', name: 'Guerrero Sabio', icon: '⚔️', cat: 'cross', tier: 4, requires: { nodes: ['inquebrantable_total', 'resiliente', 'sobrio'] } },
+  // ── TIER 5 — Cima ──
+  { id: 'hombre_integro', name: 'Hombre Íntegro', icon: '🏛️', cat: 'cross', tier: 5, requires: { nodes: ['hombre_de_familia', 'polimata', 'guerrero_sabio', 'lider_silencioso'] } },
 ];
 function gmMetric(name) {
   switch (name) {
@@ -594,6 +689,8 @@ function gmMetric(name) {
     case 'materias': return gmDoneMaterias().length;
     case 'proyectos': return gmDoneProyectos().length;
     case 'nivel_general': return GM.nivel_general;
+    case 'patrimonio': { const nw = gmNwSorted(); return nw.length ? nw[nw.length - 1].value : 0; }
+    case 'logros_desbloqueados': return Object.values(GM.logros || {}).filter(l => l && l.desbloqueado).length;
     default:
       if (name.indexOf('lvl_cat_') === 0) return (GM.cats[name.slice(8)] || {}).nivel || 0;
       if (name.indexOf('lvl_') === 0) return (GM.skills[name.slice(4)] || {}).nivel || 0;
