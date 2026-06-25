@@ -28,6 +28,7 @@ const DEFAULT_STATE = {
   nwHistory: [],       // [{ date, value }]
   fixedExpenses: [],   // [{ id, name, amount, currency, dayOfMonth }]
   fixedExpenseLog: {}, // { 'YYYY-MM': { [expId]: true } }
+  budgets: {},         // { 'YYYY-MM': { fixed:[{id,name,category,unit,v1,v2,v3}], reserved:[{id,name,category,amount}] } }
   sleepLog:        {}, // { 'YYYY-MM-DD': { hours: number, feeling: number } }
   ideas:     { vida: [], finanzas: [], salud: [], conocimiento: [], ia: [] }, // [{ id, title, description, notes }]
   reminders: { vida: [], finanzas: [], salud: [], conocimiento: [], ia: [] }, // [{ id, title, datetime, priority:'high'|'medium'|'low' }]
@@ -623,6 +624,9 @@ async function loadState() {
   if (_proyMigrated) saveState();
   if (_migrateQToT()) saveState();
   if (_migrateMonthlyGoals()) saveState();
+  // ── Presupuesto: init + auto-copia del mes actual ──
+  if (!S.budgets) S.budgets = {};
+  if (ensureBudgetMonth(_curMonthKey())) saveState();
 }
 function _migrateQToT() {
   if (!S.quarterlyObjectives) return false;
@@ -3148,6 +3152,7 @@ function renderFinanzasTab() {
   renderWishlist();
   renderActivity();
   renderFinObjectives();
+  renderBudget();
   if (nwPieInst) updateNWCharts();
 }
 
@@ -4259,6 +4264,260 @@ const TXN_CATEGORIES = {
 
 function getCatInfo(cat, type) {
   return TXN_CATEGORIES[cat] || { label:'', icon: type==='income'?'💚':'🔴', color:'rgba(255,255,255,.06)', border:'rgba(255,255,255,.1)' };
+}
+
+// ════════════════════════════════════════════════════════
+// PRESUPUESTO MENSUAL
+// ════════════════════════════════════════════════════════
+const BUDGET_EXPENSE_CATS = ['clean_food','hydration','sports','productivity','girlfriend','pet','junk_food','home','mama','papa','business','study','other'];
+
+const _EDIT_SVG = '<svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
+const _DEL_SVG  = '<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>';
+
+let budgetActiveMonth = null;
+
+function _curMonthKey() {
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`;
+}
+
+function _emptyBudget() { return { fixed: [], reserved: [] }; }
+
+function _budgetItemTotal(it) { return (+it.v1 || 0) * (+it.v2 || 0) * (+it.v3 || 0); }
+
+// Crea el presupuesto del mes `mk` si no existe, copiando el último mes previo
+// existente (con ids nuevos). Devuelve true si lo creó. Edge: sin mes previo → vacío.
+function ensureBudgetMonth(mk) {
+  if (!S.budgets) S.budgets = {};
+  if (S.budgets[mk]) return false;
+  const prevKeys = Object.keys(S.budgets).filter(k => k < mk).sort();
+  const src = prevKeys.length ? S.budgets[prevKeys[prevKeys.length - 1]] : null;
+  if (src) {
+    S.budgets[mk] = {
+      fixed:    (src.fixed    || []).map(it => ({ id: uid(), name: it.name, category: it.category, unit: it.unit, v1: it.v1, v2: it.v2, v3: it.v3 })),
+      reserved: (src.reserved || []).map(it => ({ id: uid(), name: it.name, category: it.category, amount: it.amount })),
+    };
+  } else {
+    S.budgets[mk] = _emptyBudget();
+  }
+  return true;
+}
+
+function getBudgetMonths() {
+  const set = new Set(Object.keys(S.budgets || {}));
+  set.add(_curMonthKey());
+  return [...set].sort().reverse();
+}
+
+function setBudgetMonth(m) { budgetActiveMonth = m; renderBudget(); }
+
+function renderBudget() {
+  const body = document.getElementById('budgetBody');
+  if (!body) return;
+  if (!S.budgets) S.budgets = {};
+  // Auto-copia del mes actual (una sola vez)
+  if (ensureBudgetMonth(_curMonthKey())) saveState();
+
+  const months = getBudgetMonths();
+  if (!budgetActiveMonth || !months.includes(budgetActiveMonth)) budgetActiveMonth = months[0];
+  ensureBudgetMonth(budgetActiveMonth);
+  const b = S.budgets[budgetActiveMonth] || _emptyBudget();
+
+  // Selector de mes
+  const sel = document.getElementById('budgetMonthSel');
+  if (sel) {
+    sel.innerHTML = months.map(m => {
+      const [y, mo] = m.split('-');
+      return `<option value="${m}" ${m === budgetActiveMonth ? 'selected' : ''}>${CAL_MONTHS[+mo-1]} ${y}</option>`;
+    }).join('');
+  }
+  const [my, mmo] = budgetActiveMonth.split('-');
+  const monthLabel = `${CAL_MONTHS[+mmo-1]} ${my}`;
+
+  // Ítems fijos
+  let totalFijo = 0;
+  const fixedRows = b.fixed.length ? b.fixed.map(it => {
+    const ci = getCatInfo(it.category, 'expense');
+    const tot = _budgetItemTotal(it);
+    totalFijo += tot;
+    return `<div class="sub-row">
+      <div class="sub-info">
+        <div class="sub-name">${it.name}</div>
+        <div class="sub-detail">${ci.icon} ${ci.label || '—'} · ${(+it.v1||0)} × ${(+it.v2||0)} × ${(+it.v3||0)} ${it.unit || ''}</div>
+      </div>
+      <div class="flex gap-8 items-center">
+        <span class="mono bold">${fmtMoney(tot, 'ARS')}</span>
+        <button class="icon-btn" onclick="openBudgetFixed('${it.id}')">${_EDIT_SVG}</button>
+        <button class="icon-btn" onclick="deleteBudgetFixed('${it.id}')">${_DEL_SVG}</button>
+      </div>
+    </div>`;
+  }).join('') : '<p class="empty-state">Sin ítems fijos</p>';
+
+  // Gastos reservados
+  let totalRes = 0;
+  const resRows = b.reserved.length ? b.reserved.map(it => {
+    const ci = getCatInfo(it.category, 'expense');
+    totalRes += (+it.amount || 0);
+    return `<div class="sub-row">
+      <div class="sub-info">
+        <div class="sub-name">${it.name}</div>
+        <div class="sub-detail">${ci.icon} ${ci.label || '—'}</div>
+      </div>
+      <div class="flex gap-8 items-center">
+        <span class="mono bold">${fmtMoney(+it.amount || 0, 'ARS')}</span>
+        <button class="icon-btn" onclick="openBudgetReserved('${it.id}')">${_EDIT_SVG}</button>
+        <button class="icon-btn" onclick="deleteBudgetReserved('${it.id}')">${_DEL_SVG}</button>
+      </div>
+    </div>`;
+  }).join('') : '<p class="empty-state">Sin gastos reservados</p>';
+
+  // Comparación plan vs real (solo ARS, mes activo)
+  const realByCat = {};
+  S.transactions.forEach(t => {
+    if (t.type === 'expense' && t.currency === 'ARS' && t.date && t.date.slice(0,7) === budgetActiveMonth) {
+      const c = t.category || 'other';
+      realByCat[c] = (realByCat[c] || 0) + (+t.amount || 0);
+    }
+  });
+  const budByCat = {};
+  b.fixed.forEach(it => { if (it.category) budByCat[it.category] = (budByCat[it.category] || 0) + _budgetItemTotal(it); });
+  b.reserved.forEach(it => { if (it.category) budByCat[it.category] = (budByCat[it.category] || 0) + (+it.amount || 0); });
+  const allCats = [...new Set([...Object.keys(budByCat), ...Object.keys(realByCat)])]
+    .sort((a, c) => ((budByCat[c]||0)+(realByCat[c]||0)) - ((budByCat[a]||0)+(realByCat[a]||0)));
+  const compRows = allCats.map(c => {
+    const ci = getCatInfo(c, 'expense');
+    const plan = budByCat[c] || 0, real = realByCat[c] || 0, saldo = plan - real;
+    return `<div class="budget-cmp-row">
+      <span class="budget-cmp-cat">${ci.icon} ${ci.label || c}</span>
+      <span class="budget-cmp-num">${fmtMoney(plan, 'ARS')}</span>
+      <span class="budget-cmp-num">${fmtMoney(real, 'ARS')}</span>
+      <span class="budget-cmp-num ${saldo < 0 ? 'text-danger' : 'text-ok'}">${fmtMoney(saldo, 'ARS')}</span>
+    </div>`;
+  }).join('');
+  const comparison = allCats.length ? `
+    <div class="budget-cmp-hdr"><span>Categoría</span><span>Plan</span><span>Real</span><span>Saldo</span></div>
+    ${compRows}` : '<p class="empty-state">Sin datos para comparar</p>';
+
+  body.innerHTML = `
+    <div class="budget-totals">
+      <div class="budget-total-main">
+        <span class="budget-total-lbl">Presupuesto total</span>
+        <span class="budget-total-num">${fmtMoney(totalFijo + totalRes, 'ARS')}</span>
+      </div>
+      <div class="budget-total-sub">
+        <span>Mínimo fijo: <b>${fmtMoney(totalFijo, 'ARS')}</b></span>
+        <span>Reservados: <b>${fmtMoney(totalRes, 'ARS')}</b></span>
+      </div>
+    </div>
+    <div class="budget-block-hdr">
+      <span>Mínimo fijo</span>
+      <button class="btn btn-ghost btn-sm" onclick="openBudgetFixed()">+ Ítem fijo</button>
+    </div>
+    ${fixedRows}
+    <div class="budget-block-hdr">
+      <span>Gastos reservados</span>
+      <button class="btn btn-ghost btn-sm" onclick="openBudgetReserved()">+ Reservado</button>
+    </div>
+    ${resRows}
+    <div class="budget-block-hdr"><span>Plan vs. real · ${monthLabel}</span></div>
+    ${comparison}`;
+}
+
+function fillBudgetCatSelect(elId, selected) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  el.innerHTML = BUDGET_EXPENSE_CATS.map(c => {
+    const ci = getCatInfo(c, 'expense');
+    return `<option value="${c}" ${c === selected ? 'selected' : ''}>${ci.icon} ${ci.label}</option>`;
+  }).join('');
+}
+
+function openBudgetFixed(id) {
+  const b = S.budgets[budgetActiveMonth];
+  const it = id && b ? b.fixed.find(x => x.id === id) : null;
+  document.getElementById('budgetFixedTitle').textContent = it ? 'Editar ítem fijo' : 'Nuevo ítem fijo';
+  document.getElementById('budgetFixedId').value = it ? it.id : '';
+  document.getElementById('budgetFixedName').value = it ? it.name : '';
+  fillBudgetCatSelect('budgetFixedCat', it ? it.category : BUDGET_EXPENSE_CATS[0]);
+  document.getElementById('budgetFixedUnit').value = it ? (it.unit || 'unidades') : 'unidades';
+  document.getElementById('budgetFixedV1').value = it ? it.v1 : '';
+  document.getElementById('budgetFixedV2').value = it ? it.v2 : '';
+  document.getElementById('budgetFixedV3').value = it ? it.v3 : '';
+  document.getElementById('budgetFixedDel').style.display = it ? '' : 'none';
+  updateBudgetFixedPreview();
+  openModal('modal-budget-fixed');
+}
+
+function updateBudgetFixedPreview() {
+  const el = document.getElementById('budgetFixedPreview');
+  if (!el) return;
+  const v1 = +document.getElementById('budgetFixedV1').value || 0;
+  const v2 = +document.getElementById('budgetFixedV2').value || 0;
+  const v3 = +document.getElementById('budgetFixedV3').value || 0;
+  el.textContent = `${v1} × ${v2} × ${v3} = ${fmtMoney(v1 * v2 * v3, 'ARS')}`;
+}
+
+function saveBudgetFixed() {
+  const name = document.getElementById('budgetFixedName').value.trim();
+  if (!name) { showToast('Escribe el nombre'); return; }
+  ensureBudgetMonth(budgetActiveMonth);
+  const b = S.budgets[budgetActiveMonth];
+  const id = document.getElementById('budgetFixedId').value;
+  const data = {
+    name,
+    category: document.getElementById('budgetFixedCat').value,
+    unit: document.getElementById('budgetFixedUnit').value,
+    v1: +document.getElementById('budgetFixedV1').value || 0,
+    v2: +document.getElementById('budgetFixedV2').value || 0,
+    v3: +document.getElementById('budgetFixedV3').value || 0,
+  };
+  if (id) { const it = b.fixed.find(x => x.id === id); if (it) Object.assign(it, data); }
+  else { b.fixed.push({ id: uid(), ...data }); }
+  saveState(); renderBudget(); closeModal('modal-budget-fixed');
+  showToast('Ítem fijo guardado');
+}
+
+function deleteBudgetFixed(id) {
+  const b = S.budgets[budgetActiveMonth];
+  if (!b) return;
+  b.fixed = b.fixed.filter(x => x.id !== id);
+  saveState(); renderBudget(); closeModal('modal-budget-fixed');
+}
+
+function openBudgetReserved(id) {
+  const b = S.budgets[budgetActiveMonth];
+  const it = id && b ? b.reserved.find(x => x.id === id) : null;
+  document.getElementById('budgetReservedTitle').textContent = it ? 'Editar gasto reservado' : 'Nuevo gasto reservado';
+  document.getElementById('budgetReservedId').value = it ? it.id : '';
+  document.getElementById('budgetReservedName').value = it ? it.name : '';
+  fillBudgetCatSelect('budgetReservedCat', it ? it.category : BUDGET_EXPENSE_CATS[0]);
+  document.getElementById('budgetReservedAmount').value = it ? it.amount : '';
+  document.getElementById('budgetReservedDel').style.display = it ? '' : 'none';
+  openModal('modal-budget-reserved');
+}
+
+function saveBudgetReserved() {
+  const name = document.getElementById('budgetReservedName').value.trim();
+  if (!name) { showToast('Escribe el nombre'); return; }
+  ensureBudgetMonth(budgetActiveMonth);
+  const b = S.budgets[budgetActiveMonth];
+  const id = document.getElementById('budgetReservedId').value;
+  const data = {
+    name,
+    category: document.getElementById('budgetReservedCat').value,
+    amount: +document.getElementById('budgetReservedAmount').value || 0,
+  };
+  if (id) { const it = b.reserved.find(x => x.id === id); if (it) Object.assign(it, data); }
+  else { b.reserved.push({ id: uid(), ...data }); }
+  saveState(); renderBudget(); closeModal('modal-budget-reserved');
+  showToast('Gasto reservado guardado');
+}
+
+function deleteBudgetReserved(id) {
+  const b = S.budgets[budgetActiveMonth];
+  if (!b) return;
+  b.reserved = b.reserved.filter(x => x.id !== id);
+  saveState(); renderBudget(); closeModal('modal-budget-reserved');
 }
 
 let txnActiveMonth = null;
