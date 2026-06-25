@@ -32,8 +32,8 @@ const GM_PLAYER_NAME = 'Tobías';
 const GM_HABIT_XP = [
   { kw: ['entrenamiento'], xp: 10 }, { kw: ['boxeo', 'box'], xp: 10 }, { kw: ['jujitsu', 'jiu'], xp: 10 },
   { kw: ['comer sano', 'liviano', 'nutric'], xp: 10 }, { kw: ['estudiar'], xp: 15 }, { kw: ['leer'], xp: 8 },
-  { kw: ['enfoque'], xp: 5 }, { kw: ['meditar', 'visualiz'], xp: 8 }, { kw: ['despertar'], xp: 10 }, { kw: ['planificar'], xp: 5 },
-  { kw: ['aprendizaje econ', 'económic', 'economic'], xp: 5 }, { kw: ['registro financiero'], xp: 8 }, { kw: ['austeridad'], xp: 10 },
+  { kw: ['enfoque'], xp: 10 }, { kw: ['meditar', 'visualiz'], xp: 8 }, { kw: ['despertar'], xp: 10 }, { kw: ['planificar'], xp: 5 },
+  { kw: ['aprendizaje econ', 'económic', 'economic'], xp: 10 }, { kw: ['registro financiero'], xp: 8 }, { kw: ['austeridad'], xp: 10 },
   { kw: ['aplicación de ideas', 'aplicacion de ideas'], xp: 6 }, { kw: ['trabajo en proyecto'], xp: 10 },
   { kw: ['caminar', 'caminata'], xp: 8 }, { kw: ['dormir temprano'], xp: 10 }, { kw: ['aprendizaje de herramientas'], xp: 8 },
 ];
@@ -180,12 +180,13 @@ const GM_SKILLS = [
   { id: 'agilidad',         cat: 'cuerpo', name: 'Agilidad', xp: null },
   { id: 'resistencia',      cat: 'cuerpo', name: 'Resistencia', xp: () => gmKwDays(['caminar', 'caminata']) * 8 + gmKwStreakBonus(['caminar', 'caminata']) },
   // 🧠 Mente
-  { id: 'intelecto',        cat: 'mente', name: 'Intelecto', xp: () => gmEstudiarXp() + gmKwDays(['leer']) * 8 + gmKwStreakBonus(['estudiar', 'leer']) + gmDoneMaterias().length * 150 + gmMilestonesOnTime() * 200 },
-  { id: 'concentracion',    cat: 'mente', name: 'Concentración', xp: () => gmKwDays(['enfoque']) * 5 + gmKwStreakBonus(['enfoque']) },
+  { id: 'estudiante',       cat: 'mente', name: 'Estudiante', xp: () => gmEstudiarXp() + gmKwStreakBonus(['estudiar']) + gmDoneMaterias().length * 150 + gmMilestonesOnTime() * 200 },
+  { id: 'lector',           cat: 'mente', name: 'Lector', xp: () => gmKwDays(['leer']) * 8 + gmKwStreakBonus(['leer']) },
+  { id: 'concentracion',    cat: 'mente', name: 'Concentración', xp: () => gmKwDays(['enfoque']) * 10 + gmKwStreakBonus(['enfoque']) },
   { id: 'fortaleza_mental', cat: 'mente', name: 'Fortaleza mental', xp: () => gmKwDays(['meditar', 'visualiz']) * 8 + gmKwStreakBonus(['meditar', 'visualiz']) },
   // (Responsabilidad se movió a la categoría Trabajo, ver abajo)
   // 💰 Finanzas
-  { id: 'economista',       cat: 'finanzas', name: 'Economista', xp: () => gmKwDays(['aprendizaje econ', 'económic', 'economic']) * 5 + gmKwStreakBonus(['aprendizaje econ', 'económic', 'economic']) },
+  { id: 'economista',       cat: 'finanzas', name: 'Economista', xp: () => gmKwDays(['aprendizaje econ', 'económic', 'economic']) * 10 + gmKwStreakBonus(['aprendizaje econ', 'económic', 'economic']) },
   { id: 'riqueza',          cat: 'finanzas', name: 'Riqueza', xp: () => gmRiquezaXp() },
   { id: 'gerente',          cat: 'finanzas', name: 'Gerente de finanzas', xp: () => gmKwDays(['austeridad']) * 10 + gmKwDays(['registro financiero']) * 8 + gmKwStreakBonus(['austeridad', 'registro financiero']) + gmFixedPaidCount() * 5 },
   // 🙏 Espíritu
@@ -194,7 +195,7 @@ const GM_SKILLS = [
   // ❤️ Vínculos
   { id: 'buen_novio',       cat: 'vinculos', name: 'Buen novio', xp: () => gmEvCount('novia_tiempo', 'novia') * 10 + gmEvCount('novia_gesto') * 10 },
   { id: 'buen_hijo',        cat: 'vinculos', name: 'Buen hijo', xp: () => gmEvCount('padres_gesto', 'padres') * 10 },
-  { id: 'buen_padre',       cat: 'vinculos', name: 'Buen padre', xp: () => gmEvCount('gatitas_mimar') * 3 + gmEvCount('gatitas_caja') * 3 },
+  { id: 'buen_padre',       cat: 'vinculos', name: 'Buen padre', xp: () => gmEvCount('gatitas_mimar') * 10 + gmEvCount('gatitas_caja') * 10 },
   { id: 'buen_amigo',       cat: 'vinculos', name: 'Buen amigo', xp: null },
   // ⚙️ Trabajo
   { id: 'ejecucion',        cat: 'trabajo', name: 'Ejecución', xp: () => gmKwDays(['aplicación de ideas', 'aplicacion de ideas']) * 6 + gmKwDays(['trabajo en proyecto']) * 10 + gmKwStreakBonus(['aplicación de ideas', 'aplicacion de ideas', 'trabajo en proyecto']) + gmProyectoProgressXp() },
@@ -211,8 +212,8 @@ const GM_EV_FIELDS = [
   { key: 'novia_tiempo',  label: 'Tiempo de calidad (novia)', cat: 'vinculos', skill: 'buen_novio', xp: 10 },
   { key: 'novia_gesto',   label: 'Gesto especial (novia)',    cat: 'vinculos', skill: 'buen_novio', xp: 10 },
   { key: 'padres_gesto',  label: 'Gesto especial (padres)',   cat: 'vinculos', skill: 'buen_hijo',  xp: 10 },
-  { key: 'gatitas_mimar', label: 'Mimar gatitas',             cat: 'vinculos', skill: 'buen_padre', xp: 3 },
-  { key: 'gatitas_caja',  label: 'Limpiar caja de arena',     cat: 'vinculos', skill: 'buen_padre', xp: 3 },
+  { key: 'gatitas_mimar', label: 'Mimar gatitas',             cat: 'vinculos', skill: 'buen_padre', xp: 10 },
+  { key: 'gatitas_caja',  label: 'Limpiar caja de arena',     cat: 'vinculos', skill: 'buen_padre', xp: 10 },
 ];
 
 // ── Estado por defecto ───────────────────────────────────────────────────
@@ -335,7 +336,7 @@ function gmBuildDailyMissions(today) {
 function _gmSkillKw(s) {
   return ({
     fortaleza_fisica: ['entrenamiento'], combate: ['boxeo', 'box', 'jujitsu', 'jiu'], nutricion: ['comer sano', 'liviano', 'nutric'], resistencia: ['caminar', 'caminata'],
-    intelecto: ['estudiar', 'leer'], concentracion: ['enfoque'], fortaleza_mental: ['meditar', 'visualiz'], responsabilidad: ['despertar', 'dormir temprano', 'planificar'],
+    estudiante: ['estudiar'], lector: ['leer'], concentracion: ['enfoque'], fortaleza_mental: ['meditar', 'visualiz'], responsabilidad: ['despertar', 'dormir temprano', 'planificar'],
     economista: ['aprendizaje econ', 'económic', 'economic'], gerente: ['registro financiero', 'austeridad'],
     ejecucion: ['aplicación de ideas', 'aplicacion de ideas', 'trabajo en proyecto'], dominio_herramientas: ['aprendizaje de herramientas', 'herramienta'],
   })[s.id] || [];
@@ -583,7 +584,7 @@ const GM_TREE_NODES = [
   { id: 'combatiente', name: 'Combatiente', icon: '🥊', cat: 'cuerpo', tier: 0, requires: { metrics: [{ metric: 'lvl_combate', value: 10 }] } },
   { id: 'saludable', name: 'Saludable', icon: '🥗', cat: 'cuerpo', tier: 0, requires: { metrics: [{ metric: 'lvl_nutricion', value: 10 }] } },
   { id: 'resistente', name: 'Resistente', icon: '🏃', cat: 'cuerpo', tier: 0, requires: { metrics: [{ metric: 'lvl_resistencia', value: 10 }] } },
-  { id: 'estudiante', name: 'Estudiante', icon: '📚', cat: 'mente', tier: 0, requires: { metrics: [{ metric: 'lvl_intelecto', value: 10 }] } },
+  { id: 'estudiante', name: 'Estudiante', icon: '📚', cat: 'mente', tier: 0, requires: { metrics: [{ metric: 'lvl_estudiante', value: 10 }] } },
   { id: 'alerta', name: 'Alerta', icon: '🎯', cat: 'mente', tier: 0, requires: { metrics: [{ metric: 'lvl_concentracion', value: 10 }] } },
   { id: 'sereno', name: 'Sereno', icon: '🧘', cat: 'mente', tier: 0, requires: { metrics: [{ metric: 'lvl_fortaleza_mental', value: 10 }] } },
   { id: 'aprendiz_de_capital', name: 'Aprendiz de Capital', icon: '💵', cat: 'finanzas', tier: 0, requires: { metrics: [{ metric: 'lvl_economista', value: 10 }] } },
@@ -600,7 +601,7 @@ const GM_TREE_NODES = [
   { id: 'veterano_de_combate', name: 'Veterano de Combate', icon: '🥊', cat: 'cuerpo', tier: 1, requires: { metrics: [{ metric: 'lvl_combate', value: 25 }], nodes: ['combatiente'] } },
   { id: 'nutricionista', name: 'Nutricionista', icon: '🥗', cat: 'cuerpo', tier: 1, requires: { metrics: [{ metric: 'lvl_nutricion', value: 25 }], nodes: ['saludable'] } },
   { id: 'incansable', name: 'Incansable', icon: '🏃', cat: 'cuerpo', tier: 1, requires: { metrics: [{ metric: 'lvl_resistencia', value: 25 }], nodes: ['resistente'] } },
-  { id: 'letrado', name: 'Letrado', icon: '📚', cat: 'mente', tier: 1, requires: { metrics: [{ metric: 'lvl_intelecto', value: 25 }], nodes: ['estudiante'] } },
+  { id: 'letrado', name: 'Letrado', icon: '📚', cat: 'mente', tier: 1, requires: { metrics: [{ metric: 'lvl_estudiante', value: 25 }], nodes: ['estudiante'] } },
   { id: 'enfocado', name: 'Enfocado', icon: '🎯', cat: 'mente', tier: 1, requires: { metrics: [{ metric: 'lvl_concentracion', value: 25 }], nodes: ['alerta'] } },
   { id: 'estoico', name: 'Estoico', icon: '🧘', cat: 'mente', tier: 1, requires: { metrics: [{ metric: 'lvl_fortaleza_mental', value: 25 }], nodes: ['sereno'] } },
   { id: 'inversor', name: 'Inversor', icon: '💵', cat: 'finanzas', tier: 1, requires: { metrics: [{ metric: 'lvl_economista', value: 25 }], nodes: ['aprendiz_de_capital'] } },
@@ -624,7 +625,7 @@ const GM_TREE_NODES = [
   { id: 'letal', name: 'Letal', icon: '🥊', cat: 'cuerpo', tier: 1.5, requires: { metrics: [{ metric: 'lvl_combate', value: 50 }], nodes: ['veterano_de_combate'] } },
   { id: 'impecable', name: 'Impecable', icon: '🥗', cat: 'cuerpo', tier: 1.5, requires: { metrics: [{ metric: 'lvl_nutricion', value: 50 }], nodes: ['nutricionista'] } },
   { id: 'inagotable', name: 'Inagotable', icon: '🏃', cat: 'cuerpo', tier: 1.5, requires: { metrics: [{ metric: 'lvl_resistencia', value: 50 }], nodes: ['incansable'] } },
-  { id: 'jurista', name: 'Jurista', icon: '⚖️', cat: 'mente', tier: 1.5, requires: { metrics: [{ metric: 'lvl_intelecto', value: 50 }], nodes: ['letrado'] } },
+  { id: 'jurista', name: 'Jurista', icon: '⚖️', cat: 'mente', tier: 1.5, requires: { metrics: [{ metric: 'lvl_estudiante', value: 50 }], nodes: ['letrado'] } },
   { id: 'imperturbable', name: 'Imperturbable', icon: '🎯', cat: 'mente', tier: 1.5, requires: { metrics: [{ metric: 'lvl_concentracion', value: 50 }], nodes: ['enfocado'] } },
   { id: 'inquebrantable', name: 'Inquebrantable', icon: '🧘', cat: 'mente', tier: 1.5, requires: { metrics: [{ metric: 'lvl_fortaleza_mental', value: 50 }], nodes: ['estoico'] } },
   { id: 'visionario_del_capital', name: 'Visionario del Capital', icon: '💵', cat: 'finanzas', tier: 1.5, requires: { metrics: [{ metric: 'lvl_economista', value: 50 }], nodes: ['inversor'] } },
