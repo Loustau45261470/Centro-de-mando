@@ -61,29 +61,6 @@
     });
   }
 
-  // Chrome carga las voces de forma asíncrona: getVoices() devuelve [] hasta que dispara voiceschanged
-  let _voices = [];
-  function _loadVoices() { _voices = (window.speechSynthesis && speechSynthesis.getVoices()) || []; }
-  if (window.speechSynthesis) { _loadVoices(); speechSynthesis.onvoiceschanged = _loadVoices; }
-
-  function speakBrowser(text) {
-    if (!window.speechSynthesis) return;
-    speechSynthesis.cancel();
-    const utt = new SpeechSynthesisUtterance(text);
-    if (!_voices.length) _loadVoices();
-    const prefer = ['Google UK English Male', 'Microsoft George', 'Daniel', 'Microsoft Ryan'];
-    let v = null;
-    for (const name of prefer) { v = _voices.find(x => x.name.includes(name)); if (v) break; }
-    if (!v) v = _voices.find(x => x.lang === 'en-GB' && /male/i.test(x.name) && !/female/i.test(x.name));
-    if (!v) v = _voices.find(x => x.lang.startsWith('en') && (/\b(David|Mark|James)\b/.test(x.name) || (/male/i.test(x.name) && !/female/i.test(x.name))));
-    if (!v) v = _voices.find(x => x.lang === 'en-GB') || _voices.find(x => x.lang.startsWith('en'));
-    if (v) utt.voice = v;
-    utt.lang = 'en-GB'; utt.pitch = 0.82; utt.rate = 0.88; utt.volume = 1;
-    utt.onend = () => { _lastSpeakEnd = Date.now(); };
-    utt.onerror = () => { _lastSpeakEnd = Date.now(); };
-    speechSynthesis.speak(utt);
-  }
-
   // Cuota de ElevenLabs: se consulta una vez por hora. Las respuestas dinámicas usan la voz
   // de JARVIS mientras queden créditos, reservando 1500 para las frases fijas nuevas.
   let _elQuota = { checked: 0, ok: true };
@@ -132,24 +109,19 @@
     try { await _elQuotaOk(); } catch(e) {}
   }
 
+  // Política de voz: JARVIS habla SOLO con la voz de ElevenLabs (en vivo o cacheada). Si no hay
+  // ElevenLabs disponible (sin key, cuota agotada, o error), queda EN SILENCIO — nunca cae a la
+  // voz genérica del navegador. Las frases ya cacheadas siguen sonando aunque la cuota esté en 0.
   async function speak(text, opts) {
     if (!enabled || !text) return;
     _speakAt = Date.now();
-    if (!_elKey()) { _elHint(); speakBrowser(text); return; } // sin key de ElevenLabs → voz del navegador, sin intentos 401
-    if (opts && opts.dynamic) {
-      // Respuestas dinámicas: voz de JARVIS (ElevenLabs) mientras haya cuota; si se agota
-      // el mes, cae a la voz del navegador y se recupera sola al renovarse los créditos
-      if (await _elQuotaOk()) {
-        try { await speakElevenLabs(text); return; } catch(e) {}
-      }
-      speakBrowser(text);
-      return;
-    }
+    if (!_elKey()) { _elHint(); return; }   // sin key → silencio (aviso único para cargar una)
+    if (opts && opts.dynamic && !(await _elQuotaOk())) return;   // dinámica sin cuota → silencio
     try {
       await speakElevenLabs(text);
     } catch (e) {
-      console.warn('JARVIS ElevenLabs failed, fallback browser:', e.message);
-      speakBrowser(text);
+      // Sin cuota / error de ElevenLabs → silencio (frases cacheadas igual sonaron desde la caché).
+      console.warn('JARVIS sin voz premium (ElevenLabs):', e.message);
     }
   }
 
