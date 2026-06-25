@@ -159,7 +159,11 @@
 .gm-tn-ring { position: absolute; inset: 0; opacity: .12; background: conic-gradient(from 0deg, var(--nc), transparent 35%, var(--nc) 70%, transparent); }
 .gm-tn-ring2 { position: absolute; inset: 5px; background: #0a1018; }
 .gm-tn-core { position: absolute; inset: 9px; background: radial-gradient(circle at 50% 32%, #18222f, #0a0f18 75%); display: grid; place-items: center; }
-.gm-tn-ico { font-size: 34px; line-height: 1; filter: grayscale(.75) brightness(.6); transition: filter .3s; }
+.gm-tn-ico { color: rgba(155,180,210,.42); display: grid; place-items: center; transition: color .3s; }
+.gm-tn-ico svg { width: 42px; height: 42px; }
+.gm-tier-label { position: absolute; left: 16px; width: 132px; display: flex; flex-direction: column; gap: 2px; pointer-events: none; }
+.gm-tier-num { font-family: var(--mono); font-size: 24px; font-weight: 700; color: var(--hud-bright); letter-spacing: 1px; line-height: 1; text-shadow: 0 0 14px rgba(92,246,255,.45); }
+.gm-tier-name { font-family: var(--mono); font-size: 9px; letter-spacing: 2.5px; color: rgba(150,180,210,.5); }
 .gm-tn-tier { position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); z-index: 2; font-family: var(--mono); font-size: 8px; letter-spacing: .5px; color: rgba(165,195,225,.55); }
 .gm-tn-badge { position: absolute; top: -3px; right: 7px; z-index: 2; width: 21px; height: 21px; border-radius: 50%; display: grid; place-items: center; font-size: 10px; background: #0a1018; border: 1px solid rgba(255,255,255,.14); color: var(--tt); }
 .gm-tn-name { font-size: 11px; font-weight: 600; color: rgba(190,205,225,.55); text-align: center; line-height: 1.15; max-width: 124px; }
@@ -167,14 +171,14 @@
 
 .gm-tnode.on .gm-tn-ring, .gm-tnode.claim .gm-tn-ring { opacity: .92; animation: gm-spin 7s linear infinite; }
 .gm-tnode.on .gm-tn-medal { filter: drop-shadow(0 0 16px color-mix(in srgb, var(--nc) 60%, transparent)); animation: gm-pulse 2.6s ease-in-out infinite; }
-.gm-tnode.on .gm-tn-ico { filter: none; }
+.gm-tnode.on .gm-tn-ico { color: var(--nc); filter: drop-shadow(0 0 6px color-mix(in srgb, var(--nc) 55%, transparent)); }
 .gm-tnode.on .gm-tn-core { background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--nc) 22%, #0a0f18), #070b12 78%); }
 .gm-tnode.on .gm-tn-name { color: var(--nc); text-shadow: 0 0 10px color-mix(in srgb, var(--nc) 45%, transparent); }
 .gm-tnode.on .gm-tn-badge { color: #00120a; background: var(--nc); border-color: var(--nc); font-weight: 700; }
 
 .gm-tnode.claim .gm-tn-medal { filter: drop-shadow(0 0 15px color-mix(in srgb, var(--nc) 60%, transparent)); animation: gm-pulse 1.3s ease-in-out infinite; }
 .gm-tnode.claim .gm-tn-ring { animation-duration: 3.5s; }
-.gm-tnode.claim .gm-tn-ico { filter: grayscale(.2) brightness(.95); }
+.gm-tnode.claim .gm-tn-ico { color: var(--nc); }
 .gm-tnode.claim .gm-tn-name { color: var(--nc); }
 .gm-tn-claim { margin-top: 1px; font-family: var(--mono); font-size: 10px; letter-spacing: .5px; padding: 4px 11px; border-radius: 8px;
   border: 1px solid var(--nc); background: color-mix(in srgb, var(--nc) 14%, transparent); color: var(--nc); cursor: pointer; }
