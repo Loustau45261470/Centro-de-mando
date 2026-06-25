@@ -130,22 +130,27 @@
     try { await _elQuotaOk(); } catch(e) {}
   }
 
+  // [DIAG] visibilidad temporal de qué rama toma speak() — quitar tras diagnosticar
+  function _dbg(msg) { if (typeof showToast === 'function') showToast('🎙️ ' + msg, 6000); }
   async function speak(text, opts) {
+    _dbg(`speak() llamado · enabled=${enabled} · text=${text ? 'sí' : 'NO'}`);
     if (!enabled || !text) return;
     _speakAt = Date.now();
-    if (!_elKey()) { _elHint(); speakBrowser(text); return; } // sin key de ElevenLabs → voz del navegador, sin intentos 401
+    if (!_elKey()) { _dbg('sin key EL → voz navegador'); _elHint(); speakBrowser(text); return; } // sin key de ElevenLabs → voz del navegador, sin intentos 401
     if (opts && opts.dynamic) {
       // Respuestas dinámicas: voz de JARVIS (ElevenLabs) mientras haya cuota; si se agota
       // el mes, cae a la voz del navegador y se recupera sola al renovarse los créditos
       if (await _elQuotaOk()) {
-        try { await speakElevenLabs(text); return; } catch(e) {}
-      }
+        try { await speakElevenLabs(text); _dbg('dinámica EL ok'); return; } catch(e) { _dbg('dinámica EL falló: ' + (e && e.message)); }
+      } else { _dbg('cuota EL agotada → navegador'); }
       speakBrowser(text);
       return;
     }
     try {
       await speakElevenLabs(text);
+      _dbg('fija EL ok');
     } catch (e) {
+      _dbg('fija EL falló → navegador: ' + (e && e.message));
       console.warn('JARVIS ElevenLabs failed, fallback browser:', e.message);
       speakBrowser(text);
     }
