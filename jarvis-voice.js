@@ -50,12 +50,14 @@
     // y se libera el ObjectURL (evita memory leak por cada frase).
     await new Promise((resolve, reject) => {
       let settled = false;
-      const done = () => { if (settled) return; settled = true; _lastSpeakEnd = Date.now(); clearTimeout(to); try { URL.revokeObjectURL(url); } catch(e){} resolve(); };
+      // Al terminar (o ante cualquier corte) soltar la referencia: isSpeaking() jamás debe quedar
+      // trabado en true por un <audio> huérfano — eso dejaría el micrófono apagado por el anti-eco.
+      const done = () => { if (settled) return; settled = true; _lastSpeakEnd = Date.now(); clearTimeout(to); if (currentAudio === audio) currentAudio = null; try { URL.revokeObjectURL(url); } catch(e){} resolve(); };
       const to = setTimeout(done, 60000);   // hard cap: jamás colgar isSpeaking() para siempre
       audio.onended = done;
       audio.onpause = done;   // interrumpido por una nueva frase o por stopSpeaking()
       audio.onerror = done;
-      audio.play().catch(err => { if (settled) return; settled = true; clearTimeout(to); try { URL.revokeObjectURL(url); } catch(e){} reject(err); });
+      audio.play().catch(err => { if (settled) return; settled = true; clearTimeout(to); if (currentAudio === audio) currentAudio = null; try { URL.revokeObjectURL(url); } catch(e){} reject(err); });
     });
   }
 
@@ -153,7 +155,9 @@
 
   let _speakAt = 0, _lastSpeakEnd = 0;
   function isSpeaking() {
-    if (currentAudio && !currentAudio.paused && !currentAudio.ended) return true;
+    // Tope de 25s también en la rama del <audio>: un elemento trabado (no pausado/no terminado)
+    // jamás debe mantener isSpeaking() en true para siempre — eso deja el micrófono apagado (anti-eco).
+    if (currentAudio && !currentAudio.paused && !currentAudio.ended && Date.now() - _speakAt < 25000) return true;
     // speechSynthesis.speaking puede quedar trabado en true para siempre (bug de Chrome):
     // solo confiar en él durante los 25s posteriores al último speak(), si no deja sordo a JARVIS
     return !!(window.speechSynthesis && speechSynthesis.speaking && Date.now() - _speakAt < 25000);
