@@ -194,6 +194,49 @@ function gmRenderTree() {
 const GM_TREE_NODE_W = 124;
 const GM_TREE_CAT_COLOR = { cuerpo: '--c-salud', mente: '--c-conocimiento', finanzas: '--c-finanzas', espiritu: '--c-jarvis', vinculos: '--c-vida', trabajo: '--c-ia', patrimonio: '--accent', cross: '--hud-bright' };
 let _gmTreeTx = 0, _gmTreeTy = 0, _gmTreeScale = 1, _gmTreeW = 0, _gmTreeH = 0;
+// Íconos SVG de línea (estilo HUD/RPG) — reemplazan los emojis.
+const GM_ICONS = {
+  strength: '<path d="M3 9v6M6 7v10M18 7v10M21 9v6M6 12h12"/>',
+  combat: '<path d="M4 4l9 9M4 8V4h4M20 4l-9 9M20 8V4h-4M14 14l4 4-2 2-4-4M10 14l-4 4 2 2 4-4"/>',
+  nutrition: '<path d="M5 19C6 11 11 5 19 5c0 8-5 14-13 14M5 19c3-4 7-7 11-8"/>',
+  endurance: '<path d="M13 2L5 13h6l-2 9 10-13h-6z"/>',
+  intellect: '<path d="M4 5h7v15H4zM20 5h-7v15h7z"/>',
+  focus: '<path d="M12 4a8 8 0 100 16 8 8 0 000-16M12 9a3 3 0 100 6 3 3 0 000-6"/>',
+  mind: '<path d="M12 3l8 6-8 12-8-12zM4 9h16M12 3v18"/>',
+  economist: '<path d="M4 4v16h16M7 15l4-4 3 2 5-6"/>',
+  ledger: '<path d="M6 3h9l3 3v15H6zM9 9h6M9 12h6M9 15h4"/>',
+  faith: '<path d="M10 3h4v5h5v4h-5v9h-4v-9H5V8h5z"/>',
+  love: '<path d="M12 20S4 14 4 9a4 4 0 018-1 4 4 0 018 1c0 5-8 11-8 11z"/>',
+  family: '<path d="M8 5a3 3 0 100 6 3 3 0 000-6M16 6a2.5 2.5 0 100 5 2.5 2.5 0 000-5M3 20c0-3 2-5 5-5s5 2 5 5M14 20c0-2 2-4 3.5-4S21 18 21 20"/>',
+  cat: '<path d="M5 4l3 5M19 4l-3 5M5 9c0 6 3 11 7 11s7-5 7-11c0-2-3-3-7-3S5 7 5 9zM9 13h.01M15 13h.01"/>',
+  execution: '<path d="M14 3l7 7-3 3-7-7zM11 6l-8 8 3 3 8-8"/>',
+  responsibility: '<path d="M12 4a8 8 0 100 16 8 8 0 000-16M12 8v4l3 2"/>',
+  tools: '<path d="M15 5a4 4 0 00-5 5l-7 7 3 3 7-7a4 4 0 005-5l-3 3-2-2z"/>',
+  wealth: '<path d="M6 3h12l3 6-9 12L3 9zM3 9h18M9 3L6 9l6 12 6-12-3-6"/>',
+  crown: '<path d="M3 17l1.5-9 5 5L12 5l2.5 8 5-5L21 17z"/>',
+  weapon: '<path d="M12 4a8 8 0 100 16 8 8 0 000-16M12 2v4M12 18v4M2 12h4M18 12h4"/>',
+  license: '<path d="M6 3h12v18l-6-3-6 3zM12 6a3 3 0 100 6 3 3 0 000-6"/>',
+  temperance: '<path d="M12 3l7 3v6c0 5-7 9-7 9s-7-4-7-9V6z"/>',
+  graduate: '<path d="M2 8l10-4 10 4-10 4zM6 10v5c0 1 3 3 6 3s6-2 6-3v-5"/>',
+  business: '<path d="M7 7h10v10H7zM10 10h4v4h-4zM10 4v3M14 4v3M10 17v3M14 17v3M4 10h3M4 14h3M17 10h3M17 14h3"/>',
+  medal: '<path d="M9 3l3 7 3-7M12 21a5 5 0 100-10 5 5 0 000 10M12 14l1 1"/>',
+  home: '<path d="M4 11l8-7 8 7M6 10v9h12v-9M10 19v-5h4v5"/>',
+  star: '<path d="M12 3l2.5 6 6.5.5-5 4.2 1.7 6.3L12 18l-5.7 3.3 1.7-6.3-5-4.2L9.5 9z"/>',
+  integrity: '<path d="M12 21V7M12 21c-4 0-6.5-3-6.5-6.5M12 21c4 0 6.5-3 6.5-6.5M9 13c-2 0-3-1.5-3-3.5M15 13c2 0 3-1.5 3-3.5"/>',
+};
+const GM_NODE_ICON = {
+  hombre_de_hierro: 'strength', combatiente: 'combat', saludable: 'nutrition', resistente: 'endurance', estudiante: 'intellect', alerta: 'focus', sereno: 'mind', aprendiz_de_capital: 'economist', ordenado: 'ledger', creyente: 'faith', atento: 'love', hijo_presente_n: 'family', protector_felino: 'cat', hacedor: 'execution', confiable: 'responsibility', aprendiz: 'tools',
+  hombre_de_acero: 'strength', veterano_de_combate: 'combat', nutricionista: 'nutrition', incansable: 'endurance', letrado: 'intellect', enfocado: 'focus', estoico: 'mind', inversor: 'economist', austero: 'ledger', devoto_n: 'faith', companero: 'love', hijo_ejemplar: 'family', padre_felino: 'cat', ejecutor: 'execution', responsable: 'responsibility', programador: 'tools',
+  patrimonio_en_marcha: 'wealth', base_solida: 'wealth', capital_creciente: 'wealth', independencia_visible: 'wealth', umbral_de_libertad: 'wealth', patrimonio_de_elite: 'crown',
+  hombre_de_titanio: 'strength', letal: 'combat', impecable: 'nutrition', inagotable: 'endurance', jurista: 'intellect', imperturbable: 'focus', inquebrantable: 'mind', visionario_del_capital: 'economist', patrimonial: 'ledger', consagrado: 'faith', incondicional: 'love', hijo_de_honor: 'family', guardian_felino: 'cat', implacable: 'execution', inflexible: 'responsibility', arquitecto_digital: 'tools',
+  manejo_de_armas: 'weapon', tenencia: 'license', templanza_real: 'temperance', catolico_practicante: 'faith', graduado: 'graduate', primer_ingreso_negocio_ia: 'business', coleccionista: 'medal',
+  comandante_de_combate: 'combat', cuerpo_operativo: 'strength', mente_templada: 'intellect', doctor_en_potencia: 'graduate', forjador_de_riqueza: 'wealth', vida_ordenada: 'temperance', pilar_del_hogar: 'home', arquitecto_de_sistemas: 'execution',
+  centinela: 'weapon', calculador: 'economist', metodico: 'responsibility', sosten: 'home', templado: 'strength', estudioso_del_sistema: 'tools', recto: 'temperance', presente_en_casa: 'home', templado_de_acero: 'combat',
+  protector: 'temperance', estratega_total: 'economist', disciplinado: 'focus', proveedor: 'home', resiliente: 'faith', visionario: 'tools', sobrio: 'temperance', lider_silencioso: 'crown', inquebrantable_total: 'mind',
+  hombre_de_familia: 'home', polimata: 'star', guerrero_sabio: 'combat', hombre_integro: 'integrity',
+};
+function gmNodeSvg(n) { return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${GM_ICONS[GM_NODE_ICON[n.id]] || GM_ICONS.star}</svg>`; }
+const GM_TIER_LABELS = { 0: ['T0', 'INICIADO'], 1: ['T1', 'PROFESIONAL'], 1.5: ['T1.5', 'MAESTRÍA'], 2: ['T2', 'TECHO'], 2.5: ['T2.5', 'COMBINACIÓN'], 3: ['T3', 'CRUZADA'], 4: ['T4', 'CONVERGENCIA'], 5: ['T5', 'CIMA'] };
 // Layout automático: filas por tier (Tier 5 arriba), x por categoría en la base y promedio de los
 // nodos previos en los tiers de combinación (las uniones convergen sobre sus padres).
 function gmTreeLayout() {
@@ -204,7 +247,7 @@ function gmTreeLayout() {
   const pos = {};
   tiers.forEach(t => {
     const row = tiers.indexOf(t);
-    const y = (maxRow - row) * ROW_H + 30;
+    const y = row * ROW_H + 40;   // Tier 0 (iniciado) arriba → Cima abajo
     const nodesT = GM_TREE_NODES.filter(n => n.tier === t);
     nodesT.forEach(n => {
       const pre = ((n.requires && n.requires.nodes) || []).map(id => pos[id]).filter(Boolean);
@@ -215,7 +258,7 @@ function gmTreeLayout() {
     for (let i = 1; i < arr.length; i++) if (arr[i].x - arr[i - 1].x < MINGAP) arr[i].x = arr[i - 1].x + MINGAP;
   });
   const minX = Math.min(...Object.values(pos).map(p => p.x));
-  Object.values(pos).forEach(p => p.x -= minX - 40);
+  Object.values(pos).forEach(p => p.x -= minX - 170);   // margen izquierdo para las etiquetas de tier
   return pos;
 }
 function gmTreeMetricLabel(c) {
@@ -239,7 +282,7 @@ function gmTreeRender() {
   GM_TREE_NODES.forEach(n => ((n.requires && n.requires.nodes) || []).forEach(pid => {
     const p = pos[pid], c = pos[n.id]; if (!p || !c) return;
     const on = unlocked.has(n.id) && unlocked.has(pid);
-    const x1 = p.x + cx, y1 = p.y + 4, x2 = c.x + cx, y2 = c.y + MEDAL - 4;
+    const x1 = p.x + cx, y1 = p.y + MEDAL - 6, x2 = c.x + cx, y2 = c.y + 6;   // padre (arriba) → hijo (abajo)
     const my = (y1 + y2) / 2;
     paths += `<path d="M ${x1} ${y1} C ${x1} ${my}, ${x2} ${my}, ${x2} ${y2}" class="gm-tpath${on ? ' on' : ''}" style="${on ? '--pc:var(' + (GM_TREE_CAT_COLOR[n.cat] || '--accent') + ')' : ''}"/>`;
   }));
@@ -255,7 +298,7 @@ function gmTreeRender() {
     nodes += `<div class="gm-tnode ${cls}" style="left:${p.x}px;top:${p.y}px;--nc:var(${GM_TREE_CAT_COLOR[n.cat] || '--accent'})">
       <div class="gm-tn-medal">
         <span class="gm-tn-ring"></span><span class="gm-tn-ring2"></span>
-        <span class="gm-tn-core"><span class="gm-tn-ico">${n.icon}</span></span>
+        <span class="gm-tn-core"><span class="gm-tn-ico">${gmNodeSvg(n)}</span></span>
         <span class="gm-tn-tier">T${tier}</span>
         ${on ? '<span class="gm-tn-badge">✓</span>' : (n.manual ? '<span class="gm-tn-badge lock">◈</span>' : '<span class="gm-tn-badge lock">🔒</span>')}
       </div>
@@ -264,8 +307,14 @@ function gmTreeRender() {
       ${claimable ? `<button class="gm-tn-claim" onclick="event.stopPropagation();gmClaimNode('${n.id}')">⟡ Reclamar</button>` : ''}
     </div>`;
   });
+  const tierY = {}; GM_TREE_NODES.forEach(n => { if (pos[n.id]) tierY[n.tier] = pos[n.id].y; });
+  let labels = '';
+  Object.keys(GM_TIER_LABELS).forEach(t => {
+    const ty = tierY[t]; if (ty == null) return; const L = GM_TIER_LABELS[t];
+    labels += `<div class="gm-tier-label" style="top:${ty + 18}px"><span class="gm-tier-num">${L[0]}</span><span class="gm-tier-name">${L[1]}</span></div>`;
+  });
   world.style.width = W + 'px'; world.style.height = H + 'px';
-  world.innerHTML = `<svg class="gm-tree-svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${paths}</svg>${nodes}`;
+  world.innerHTML = `<svg class="gm-tree-svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${paths}</svg>${labels}${nodes}`;
   const cnt = document.getElementById('gm-tree-counter');
   if (cnt) cnt.textContent = unlocked.size + ' / ' + GM_TREE_NODES.length + ' desbloqueadas';
 }
