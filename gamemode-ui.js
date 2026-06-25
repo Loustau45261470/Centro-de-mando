@@ -35,10 +35,10 @@ function gmRenderAll() {
   panel.innerHTML =
     gmRenderHud() +
     gmRenderBuffs() +
+    gmRenderTree() +
     gmRenderDaily() +
     gmRenderEpics() +
     gmRenderLogros() +
-    gmRenderTree() +
     gmRenderManual() +
     gmRenderRadar();
   requestAnimationFrame(gmDrawRadar);
@@ -184,8 +184,12 @@ function gmCloseLogrosModal() { const ov = document.getElementById('gm-logros-ov
 function gmRenderTree() {
   const total = GM_TREE_NODES.length;
   const unl = ((GM.tree && GM.tree.unlocked) || []).length;
-  return `<div class="gm-card card"><div class="gm-card-h"><span>Árbol de habilidades</span><button class="gm-link" onclick="gmOpenTree()">Abrir (${unl}/${total})</button></div>
-    <div class="gm-empty">Desbloqueá habilidades especiales combinando entrenamientos, logros y rachas. Las ramas se unen.</div></div>`;
+  return `<div class="gm-card card gm-tree-cta" onclick="gmOpenTree()">
+    <div class="gm-tree-cta-l"><span class="gm-tree-cta-ico">🌳</span>
+      <div><div class="gm-tree-cta-t">Árbol de habilidades</div>
+      <div class="gm-tree-cta-s">${unl}/${total} desbloqueadas · combiná niveles, logros y rachas</div></div></div>
+    <span class="gm-tree-cta-btn">Abrir ›</span>
+  </div>`;
 }
 const GM_TREE_NODE_W = 116;
 const GM_TREE_CAT_COLOR = { cuerpo: '--c-salud', mente: '--c-conocimiento', finanzas: '--c-finanzas', espiritu: '--c-jarvis', vinculos: '--c-vida', trabajo: '--c-ia', patrimonio: '--accent', cross: '--accent' };

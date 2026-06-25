@@ -105,7 +105,16 @@
 .gm-filters + .gm-logros-grid { margin-top: 12px; }
 .gm-logros-count { font-size: 12px; color: var(--ts); font-family: var(--mono); margin: 10px 0; }
 
-/* ── Árbol de habilidades ── */
+/* ── Árbol de habilidades: CTA prominente ── */
+.gm-tree-cta { display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; border-color: var(--border-h); background: linear-gradient(135deg, var(--card-h), var(--card)); }
+.gm-tree-cta:hover { border-color: var(--accent); }
+.gm-tree-cta-l { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.gm-tree-cta-ico { font-size: 28px; }
+.gm-tree-cta-t { font-weight: 700; color: var(--tp); font-size: 15px; }
+.gm-tree-cta-s { font-size: 12px; color: var(--ts); }
+.gm-tree-cta-btn { flex-shrink: 0; font-weight: 700; color: var(--accent); font-size: 14px; padding: 6px 12px; border: 1px solid var(--accent); border-radius: 10px; }
+
+/* ── Árbol de habilidades: visor ── */
 #gm-tree-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); backdrop-filter: blur(6px); z-index: 9000; display: none; align-items: flex-end; justify-content: center; }
 #gm-tree-overlay.show { display: flex; }
 #gm-tree-panel { background: var(--bg2); border: 1px solid var(--border-h); border-radius: 18px 18px 0 0; width: min(860px, 100%); max-height: 88vh; padding: 18px; display: flex; flex-direction: column; }
