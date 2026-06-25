@@ -524,6 +524,15 @@
       </div>
     </div>
 
+    <!-- ── Presupuesto mensual ── -->
+    <div class="card" id="budget-card">
+      <div class="card-title">
+        🧮 Presupuesto del mes
+        <select class="inp budget-month-sel" id="budgetMonthSel" onchange="setBudgetMonth(this.value)"></select>
+      </div>
+      <div id="budgetBody"></div>
+    </div>
+
     <div class="affirmation-strip aff-mid"><span id="affirmation2-finanzas"></span></div>
   </div>
 
@@ -1241,6 +1250,56 @@
       <div style="flex:1;display:flex;gap:8px;justify-content:flex-end">
         <button class="btn btn-ghost" onclick="closeModal('modal-edit-txn')">Cancelar</button>
         <button class="btn btn-primary" onclick="saveEditTxn()">Guardar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Budget: ítem fijo (add/edit) -->
+<div class="modal-overlay" id="modal-budget-fixed" onclick="if(event.target===this)closeModal('modal-budget-fixed')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="budgetFixedTitle">Ítem fijo</div>
+    <input type="hidden" id="budgetFixedId">
+    <div class="field"><label>Nombre</label><input class="inp" id="budgetFixedName" placeholder="Ej: Carne"></div>
+    <div class="field"><label>Categoría</label><select class="inp" id="budgetFixedCat"></select></div>
+    <div class="field"><label>Unidad</label>
+      <select class="inp" id="budgetFixedUnit">
+        <option value="unidades">Unidades</option>
+        <option value="kilos">Kilos</option>
+        <option value="litros">Litros</option>
+      </select>
+    </div>
+    <div class="input-row">
+      <div class="field" style="flex:1"><label>Variable 1</label><input class="inp" type="number" step="any" id="budgetFixedV1" placeholder="Ej: 20" oninput="updateBudgetFixedPreview()"></div>
+      <div class="field" style="flex:1"><label>Variable 2</label><input class="inp" type="number" step="any" id="budgetFixedV2" placeholder="Ej: 0.7" oninput="updateBudgetFixedPreview()"></div>
+      <div class="field" style="flex:1"><label>Variable 3</label><input class="inp" type="number" step="any" id="budgetFixedV3" placeholder="Ej: 14000" oninput="updateBudgetFixedPreview()"></div>
+    </div>
+    <div class="budget-modal-preview" id="budgetFixedPreview"></div>
+    <div class="modal-actions" style="display:flex;gap:8px">
+      <button class="btn btn-danger btn-sm" id="budgetFixedDel" onclick="deleteBudgetFixed(document.getElementById('budgetFixedId').value)">Eliminar</button>
+      <div style="flex:1;display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="closeModal('modal-budget-fixed')">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveBudgetFixed()">Guardar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Budget: gasto reservado (add/edit) -->
+<div class="modal-overlay" id="modal-budget-reserved" onclick="if(event.target===this)closeModal('modal-budget-reserved')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="budgetReservedTitle">Gasto reservado</div>
+    <input type="hidden" id="budgetReservedId">
+    <div class="field"><label>Nombre</label><input class="inp" id="budgetReservedName" placeholder="Ej: Regalo novia"></div>
+    <div class="field"><label>Categoría</label><select class="inp" id="budgetReservedCat"></select></div>
+    <div class="field"><label>Monto (ARS)</label><input class="inp" type="number" step="any" id="budgetReservedAmount" placeholder="Ej: 100000"></div>
+    <div class="modal-actions" style="display:flex;gap:8px">
+      <button class="btn btn-danger btn-sm" id="budgetReservedDel" onclick="deleteBudgetReserved(document.getElementById('budgetReservedId').value)">Eliminar</button>
+      <div style="flex:1;display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="closeModal('modal-budget-reserved')">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveBudgetReserved()">Guardar</button>
       </div>
     </div>
   </div>

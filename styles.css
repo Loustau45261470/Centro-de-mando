@@ -4062,3 +4062,53 @@ input:focus, select:focus, textarea:focus {
   margin-bottom: 8px; padding-bottom: 8px;
   border-bottom: 1px solid rgba(0,200,255,.1);
 }
+
+/* ── Presupuesto mensual ── */
+.budget-month-sel {
+  width: auto; margin-left: auto;
+  font-size: 12px; padding: 4px 10px;
+}
+.budget-totals {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 14px 16px; border-radius: 14px; margin-bottom: 14px;
+  background: linear-gradient(135deg, rgba(107,227,164,.10), rgba(124,142,232,.08));
+  border: 1px solid rgba(107,227,164,.22);
+}
+.budget-total-main {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+}
+.budget-total-lbl {
+  font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--tt);
+}
+.budget-total-num {
+  font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--ok);
+}
+.budget-total-sub {
+  display: flex; gap: 18px; font-size: 12px; color: var(--ts);
+}
+.budget-total-sub b { color: var(--tx, #fff); font-variant-numeric: tabular-nums; }
+.budget-block-hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  margin: 18px 0 8px; font-size: 12px; font-weight: 700;
+  letter-spacing: .06em; text-transform: uppercase; color: var(--ts);
+  border-bottom: 1px solid rgba(255,255,255,.07); padding-bottom: 6px;
+}
+.budget-cmp-hdr, .budget-cmp-row {
+  display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 8px; align-items: center;
+}
+.budget-cmp-hdr {
+  font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--tt);
+  padding: 6px 4px;
+}
+.budget-cmp-hdr span:not(:first-child) { text-align: right; }
+.budget-cmp-row {
+  padding: 8px 4px; font-size: 13px;
+  border-top: 1px solid rgba(255,255,255,.05);
+}
+.budget-cmp-cat { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.budget-cmp-num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.budget-modal-preview {
+  margin: 4px 0 10px; padding: 8px 12px; border-radius: 10px;
+  background: rgba(124,142,232,.10); border: 1px solid rgba(124,142,232,.25);
+  font-size: 13px; font-weight: 600; text-align: center; font-variant-numeric: tabular-nums;
+}
