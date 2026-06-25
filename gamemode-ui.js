@@ -235,6 +235,7 @@ const GM_NODE_ICON = {
   centinela: 'weapon', calculador: 'economist', metodico: 'responsibility', sosten: 'home', templado: 'strength', estudioso_del_sistema: 'tools', recto: 'temperance', presente_en_casa: 'home', templado_de_acero: 'combat',
   protector: 'temperance', estratega_total: 'economist', disciplinado: 'focus', proveedor: 'home', resiliente: 'faith', visionario: 'tools', sobrio: 'temperance', lider_silencioso: 'crown', inquebrantable_total: 'mind',
   hombre_de_familia: 'home', polimata: 'star', guerrero_sabio: 'combat', hombre_integro: 'integrity',
+  lector_casual: 'intellect', lector_entusiasta: 'intellect', amante_libros: 'intellect', lector_supremo: 'crown',
 };
 function gmNodeSvg(n) { return `<svg viewBox="0 0 24 24" fill="currentColor" stroke-linejoin="round">${GM_ICONS[GM_NODE_ICON[n.id]] || GM_ICONS.star}</svg>`; }
 const GM_TIER_LABELS = { 0: ['T0', 'INICIADO'], 1: ['T1', 'PROFESIONAL'], 1.5: ['T1.5', 'MAESTRÍA'], 2: ['T2', 'TECHO'], 2.5: ['T2.5', 'COMBINACIÓN'], 3: ['T3', 'CRUZADA'], 4: ['T4', 'CONVERGENCIA'], 5: ['T5', 'CIMA'] };

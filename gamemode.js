@@ -655,6 +655,11 @@ const GM_TREE_NODES = [
   { id: 'vida_ordenada', name: 'Vida Ordenada', icon: '🕊️', cat: 'espiritu', tier: 2, requires: { nodes: ['consagrado', 'templanza_real'] } },
   { id: 'pilar_del_hogar', name: 'Pilar del Hogar', icon: '🏡', cat: 'vinculos', tier: 2, requires: { nodes: ['incondicional', 'hijo_de_honor', 'guardian_felino'] } },
   { id: 'arquitecto_de_sistemas', name: 'Arquitecto de Sistemas', icon: '🏗️', cat: 'trabajo', tier: 2, requires: { nodes: ['implacable', 'inflexible', 'arquitecto_digital'] } },
+  // ── Rama de Lector (skill Lector) ──
+  { id: 'lector_casual', name: 'Lector Casual', icon: '📖', cat: 'mente', tier: 0, requires: { metrics: [{ metric: 'lvl_lector', value: 10 }] } },
+  { id: 'lector_entusiasta', name: 'Lector Entusiasta', icon: '📖', cat: 'mente', tier: 1, requires: { metrics: [{ metric: 'lvl_lector', value: 25 }], nodes: ['lector_casual'] } },
+  { id: 'amante_libros', name: 'Amante de Libros', icon: '📚', cat: 'mente', tier: 1.5, requires: { metrics: [{ metric: 'lvl_lector', value: 50 }], nodes: ['lector_entusiasta'] } },
+  { id: 'lector_supremo', name: 'Lector Supremo', icon: '👑', cat: 'mente', tier: 2, requires: { nodes: ['amante_libros', 'jurista'] } },
   // ── TIER 2.5 — Escalón intermedio de combinación ──
   { id: 'centinela', name: 'Centinela', icon: '🛡️', cat: 'cuerpo', tier: 2.5, requires: { nodes: ['comandante_de_combate', 'manejo_de_armas'] } },
   { id: 'calculador', name: 'Calculador', icon: '🧮', cat: 'mente', tier: 2.5, requires: { nodes: ['mente_templada', 'capital_creciente'] } },
