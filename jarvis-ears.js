@@ -441,7 +441,20 @@
     //   gsk_… → Groq                  sk-or-… → OpenRouter (modelos gratis)
     let url, body, parse;
     const headers = { 'Content-Type': 'application/json' };
-    if (key.startsWith('gsk_') || key.startsWith('sk-or-')) {
+    if (key.startsWith('sk-ant-')) {
+      // Anthropic (Claude) — misma key sk-ant- que el chat de texto (jarvis-agent.js).
+      url = 'https://api.anthropic.com/v1/messages';
+      headers['x-api-key'] = key;
+      headers['anthropic-version'] = '2023-06-01';
+      headers['anthropic-dangerous-direct-browser-access'] = 'true';
+      body = {
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 600,
+        system: sys,
+        messages: [..._convo.map(mm => ({ role: mm.role === 'model' ? 'assistant' : 'user', content: mm.text })), { role: 'user', content: question }]
+      };
+      parse = d => d.content?.[0]?.text;
+    } else if (key.startsWith('gsk_') || key.startsWith('sk-or-')) {
       const isGroq = key.startsWith('gsk_');
       url = isGroq ? 'https://api.groq.com/openai/v1/chat/completions' : 'https://openrouter.ai/api/v1/chat/completions';
       headers['Authorization'] = 'Bearer ' + key;
@@ -465,13 +478,18 @@
     }
 
     let res;
+    // Timeout duro: sin esto, si la IA no responde, askGemini queda colgado para siempre y
+    // _cmdBusy nunca se libera → JARVIS bloquea TODOS los comandos siguientes ("procesando…").
+    const _aiCtrl = new AbortController();
+    const _aiTout = setTimeout(() => _aiCtrl.abort(), 20000);
     try {
-      res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+      res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: _aiCtrl.signal });
     } catch (e) {
-      // fetch lanzó antes de llegar al servidor: red caída o CORS bloqueado
-      if (typeof showToast === 'function') showToast('🤖 No se pudo contactar a la IA (red o CORS): ' + e.message, 8000);
+      // fetch lanzó antes de llegar al servidor: red caída, CORS bloqueado, o timeout (abort)
+      const msg = e.name === 'AbortError' ? 'la IA tardó demasiado (timeout)' : ('red o CORS: ' + e.message);
+      if (typeof showToast === 'function') showToast('🤖 No se pudo contactar a la IA (' + msg + ')', 8000);
       throw e;
-    }
+    } finally { clearTimeout(_aiTout); }
     if (!res.ok) {
       let detail = '';
       try {
