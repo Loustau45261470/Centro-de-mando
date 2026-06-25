@@ -195,34 +195,35 @@ const GM_TREE_NODE_W = 124;
 const GM_TREE_CAT_COLOR = { cuerpo: '--c-salud', mente: '--c-conocimiento', finanzas: '--c-finanzas', espiritu: '--c-jarvis', vinculos: '--c-vida', trabajo: '--c-ia', patrimonio: '--accent', cross: '--hud-bright' };
 let _gmTreeTx = 0, _gmTreeTy = 0, _gmTreeScale = 1, _gmTreeW = 0, _gmTreeH = 0;
 // Íconos SVG de línea (estilo HUD/RPG) — reemplazan los emojis.
+// Emblemas SÓLIDOS (estilo insignia/RPG) — fill por defecto; algunos paths internos llevan stroke propio.
 const GM_ICONS = {
-  strength: '<path d="M3 9v6M6 7v10M18 7v10M21 9v6M6 12h12"/>',
-  combat: '<path d="M4 4l9 9M4 8V4h4M20 4l-9 9M20 8V4h-4M14 14l4 4-2 2-4-4M10 14l-4 4 2 2 4-4"/>',
-  nutrition: '<path d="M5 19C6 11 11 5 19 5c0 8-5 14-13 14M5 19c3-4 7-7 11-8"/>',
-  endurance: '<path d="M13 2L5 13h6l-2 9 10-13h-6z"/>',
-  intellect: '<path d="M4 5h7v15H4zM20 5h-7v15h7z"/>',
-  focus: '<path d="M12 4a8 8 0 100 16 8 8 0 000-16M12 9a3 3 0 100 6 3 3 0 000-6"/>',
-  mind: '<path d="M12 3l8 6-8 12-8-12zM4 9h16M12 3v18"/>',
-  economist: '<path d="M4 4v16h16M7 15l4-4 3 2 5-6"/>',
-  ledger: '<path d="M6 3h9l3 3v15H6zM9 9h6M9 12h6M9 15h4"/>',
-  faith: '<path d="M10 3h4v5h5v4h-5v9h-4v-9H5V8h5z"/>',
-  love: '<path d="M12 20S4 14 4 9a4 4 0 018-1 4 4 0 018 1c0 5-8 11-8 11z"/>',
-  family: '<path d="M8 5a3 3 0 100 6 3 3 0 000-6M16 6a2.5 2.5 0 100 5 2.5 2.5 0 000-5M3 20c0-3 2-5 5-5s5 2 5 5M14 20c0-2 2-4 3.5-4S21 18 21 20"/>',
-  cat: '<path d="M5 4l3 5M19 4l-3 5M5 9c0 6 3 11 7 11s7-5 7-11c0-2-3-3-7-3S5 7 5 9zM9 13h.01M15 13h.01"/>',
-  execution: '<path d="M14 3l7 7-3 3-7-7zM11 6l-8 8 3 3 8-8"/>',
-  responsibility: '<path d="M12 4a8 8 0 100 16 8 8 0 000-16M12 8v4l3 2"/>',
-  tools: '<path d="M15 5a4 4 0 00-5 5l-7 7 3 3 7-7a4 4 0 005-5l-3 3-2-2z"/>',
-  wealth: '<path d="M6 3h12l3 6-9 12L3 9zM3 9h18M9 3L6 9l6 12 6-12-3-6"/>',
-  crown: '<path d="M3 17l1.5-9 5 5L12 5l2.5 8 5-5L21 17z"/>',
-  weapon: '<path d="M12 4a8 8 0 100 16 8 8 0 000-16M12 2v4M12 18v4M2 12h4M18 12h4"/>',
-  license: '<path d="M6 3h12v18l-6-3-6 3zM12 6a3 3 0 100 6 3 3 0 000-6"/>',
-  temperance: '<path d="M12 3l7 3v6c0 5-7 9-7 9s-7-4-7-9V6z"/>',
-  graduate: '<path d="M2 8l10-4 10 4-10 4zM6 10v5c0 1 3 3 6 3s6-2 6-3v-5"/>',
-  business: '<path d="M7 7h10v10H7zM10 10h4v4h-4zM10 4v3M14 4v3M10 17v3M14 17v3M4 10h3M4 14h3M17 10h3M17 14h3"/>',
-  medal: '<path d="M9 3l3 7 3-7M12 21a5 5 0 100-10 5 5 0 000 10M12 14l1 1"/>',
-  home: '<path d="M4 11l8-7 8 7M6 10v9h12v-9M10 19v-5h4v5"/>',
-  star: '<path d="M12 3l2.5 6 6.5.5-5 4.2 1.7 6.3L12 18l-5.7 3.3 1.7-6.3-5-4.2L9.5 9z"/>',
-  integrity: '<path d="M12 21V7M12 21c-4 0-6.5-3-6.5-6.5M12 21c4 0 6.5-3 6.5-6.5M9 13c-2 0-3-1.5-3-3.5M15 13c2 0 3-1.5 3-3.5"/>',
+  strength: '<path d="M2 9.5h2.2v5H2zM4.2 8.3h2v7.4h-2zM17.8 8.3h2v7.4h-2zM20 9.5h2.2v5H20zM6 10.8h12v2.4H6z"/>',
+  combat: '<path d="M14.8 3.2l2 2-7.6 7.6-2-2zM4.4 13.6l-1.2 1.2 3.4 3.4 1.2-1.2zM9.2 3.2l-2 2 7.6 7.6 2-2zM19.6 13.6l1.2 1.2-3.4 3.4-1.2-1.2z"/>',
+  nutrition: '<path d="M20.5 3.5c.5 9-6.2 17-16.5 17-.4-9.5 6.5-17 16.5-17z"/><path fill="none" stroke="currentColor" stroke-width="1.3" stroke-opacity=".55" d="M6 18C9.5 13 14 9.5 18.5 7.5"/>',
+  endurance: '<path d="M13.5 2L4 14.2h6.3L8 22l10.5-13.5H12z"/>',
+  intellect: '<path d="M3 4.6l8.2 1.5v14.3L3 18.9zM21 4.6l-8.2 1.5v14.3l8.2-1.4z"/>',
+  focus: '<path fill-rule="evenodd" d="M12 3a9 9 0 100 18 9 9 0 000-18zm0 4.4a4.6 4.6 0 100 9.2 4.6 4.6 0 000-9.2z"/><circle cx="12" cy="12" r="1.7"/>',
+  mind: '<path d="M12 1.8l7.6 6.4L12 22.2 4.4 8.2z"/><path fill="none" stroke="#0a1220" stroke-width="1.2" d="M5 8.4h14M12 2.2v19"/>',
+  economist: '<path d="M3.4 13h3.1v7H3.4zM10.5 8.8h3.1V20h-3.1zM17.5 4.6h3.1V20h-3.1z"/>',
+  ledger: '<path fill-rule="evenodd" d="M6 2.5h8.2L18.5 7v14.5H6zm3 6.5h6.5v1.6H9zm0 3.4h6.5v1.6H9zm0 3.4h4.6v1.6H9z"/>',
+  faith: '<path d="M10 2h4v5.6h5.6v4H14V22h-4V11.6H4.4v-4H10z"/>',
+  love: '<path d="M12 21.4C4.9 16 2.8 12 2.8 8.5 2.8 5.8 4.9 3.7 7.5 3.7c1.8 0 3.4.9 4.5 2.5 1.1-1.6 2.7-2.5 4.5-2.5 2.6 0 4.7 2.1 4.7 4.8 0 3.5-2.1 7.5-9.2 12.9z"/>',
+  family: '<path d="M8 4a3.2 3.2 0 100 6.4A3.2 3.2 0 008 4zM16.4 5a2.6 2.6 0 100 5.2 2.6 2.6 0 000-5.2zM2.2 20.5c0-3.4 2.4-5.8 5.8-5.8s5.8 2.4 5.8 5.8zM14.4 20.5c0-2.4 1.7-4.4 4-4.4s4 2 4 4.4z"/>',
+  cat: '<path d="M3.6 3.2l3.8 5.2h9.2l3.8-5.2-1.5 8.2c0 5.2-3.2 8.8-6.9 8.8s-6.9-3.6-6.9-8.8z"/><circle cx="9.4" cy="12.4" r="1.05" fill="#0a1220"/><circle cx="14.6" cy="12.4" r="1.05" fill="#0a1220"/>',
+  execution: '<path d="M14 1.8l8.2 8.2-3.4 3.4-8.2-8.2zM9.6 6.2L1.4 15l3.6 3.6 8.6-8.2z"/>',
+  responsibility: '<path fill-rule="evenodd" d="M12 3a9 9 0 100 18 9 9 0 000-18zm0 3a6 6 0 100 12 6 6 0 000-12z"/><path d="M11 7.4h2v5.2l3.4 2-1 1.7-4.4-2.6z"/>',
+  tools: '<path fill-rule="evenodd" d="M13.6 1.8l.6 2.6 2.4 1 2.3-1.4 1.9 1.9-1.4 2.3 1 2.4 2.6.6v2.6l-2.6.6-1 2.4 1.4 2.3-1.9 1.9-2.3-1.4-2.4 1-.6 2.6h-2.6l-.6-2.6-2.4-1-2.3 1.4-1.9-1.9 1.4-2.3-1-2.4L1.6 13.4v-2.6l2.6-.6 1-2.4L3.8 5.5l1.9-1.9 2.3 1.4 2.4-1 .6-2.6zM12 8.6a3.4 3.4 0 100 6.8 3.4 3.4 0 000-6.8z"/>',
+  wealth: '<path d="M6 2.6h12L21.8 9 12 21.6 2.2 9z"/><path fill="none" stroke="#0a1220" stroke-width="1.2" d="M2.4 9h19.2M9 2.8L6 9l6 12.4L18 9l-3-6.2"/>',
+  crown: '<path d="M2.4 18.2l2-10.8 4.8 4.9L12 3.8l2.8 8.5 4.8-4.9 2 10.8zM4 19.6h16V22H4z"/>',
+  weapon: '<path fill-rule="evenodd" d="M12 4a8 8 0 100 16 8 8 0 000-16zm0 2.4a5.6 5.6 0 100 11.2 5.6 5.6 0 000-11.2z"/><path d="M11 1.4h2v4.2h-2zM11 18.4h2v4.2h-2zM1.4 11h4.2v2H1.4zM18.4 11h4.2v2h-4.2z"/><circle cx="12" cy="12" r="1.7"/>',
+  license: '<path fill-rule="evenodd" d="M6 2.4h12v15.2l-6 4-6-4zm6 3.6a3.2 3.2 0 100 6.4 3.2 3.2 0 000-6.4z"/>',
+  temperance: '<path d="M12 1.8l8.4 3.2v6.6c0 6.8-8.4 11-8.4 11s-8.4-4.2-8.4-11V5z"/><path fill="none" stroke="#0a1220" stroke-width="1.6" d="M8.6 12l2.4 2.4 4.4-4.6"/>',
+  graduate: '<path d="M2 8l10-4.2L22 8l-10 4.2z"/><path d="M5.4 10.4v4.4c0 1.4 3 3.4 6.6 3.4s6.6-2 6.6-3.4v-4.4L12 13.4z"/><path d="M21 8v5.4l-1 .2V8z"/>',
+  business: '<path fill-rule="evenodd" d="M6.4 6.4h11.2v11.2H6.4zm3.6 3.6h4v4h-4z"/><path d="M8.8 2.6h1.5v3.6H8.8zM13.7 2.6h1.5v3.6h-1.5zM8.8 17.8h1.5v3.6H8.8zM13.7 17.8h1.5v3.6h-1.5zM2.6 8.8h3.6v1.5H2.6zM2.6 13.7h3.6v1.5H2.6zM17.8 8.8h3.6v1.5h-3.6zM17.8 13.7h3.6v1.5h-3.6z"/>',
+  medal: '<path d="M9 2.5l2.6 6 1.5-.6L11 2.2zM15 2.5l-2.6 6-1.5-.6L13 2.2z"/><path fill-rule="evenodd" d="M12 8.5a6 6 0 100 12 6 6 0 000-12zm0 3a3 3 0 100 6 3 3 0 000-6z"/>',
+  home: '<path d="M12 2.2L21.8 11H19v9.4h-5.2v-5.2h-3.6v5.2H5V11H2.2z"/>',
+  star: '<path d="M12 1.8l2.9 7 7.5.6-5.7 4.9 1.8 7.3L12 17.7 5.5 21.6l1.8-7.3L1.6 9.4l7.5-.6z"/>',
+  integrity: '<circle cx="12" cy="12" r="2.4"/><g fill="none" stroke="currentColor" stroke-width="1.5"><ellipse cx="12" cy="12" rx="10" ry="4.3"/><ellipse cx="12" cy="12" rx="10" ry="4.3" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="10" ry="4.3" transform="rotate(120 12 12)"/></g>',
 };
 const GM_NODE_ICON = {
   hombre_de_hierro: 'strength', combatiente: 'combat', saludable: 'nutrition', resistente: 'endurance', estudiante: 'intellect', alerta: 'focus', sereno: 'mind', aprendiz_de_capital: 'economist', ordenado: 'ledger', creyente: 'faith', atento: 'love', hijo_presente_n: 'family', protector_felino: 'cat', hacedor: 'execution', confiable: 'responsibility', aprendiz: 'tools',
@@ -235,7 +236,7 @@ const GM_NODE_ICON = {
   protector: 'temperance', estratega_total: 'economist', disciplinado: 'focus', proveedor: 'home', resiliente: 'faith', visionario: 'tools', sobrio: 'temperance', lider_silencioso: 'crown', inquebrantable_total: 'mind',
   hombre_de_familia: 'home', polimata: 'star', guerrero_sabio: 'combat', hombre_integro: 'integrity',
 };
-function gmNodeSvg(n) { return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${GM_ICONS[GM_NODE_ICON[n.id]] || GM_ICONS.star}</svg>`; }
+function gmNodeSvg(n) { return `<svg viewBox="0 0 24 24" fill="currentColor" stroke-linejoin="round">${GM_ICONS[GM_NODE_ICON[n.id]] || GM_ICONS.star}</svg>`; }
 const GM_TIER_LABELS = { 0: ['T0', 'INICIADO'], 1: ['T1', 'PROFESIONAL'], 1.5: ['T1.5', 'MAESTRÍA'], 2: ['T2', 'TECHO'], 2.5: ['T2.5', 'COMBINACIÓN'], 3: ['T3', 'CRUZADA'], 4: ['T4', 'CONVERGENCIA'], 5: ['T5', 'CIMA'] };
 // Layout automático: filas por tier (Tier 5 arriba), x por categoría en la base y promedio de los
 // nodos previos en los tiers de combinación (las uniones convergen sobre sus padres).
@@ -277,16 +278,17 @@ function gmTreeRender() {
   const W = Math.max(...Object.values(pos).map(p => p.x)) + GM_TREE_NODE_W + 40;
   const H = Math.max(...Object.values(pos).map(p => p.y)) + 170;
   _gmTreeW = W; _gmTreeH = H;
-  // conectores curvos (parent abajo → child arriba)
-  let paths = '';
+  // conectores curvos (padre arriba → hijo abajo) + partículas de energía en activos
+  let paths = '', sparks = '', pi = 0;
   GM_TREE_NODES.forEach(n => ((n.requires && n.requires.nodes) || []).forEach(pid => {
     const p = pos[pid], c = pos[n.id]; if (!p || !c) return;
     const on = unlocked.has(n.id) && unlocked.has(pid);
-    const x1 = p.x + cx, y1 = p.y + MEDAL - 6, x2 = c.x + cx, y2 = c.y + 6;   // padre (arriba) → hijo (abajo)
-    const my = (y1 + y2) / 2;
-    paths += `<path d="M ${x1} ${y1} C ${x1} ${my}, ${x2} ${my}, ${x2} ${y2}" class="gm-tpath${on ? ' on' : ''}" style="${on ? '--pc:var(' + (GM_TREE_CAT_COLOR[n.cat] || '--accent') + ')' : ''}"/>`;
+    const x1 = p.x + cx, y1 = p.y + MEDAL - 6, x2 = c.x + cx, y2 = c.y + 6;
+    const my = (y1 + y2) / 2, id = 'gmp' + (pi++), col = GM_TREE_CAT_COLOR[n.cat] || '--accent';
+    paths += `<path id="${id}" d="M ${x1} ${y1} C ${x1} ${my}, ${x2} ${my}, ${x2} ${y2}" class="gm-tpath${on ? ' on' : ''}" style="${on ? '--pc:var(' + col + ')' : ''}"/>`;
+    if (on) sparks += `<circle class="gm-tspark" r="2.6" style="--pc:var(${col})"><animateMotion dur="${(2 + (pi % 5) * 0.3).toFixed(2)}s" repeatCount="indefinite" rotate="auto"><mpath href="#${id}"/></animateMotion></circle>`;
   }));
-  // medallones
+  // medallones data-core
   let nodes = '';
   GM_TREE_NODES.forEach(n => {
     const p = pos[n.id]; if (!p) return;
@@ -295,26 +297,29 @@ function gmTreeRender() {
     const reqTxt = ((n.requires && n.requires.metrics) || []).map(gmTreeMetricLabel).join(' · ');
     const tier = String(n.tier).replace('.', '·');
     const cls = on ? 'on' : (claimable ? 'claim' : 'off');
-    nodes += `<div class="gm-tnode ${cls}" style="left:${p.x}px;top:${p.y}px;--nc:var(${GM_TREE_CAT_COLOR[n.cat] || '--accent'})">
+    nodes += `<div class="gm-tnode ${cls}" style="left:${p.x}px;top:${p.y}px;--nc:var(${GM_TREE_CAT_COLOR[n.cat] || '--accent'})" onmouseenter="gmTreeHover('${n.id}')" onmouseleave="gmTreeHoverOut()" onclick="event.stopPropagation();gmTreeHover('${n.id}')">
       <div class="gm-tn-medal">
+        <span class="gm-tn-bk tl"></span><span class="gm-tn-bk tr"></span><span class="gm-tn-bk bl"></span><span class="gm-tn-bk br"></span>
         <span class="gm-tn-ring"></span><span class="gm-tn-ring2"></span>
-        <span class="gm-tn-core"><span class="gm-tn-ico">${gmNodeSvg(n)}</span></span>
+        <span class="gm-tn-core"><span class="gm-tn-scan"></span><span class="gm-tn-ico">${gmNodeSvg(n)}</span></span>
         <span class="gm-tn-tier">T${tier}</span>
-        ${on ? '<span class="gm-tn-badge">✓</span>' : (n.manual ? '<span class="gm-tn-badge lock">◈</span>' : '<span class="gm-tn-badge lock">🔒</span>')}
+        ${on ? '<span class="gm-tn-badge">✓</span>' : (claimable ? '<span class="gm-tn-badge rdy">!</span>' : '<span class="gm-tn-badge lock">' + (n.manual ? '◈' : '✕') + '</span>')}
       </div>
       <div class="gm-tn-name">${_gmEsc(n.name)}</div>
       ${on ? '' : `<div class="gm-tn-req">${_gmEsc(reqTxt || (n.requires.nodes && n.requires.nodes.length ? 'unir ramas' : 'manual'))}</div>`}
-      ${claimable ? `<button class="gm-tn-claim" onclick="event.stopPropagation();gmClaimNode('${n.id}')">⟡ Reclamar</button>` : ''}
+      ${claimable ? `<button class="gm-tn-claim" onclick="event.stopPropagation();gmClaimNode('${n.id}')">⟡ RECLAMAR</button>` : ''}
     </div>`;
   });
+  // estratos por tier + etiquetas
   const tierY = {}; GM_TREE_NODES.forEach(n => { if (pos[n.id]) tierY[n.tier] = pos[n.id].y; });
-  let labels = '';
+  let strata = '', labels = '', si = 0;
   Object.keys(GM_TIER_LABELS).forEach(t => {
     const ty = tierY[t]; if (ty == null) return; const L = GM_TIER_LABELS[t];
-    labels += `<div class="gm-tier-label" style="top:${ty + 18}px"><span class="gm-tier-num">${L[0]}</span><span class="gm-tier-name">${L[1]}</span></div>`;
+    strata += `<div class="gm-tier-band${si++ % 2 ? ' alt' : ''}" style="top:${ty - 30}px;height:${MEDAL + 56}px;width:${W}px"></div>`;
+    labels += `<div class="gm-tier-label" style="top:${ty + 8}px"><span class="gm-tier-num">${L[0]}</span><span class="gm-tier-name">${L[1]}</span></div>`;
   });
   world.style.width = W + 'px'; world.style.height = H + 'px';
-  world.innerHTML = `<svg class="gm-tree-svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${paths}</svg>${labels}${nodes}`;
+  world.innerHTML = `${strata}<svg class="gm-tree-svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${paths}${sparks}</svg>${labels}${nodes}`;
   const cnt = document.getElementById('gm-tree-counter');
   if (cnt) cnt.textContent = unlocked.size + ' / ' + GM_TREE_NODES.length + ' desbloqueadas';
 }
@@ -369,6 +374,24 @@ function gmOpenTree() {
   requestAnimationFrame(() => requestAnimationFrame(gmTreeFit));
 }
 function gmCloseTree() { const ov = document.getElementById('gm-tree-overlay'); if (ov) ov.classList.remove('show'); }
+function gmTreeHover(id) {
+  const el = document.getElementById('gm-tree-detail'); if (!el) return;
+  const n = GM_TREE_NODES.find(x => x.id === id); if (!n) return;
+  const on = ((GM.tree && GM.tree.unlocked) || []).includes(id);
+  const claimable = !on && n.manual && gmTreeReqMet(n, new Set((GM.tree && GM.tree.unlocked) || [])) && !((GM.tree && GM.tree.claimed) || []).includes(id);
+  const catName = (GM_CAT_META[n.cat] && GM_CAT_META[n.cat].name) || (n.cat === 'patrimonio' ? 'Patrimonio' : n.cat === 'cross' ? 'Suprema' : n.cat);
+  const reqM = ((n.requires && n.requires.metrics) || []).map(gmTreeMetricLabel).join(' · ');
+  const reqN = ((n.requires && n.requires.nodes) || []).map(pid => { const m = GM_TREE_NODES.find(x => x.id === pid); return m ? m.name : pid; });
+  const status = on ? '● ACTIVA' : (claimable ? '◈ LISTA PARA RECLAMAR' : '○ BLOQUEADA');
+  el.style.setProperty('--nc', 'var(' + (GM_TREE_CAT_COLOR[n.cat] || '--accent') + ')');
+  el.className = 'show' + (on ? ' on' : '');
+  el.innerHTML = `<div class="gm-td-h"><span class="gm-td-tier">TIER ${String(n.tier)}</span><span class="gm-td-status">${status}</span></div>
+    <div class="gm-td-name">${_gmEsc(n.name)}</div>
+    <div class="gm-td-cat">${_gmEsc(catName)}${n.manual ? ' · manual' : ''}</div>
+    ${reqM ? `<div class="gm-td-req"><b>REQUIERE</b>${_gmEsc(reqM)}</div>` : ''}
+    ${reqN.length ? `<div class="gm-td-req"><b>UNE</b>${_gmEsc(reqN.join('  +  '))}</div>` : ''}`;
+}
+function gmTreeHoverOut() { const el = document.getElementById('gm-tree-detail'); if (el && !('ontouchstart' in window)) el.classList.remove('show'); }
 function gmClaimNode(id) {
   GM.tree.claimed = GM.tree.claimed || [];
   if (!GM.tree.claimed.includes(id)) GM.tree.claimed.push(id);
