@@ -187,29 +187,65 @@ function gmRenderTree() {
   return `<div class="gm-card card"><div class="gm-card-h"><span>Árbol de habilidades</span><button class="gm-link" onclick="gmOpenTree()">Abrir (${unl}/${total})</button></div>
     <div class="gm-empty">Desbloqueá habilidades especiales combinando entrenamientos, logros y rachas. Las ramas se unen.</div></div>`;
 }
+const GM_TREE_NODE_W = 116;
+const GM_TREE_CAT_COLOR = { cuerpo: '--c-salud', mente: '--c-conocimiento', finanzas: '--c-finanzas', espiritu: '--c-jarvis', vinculos: '--c-vida', trabajo: '--c-ia', patrimonio: '--accent', cross: '--accent' };
+// Layout automático: filas por tier (Tier 5 arriba), x por categoría en la base y promedio de los
+// nodos previos en los tiers de combinación (así las uniones convergen sobre sus padres).
+function gmTreeLayout() {
+  const ROW_H = 132, MINGAP = GM_TREE_NODE_W + 18, CATW = 250;
+  const catX = { cuerpo: 0, mente: 1, finanzas: 2, patrimonio: 3, espiritu: 4, vinculos: 5, trabajo: 6, cross: 3 };
+  const tiers = [...new Set(GM_TREE_NODES.map(n => n.tier))].sort((a, b) => a - b);
+  const maxRow = tiers.length - 1;
+  const pos = {};
+  tiers.forEach(t => {
+    const row = tiers.indexOf(t);
+    const y = (maxRow - row) * ROW_H + 16;
+    const nodesT = GM_TREE_NODES.filter(n => n.tier === t);
+    nodesT.forEach(n => {
+      const pre = ((n.requires && n.requires.nodes) || []).map(id => pos[id]).filter(Boolean);
+      const x = pre.length ? pre.reduce((a, p) => a + p.x, 0) / pre.length : (catX[n.cat] != null ? catX[n.cat] : 3) * CATW;
+      pos[n.id] = { x, y };
+    });
+    const arr = nodesT.map(n => pos[n.id]).sort((a, b) => a.x - b.x);
+    for (let i = 1; i < arr.length; i++) if (arr[i].x - arr[i - 1].x < MINGAP) arr[i].x = arr[i - 1].x + MINGAP;
+  });
+  const minX = Math.min(...Object.values(pos).map(p => p.x));
+  Object.values(pos).forEach(p => p.x -= minX - 16);
+  return pos;
+}
+function gmTreeMetricLabel(c) {
+  if (c.metric === 'patrimonio') return '$' + (c.value / 1000000) + 'M';
+  const cur = gmMetric(c.metric);
+  if (c.metric.indexOf('lvl_') === 0) return 'Nv ' + Math.min(cur, c.value) + '/' + c.value;
+  return Math.min(cur, c.value) + '/' + c.value;
+}
 function gmOpenTree() {
   const ov = document.getElementById('gm-tree-overlay'), body = document.getElementById('gm-tree-body');
   if (!ov || !body) return;
   const unlocked = new Set((GM.tree && GM.tree.unlocked) || []);
   const claimed = new Set((GM.tree && GM.tree.claimed) || []);
-  const W = Math.max(...GM_TREE_NODES.map(n => n.pos.x)) + 170;
-  const H = Math.max(...GM_TREE_NODES.map(n => n.pos.y)) + 120;
+  const pos = gmTreeLayout();
+  const cx = GM_TREE_NODE_W / 2;
+  const W = Math.max(...Object.values(pos).map(p => p.x)) + GM_TREE_NODE_W + 24;
+  const H = Math.max(...Object.values(pos).map(p => p.y)) + 100;
   let lines = '';
   GM_TREE_NODES.forEach(n => ((n.requires && n.requires.nodes) || []).forEach(pid => {
-    const p = GM_TREE_NODES.find(x => x.id === pid); if (!p) return;
+    const p = pos[pid], c = pos[n.id]; if (!p || !c) return;
     const on = unlocked.has(n.id) && unlocked.has(pid);
-    lines += `<line x1="${p.pos.x + 56}" y1="${p.pos.y + 64}" x2="${n.pos.x + 56}" y2="${n.pos.y}" class="gm-tline${on ? ' on' : ''}"/>`;
+    lines += `<line x1="${p.x + cx}" y1="${p.y}" x2="${c.x + cx}" y2="${c.y + 64}" class="gm-tline${on ? ' on' : ''}"/>`;
   }));
   let nodes = '';
   GM_TREE_NODES.forEach(n => {
+    const p = pos[n.id]; if (!p) return;
     const on = unlocked.has(n.id);
     const reqOk = gmTreeReqMet(n, unlocked);
     const claimable = !on && n.manual && reqOk && !claimed.has(n.id);
-    const reqTxt = ((n.requires && n.requires.metrics) || []).map(c => `${Math.min(gmMetric(c.metric), c.value)}/${c.value}`).join(' · ');
-    nodes += `<div class="gm-tnode${on ? ' on' : ''}${n.manual ? ' manual' : ''}" style="left:${n.pos.x}px;top:${n.pos.y}px" title="${_gmEsc(n.desc)}">
+    const reqTxt = ((n.requires && n.requires.metrics) || []).map(gmTreeMetricLabel).join(' · ');
+    const tip = (n.requires && n.requires.nodes && n.requires.nodes.length) ? 'Une: ' + n.requires.nodes.join(', ') + (reqTxt ? ' · ' + reqTxt : '') : (reqTxt || (n.manual ? 'manual' : ''));
+    nodes += `<div class="gm-tnode${on ? ' on' : ''}${n.manual ? ' manual' : ''}" style="left:${p.x}px;top:${p.y}px;--nc:var(${GM_TREE_CAT_COLOR[n.cat] || '--accent'})" title="${_gmEsc(n.name + ' — ' + tip)}">
       <span class="gm-tnode-ico">${n.icon}</span>
       <span class="gm-tnode-name">${_gmEsc(n.name)}</span>
-      ${on ? '<span class="gm-tnode-on">✓ desbloqueada</span>' : `<span class="gm-tnode-req">${_gmEsc(reqTxt || (n.manual ? 'manual' : ''))}</span>`}
+      ${on ? '<span class="gm-tnode-on">✓</span>' : `<span class="gm-tnode-req">${_gmEsc(reqTxt || (n.manual ? 'manual' : 'unir ramas'))}</span>`}
       ${claimable ? `<button class="gm-tnode-claim" onclick="gmClaimNode('${n.id}')">Reclamar</button>` : ''}
     </div>`;
   });
