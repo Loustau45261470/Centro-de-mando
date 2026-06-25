@@ -12,6 +12,8 @@
   }
   let enabled     = localStorage.getItem('jarvis_enabled') === '1';
   let currentAudio = null;
+  // [DIAG] visibilidad temporal de la reproducción de audio — quitar tras diagnosticar
+  function _dbg(msg) { if (typeof showToast === 'function') showToast('🎙️ ' + msg, 7000); }
 
   async function speakElevenLabs(text) {
     // Cache de audio: cada frase única se genera una sola vez en la vida (ahorra cuota de ElevenLabs)
@@ -43,9 +45,11 @@
         await c.put(cacheUrl, new Response(blob, { headers: { 'Content-Type': 'audio/mpeg' } }));
       } catch(e) {}
     }
+    _dbg('blob ' + (blob && blob.size) + 'b ' + (blob && blob.type));   // [DIAG]
     const url  = URL.createObjectURL(blob);
     if (currentAudio) { try { currentAudio.pause(); URL.revokeObjectURL(currentAudio.src); } catch(e){} }
     const audio = currentAudio = new Audio(url);
+    audio.volume = 1;
     // Esperar a que termine de sonar: así isSpeaking() es correcto durante toda la reproducción
     // y se libera el ObjectURL (evita memory leak por cada frase).
     await new Promise((resolve, reject) => {
@@ -54,8 +58,11 @@
       const to = setTimeout(done, 60000);   // hard cap: jamás colgar isSpeaking() para siempre
       audio.onended = done;
       audio.onpause = done;   // interrumpido por una nueva frase o por stopSpeaking()
-      audio.onerror = done;
-      audio.play().catch(err => { if (settled) return; settled = true; clearTimeout(to); try { URL.revokeObjectURL(url); } catch(e){} reject(err); });
+      audio.onerror = () => { _dbg('audio.onerror code=' + (audio.error && audio.error.code)); done(); };   // [DIAG]
+      audio.play().then(() => _dbg('play() arrancó · dur=' + (isFinite(audio.duration) ? audio.duration.toFixed(1) : '?'))).catch(err => {   // [DIAG]
+        _dbg('play() RECHAZÓ: ' + (err && err.name) + ' · ' + (err && err.message));   // [DIAG]
+        if (settled) return; settled = true; clearTimeout(to); try { URL.revokeObjectURL(url); } catch(e){} reject(err);
+      });
     });
   }
 
@@ -65,7 +72,8 @@
   if (window.speechSynthesis) { _loadVoices(); speechSynthesis.onvoiceschanged = _loadVoices; }
 
   function speakBrowser(text) {
-    if (!window.speechSynthesis) return;
+    if (!window.speechSynthesis) { _dbg('speakBrowser: NO hay speechSynthesis'); return; }   // [DIAG]
+    _dbg('speakBrowser invocado · voces=' + _voices.length);   // [DIAG]
     speechSynthesis.cancel();
     const utt = new SpeechSynthesisUtterance(text);
     if (!_voices.length) _loadVoices();
@@ -146,6 +154,7 @@
     try {
       await speakElevenLabs(text);
     } catch (e) {
+      _dbg('speak() catch → browser: ' + (e && e.message));   // [DIAG]
       console.warn('JARVIS ElevenLabs failed, fallback browser:', e.message);
       speakBrowser(text);
     }
