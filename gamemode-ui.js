@@ -194,36 +194,55 @@ function gmRenderTree() {
 const GM_TREE_NODE_W = 124;
 const GM_TREE_CAT_COLOR = { cuerpo: '--c-salud', mente: '--c-conocimiento', finanzas: '--c-finanzas', espiritu: '--c-jarvis', vinculos: '--c-vida', trabajo: '--c-ia', patrimonio: '--accent', cross: '--hud-bright' };
 let _gmTreeTx = 0, _gmTreeTy = 0, _gmTreeScale = 1, _gmTreeW = 0, _gmTreeH = 0;
-// Íconos SVG de línea (estilo HUD/RPG) — reemplazan los emojis.
-// Emblemas SÓLIDOS (estilo insignia/RPG) — fill por defecto; algunos paths internos llevan stroke propio.
+// Iconos estilo "focus icon" (Hearts of Iron IV): marco metálico dorado biselado con
+// remaches + escena interior detallada y multicolor (gradientes metálicos). viewBox 0 0 64 64.
+// Los gradientes viven en GM_TREE_DEFS (un <defs> global inyectado una vez en el árbol).
+const GM_TREE_DEFS = `<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<linearGradient id="gm-rim" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffeaa6"/><stop offset=".42" stop-color="#dba637"/><stop offset=".74" stop-color="#9a6c16"/><stop offset="1" stop-color="#5c3c08"/></linearGradient>
+<radialGradient id="gm-plate" cx=".5" cy=".36" r=".72"><stop offset="0" stop-color="#1c2a3c"/><stop offset=".68" stop-color="#0d1622"/><stop offset="1" stop-color="#060a11"/></radialGradient>
+<linearGradient id="gm-stud" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe9ad"/><stop offset="1" stop-color="#7a4f12"/></linearGradient>
+<linearGradient id="gm-gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffeaa6"/><stop offset=".5" stop-color="#e6b34c"/><stop offset="1" stop-color="#8a5e14"/></linearGradient>
+<linearGradient id="gm-steel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4f8fd"/><stop offset=".5" stop-color="#b2c2d4"/><stop offset="1" stop-color="#56697e"/></linearGradient>
+<linearGradient id="gm-red" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff9d92"/><stop offset=".5" stop-color="#e23b46"/><stop offset="1" stop-color="#7c1620"/></linearGradient>
+<linearGradient id="gm-green" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#bdf0c2"/><stop offset=".5" stop-color="#46b65f"/><stop offset="1" stop-color="#176030"/></linearGradient>
+</defs></svg>`;
+// Marco metálico común: aro dorado biselado + plato hundido + remaches + brillo especular superior.
+function gmFrame() {
+  let studs = '';
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2 - Math.PI / 2;
+    studs += `<circle cx="${(32 + Math.cos(a) * 28).toFixed(1)}" cy="${(32 + Math.sin(a) * 28).toFixed(1)}" r="1.15" fill="url(#gm-stud)"/>`;
+  }
+  return `<circle cx="32" cy="32" r="31" fill="url(#gm-rim)"/><circle cx="32" cy="32" r="31" fill="none" stroke="#3f2a06" stroke-width="1"/><circle cx="32" cy="32" r="25.5" fill="url(#gm-plate)"/><circle cx="32" cy="32" r="25.5" fill="none" stroke="#ffe6a0" stroke-width="1" opacity=".4"/>${studs}<path d="M32 1.5A30.5 30.5 0 0 1 62.5 32" fill="none" stroke="#fff7df" stroke-width="1.4" opacity=".35" stroke-linecap="round"/>`;
+}
 const GM_ICONS = {
-  strength: '<path d="M2 9.5h2.2v5H2zM4.2 8.3h2v7.4h-2zM17.8 8.3h2v7.4h-2zM20 9.5h2.2v5H20zM6 10.8h12v2.4H6z"/>',
-  combat: '<path d="M14.8 3.2l2 2-7.6 7.6-2-2zM4.4 13.6l-1.2 1.2 3.4 3.4 1.2-1.2zM9.2 3.2l-2 2 7.6 7.6 2-2zM19.6 13.6l1.2 1.2-3.4 3.4-1.2-1.2z"/>',
-  nutrition: '<path d="M20.5 3.5c.5 9-6.2 17-16.5 17-.4-9.5 6.5-17 16.5-17z"/><path fill="none" stroke="currentColor" stroke-width="1.3" stroke-opacity=".55" d="M6 18C9.5 13 14 9.5 18.5 7.5"/>',
-  endurance: '<path d="M13.5 2L4 14.2h6.3L8 22l10.5-13.5H12z"/>',
-  intellect: '<path d="M3 4.6l8.2 1.5v14.3L3 18.9zM21 4.6l-8.2 1.5v14.3l8.2-1.4z"/>',
-  focus: '<path fill-rule="evenodd" d="M12 3a9 9 0 100 18 9 9 0 000-18zm0 4.4a4.6 4.6 0 100 9.2 4.6 4.6 0 000-9.2z"/><circle cx="12" cy="12" r="1.7"/>',
-  mind: '<path d="M12 1.8l7.6 6.4L12 22.2 4.4 8.2z"/><path fill="none" stroke="#0a1220" stroke-width="1.2" d="M5 8.4h14M12 2.2v19"/>',
-  economist: '<path d="M3.4 13h3.1v7H3.4zM10.5 8.8h3.1V20h-3.1zM17.5 4.6h3.1V20h-3.1z"/>',
-  ledger: '<path fill-rule="evenodd" d="M6 2.5h8.2L18.5 7v14.5H6zm3 6.5h6.5v1.6H9zm0 3.4h6.5v1.6H9zm0 3.4h4.6v1.6H9z"/>',
-  faith: '<path d="M10 2h4v5.6h5.6v4H14V22h-4V11.6H4.4v-4H10z"/>',
-  love: '<path d="M12 21.4C4.9 16 2.8 12 2.8 8.5 2.8 5.8 4.9 3.7 7.5 3.7c1.8 0 3.4.9 4.5 2.5 1.1-1.6 2.7-2.5 4.5-2.5 2.6 0 4.7 2.1 4.7 4.8 0 3.5-2.1 7.5-9.2 12.9z"/>',
-  family: '<path d="M8 4a3.2 3.2 0 100 6.4A3.2 3.2 0 008 4zM16.4 5a2.6 2.6 0 100 5.2 2.6 2.6 0 000-5.2zM2.2 20.5c0-3.4 2.4-5.8 5.8-5.8s5.8 2.4 5.8 5.8zM14.4 20.5c0-2.4 1.7-4.4 4-4.4s4 2 4 4.4z"/>',
-  cat: '<path d="M3.6 3.2l3.8 5.2h9.2l3.8-5.2-1.5 8.2c0 5.2-3.2 8.8-6.9 8.8s-6.9-3.6-6.9-8.8z"/><circle cx="9.4" cy="12.4" r="1.05" fill="#0a1220"/><circle cx="14.6" cy="12.4" r="1.05" fill="#0a1220"/>',
-  execution: '<path d="M14 1.8l8.2 8.2-3.4 3.4-8.2-8.2zM9.6 6.2L1.4 15l3.6 3.6 8.6-8.2z"/>',
-  responsibility: '<path fill-rule="evenodd" d="M12 3a9 9 0 100 18 9 9 0 000-18zm0 3a6 6 0 100 12 6 6 0 000-12z"/><path d="M11 7.4h2v5.2l3.4 2-1 1.7-4.4-2.6z"/>',
-  tools: '<path fill-rule="evenodd" d="M13.6 1.8l.6 2.6 2.4 1 2.3-1.4 1.9 1.9-1.4 2.3 1 2.4 2.6.6v2.6l-2.6.6-1 2.4 1.4 2.3-1.9 1.9-2.3-1.4-2.4 1-.6 2.6h-2.6l-.6-2.6-2.4-1-2.3 1.4-1.9-1.9 1.4-2.3-1-2.4L1.6 13.4v-2.6l2.6-.6 1-2.4L3.8 5.5l1.9-1.9 2.3 1.4 2.4-1 .6-2.6zM12 8.6a3.4 3.4 0 100 6.8 3.4 3.4 0 000-6.8z"/>',
-  wealth: '<path d="M6 2.6h12L21.8 9 12 21.6 2.2 9z"/><path fill="none" stroke="#0a1220" stroke-width="1.2" d="M2.4 9h19.2M9 2.8L6 9l6 12.4L18 9l-3-6.2"/>',
-  crown: '<path d="M2.4 18.2l2-10.8 4.8 4.9L12 3.8l2.8 8.5 4.8-4.9 2 10.8zM4 19.6h16V22H4z"/>',
-  weapon: '<path fill-rule="evenodd" d="M12 4a8 8 0 100 16 8 8 0 000-16zm0 2.4a5.6 5.6 0 100 11.2 5.6 5.6 0 000-11.2z"/><path d="M11 1.4h2v4.2h-2zM11 18.4h2v4.2h-2zM1.4 11h4.2v2H1.4zM18.4 11h4.2v2h-4.2z"/><circle cx="12" cy="12" r="1.7"/>',
-  license: '<path fill-rule="evenodd" d="M6 2.4h12v15.2l-6 4-6-4zm6 3.6a3.2 3.2 0 100 6.4 3.2 3.2 0 000-6.4z"/>',
-  temperance: '<path d="M12 1.8l8.4 3.2v6.6c0 6.8-8.4 11-8.4 11s-8.4-4.2-8.4-11V5z"/><path fill="none" stroke="#0a1220" stroke-width="1.6" d="M8.6 12l2.4 2.4 4.4-4.6"/>',
-  graduate: '<path d="M2 8l10-4.2L22 8l-10 4.2z"/><path d="M5.4 10.4v4.4c0 1.4 3 3.4 6.6 3.4s6.6-2 6.6-3.4v-4.4L12 13.4z"/><path d="M21 8v5.4l-1 .2V8z"/>',
-  business: '<path fill-rule="evenodd" d="M6.4 6.4h11.2v11.2H6.4zm3.6 3.6h4v4h-4z"/><path d="M8.8 2.6h1.5v3.6H8.8zM13.7 2.6h1.5v3.6h-1.5zM8.8 17.8h1.5v3.6H8.8zM13.7 17.8h1.5v3.6h-1.5zM2.6 8.8h3.6v1.5H2.6zM2.6 13.7h3.6v1.5H2.6zM17.8 8.8h3.6v1.5h-3.6zM17.8 13.7h3.6v1.5h-3.6z"/>',
-  medal: '<path d="M9 2.5l2.6 6 1.5-.6L11 2.2zM15 2.5l-2.6 6-1.5-.6L13 2.2z"/><path fill-rule="evenodd" d="M12 8.5a6 6 0 100 12 6 6 0 000-12zm0 3a3 3 0 100 6 3 3 0 000-6z"/>',
-  home: '<path d="M12 2.2L21.8 11H19v9.4h-5.2v-5.2h-3.6v5.2H5V11H2.2z"/>',
-  star: '<path d="M12 1.8l2.9 7 7.5.6-5.7 4.9 1.8 7.3L12 17.7 5.5 21.6l1.8-7.3L1.6 9.4l7.5-.6z"/>',
-  integrity: '<circle cx="12" cy="12" r="2.4"/><g fill="none" stroke="currentColor" stroke-width="1.5"><ellipse cx="12" cy="12" rx="10" ry="4.3"/><ellipse cx="12" cy="12" rx="10" ry="4.3" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="10" ry="4.3" transform="rotate(120 12 12)"/></g>',
+  strength: '<rect x="20" y="30.3" width="24" height="3.4" rx="1.7" fill="url(#gm-steel)"/><rect x="13.5" y="23.5" width="6.5" height="17" rx="2.2" fill="url(#gm-gold)"/><rect x="44" y="23.5" width="6.5" height="17" rx="2.2" fill="url(#gm-gold)"/><rect x="18.4" y="26.5" width="3.4" height="11" rx="1.7" fill="url(#gm-steel)"/><rect x="42.2" y="26.5" width="3.4" height="11" rx="1.7" fill="url(#gm-steel)"/>',
+  combat: '<g transform="translate(32 33) rotate(45)"><path d="M0 -19 L2.3 -13 L2.3 10 L-2.3 10 L-2.3 -13Z" fill="url(#gm-steel)"/><rect x="-6.5" y="9" width="13" height="3.2" rx="1.2" fill="url(#gm-gold)"/><rect x="-1.8" y="11.5" width="3.6" height="8" rx="1.6" fill="url(#gm-gold)"/></g><g transform="translate(32 33) rotate(-45)"><path d="M0 -19 L2.3 -13 L2.3 10 L-2.3 10 L-2.3 -13Z" fill="url(#gm-steel)"/><rect x="-6.5" y="9" width="13" height="3.2" rx="1.2" fill="url(#gm-gold)"/><rect x="-1.8" y="11.5" width="3.6" height="8" rx="1.6" fill="url(#gm-gold)"/></g>',
+  nutrition: '<path d="M32 13C22 19 20 35 31 50 43 35 42 19 32 13Z" fill="url(#gm-green)"/><path d="M32 18V46" stroke="#0c3a1c" stroke-width="1.4" opacity=".55"/><path d="M32 27 38 22M32 34 39 29M32 27 26 22M32 34 25 29" stroke="#0c3a1c" stroke-width="1.1" opacity=".5"/>',
+  endurance: '<path d="M35 13 L19 35 H29 L26 51 L45 27 H34 Z" fill="url(#gm-gold)"/><path d="M35 13 L19 35 H29 Z" fill="#fff" opacity=".18"/>',
+  intellect: '<path d="M32 22C27 18 19 18 14 20.5V43C19 41 27 41 32 45Z" fill="url(#gm-steel)"/><path d="M32 22C37 18 45 18 50 20.5V43C45 41 37 41 32 45Z" fill="url(#gm-steel)"/><path d="M32 22V45" stroke="#33485e" stroke-width="1.4"/><path d="M18 27H28M18 31H28M18 35H27M36 27H46M36 31H46M36 35H45" stroke="#46586e" stroke-width=".9" opacity=".7"/>',
+  focus: '<circle cx="32" cy="32" r="15" fill="none" stroke="url(#gm-gold)" stroke-width="3"/><circle cx="32" cy="32" r="8.5" fill="none" stroke="url(#gm-steel)" stroke-width="2.5"/><circle cx="32" cy="32" r="3" fill="url(#gm-gold)"/><path d="M32 12V20M32 44V52M12 32H20M44 32H52" stroke="url(#gm-gold)" stroke-width="2.4"/>',
+  mind: '<path d="M38 16C28 14 19 20 19 30C19 35 22 37 22 41V48H37V42C44 40 47 34 45 26 44 21 42 17 38 16Z" fill="url(#gm-steel)"/><path d="M34 24C30 24 28 27 30 30 31.5 32 30 34 28 34" fill="none" stroke="#33485e" stroke-width="1.6"/>',
+  economist: '<rect x="16" y="34" width="6" height="14" rx="1" fill="url(#gm-steel)"/><rect x="26" y="28" width="6" height="20" rx="1" fill="url(#gm-steel)"/><rect x="36" y="22" width="6" height="26" rx="1" fill="url(#gm-gold)"/><path d="M16 30 L26 24 L34 27 L48 15" fill="none" stroke="url(#gm-gold)" stroke-width="2.4" stroke-linejoin="round"/><path d="M43 14 H50 V21" fill="none" stroke="url(#gm-gold)" stroke-width="2.4" stroke-linejoin="round"/>',
+  ledger: '<rect x="18" y="14" width="28" height="36" rx="2.5" fill="url(#gm-gold)"/><rect x="21" y="17" width="22" height="30" rx="1.5" fill="url(#gm-plate)"/><path d="M25 24H39M25 29H39M25 34H35" stroke="#9db0c4" stroke-width="1.6" opacity=".7"/>',
+  faith: '<path d="M28 14H36V26H46V34H36V50H28V34H18V26H28Z" fill="url(#gm-gold)"/><path d="M28 14H36V26H46V34H36V50H28V34H18V26H28Z" fill="none" stroke="#5e3d09" stroke-width=".8"/>',
+  love: '<path d="M32 49C16 38 13 30 13 23 13 17 17 13 23 13 27 13 30 15 32 19 34 15 37 13 41 13 47 13 51 17 51 23 51 30 48 38 32 49Z" fill="url(#gm-red)"/><path d="M22 18C19 19 18 22 19 25" fill="none" stroke="#fff" stroke-width="1.6" opacity=".4"/>',
+  family: '<circle cx="25" cy="22" r="6" fill="url(#gm-steel)"/><path d="M14 48C14 39 19 34 25 34 31 34 36 39 36 48Z" fill="url(#gm-steel)"/><circle cx="43" cy="27" r="4.5" fill="url(#gm-gold)"/><path d="M35 48C35 41 39 37 43 37 47 37 51 41 51 48Z" fill="url(#gm-gold)"/>',
+  cat: '<path d="M16 20 L23 30 H41 L48 20 L46 36C46 44 40 49 32 49 24 49 18 44 18 36Z" fill="url(#gm-steel)"/><circle cx="26" cy="35" r="1.8" fill="#0c1521"/><circle cx="38" cy="35" r="1.8" fill="#0c1521"/><path d="M30 41 32 43 34 41" fill="none" stroke="#0c1521" stroke-width="1.3"/>',
+  execution: '<g transform="rotate(35 32 32)"><rect x="20" y="16" width="24" height="10" rx="2" fill="url(#gm-steel)"/><rect x="29.5" y="24" width="5" height="26" rx="2.2" fill="url(#gm-gold)"/></g>',
+  responsibility: '<circle cx="32" cy="32" r="16" fill="url(#gm-plate)" stroke="url(#gm-gold)" stroke-width="3"/><path d="M32 22V32 L40 36" fill="none" stroke="url(#gm-steel)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="32" cy="32" r="2" fill="url(#gm-gold)"/>',
+  tools: '<path d="M32 14l3 3 4-1 1 4 4 2-2 4 2 4-4 2-1 4-4-1-3 3-3-3-4 1-1-4-4-2 2-4-2-4 4-2 1-4 4 1z" fill="url(#gm-steel)"/><circle cx="32" cy="32" r="6" fill="url(#gm-plate)"/><circle cx="32" cy="32" r="6" fill="none" stroke="url(#gm-gold)" stroke-width="1.6"/>',
+  wealth: '<ellipse cx="24" cy="44" rx="11" ry="3.6" fill="url(#gm-gold)"/><ellipse cx="24" cy="40" rx="11" ry="3.6" fill="url(#gm-gold)"/><ellipse cx="24" cy="36" rx="11" ry="3.6" fill="url(#gm-gold)"/><circle cx="40" cy="26" r="11" fill="url(#gm-gold)" stroke="#7a4f12" stroke-width="1.3"/><path d="M40 20.5v11M43 23h-4a1.8 1.8 0 000 3.6h2a1.8 1.8 0 010 3.6h-4" fill="none" stroke="#7a4f12" stroke-width="1.5"/>',
+  crown: '<path d="M14 44 L17 22 L25 31 L32 18 L39 31 L47 22 L50 44 Z" fill="url(#gm-gold)"/><rect x="14" y="44" width="36" height="5" rx="1.5" fill="url(#gm-gold)"/><circle cx="32" cy="18" r="2.4" fill="url(#gm-red)"/><circle cx="17" cy="22" r="2" fill="url(#gm-red)"/><circle cx="47" cy="22" r="2" fill="url(#gm-red)"/>',
+  weapon: '<g transform="translate(32 32) rotate(45)"><rect x="-1.6" y="-20" width="3.2" height="40" rx="1.2" fill="url(#gm-steel)"/><rect x="-4" y="8" width="8" height="6" rx="1.5" fill="url(#gm-gold)"/></g><g transform="translate(32 32) rotate(-45)"><rect x="-1.6" y="-20" width="3.2" height="40" rx="1.2" fill="url(#gm-steel)"/><rect x="-4" y="8" width="8" height="6" rx="1.5" fill="url(#gm-gold)"/></g>',
+  license: '<path d="M32 13 L48 18 V32 C48 41 41 47 32 51 23 47 16 41 16 32 V18 Z" fill="url(#gm-plate)" stroke="url(#gm-gold)" stroke-width="2.6"/><path d="M32 22l2.6 5.4 6 .8-4.3 4.1 1 5.9-5.3-2.8-5.3 2.8 1-5.9-4.3-4.1 6-.8Z" fill="url(#gm-gold)"/>',
+  temperance: '<rect x="30.5" y="16" width="3" height="30" rx="1.2" fill="url(#gm-gold)"/><path d="M16 22H48" stroke="url(#gm-gold)" stroke-width="2.6"/><circle cx="32" cy="16" r="2.4" fill="url(#gm-gold)"/><path d="M16 22 L11 32 H21 Z" fill="url(#gm-steel)"/><path d="M48 22 L43 32 H53 Z" fill="url(#gm-steel)"/><rect x="26" y="45" width="12" height="3" rx="1.2" fill="url(#gm-gold)"/>',
+  graduate: '<path d="M32 18 L52 26 L32 34 L12 26 Z" fill="url(#gm-gold)"/><path d="M20 30 V40 C20 43 26 46 32 46 38 46 44 43 44 40 V30 L32 35 Z" fill="url(#gm-steel)"/><path d="M52 26 V37" stroke="url(#gm-gold)" stroke-width="1.6"/><circle cx="52" cy="38" r="2.2" fill="url(#gm-red)"/>',
+  business: '<rect x="15" y="24" width="34" height="24" rx="3" fill="url(#gm-steel)"/><path d="M25 24V20a3 3 0 013-3h8a3 3 0 013 3v4" fill="none" stroke="url(#gm-gold)" stroke-width="2.6"/><rect x="15" y="33" width="34" height="3.5" fill="#33485e" opacity=".6"/><rect x="29" y="32" width="6" height="6" rx="1.2" fill="url(#gm-gold)"/>',
+  medal: '<path d="M24 14 L31 30 L26 32 L20 16 Z" fill="url(#gm-red)"/><path d="M40 14 L33 30 L38 32 L44 16 Z" fill="url(#gm-steel)"/><circle cx="32" cy="40" r="11" fill="url(#gm-gold)" stroke="#7a4f12" stroke-width="1.4"/><path d="M32 33l2.2 4.5 5 .7-3.6 3.5.8 4.9-4.4-2.3-4.4 2.3.8-4.9-3.6-3.5 5-.7Z" fill="url(#gm-plate)"/>',
+  home: '<path d="M32 14 L52 31 H47 V49 H17 V31 H12 Z" fill="url(#gm-steel)"/><path d="M32 14 L52 31 H12 Z" fill="url(#gm-gold)"/><rect x="28" y="36" width="8" height="13" rx="1" fill="url(#gm-plate)"/>',
+  star: '<path d="M32 13l5.4 12.6 13.6 1.1-10.3 8.9 3.1 13.3L32 41.8 20.2 49.2l3.1-13.3-10.3-8.9 13.6-1.1Z" fill="url(#gm-gold)"/><path d="M32 13l5.4 12.6L32 28Z" fill="#fff" opacity=".22"/>',
+  integrity: '<circle cx="32" cy="32" r="4" fill="url(#gm-gold)"/><g fill="none" stroke="url(#gm-steel)" stroke-width="2.2"><ellipse cx="32" cy="32" rx="18" ry="7.5"/><ellipse cx="32" cy="32" rx="18" ry="7.5" transform="rotate(60 32 32)"/><ellipse cx="32" cy="32" rx="18" ry="7.5" transform="rotate(120 32 32)"/></g>',
 };
 const GM_NODE_ICON = {
   hombre_de_hierro: 'strength', combatiente: 'combat', saludable: 'nutrition', resistente: 'endurance', estudiante: 'intellect', alerta: 'focus', sereno: 'mind', aprendiz_de_capital: 'economist', ordenado: 'ledger', creyente: 'faith', atento: 'love', hijo_presente_n: 'family', protector_felino: 'cat', hacedor: 'execution', confiable: 'responsibility', aprendiz: 'tools',
@@ -237,7 +256,7 @@ const GM_NODE_ICON = {
   hombre_de_familia: 'home', polimata: 'star', guerrero_sabio: 'combat', hombre_integro: 'integrity',
   lector_casual: 'intellect', lector_entusiasta: 'intellect', amante_libros: 'intellect', lector_supremo: 'crown',
 };
-function gmNodeSvg(n) { return `<svg viewBox="0 0 24 24" fill="currentColor" stroke-linejoin="round">${GM_ICONS[GM_NODE_ICON[n.id]] || GM_ICONS.star}</svg>`; }
+function gmNodeSvg(n) { return `<svg viewBox="0 0 64 64" stroke-linejoin="round">${gmFrame()}${GM_ICONS[GM_NODE_ICON[n.id]] || GM_ICONS.star}</svg>`; }
 const GM_TIER_LABELS = { 0: ['T0', 'INICIADO'], 1: ['T1', 'PROFESIONAL'], 1.5: ['T1.5', 'MAESTRÍA'], 2: ['T2', 'TECHO'], 2.5: ['T2.5', 'COMBINACIÓN'], 3: ['T3', 'CRUZADA'], 4: ['T4', 'CONVERGENCIA'], 5: ['T5', 'CIMA'] };
 // Layout automático: filas por tier (Tier 5 arriba), x por categoría en la base y promedio de los
 // nodos previos en los tiers de combinación (las uniones convergen sobre sus padres).
@@ -320,7 +339,7 @@ function gmTreeRender() {
     labels += `<div class="gm-tier-label" style="top:${ty + 8}px"><span class="gm-tier-num">${L[0]}</span><span class="gm-tier-name">${L[1]}</span></div>`;
   });
   world.style.width = W + 'px'; world.style.height = H + 'px';
-  world.innerHTML = `${strata}<svg class="gm-tree-svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${paths}${sparks}</svg>${labels}${nodes}`;
+  world.innerHTML = `${GM_TREE_DEFS}${strata}<svg class="gm-tree-svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${paths}${sparks}</svg>${labels}${nodes}`;
   const cnt = document.getElementById('gm-tree-counter');
   if (cnt) cnt.textContent = unlocked.size + ' / ' + GM_TREE_NODES.length + ' desbloqueadas';
 }
