@@ -258,23 +258,32 @@ const GM_NODE_ICON = {
 };
 function gmNodeSvg(n) { return `<svg viewBox="0 0 64 64" stroke-linejoin="round">${gmFrame()}${GM_ICONS[GM_NODE_ICON[n.id]] || GM_ICONS.star}</svg>`; }
 const GM_TIER_LABELS = { 0: ['T0', 'INICIADO'], 1: ['T1', 'PROFESIONAL'], 1.5: ['T1.5', 'MAESTRÍA'], 2: ['T2', 'TECHO'], 2.5: ['T2.5', 'COMBINACIÓN'], 3: ['T3', 'CRUZADA'], 4: ['T4', 'CONVERGENCIA'], 5: ['T5', 'CIMA'] };
-// Layout automático: filas por tier (Tier 5 arriba), x por categoría en la base y promedio de los
-// nodos previos en los tiers de combinación (las uniones convergen sobre sus padres).
+// Layout automático: filas por tier (Tier 0 arriba). Cada skill (cadena T0→T1→T1.5) tiene su
+// PROPIA columna, así toda la progresión de un mismo hábito cae en una línea vertical recta.
+// Las raíces sin nodo-prereq se reparten en columnas agrupadas por categoría; los hijos con un
+// solo padre heredan su x exacta (cadena recta) y las uniones se centran sobre sus padres.
 function gmTreeLayout() {
-  const ROW_H = 168, MINGAP = GM_TREE_NODE_W + 14, CATW = 260;
-  const catX = { cuerpo: 0, mente: 1, finanzas: 2, patrimonio: 3, espiritu: 4, vinculos: 5, trabajo: 6, cross: 3 };
+  const ROW_H = 172, COL_W = GM_TREE_NODE_W + 60, MINGAP = GM_TREE_NODE_W + 16;
+  const catOrder = { cuerpo: 0, mente: 1, finanzas: 2, patrimonio: 3, espiritu: 4, vinculos: 5, trabajo: 6, cross: 7 };
+  const parentsOf = n => (n.requires && n.requires.nodes) || [];
+  const idx = id => GM_TREE_NODES.findIndex(n => n.id === id);
+  // Columna dedicada por raíz independiente (sin nodo-prereq), ordenadas por categoría → tier → orden.
+  const roots = GM_TREE_NODES.filter(n => parentsOf(n).length === 0)
+    .sort((a, b) => (catOrder[a.cat] - catOrder[b.cat]) || (a.tier - b.tier) || (idx(a.id) - idx(b.id)));
+  const rootX = {}; roots.forEach((n, i) => rootX[n.id] = i * COL_W);
   const tiers = [...new Set(GM_TREE_NODES.map(n => n.tier))].sort((a, b) => a - b);
-  const maxRow = tiers.length - 1;
   const pos = {};
   tiers.forEach(t => {
     const row = tiers.indexOf(t);
     const y = row * ROW_H + 40;   // Tier 0 (iniciado) arriba → Cima abajo
     const nodesT = GM_TREE_NODES.filter(n => n.tier === t);
     nodesT.forEach(n => {
-      const pre = ((n.requires && n.requires.nodes) || []).map(id => pos[id]).filter(Boolean);
-      const x = pre.length ? pre.reduce((a, p) => a + p.x, 0) / pre.length : (catX[n.cat] != null ? catX[n.cat] : 3) * CATW;
+      const pre = parentsOf(n).map(id => pos[id]).filter(Boolean);
+      const x = parentsOf(n).length === 0 ? (rootX[n.id] || 0)
+        : (pre.length ? pre.reduce((a, p) => a + p.x, 0) / pre.length : 0);
       pos[n.id] = { x, y };
     });
+    // Nudge solo si dos nodos del MISMO tier se solapan (afecta uniones, no las cadenas rectas).
     const arr = nodesT.map(n => pos[n.id]).sort((a, b) => a.x - b.x);
     for (let i = 1; i < arr.length; i++) if (arr[i].x - arr[i - 1].x < MINGAP) arr[i].x = arr[i - 1].x + MINGAP;
   });
