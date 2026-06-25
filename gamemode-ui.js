@@ -191,19 +191,20 @@ function gmRenderTree() {
     <span class="gm-tree-cta-btn">Abrir ›</span>
   </div>`;
 }
-const GM_TREE_NODE_W = 116;
-const GM_TREE_CAT_COLOR = { cuerpo: '--c-salud', mente: '--c-conocimiento', finanzas: '--c-finanzas', espiritu: '--c-jarvis', vinculos: '--c-vida', trabajo: '--c-ia', patrimonio: '--accent', cross: '--accent' };
+const GM_TREE_NODE_W = 124;
+const GM_TREE_CAT_COLOR = { cuerpo: '--c-salud', mente: '--c-conocimiento', finanzas: '--c-finanzas', espiritu: '--c-jarvis', vinculos: '--c-vida', trabajo: '--c-ia', patrimonio: '--accent', cross: '--hud-bright' };
+let _gmTreeTx = 0, _gmTreeTy = 0, _gmTreeScale = 1, _gmTreeW = 0, _gmTreeH = 0;
 // Layout automático: filas por tier (Tier 5 arriba), x por categoría en la base y promedio de los
-// nodos previos en los tiers de combinación (así las uniones convergen sobre sus padres).
+// nodos previos en los tiers de combinación (las uniones convergen sobre sus padres).
 function gmTreeLayout() {
-  const ROW_H = 132, MINGAP = GM_TREE_NODE_W + 18, CATW = 250;
+  const ROW_H = 168, MINGAP = GM_TREE_NODE_W + 14, CATW = 260;
   const catX = { cuerpo: 0, mente: 1, finanzas: 2, patrimonio: 3, espiritu: 4, vinculos: 5, trabajo: 6, cross: 3 };
   const tiers = [...new Set(GM_TREE_NODES.map(n => n.tier))].sort((a, b) => a - b);
   const maxRow = tiers.length - 1;
   const pos = {};
   tiers.forEach(t => {
     const row = tiers.indexOf(t);
-    const y = (maxRow - row) * ROW_H + 16;
+    const y = (maxRow - row) * ROW_H + 30;
     const nodesT = GM_TREE_NODES.filter(n => n.tier === t);
     nodesT.forEach(n => {
       const pre = ((n.requires && n.requires.nodes) || []).map(id => pos[id]).filter(Boolean);
@@ -214,7 +215,7 @@ function gmTreeLayout() {
     for (let i = 1; i < arr.length; i++) if (arr[i].x - arr[i - 1].x < MINGAP) arr[i].x = arr[i - 1].x + MINGAP;
   });
   const minX = Math.min(...Object.values(pos).map(p => p.x));
-  Object.values(pos).forEach(p => p.x -= minX - 16);
+  Object.values(pos).forEach(p => p.x -= minX - 40);
   return pos;
 }
 function gmTreeMetricLabel(c) {
@@ -223,44 +224,106 @@ function gmTreeMetricLabel(c) {
   if (c.metric.indexOf('lvl_') === 0) return 'Nv ' + Math.min(cur, c.value) + '/' + c.value;
   return Math.min(cur, c.value) + '/' + c.value;
 }
-function gmOpenTree() {
-  const ov = document.getElementById('gm-tree-overlay'), body = document.getElementById('gm-tree-body');
-  if (!ov || !body) return;
+// Render del mundo (svg de conectores + medallones). No resetea pan/zoom.
+function gmTreeRender() {
+  const world = document.getElementById('gm-tree-world'); if (!world) return;
   const unlocked = new Set((GM.tree && GM.tree.unlocked) || []);
   const claimed = new Set((GM.tree && GM.tree.claimed) || []);
   const pos = gmTreeLayout();
-  const cx = GM_TREE_NODE_W / 2;
-  const W = Math.max(...Object.values(pos).map(p => p.x)) + GM_TREE_NODE_W + 24;
-  const H = Math.max(...Object.values(pos).map(p => p.y)) + 100;
-  let lines = '';
+  const cx = GM_TREE_NODE_W / 2, MEDAL = 96;
+  const W = Math.max(...Object.values(pos).map(p => p.x)) + GM_TREE_NODE_W + 40;
+  const H = Math.max(...Object.values(pos).map(p => p.y)) + 170;
+  _gmTreeW = W; _gmTreeH = H;
+  // conectores curvos (parent abajo → child arriba)
+  let paths = '';
   GM_TREE_NODES.forEach(n => ((n.requires && n.requires.nodes) || []).forEach(pid => {
     const p = pos[pid], c = pos[n.id]; if (!p || !c) return;
     const on = unlocked.has(n.id) && unlocked.has(pid);
-    lines += `<line x1="${p.x + cx}" y1="${p.y}" x2="${c.x + cx}" y2="${c.y + 64}" class="gm-tline${on ? ' on' : ''}"/>`;
+    const x1 = p.x + cx, y1 = p.y + 4, x2 = c.x + cx, y2 = c.y + MEDAL - 4;
+    const my = (y1 + y2) / 2;
+    paths += `<path d="M ${x1} ${y1} C ${x1} ${my}, ${x2} ${my}, ${x2} ${y2}" class="gm-tpath${on ? ' on' : ''}" style="${on ? '--pc:var(' + (GM_TREE_CAT_COLOR[n.cat] || '--accent') + ')' : ''}"/>`;
   }));
+  // medallones
   let nodes = '';
   GM_TREE_NODES.forEach(n => {
     const p = pos[n.id]; if (!p) return;
     const on = unlocked.has(n.id);
-    const reqOk = gmTreeReqMet(n, unlocked);
-    const claimable = !on && n.manual && reqOk && !claimed.has(n.id);
+    const claimable = !on && n.manual && gmTreeReqMet(n, unlocked) && !claimed.has(n.id);
     const reqTxt = ((n.requires && n.requires.metrics) || []).map(gmTreeMetricLabel).join(' · ');
-    const tip = (n.requires && n.requires.nodes && n.requires.nodes.length) ? 'Une: ' + n.requires.nodes.join(', ') + (reqTxt ? ' · ' + reqTxt : '') : (reqTxt || (n.manual ? 'manual' : ''));
-    nodes += `<div class="gm-tnode${on ? ' on' : ''}${n.manual ? ' manual' : ''}" style="left:${p.x}px;top:${p.y}px;--nc:var(${GM_TREE_CAT_COLOR[n.cat] || '--accent'})" title="${_gmEsc(n.name + ' — ' + tip)}">
-      <span class="gm-tnode-ico">${n.icon}</span>
-      <span class="gm-tnode-name">${_gmEsc(n.name)}</span>
-      ${on ? '<span class="gm-tnode-on">✓</span>' : `<span class="gm-tnode-req">${_gmEsc(reqTxt || (n.manual ? 'manual' : 'unir ramas'))}</span>`}
-      ${claimable ? `<button class="gm-tnode-claim" onclick="gmClaimNode('${n.id}')">Reclamar</button>` : ''}
+    const tier = String(n.tier).replace('.', '·');
+    const cls = on ? 'on' : (claimable ? 'claim' : 'off');
+    nodes += `<div class="gm-tnode ${cls}" style="left:${p.x}px;top:${p.y}px;--nc:var(${GM_TREE_CAT_COLOR[n.cat] || '--accent'})">
+      <div class="gm-tn-medal">
+        <span class="gm-tn-ring"></span><span class="gm-tn-ring2"></span>
+        <span class="gm-tn-core"><span class="gm-tn-ico">${n.icon}</span></span>
+        <span class="gm-tn-tier">T${tier}</span>
+        ${on ? '<span class="gm-tn-badge">✓</span>' : (n.manual ? '<span class="gm-tn-badge lock">◈</span>' : '<span class="gm-tn-badge lock">🔒</span>')}
+      </div>
+      <div class="gm-tn-name">${_gmEsc(n.name)}</div>
+      ${on ? '' : `<div class="gm-tn-req">${_gmEsc(reqTxt || (n.requires.nodes && n.requires.nodes.length ? 'unir ramas' : 'manual'))}</div>`}
+      ${claimable ? `<button class="gm-tn-claim" onclick="event.stopPropagation();gmClaimNode('${n.id}')">⟡ Reclamar</button>` : ''}
     </div>`;
   });
-  body.innerHTML = `<div class="gm-tree-scroll"><div class="gm-tree-canvas" style="width:${W}px;height:${H}px"><svg class="gm-tree-svg" width="${W}" height="${H}">${lines}</svg>${nodes}</div></div>`;
+  world.style.width = W + 'px'; world.style.height = H + 'px';
+  world.innerHTML = `<svg class="gm-tree-svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${paths}</svg>${nodes}`;
+  const cnt = document.getElementById('gm-tree-counter');
+  if (cnt) cnt.textContent = unlocked.size + ' / ' + GM_TREE_NODES.length + ' desbloqueadas';
+}
+function gmTreeApply() { const w = document.getElementById('gm-tree-world'); if (w) w.style.transform = `translate(${_gmTreeTx}px,${_gmTreeTy}px) scale(${_gmTreeScale})`; }
+function gmTreeFit() {
+  const vp = document.getElementById('gm-tree-viewport'); if (!vp || !_gmTreeW) return;
+  const vw = vp.clientWidth, vh = vp.clientHeight;
+  _gmTreeScale = Math.min(vw / _gmTreeW, vh / _gmTreeH, 1.1) * 0.94;
+  _gmTreeTx = (vw - _gmTreeW * _gmTreeScale) / 2;
+  _gmTreeTy = (vh - _gmTreeH * _gmTreeScale) / 2;
+  gmTreeApply();
+}
+function gmTreeZoom(dir) {
+  const vp = document.getElementById('gm-tree-viewport'); if (!vp) return;
+  const f = dir > 0 ? 1.2 : 1 / 1.2;
+  const ns = Math.max(0.2, Math.min(2.8, _gmTreeScale * f));
+  const cx = vp.clientWidth / 2, cy = vp.clientHeight / 2;
+  _gmTreeTx = cx - (cx - _gmTreeTx) * (ns / _gmTreeScale);
+  _gmTreeTy = cy - (cy - _gmTreeTy) * (ns / _gmTreeScale);
+  _gmTreeScale = ns; gmTreeApply();
+}
+function gmTreeInitPanZoom() {
+  const vp = document.getElementById('gm-tree-viewport'); if (!vp || vp._gmInit) return; vp._gmInit = true;
+  const pts = new Map(); let pinch = 0;
+  vp.addEventListener('pointerdown', e => { pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); try { vp.setPointerCapture(e.pointerId); } catch (err) {} });
+  vp.addEventListener('pointermove', e => {
+    if (!pts.has(e.pointerId)) return;
+    const prev = pts.get(e.pointerId); pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pts.size === 1) { _gmTreeTx += e.clientX - prev.x; _gmTreeTy += e.clientY - prev.y; gmTreeApply(); }
+    else if (pts.size === 2) {
+      const [a, b] = [...pts.values()]; const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      const r = vp.getBoundingClientRect(); const mx = (a.x + b.x) / 2 - r.left, my = (a.y + b.y) / 2 - r.top;
+      if (pinch) { const ns = Math.max(0.2, Math.min(2.8, _gmTreeScale * (dist / pinch)));
+        _gmTreeTx = mx - (mx - _gmTreeTx) * (ns / _gmTreeScale); _gmTreeTy = my - (my - _gmTreeTy) * (ns / _gmTreeScale); _gmTreeScale = ns; gmTreeApply(); }
+      pinch = dist;
+    }
+  });
+  const up = e => { pts.delete(e.pointerId); pinch = 0; };
+  vp.addEventListener('pointerup', up); vp.addEventListener('pointercancel', up);
+  vp.addEventListener('wheel', e => {
+    e.preventDefault(); const r = vp.getBoundingClientRect(); const mx = e.clientX - r.left, my = e.clientY - r.top;
+    const ns = Math.max(0.2, Math.min(2.8, _gmTreeScale * (e.deltaY < 0 ? 1.12 : 1 / 1.12)));
+    _gmTreeTx = mx - (mx - _gmTreeTx) * (ns / _gmTreeScale); _gmTreeTy = my - (my - _gmTreeTy) * (ns / _gmTreeScale);
+    _gmTreeScale = ns; gmTreeApply();
+  }, { passive: false });
+}
+function gmOpenTree() {
+  const ov = document.getElementById('gm-tree-overlay'); if (!ov) return;
   ov.classList.add('show');
+  gmTreeRender();
+  gmTreeInitPanZoom();
+  requestAnimationFrame(() => requestAnimationFrame(gmTreeFit));
 }
 function gmCloseTree() { const ov = document.getElementById('gm-tree-overlay'); if (ov) ov.classList.remove('show'); }
 function gmClaimNode(id) {
   GM.tree.claimed = GM.tree.claimed || [];
   if (!GM.tree.claimed.includes(id)) GM.tree.claimed.push(id);
-  gmRunEngine(); gmRenderAll(); gmOpenTree(); gmFlushFeedback();
+  gmRunEngine(); gmRenderAll(); gmTreeRender(); gmFlushFeedback();
 }
 
 // ── Zona 6 — Radar por categoría + config ────────────────────────────────

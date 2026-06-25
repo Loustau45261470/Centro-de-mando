@@ -548,12 +548,20 @@
   </div>
 </div>
 
-<!-- ── Game Mode: árbol de habilidades ── -->
-<div id="gm-tree-overlay" onclick="if(event.target===this)gmCloseTree()">
-  <div id="gm-tree-panel">
-    <div class="gm-modal-h"><b>Árbol de habilidades</b><button class="gm-modal-close" onclick="gmCloseTree()">✕</button></div>
-    <div id="gm-tree-body"></div>
+<!-- ── Game Mode: árbol de habilidades (visor HUD) ── -->
+<div id="gm-tree-overlay">
+  <div id="gm-tree-grid" aria-hidden="true"></div>
+  <div id="gm-tree-top">
+    <div class="gm-tree-brand"><span class="gm-tree-brand-hex">⬡</span><div><div class="gm-tree-brand-t">ÁRBOL DE HABILIDADES</div><div class="gm-tree-brand-s" id="gm-tree-counter"></div></div></div>
+    <div class="gm-tree-tools">
+      <button class="gm-tree-tool" onclick="gmTreeZoom(-1)" title="Alejar">−</button>
+      <button class="gm-tree-tool" onclick="gmTreeZoom(1)" title="Acercar">+</button>
+      <button class="gm-tree-tool" onclick="gmTreeFit()" title="Centrar">⊹</button>
+      <button class="gm-tree-tool gm-tree-close" onclick="gmCloseTree()" title="Cerrar">✕</button>
+    </div>
   </div>
+  <div id="gm-tree-viewport"><div id="gm-tree-world"></div></div>
+  <div id="gm-tree-hint">Arrastrá para mover · rueda o pellizcá para zoom</div>
 </div>
 
 <!-- ── Bottom Nav ── -->
