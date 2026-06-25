@@ -397,6 +397,29 @@ function _fbSave() {
         if (snap.exists && snap.data()?.state) { cloudRaw = snap.data().state; cloudData = snap.data(); }
       } catch (e) {}
 
+      // ── DIAGNÓSTICO sync (NO cambia el comportamiento de guardado) ──────────
+      // Detecta la condición de pisada last-write-wins: sesión confirmada pero la
+      // nube tiene cambios más nuevos que nuestro último sync → estamos por pisar
+      // datos de otro dispositivo. Registra evento + toast; no altera toSave.
+      if (sessionConfirmed && cloudData && cloudData._savedAt != null &&
+          _lastSyncedSavedAt != null && cloudData._savedAt > _lastSyncedSavedAt) {
+        let cm = -1, lm = -1;
+        try { cm = _dataMetric(JSON.parse(cloudRaw)); lm = _dataMetric(localObj); } catch (e) {}
+        const ev = {
+          t: new Date().toLocaleString('es-AR'),
+          cloudSavedAt: cloudData._savedAt, lastSynced: _lastSyncedSavedAt,
+          aheadSeg: Math.round((cloudData._savedAt - _lastSyncedSavedAt) / 1000),
+          cloudItems: cm, localItems: lm,
+        };
+        try {
+          const log = JSON.parse(localStorage.getItem('_syncDiag') || '[]');
+          log.unshift(ev); localStorage.setItem('_syncDiag', JSON.stringify(log.slice(0, 30)));
+        } catch (e) {}
+        console.warn('[SYNC-DIAG] a punto de pisar nube más nueva', ev);
+        showToast('⚠️ SYNC: la nube tenía cambios más nuevos (Δ' + ev.aheadSeg +
+          's · nube ' + cm + ' vs local ' + lm + ' ítems). Avisá + diagSync()', 13000);
+      }
+
       let toSave = localObj;
 
       if (cloudRaw && !_forceSaveOnce && !sessionConfirmed) {
@@ -451,6 +474,12 @@ async function _saveSnap(stateStr, savedAt) {
 
 // Override del guard para borrados grandes legítimos: forzarGuardado() en la consola.
 window.forzarGuardado = function () { _forceSaveOnce = true; saveState(); showToast('Guardado forzado…'); };
+
+// Diagnóstico de pisadas de sync detectadas (ver _fbSave). diagSync() en consola.
+window.diagSync = function () {
+  let l = []; try { l = JSON.parse(localStorage.getItem('_syncDiag') || '[]'); } catch (e) {}
+  console.table(l); return l;
+};
 
 // ── Recuperación manual (consola del navegador) ───────────────────────────────
 // listarSnaps()  → lista los últimos 20 snapshots con fecha/hora exacta
