@@ -3254,6 +3254,7 @@ function renderFinanzasTab() {
   renderAccounts();
   renderSubscriptions();
   renderWishlist();
+  renderWishTop5();
   renderActivity();
   renderFinObjectives();
   renderBudget();
@@ -3451,12 +3452,44 @@ function renderWishlist() {
         </div>
         <div class="wish-pct">Representa el <strong>${pctOfNW}%</strong> de tu patrimonio · Ahorrado: ${saved.toFixed(0)}%</div>
         <div class="wish-bar"><div class="prog-bar"><div class="prog-fill" style="width:${saved}%;background:${affordable?'var(--ok)':'var(--accent)'}"></div></div></div>
+        <div class="wish-score"><span class="wish-score-lbl">Puntaje</span>${[1,2,3,4,5].map(n=>`<button class="ws-dot${n<=_wishScore(w)?' on':''}" onclick="setWishScore('${w.id}',${n})" title="${n} de 5" aria-label="Puntaje ${n}"></button>`).join('')}</div>
         ${hasNotes?`<div class="wish-detail-panel" id="wish-detail-${w.id}"><div class="wish-detail-body">${_esc(w.notes)}</div></div>`:''}
       </div>`;
     }
     html += `</div>`;
   }
   list.innerHTML = html;
+  renderWishTop5();
+}
+
+// Puntaje de adquisición (1–5). Si no está seteado, se deriva de la prioridad.
+const _WISH_PRIO_SCORE = { urgente: 5, importante: 4, normal: 3, poco_importante: 2, irrelevante: 1 };
+function _wishScore(w) {
+  if (w.score >= 1 && w.score <= 5) return w.score;
+  return _WISH_PRIO_SCORE[w.priority || 'normal'] || 3;
+}
+function setWishScore(id, n) {
+  const w = (S.wishlist || []).find(x => x.id === id); if (!w) return;
+  w.score = (w.score === n) ? 0 : n; // volver a tocar el mismo punto lo limpia (vuelve a derivar de prioridad)
+  saveState(); renderWishlist(); renderWishTop5();
+}
+// Top 5 adquisiciones más importantes/urgentes (por puntaje) — vista de sección.
+function renderWishTop5() {
+  const body = document.getElementById('wishTop5Body'); if (!body) return;
+  const items = [...(S.wishlist || [])].sort((a, b) => _wishScore(b) - _wishScore(a) || ((+a.amount || 0) - (+b.amount || 0))).slice(0, 5);
+  if (!items.length) { body.innerHTML = '<div class="wt-empty">Sin objetivos de adquisición. Abrí <b>Adquisición</b> (📈 → Adquisición) para cargarlos y puntuarlos.</div>'; return; }
+  const nw = (typeof calcNetWorth === 'function') ? calcNetWorth() : 0;
+  body.innerHTML = items.map((w, i) => {
+    const sc = _wishScore(w), affordable = nw >= (+w.amount || 0);
+    return `<div class="wt-item">
+      <span class="wt-rank">${i + 1}</span>
+      <div class="wt-body">
+        <div class="wt-name">${escHtml(w.name)}${affordable ? '<span class="wt-ok">alcanzable</span>' : ''}</div>
+        <div class="wt-dots" aria-label="Puntaje ${sc} de 5">${[1, 2, 3, 4, 5].map(n => `<span class="wt-dot${n <= sc ? ' on' : ''}"></span>`).join('')}</div>
+      </div>
+      <span class="wt-amt mono">${fmtMoney(w.amount, w.currency)}</span>
+    </div>`;
+  }).join('');
 }
 
 function toggleWishCat(cid) {
