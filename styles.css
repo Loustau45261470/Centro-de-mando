@@ -4496,3 +4496,25 @@ input:focus, select:focus, textarea:focus {
 .ent-last b { color: var(--tp); }
 .ent-full { width: 100%; padding: 11px; border-radius: 11px; cursor: pointer; font-family: var(--sans); font-size: 13px; font-weight: 700; color: color-mix(in oklab, var(--ent-accent) 88%, #fff); background: color-mix(in oklab, var(--ent-accent) 14%, transparent); border: 1px solid color-mix(in oklab, var(--ent-accent) 38%, transparent); transition: background .15s, border-color .15s; }
 .ent-full:hover { background: color-mix(in oklab, var(--ent-accent) 24%, transparent); border-color: var(--ent-accent); }
+
+/* ════════════════════ ADQUISICIÓN · puntaje + Top 5 ════════════════════ */
+/* Control de puntaje en cada fila del overlay */
+.wish-score { display: flex; align-items: center; gap: 5px; margin-top: 9px; }
+.wish-score-lbl { font-family: var(--mono); font-size: 9px; letter-spacing: .6px; text-transform: uppercase; color: var(--tt); margin-right: 4px; }
+.ws-dot { width: 17px; height: 17px; border-radius: 5px; border: 1px solid var(--border-h); background: rgba(10,16,30,.5); cursor: pointer; padding: 0; transition: background .15s, border-color .15s, box-shadow .15s, transform .1s; }
+.ws-dot:hover { border-color: #F5A623; transform: translateY(-1px); }
+.ws-dot.on { background: linear-gradient(150deg, #F5A623, #d98a10); border-color: #F5A623; box-shadow: 0 0 10px -3px #F5A623, inset 0 1px 0 rgba(255,255,255,.3); }
+/* Top 5 en sección */
+#wish-top5-card { --wt-accent: #F5A623; }
+.wt-item { display: flex; align-items: center; gap: 11px; padding: 10px 11px; border-radius: 12px; background: linear-gradient(180deg, color-mix(in oklab, var(--wt-accent) 9%, transparent), rgba(10,16,30,.4)); border: 1px solid var(--border); margin-bottom: 8px; transition: transform .14s var(--ease-out-expo), border-color .18s; }
+.wt-item:hover { transform: translateX(2px); border-color: color-mix(in oklab, var(--wt-accent) 40%, var(--border)); }
+.wt-rank { width: 27px; height: 27px; flex: none; display: grid; place-items: center; border-radius: 8px; font-family: var(--mono); font-weight: 800; font-size: 13px; color: var(--wt-accent); background: color-mix(in oklab, var(--wt-accent) 16%, transparent); border: 1px solid color-mix(in oklab, var(--wt-accent) 35%, transparent); box-shadow: inset 0 0 10px -4px var(--wt-accent); }
+.wt-body { flex: 1; min-width: 0; }
+.wt-name { font-size: 14px; font-weight: 600; color: var(--tp); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wt-ok { font-family: var(--mono); font-size: 9px; text-transform: uppercase; letter-spacing: .5px; color: var(--ok); margin-left: 7px; padding: 1px 7px; border-radius: 999px; background: rgba(16,224,124,.12); border: 1px solid rgba(16,224,124,.3); }
+.wt-dots { display: flex; gap: 3px; margin-top: 6px; }
+.wt-dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(120,150,220,.18); }
+.wt-dot.on { background: var(--wt-accent); box-shadow: 0 0 7px -1px var(--wt-accent); }
+.wt-amt { flex: none; font-size: 13px; font-weight: 700; color: var(--ts); font-variant-numeric: tabular-nums; }
+.wt-empty { font-size: 13px; color: var(--tt); padding: 8px 2px; line-height: 1.5; }
+.wt-empty b { color: var(--ts); }
