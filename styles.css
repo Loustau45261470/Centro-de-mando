@@ -3634,7 +3634,9 @@ body:has(#login-screen) #hud-frame { opacity: 0; }
   .tab-panel.active > .kpi-strip,
   .tab-panel.active > .affirmation-strip,
   .tab-panel.active > .net-worth-hero,
-  .tab-panel.active > .day-progress-card {
+  .tab-panel.active > .day-progress-card,
+  .tab-panel.active > .day-progress-wrap,
+  .tab-panel.active > .intel-card {
     column-span: all;
   }
   /* Finanzas: 2 columnas reales en vez del masonry (evita huecos entre tarjetas) ·
