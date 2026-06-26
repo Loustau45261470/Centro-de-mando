@@ -11,9 +11,9 @@
 #proyectos-wrap-finanzas,
 #proyectos-wrap-ia { display: none; }
 
-/* Presupuesto completo: oculto inline (vive en el overlay); visible al reubicarse en el host. */
-#budget-card { display: none; }
-.cm-ov-host #budget-card { display: block; }
+/* Presupuesto completo y Obligaciones recurrentes: ocultos inline (viven en el overlay de Presupuesto). */
+#budget-card, #obligaciones-card { display: none; }
+.cm-ov-host #budget-card, .cm-ov-host #obligaciones-card { display: block; }
 /* Entrenamiento completo: ídem. */
 #rutinas-wrap { display: none; }
 .cm-ov-host #rutinas-wrap { display: block; }

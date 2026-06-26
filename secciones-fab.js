@@ -23,6 +23,29 @@ const _SF_ICONS = {
   budget: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3.5" width="14" height="17" rx="2.5"/><path d="M8 7h8"/><path d="M8 11h2M11 11h2M14 11h2M8 14.5h2M11 14.5h2M14 14.5v3"/></svg>`,
 };
 
+// ── Presupuesto: overlay que aloja el presupuesto + las obligaciones recurrentes ──
+let _sfBudgetSrcs = [];
+function _sfOpenBudget() {
+  if (typeof CMOverlay === 'undefined') return;
+  const { overlay, body } = CMOverlay.build({ id: 'ov-budget', accent: '#22C55E', onClose: _sfRestoreBudget });
+  if (!overlay._sfBuilt) {
+    body.innerHTML = `<div class="cm-ov-head"><div class="cm-ov-eyebrow">FINANZAS · PRESUPUESTO</div><div class="cm-ov-title">Presupuesto del mes</div></div><div class="cm-ov-host" id="ov-budget-host"></div>`;
+    overlay._sfBuilt = true;
+  }
+  const host = document.getElementById('ov-budget-host');
+  _sfBudgetSrcs = [];
+  ['budget-card', 'obligaciones-card'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el._sfHome = { parent: el.parentNode, next: el.nextSibling }; host.appendChild(el); _sfBudgetSrcs.push(el); }
+  });
+  CMOverlay.open(overlay);
+}
+function _sfRestoreBudget() {
+  _sfBudgetSrcs.forEach(el => { if (el && el._sfHome) { el._sfHome.parent.insertBefore(el, el._sfHome.next); el._sfHome = null; } });
+  _sfBudgetSrcs = [];
+}
+window.openBudgetOverlay = _sfOpenBudget;
+
 // ── Montaje ───────────────────────────────────────────────────────────────
 function _sfMount() {
   if (typeof CMSpeedDial === 'undefined') return;
@@ -48,8 +71,7 @@ function _sfMount() {
   window.openGymOverlay = openGym;
   const openWellness = R({ id: 'ov-wellness', accent: '#10E07C', eyebrow: 'SALUD · BIENESTAR', title: 'Bienestar', sourceId: 'bienestar-card' });
   const openGoals = R({ id: 'ov-goals', accent: '#F5A623', eyebrow: 'FINANZAS · ADQUISICIÓN', title: 'Objetivos de adquisición', sourceId: 'wishlist-card' });
-  const openBudget = R({ id: 'ov-budget', accent: '#22C55E', eyebrow: 'FINANZAS · PRESUPUESTO', title: 'Presupuesto del mes', sourceId: 'budget-card' });
-  window.openBudgetOverlay = openBudget;
+  const openBudget = _sfOpenBudget;
   const proyItem = tab => ({ icon: _SF_ICONS.proy, label: 'Proyectos', accent: '#38BDF8', onClick: () => { if (window.ProyectosOverlay) ProyectosOverlay.open(tab); } });
 
   const sections = [
