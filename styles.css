@@ -858,7 +858,9 @@ textarea { resize: vertical; min-height: 60px; }
 .modal-overlay {
   position: fixed; inset: 0; background: rgba(0,0,0,.6);
   backdrop-filter: blur(6px);
-  z-index: 150; display: none; align-items: flex-end;
+  /* z 1000: un modal siempre debe quedar por encima de FABs (540), agent-panel (900)
+     y los overlays inmersivos (950). Antes era 150 → quedaba detrás de esos. */
+  z-index: 1000; display: none; align-items: flex-end;
 }
 .modal-overlay.open { display: flex; }
 .modal {
