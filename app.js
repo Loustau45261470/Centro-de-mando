@@ -4622,13 +4622,27 @@ function renderBudgetSummary() {
     </div>`;
   }).join('');
 
+  // Medidor radial (arco 270°). C = 2·π·50 ≈ 314.16; arco visible = 0.75·C ≈ 235.6.
+  const ARC = 235.6, FULL = 314.16;
+  const valDash = `${(ARC * Math.min(ratio, 1)).toFixed(1)} ${FULL}`;
   body.innerHTML = `
-    <div class="bsum-head">
-      <div><div class="bsum-lbl">Gastado este mes</div><div class="bsum-spent${over ? ' over' : ''}">${fmtMoney(spent, 'ARS')}</div></div>
-      <div class="bsum-head-r"><div class="bsum-lbl">Presupuesto</div><div class="bsum-budget">${fmtMoney(budget, 'ARS')}</div></div>
+    <div class="bsum-top">
+      <div class="bsum-gauge-wrap">
+        <svg class="bsum-gauge" viewBox="0 0 120 120" aria-hidden="true">
+          <circle class="bsum-gauge-track" cx="60" cy="60" r="50"/>
+          <circle class="bsum-gauge-val${over ? ' over' : ''}" cx="60" cy="60" r="50" style="--dash:${valDash}"/>
+        </svg>
+        <div class="bsum-gauge-center">
+          <div class="bsum-gauge-pct${over ? ' over' : ''}">${budget > 0 ? Math.round(ratio * 100) : 0}<span>%</span></div>
+          <div class="bsum-gauge-sub">usado</div>
+        </div>
+      </div>
+      <div class="bsum-figs">
+        <div class="bsum-fig"><span class="bsum-fig-lbl">Gastado</span><span class="bsum-fig-num${over ? ' over' : ''}">${fmtMoney(spent, 'ARS')}</span></div>
+        <div class="bsum-fig"><span class="bsum-fig-lbl">Presupuesto</span><span class="bsum-fig-num2">${fmtMoney(budget, 'ARS')}</span></div>
+        <div class="bsum-fig"><span class="bsum-fig-lbl">${over ? 'Excedido' : 'Disponible'}</span><span class="bsum-fig-num3 ${over ? 'text-danger' : 'text-ok'}">${fmtMoney(Math.abs(budget - spent), 'ARS')}</span></div>
+      </div>
     </div>
-    <div class="bsum-bar"><div class="bsum-bar-fill${over ? ' over' : ''}" style="width:${Math.min(ratio * 100, 100)}%"></div></div>
-    <div class="bsum-meta">${budget > 0 ? Math.round(ratio * 100) + '% usado' : 'Sin presupuesto cargado'} · ${over ? `<span class="text-danger">excedido ${fmtMoney(spent - budget, 'ARS')}</span>` : `quedan ${fmtMoney(budget - spent, 'ARS')}`}</div>
     <div class="bsum-sec">Por categoría · real / plan</div>
     ${catRows}
     <div class="bsum-sec">Gastado · últimos 6 meses</div>

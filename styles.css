@@ -4518,3 +4518,30 @@ input:focus, select:focus, textarea:focus {
 .wt-amt { flex: none; font-size: 13px; font-weight: 700; color: var(--ts); font-variant-numeric: tabular-nums; }
 .wt-empty { font-size: 13px; color: var(--tt); padding: 8px 2px; line-height: 1.5; }
 .wt-empty b { color: var(--ts); }
+
+/* ── Presupuesto resumen · rediseño: medidor radial + figuras + tendencia ── */
+.bsum-top { display: flex; align-items: center; gap: 18px; margin-bottom: 20px; }
+.bsum-gauge-wrap { position: relative; width: 120px; height: 120px; flex: none; }
+.bsum-gauge { width: 120px; height: 120px; transform: rotate(135deg); }
+.bsum-gauge circle { fill: none; stroke-width: 9; stroke-linecap: round; }
+.bsum-gauge-track { stroke: rgba(120,160,255,.12); stroke-dasharray: 235.6 314.16; }
+.bsum-gauge-val { stroke: var(--bsum-accent); stroke-dasharray: var(--dash); filter: drop-shadow(0 0 5px color-mix(in oklab, var(--bsum-accent) 80%, transparent)); animation: bsum-gauge-in 1s var(--ease-out-expo) both; }
+.bsum-gauge-val.over { stroke: var(--danger); filter: drop-shadow(0 0 5px var(--danger)); }
+@keyframes bsum-gauge-in { from { stroke-dasharray: 0 314.16; } }
+.bsum-gauge-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.bsum-gauge-pct { font-size: 30px; font-weight: 800; letter-spacing: -.03em; color: var(--tp); line-height: 1; font-variant-numeric: tabular-nums; }
+.bsum-gauge-pct span { font-size: 15px; color: var(--ts); margin-left: 1px; }
+.bsum-gauge-pct.over { color: var(--danger); }
+.bsum-gauge-sub { font-family: var(--mono); font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--tt); margin-top: 3px; }
+.bsum-figs { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.bsum-fig { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding-bottom: 9px; border-bottom: 1px solid var(--border); }
+.bsum-fig:last-child { border-bottom: none; padding-bottom: 0; }
+.bsum-fig-lbl { font-family: var(--mono); font-size: 10px; letter-spacing: .6px; text-transform: uppercase; color: var(--tt); }
+.bsum-fig-num { font-size: 18px; font-weight: 800; color: var(--tp); font-variant-numeric: tabular-nums; }
+.bsum-fig-num.over { color: var(--danger); }
+.bsum-fig-num2 { font-size: 15px; font-weight: 700; color: var(--ts); font-variant-numeric: tabular-nums; }
+.bsum-fig-num3 { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.bsum-trend { position: relative; padding-top: 8px; background: linear-gradient(rgba(120,160,255,.05) 1px, transparent 1px) 0 8px / 100% 25.5px; }
+.bsum-tspent { animation: bsum-bar-rise .7s var(--ease-out-expo) both; }
+@keyframes bsum-bar-rise { from { height: 0 !important; opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .bsum-gauge-val, .bsum-tspent { animation: none !important; } }
