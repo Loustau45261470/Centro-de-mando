@@ -291,16 +291,7 @@ function notasDelete(id) {
 function _ntMount() {
   if (document.getElementById('notas-overlay')) return;
 
-  // FAB
-  const fab = document.createElement('button');
-  fab.id = 'notas-fab';
-  fab.title = 'Notas';
-  fab.setAttribute('aria-label', 'Abrir notas');
-  fab.innerHTML = `<span class="nt-fab-ring"></span><span class="nt-fab-ico">${NOTAS_FAB_ICON}</span>`;
-  fab.onclick = notasOpen;
-  document.body.appendChild(fab);
-
-  // Overlay
+  // Overlay (el punto de entrada ahora es el speed-dial de Conocimiento; ver secciones-fab.js)
   const ov = document.createElement('div');
   ov.id = 'notas-overlay';
   ov.innerHTML = `<div id="notas-panel">
@@ -308,12 +299,6 @@ function _ntMount() {
     <div id="notas-body"></div>
   </div>`;
   document.body.appendChild(ov);
-
-  // Visibilidad del FAB según pestaña activa (Conocimiento = Intelecto)
-  const tab = document.getElementById('tab-conocimiento');
-  const sync = () => { fab.classList.toggle('on', !!(tab && tab.classList.contains('active'))); };
-  if (tab) { new MutationObserver(sync).observe(tab, { attributes: true, attributeFilter: ['class'] }); }
-  sync();
 
   // Escape cierra todo el panel
   document.addEventListener('keydown', e => {

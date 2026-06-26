@@ -1,0 +1,62 @@
+/* ════════════════════ OVERLAY CORE — primitivo reusable ════════════════════
+   Capa full-screen inmersiva estilo HUD JARVIS. La usan Proyectos y futuras
+   secciones. Notas tiene su propia copia (se migrará). Clases: .cm-overlay /
+   .cm-panel / .cm-ov-close / .cm-ov-body. Acento por sección via --cm-accent. */
+
+.cm-overlay {
+  --cm-accent: var(--hud);
+  position: fixed; inset: 0; z-index: 950;
+  background:
+    radial-gradient(120% 80% at 50% -10%, color-mix(in oklab, var(--cm-accent) 14%, transparent), transparent 60%),
+    rgba(3,6,12,0);
+  backdrop-filter: blur(0); -webkit-backdrop-filter: blur(0);
+  opacity: 0; pointer-events: none;
+  transition: opacity .34s var(--ease-out-quart), backdrop-filter .34s var(--ease-out-quart);
+}
+.cm-overlay.show {
+  opacity: 1; pointer-events: auto;
+  background:
+    radial-gradient(120% 80% at 50% -10%, color-mix(in oklab, var(--cm-accent) 20%, transparent), transparent 60%),
+    rgba(3,6,12,.92);
+  backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px);
+}
+.cm-overlay::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none; opacity: .5;
+  background:
+    linear-gradient(rgba(120,160,255,.05) 1px, transparent 1px) 0 0 / 100% 34px,
+    linear-gradient(90deg, rgba(120,160,255,.05) 1px, transparent 1px) 0 0 / 34px 100%;
+  -webkit-mask: radial-gradient(110% 75% at 50% 0%, #000 35%, transparent 78%);
+  mask: radial-gradient(110% 75% at 50% 0%, #000 35%, transparent 78%);
+}
+.cm-panel {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  max-width: 880px; margin: 0 auto; padding: max(20px, var(--safe-t, 0px)) 16px 20px;
+  perspective: 1400px;
+}
+.cm-overlay.show .cm-panel { animation: cm-panel-in .4s var(--ease-out-expo) both; }
+@keyframes cm-panel-in { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+.cm-ov-close {
+  position: absolute; top: 16px; right: 16px; z-index: 5;
+  width: 40px; height: 40px; border-radius: 12px;
+  background: rgba(120,150,220,.08); border: 1px solid var(--border);
+  color: var(--ts); font-size: 15px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(8px);
+  transition: background .18s, border-color .18s, color .18s, transform .18s;
+}
+.cm-ov-close:hover { background: rgba(255,51,88,.14); border-color: var(--danger); color: #fff; transform: rotate(90deg); }
+.cm-ov-body { flex: 1; overflow-y: auto; padding: 8px 2px; }
+.cm-ov-body::-webkit-scrollbar { width: 0; }
+
+/* Cabecera estándar reutilizable dentro de un cm-overlay */
+.cm-ov-head { margin: 6px 4px 16px; }
+.cm-ov-eyebrow { font-family: var(--mono); font-size: 10px; letter-spacing: 3px; color: var(--cm-accent); opacity: .7; }
+.cm-ov-title {
+  font-size: 28px; font-weight: 800; letter-spacing: -.02em; line-height: 1; margin-top: 5px; color: var(--tp);
+  text-shadow: 0 0 26px color-mix(in oklab, var(--cm-accent) 35%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cm-overlay.show .cm-panel { animation: none !important; }
+  .cm-ov-close:hover { transform: none; }
+}
