@@ -7,10 +7,21 @@
 
 const _ntEsc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
+// ── Íconos HUD line-art (stroke = currentColor), estilo JARVIS ────────────
+const NOTAS_ICONS = {
+  // Reflexiones — ondas concéntricas reflejadas (reflexión / meditación)
+  reflexiones: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="1.7"/><path d="M7 9.4a7 7 0 0 1 10 0"/><path d="M4.4 6.9a11 11 0 0 1 15.2 0"/><path d="M7 14.6a7 7 0 0 0 10 0"/><path d="M4.4 17.1a11 11 0 0 0 15.2 0"/></svg>`,
+  // Aprendizaje — retícula / target (precisión, foco)
+  aprendizaje: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="8.4"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="0.7" fill="currentColor" stroke="none"/><path d="M12 1.2v3M12 19.8v3M1.2 12h3M19.8 12h3"/></svg>`,
+  // Anotaciones personales — pluma / escritura
+  personales: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 18.5l2.6-.7L18.2 7.2a1.9 1.9 0 0 0 0-2.7l-.2-.2a1.9 1.9 0 0 0-2.7 0L4.7 15.1 4 17.7l1 .8z"/><path d="M13.7 6l3.3 3.3"/></svg>`,
+};
+const NOTAS_FAB_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="3.5" width="13" height="17.2" rx="2.4"/><path d="M8 3.5v17.2"/><path d="M11 8.2h4M11 12h4"/><path d="M17.5 9.5l3 1.6-3 1.6z" fill="currentColor" stroke="none"/></svg>`;
+
 const NOTAS_CATS = {
-  reflexiones: { label: 'Reflexiones',           icon: '🪞', accent: '#6B8EFF' },
-  aprendizaje: { label: 'Aprendizaje',           icon: '🎯', accent: '#38BDF8' },
-  personales:  { label: 'Anotaciones personales', icon: '✍️', accent: '#818CF8' },
+  reflexiones: { label: 'Reflexiones',            svg: NOTAS_ICONS.reflexiones, accent: '#6B8EFF', tag: 'REFLEXIÓN' },
+  aprendizaje: { label: 'Aprendizaje',            svg: NOTAS_ICONS.aprendizaje, accent: '#38BDF8', tag: 'APRENDIZAJE' },
+  personales:  { label: 'Anotaciones personales', svg: NOTAS_ICONS.personales,  accent: '#818CF8', tag: 'PERSONAL' },
 };
 const NOTAS_CAT_KEYS = ['reflexiones', 'aprendizaje', 'personales'];
 
@@ -66,28 +77,40 @@ function notasRender() {
   body.innerHTML = _ntView ? _ntRenderCat(_ntView) : _ntRenderHome();
 }
 
-// ── Home: 3 rectángulos con preview reducida ─────────────────────────────
+// ── Home: 3 rectángulos holográficos con preview reducida ────────────────
 function _ntRenderHome() {
-  const cards = NOTAS_CAT_KEYS.map(cat => {
+  const cards = NOTAS_CAT_KEYS.map((cat, i) => {
     const meta = NOTAS_CATS[cat];
     const notes = _ntByCat(cat).sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
     const preview = notes.slice(0, 3).map(n => {
       const t = _ntText(n);
       return `<div class="nt-prev-item">
+        <span class="nt-prev-dot"></span>
         <span class="nt-prev-title">${_ntEsc(n.titulo || '(sin título)')}</span>
         ${t ? `<span class="nt-prev-snip">${_ntEsc(t.slice(0, 80))}</span>` : ''}
       </div>`;
     }).join('');
-    return `<button class="nt-rect" style="--nt-accent:${meta.accent}" onclick="notasOpenCat('${cat}')">
-      <div class="nt-rect-head">
-        <span class="nt-rect-icon">${meta.icon}</span>
-        <span class="nt-rect-label">${meta.label}</span>
-        <span class="nt-rect-count">${notes.length}</span>
-      </div>
-      <div class="nt-rect-prev">${preview}</div>
+    return `<button class="nt-rect" style="--nt-accent:${meta.accent};--d:${i * 90}ms" onclick="notasOpenCat('${cat}')">
+      <span class="nt-rect-glow"></span>
+      <span class="nt-rect-grid"></span>
+      <span class="nt-rect-sweep"></span>
+      <span class="nt-rect-3d">
+        <div class="nt-rect-head">
+          <span class="nt-rect-icon">${meta.svg}</span>
+          <span class="nt-rect-titles">
+            <span class="nt-rect-tag">${meta.tag}</span>
+            <span class="nt-rect-label">${meta.label}</span>
+          </span>
+          <span class="nt-rect-count">${notes.length}</span>
+        </div>
+        <div class="nt-rect-prev">${preview}</div>
+      </span>
     </button>`;
   }).join('');
-  return `<div class="nt-home-title">Notas</div><div class="nt-rects">${cards}</div>`;
+  return `<div class="nt-head">
+    <div class="nt-head-eyebrow">INTELECTO · ARCHIVO</div>
+    <div class="nt-home-title">Notas</div>
+  </div><div class="nt-rects">${cards}</div>`;
 }
 
 // ── Vista de categoría: lista + búsqueda + orden + alta ───────────────────
@@ -101,45 +124,52 @@ function _ntRenderCat(cat) {
     return _ntSort === 'asc' ? cmp : -cmp;
   });
 
-  const list = notes.map(n => _ntRenderNoteCard(n)).join('');
-  return `<div class="nt-cat" style="--nt-accent:${meta.accent}">
+  const list = notes.map((n, i) => _ntRenderNoteCard(n, i)).join('');
+  return `<div class="nt-cat nt-cat-anim" style="--nt-accent:${meta.accent}">
     <div class="nt-cat-bar">
-      <div class="nt-cat-ttl"><span>${meta.icon}</span> ${meta.label}</div>
+      <span class="nt-cat-chip">${meta.svg}</span>
+      <div class="nt-cat-ttl"><span class="nt-cat-tag">${meta.tag}</span><span class="nt-cat-name">${meta.label}</span></div>
       <button class="nt-x" title="Volver" onclick="notasHome()">✕</button>
     </div>
     <div class="nt-tools">
-      <input class="nt-input nt-search" type="text" placeholder="Buscar…" value="${_ntEsc(_ntSearch)}"
-        oninput="_ntOnSearch(this.value)">
+      <div class="nt-search-wrap">
+        <svg class="nt-search-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input class="nt-input nt-search" type="text" placeholder="Buscar…" value="${_ntEsc(_ntSearch)}" oninput="_ntOnSearch(this.value)">
+      </div>
       <button class="nt-btn nt-sort" onclick="_ntToggleSort()">${_ntSort === 'desc' ? '↓ Reciente' : '↑ Antigua'}</button>
-      <button class="nt-btn nt-add" onclick="notasNew('${cat}')">+ Nueva</button>
+      <button class="nt-btn nt-add" onclick="notasNew('${cat}')"><span class="nt-add-plus">+</span> Nueva</button>
     </div>
     <div class="nt-list">${list}</div>
   </div>`;
 }
 
-function _ntRenderNoteCard(n) {
+function _ntRenderNoteCard(n, i) {
   const fields = n.categoria === 'aprendizaje'
-    ? `${_ntFieldRow('Suceso', n.suceso)}
-       ${_ntFieldRow('Hice bien', n.hiceBien)}
-       ${_ntFieldRow('Hice mal', n.hiceMal)}
-       ${_ntFieldRow('Aprendí', n.aprendi)}
-       ${_ntFieldRow('Mejoraría', n.mejorarProxima)}`
+    ? `<div class="nt-learn">
+        ${_ntFieldRow('bien', 'Hice bien', n.hiceBien)}
+        ${_ntFieldRow('mal', 'Hice mal', n.hiceMal)}
+        ${_ntFieldRow('learn', 'Aprendí', n.aprendi)}
+        ${_ntFieldRow('next', 'Mejoraría', n.mejorarProxima)}
+        ${n.suceso ? `<div class="nt-suceso">${_ntEsc(n.suceso)}</div>` : ''}
+      </div>`
     : (n.texto ? `<div class="nt-note-text">${_ntEsc(n.texto)}</div>` : '');
-  return `<div class="nt-note">
+  const delay = typeof i === 'number' ? `style="--d:${Math.min(i, 8) * 55}ms"` : '';
+  return `<div class="nt-note" ${delay}>
+    <span class="nt-note-edge"></span>
     <div class="nt-note-head">
       <div class="nt-note-ttl">${_ntEsc(n.titulo || '(sin título)')}</div>
       <div class="nt-note-acts">
-        <button class="nt-ico" title="Editar" onclick="notasEdit('${n.id}')">✎</button>
-        <button class="nt-ico nt-del" title="Borrar" onclick="notasDelete('${n.id}')">🗑</button>
+        <button class="nt-ico" title="Editar" onclick="notasEdit('${n.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2 2 0 0 0 0-2.8l-1.2-1.2a2 2 0 0 0-2.8 0L4 16z"/><path d="M14 6.5l3.5 3.5"/></svg></button>
+        <button class="nt-ico nt-del" title="Borrar" onclick="notasDelete('${n.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/></svg></button>
       </div>
     </div>
     <div class="nt-note-date">${_ntEsc(_ntFmtDate(n.fecha))}</div>
     ${fields}
   </div>`;
 }
-function _ntFieldRow(label, val) {
+function _ntFieldRow(kind, label, val) {
   if (!val) return '';
-  return `<div class="nt-field"><span class="nt-field-lbl">${label}</span><span class="nt-field-val">${_ntEsc(val)}</span></div>`;
+  return `<div class="nt-field nt-f-${kind}"><span class="nt-field-lbl">${label}</span><span class="nt-field-val">${_ntEsc(val)}</span></div>`;
 }
 
 // ── Formulario alta/edición ──────────────────────────────────────────────
@@ -157,9 +187,10 @@ function _ntRenderForm() {
        ${ta('nt-f-aprendi', 'Qué aprendí', v.aprendi)}
        ${ta('nt-f-mejor', 'Cómo lo haría mejor la próxima vez', v.mejorarProxima)}`
     : ta('nt-f-texto', 'Texto', v.texto);
-  return `<div class="nt-cat" style="--nt-accent:${meta.accent}">
+  return `<div class="nt-cat nt-cat-anim" style="--nt-accent:${meta.accent}">
     <div class="nt-cat-bar">
-      <div class="nt-cat-ttl"><span>${meta.icon}</span> ${editing ? 'Editar' : 'Nueva'} · ${meta.label}</div>
+      <span class="nt-cat-chip">${meta.svg}</span>
+      <div class="nt-cat-ttl"><span class="nt-cat-tag">${editing ? 'EDITAR' : 'NUEVA'}</span><span class="nt-cat-name">${meta.label}</span></div>
       <button class="nt-x" title="Cancelar" onclick="_ntCancelForm()">✕</button>
     </div>
     <div class="nt-form">
@@ -240,7 +271,7 @@ function _ntMount() {
   fab.id = 'notas-fab';
   fab.title = 'Notas';
   fab.setAttribute('aria-label', 'Abrir notas');
-  fab.textContent = '📔';
+  fab.innerHTML = `<span class="nt-fab-ring"></span><span class="nt-fab-ico">${NOTAS_FAB_ICON}</span>`;
   fab.onclick = notasOpen;
   document.body.appendChild(fab);
 
@@ -263,6 +294,27 @@ function _ntMount() {
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && ov.classList.contains('show')) { e.stopPropagation(); notasClose(); }
   });
+
+  // Tilt 3D de los rectángulos (solo punteros finos con hover; en móvil no aplica)
+  const canTilt = window.matchMedia && window.matchMedia('(hover:hover) and (pointer:fine)').matches
+    && !(window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  if (canTilt) {
+    const body = document.getElementById('notas-body');
+    body.addEventListener('pointermove', e => {
+      const r = e.target.closest && e.target.closest('.nt-rect');
+      if (!r) return;
+      const b = r.getBoundingClientRect();
+      const px = (e.clientX - b.left) / b.width - 0.5;
+      const py = (e.clientY - b.top) / b.height - 0.5;
+      r.style.setProperty('--rx', (py * -7).toFixed(2) + 'deg');
+      r.style.setProperty('--ry', (px * 9).toFixed(2) + 'deg');
+      r.style.setProperty('--mx', (px * 100 + 50).toFixed(1) + '%');
+      r.style.setProperty('--my', (py * 100 + 50).toFixed(1) + '%');
+    });
+    body.addEventListener('pointerleave', () => {
+      body.querySelectorAll('.nt-rect').forEach(r => { r.style.removeProperty('--rx'); r.style.removeProperty('--ry'); });
+    }, true);
+  }
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _ntMount);

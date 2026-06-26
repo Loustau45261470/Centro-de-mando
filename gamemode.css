@@ -319,3 +319,86 @@
 @media (max-width: 600px) {
   .gm-cats { grid-template-columns: 1fr; }
 }
+
+/* ════════════════════ GAME MODE — capa holográfica (3D · luces · motion) ══
+   Overrides puramente visuales sobre las clases existentes. No tocan la lógica. */
+
+#tab-game { perspective: 1500px; }
+
+/* Avatar con marco holográfico + anillo de energía rotativo */
+.gm-avatar {
+  position: relative; width: 60px; height: 60px; border-radius: 18px; font-size: 30px;
+  background:
+    radial-gradient(120% 120% at 30% 18%, rgba(120,170,255,.30), transparent 65%),
+    linear-gradient(160deg, rgba(40,70,150,.45), rgba(8,12,24,.7));
+  border: 1px solid rgba(150,185,255,.45);
+  box-shadow:
+    inset 0 1px 0 rgba(200,220,255,.3), inset 0 -10px 18px rgba(20,40,120,.4),
+    0 0 26px -6px rgba(80,140,255,.55);
+  isolation: isolate;
+}
+.gm-avatar::before {
+  content: ''; position: absolute; inset: -3px; border-radius: 21px; z-index: -1;
+  background: conic-gradient(from 0deg, transparent, rgba(120,200,255,.9), rgba(130,140,255,.7), transparent 45%);
+  -webkit-mask: radial-gradient(closest-side, transparent 76%, #000 78%);
+  mask: radial-gradient(closest-side, transparent 76%, #000 78%);
+  animation: gm-spin 6s linear infinite; opacity: .85;
+}
+.gm-avatar::after {
+  content: ''; position: absolute; inset: 0; border-radius: 18px; pointer-events: none;
+  background: linear-gradient(115deg, transparent 40%, rgba(220,235,255,.18) 50%, transparent 60%);
+  background-size: 250% 100%; animation: gm-shine 5s var(--ease-out-quart) infinite;
+}
+@keyframes gm-spin { to { transform: rotate(360deg); } }
+@keyframes gm-shine { 0%,70% { background-position: 130% 0; } 100% { background-position: -30% 0; } }
+
+/* Nivel general con resplandor */
+.gm-genlevel-num { text-shadow: 0 0 22px rgba(120,170,255,.55); }
+
+/* Chip de ícono por categoría (usa --sc del bloque) */
+.gm-cat-ico {
+  width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; font-size: 16px; flex: none;
+  background:
+    radial-gradient(120% 120% at 30% 20%, color-mix(in oklab, var(--sc, var(--accent)) 38%, transparent), transparent 70%),
+    rgba(10,16,30,.5);
+  border: 1px solid color-mix(in oklab, var(--sc, var(--accent)) 45%, var(--border));
+  box-shadow: inset 0 1px 0 rgba(200,215,255,.22), 0 0 16px -5px color-mix(in oklab, var(--sc, var(--accent)) 75%, transparent);
+  transition: transform .2s var(--ease-out-expo), box-shadow .2s;
+}
+.gm-cat-h:hover .gm-cat-ico { transform: translateY(-1px) scale(1.05); box-shadow: inset 0 1px 0 rgba(200,215,255,.3), 0 0 22px -4px color-mix(in oklab, var(--sc, var(--accent)) 85%, transparent); }
+.gm-cat-name { text-shadow: 0 0 16px color-mix(in oklab, var(--sc, var(--accent)) 30%, transparent); }
+
+/* Barras con profundidad + brillo + shimmer en la cresta */
+.gm-bar { background: rgba(6,10,20,.65); box-shadow: inset 0 1px 2px rgba(0,0,0,.55); border: 1px solid rgba(120,160,255,.08); }
+.gm-bar-fill {
+  position: relative; overflow: hidden;
+  background: linear-gradient(90deg, color-mix(in oklab, var(--sc, var(--accent)) 55%, #000 0%), var(--sc, var(--accent)));
+  box-shadow: 0 0 12px -2px color-mix(in oklab, var(--sc, var(--accent)) 85%, transparent), inset 0 1px 0 rgba(255,255,255,.3);
+}
+.gm-bar-fill::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.45), transparent);
+  background-size: 220% 100%; animation: gm-bar-shimmer 2.8s linear infinite;
+}
+@keyframes gm-bar-shimmer { 0% { background-position: 130% 0; } 100% { background-position: -30% 0; } }
+
+/* Misiones: relieve y respuesta */
+.gm-mission { border: 1px solid var(--border); box-shadow: inset 0 1px 0 rgba(180,200,255,.05); transition: transform .18s var(--ease-out-expo), border-color .18s, background .18s; }
+.gm-mission:hover { transform: translateX(2px); border-color: color-mix(in oklab, var(--sc, var(--accent)) 40%, var(--border)); }
+.gm-mission.done { background: linear-gradient(90deg, rgba(16,224,124,.10), var(--card) 45%); }
+.gm-check { transition: transform .2s var(--ease-out-expo), background .2s; }
+.gm-mission.done .gm-check { box-shadow: 0 0 14px -2px rgba(16,224,124,.8); }
+.gm-mission-xp { text-shadow: 0 0 12px color-mix(in oklab, var(--accent) 60%, transparent); }
+
+/* Buffs con más presencia luminosa */
+.gm-buff { backdrop-filter: blur(6px); box-shadow: inset 0 1px 0 rgba(200,215,255,.12); }
+.gm-buff-ico { filter: drop-shadow(0 0 6px rgba(255,160,40,.6)); }
+
+/* Épicas: profundidad */
+.gm-epic { background: linear-gradient(180deg, rgba(140,170,235,.06), var(--card)); box-shadow: 0 10px 24px -16px rgba(0,0,0,.7), inset 0 1px 0 rgba(180,200,255,.08); transition: transform .2s var(--ease-out-expo), box-shadow .2s; }
+.gm-epic:hover { transform: translateY(-2px); box-shadow: 0 16px 30px -18px rgba(0,0,0,.8), inset 0 1px 0 rgba(180,200,255,.14); }
+
+@media (prefers-reduced-motion: reduce) {
+  .gm-avatar::before, .gm-avatar::after, .gm-bar-fill::after { animation: none !important; }
+  .gm-cat-h:hover .gm-cat-ico, .gm-mission:hover, .gm-epic:hover { transform: none; }
+}
