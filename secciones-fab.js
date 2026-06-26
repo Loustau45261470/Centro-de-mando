@@ -73,7 +73,6 @@ function _sfMount() {
   const openPlanner = () => { if (typeof plannerOverlayOpen === 'function') plannerOverlayOpen(); };
   const openGym = R({ id: 'ov-gym', accent: '#F43F5E', eyebrow: 'SALUD · ENTRENAMIENTO', title: 'Entrenamiento', sourceId: 'rutinas-wrap' });
   window.openGymOverlay = openGym;
-  const openWellness = R({ id: 'ov-wellness', accent: '#10E07C', eyebrow: 'SALUD · BIENESTAR', title: 'Bienestar', sourceId: 'bienestar-card' });
   const openGoals = R({ id: 'ov-goals', accent: '#F5A623', eyebrow: 'FINANZAS · ADQUISICIÓN', title: 'Objetivos de adquisición', sourceId: 'wishlist-card' });
   const openBudget = _sfOpenBudget;
   const proyItem = tab => ({ icon: _SF_ICONS.proy, label: 'Proyectos', accent: '#38BDF8', onClick: () => { if (window.ProyectosOverlay) ProyectosOverlay.open(tab); } });
@@ -87,7 +86,7 @@ function _sfMount() {
     { tab: 'salud', accent: '#F43F5E', icon: _SF_ICONS.salud, name: 'Salud', items: [
       proyItem('salud'),
       { icon: _SF_ICONS.gym, label: 'Entrenamiento', accent: '#F43F5E', onClick: openGym },
-      { icon: _SF_ICONS.wellness, label: 'Bienestar', accent: '#10E07C', onClick: openWellness },
+      { icon: _SF_ICONS.notas, label: 'Notas', accent: '#10E07C', onClick: () => { if (typeof saludNotasOpen === 'function') saludNotasOpen(); } },
       remItem('salud'),
     ] },
     { tab: 'finanzas', accent: '#22C55E', icon: _SF_ICONS.finanzas, name: 'Finanzas', items: [
