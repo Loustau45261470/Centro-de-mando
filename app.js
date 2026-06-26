@@ -1204,7 +1204,7 @@ function autoResizePlanner(ta) {
   ta.style.height = (ta.scrollHeight) + 'px';
 }
 
-function buildPlannerSlide(listEl, date, isToday) {
+function buildPlannerSlide(listEl, date, isToday, reduced) {
   if (!listEl) return;
   const planner = (S.dayPlanner && S.dayPlanner[date]) || {};
   const goals   = (S.goals[date] || []).filter(g => g.time);
@@ -1225,6 +1225,8 @@ function buildPlannerSlide(listEl, date, isToday) {
     const isNext    = h === curH + 1;
 
     const hourGoals  = goals.filter(g => parseInt(g.time.split(':')[0]) === h);
+    // Modo reducido (vista inline): sólo horas con texto o metas.
+    if (reduced && !note.trim() && !hourGoals.length) return '';
     const chipsHtml  = hourGoals.map(g =>
       `<div class="planner-goal-chip${g.done?' done':''}" onclick="toggleGoalById('${escHtml(date)}','${escHtml(g.id)}')" title="${escHtml(g.text)}">
         <span class="chip-dot" style="background:${PRIORITY_COLOR[g.priority]||'#666'}"></span>
@@ -1279,19 +1281,24 @@ function updatePlannerLabel() {
 }
 
 function renderDayPlanner() {
-  const today   = getActiveDate();
-  const tomorrow = getTomorrow();
+  const today = getActiveDate();
 
-  buildPlannerSlide(document.getElementById('dayPlannerList'),    today,   true);
-  buildPlannerSlide(document.getElementById('dayPlannerListTom'), tomorrow, false);
-  updatePlannerLabel();
-
-  // Wire scroll → label update (once)
-  const swiper = document.getElementById('plannerSwiper');
-  if (swiper && !swiper._labelListenerAdded) {
-    swiper.addEventListener('scroll', updatePlannerLabel, { passive: true });
-    swiper._labelListenerAdded = true;
+  // Vista inline = reducida: sólo las horas con texto/metas. La versión completa
+  // (con pestañas Hoy/Mañana) vive en el overlay (FAB 🧍 → Planificación).
+  const listEl = document.getElementById('dayPlannerList');
+  buildPlannerSlide(listEl, today, true, true);
+  if (listEl && !listEl.innerHTML.trim()) {
+    listEl.innerHTML = '<div class="planner-empty-inline">Sin horas planificadas. Abrí <b>Planificación</b> (🧍 → Planificación) para organizar tu día.</div>';
   }
+  // En la sección sólo se muestra Hoy: ocultar el slide de Mañana y los puntos del swiper.
+  const tom = document.getElementById('dayPlannerListTom'); if (tom) tom.style.display = 'none';
+  const dots = document.getElementById('plannerDots'); if (dots) dots.style.display = 'none';
+  const label = document.getElementById('plannerDateLabel');
+  if (label) { const d = new Date(today + 'T00:00:00'); label.textContent = 'Hoy · ' + d.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' }); }
+
+  // Si el overlay de planificación está abierto, refrescarlo también.
+  const ov = document.getElementById('ov-planner');
+  if (ov && ov.classList.contains('show') && typeof plannerOverlayRender === 'function') plannerOverlayRender();
 }
 
 // ════════════════════════════════════════════════════════

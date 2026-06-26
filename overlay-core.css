@@ -63,3 +63,31 @@
   .cm-overlay.show .cm-panel { animation: none !important; }
   .cm-ov-close:hover { transform: none; }
 }
+
+/* ── Planificación: pestañas Hoy/Mañana estilo segmentado ── */
+.plov-tabs {
+  position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
+  background: rgba(10,16,30,.55); border: 1px solid var(--border); border-radius: 13px; padding: 4px; margin-bottom: 16px;
+}
+.plov-tab {
+  position: relative; z-index: 2; background: none; border: none; cursor: pointer;
+  font-family: var(--sans); font-size: 14px; font-weight: 700; color: var(--ts);
+  padding: 10px; border-radius: 9px; transition: color .2s;
+}
+.plov-tab.on { color: #fff; }
+.plov-tab-ink {
+  position: absolute; z-index: 1; top: 4px; bottom: 4px; left: 4px; width: calc(50% - 6px); border-radius: 9px;
+  background: linear-gradient(150deg, color-mix(in oklab, var(--cm-accent) 60%, transparent), color-mix(in oklab, var(--cm-accent) 28%, transparent));
+  border: 1px solid color-mix(in oklab, var(--cm-accent) 55%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.2), 0 0 18px -6px color-mix(in oklab, var(--cm-accent) 90%, transparent);
+  transition: left .28s var(--ease-out-expo);
+}
+.plov-tabs[data-on="manana"] .plov-tab-ink { left: 50%; }
+.plov-pane { animation: cm-panel-in .3s var(--ease-out-expo) both; }
+.plov-sub { font-family: var(--mono); font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--ts); margin: 4px 2px 9px; }
+.plov-sub::before { content: '▸'; color: var(--cm-accent); margin-right: 6px; }
+.plov-list { display: block; }
+
+/* Vista inline reducida del planner */
+.planner-empty-inline { font-size: 13px; color: var(--tt); padding: 10px 2px; line-height: 1.5; }
+.planner-empty-inline b { color: var(--ts); }
