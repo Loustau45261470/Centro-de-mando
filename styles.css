@@ -4560,3 +4560,50 @@ input:focus, select:focus, textarea:focus {
 .rnotif-when { font-family: var(--mono); font-size: 10.5px; color: var(--tt); margin-top: 2px; text-transform: capitalize; }
 .rnotif-cd { font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--rn-accent); flex: none; }
 .rnotif-item.imminent .rnotif-cd { color: var(--warn); }
+
+/* ════════════════════ ENTRENAMIENTO · overlay (restyle holográfico) ════════════════════
+   Scopeado a #ov-gym: no toca el JS ni el logging, sólo la estética dentro del overlay. */
+#ov-gym { --gym: #F43F5E; }
+#ov-gym .rtn-card {
+  background: linear-gradient(160deg, rgba(244,63,94,.10), rgba(10,16,30,.5));
+  border: 1px solid rgba(244,63,94,.28); border-radius: 16px; margin-bottom: 12px;
+  box-shadow: 0 14px 30px -18px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,210,220,.1);
+  transition: transform .2s var(--ease-out-expo), box-shadow .2s, border-color .2s;
+}
+#ov-gym .rtn-card.rtn-open, #ov-gym .rtn-card:hover {
+  border-color: rgba(244,63,94,.5);
+  box-shadow: 0 22px 42px -20px rgba(0,0,0,.8), 0 0 32px -10px rgba(244,63,94,.5), inset 0 1px 0 rgba(255,210,220,.18);
+}
+#ov-gym .rtn-header { padding: 14px 16px; }
+#ov-gym .rtn-icon { font-size: 18px; }
+#ov-gym .rtn-name { font-size: 15px; letter-spacing: -.01em; }
+#ov-gym .rtn-stat-pill { color: #ff7d92; text-shadow: 0 0 10px rgba(244,63,94,.5); }
+#ov-gym .rtn-stats-bar { padding: 15px 14px; background: rgba(244,63,94,.05); border-bottom: 1px solid rgba(244,63,94,.14); }
+#ov-gym .rtn-stats-bar .rtn-stat-val { font-size: 25px; color: #ff7d92; text-shadow: 0 0 16px rgba(244,63,94,.55); font-variant-numeric: tabular-nums; }
+#ov-gym .rtn-stats-bar .rtn-stat-lbl { font-family: var(--mono); font-size: 9px; letter-spacing: .8px; text-transform: uppercase; }
+#ov-gym .rtn-section-hdr, #ov-gym .rtn-sets-header, #ov-gym .rtn-hist-title { font-family: var(--mono); }
+#ov-gym .rtn-equip-tag { background: rgba(244,63,94,.16); color: #ff8fa1; border: 1px solid rgba(244,63,94,.3); border-radius: 7px; }
+#ov-gym .rtn-ex-name { font-size: 15px; }
+#ov-gym .rtn-ex-block {
+  border: 1px solid var(--border); border-radius: 14px; margin-top: 14px; position: relative;
+  background: linear-gradient(180deg, rgba(140,170,235,.045), rgba(10,16,30,.4));
+  box-shadow: 0 10px 24px -18px rgba(0,0,0,.7);
+}
+#ov-gym .rtn-ex-block::before { content: ''; position: absolute; top: 0; left: 14px; right: 14px; height: 1px; background: linear-gradient(90deg, transparent, rgba(244,63,94,.6), transparent); }
+#ov-gym .rtn-ex-block-header { background: rgba(244,63,94,.045); border-bottom: 1px solid rgba(244,63,94,.12); padding: 12px 14px; }
+#ov-gym .rtn-ex-block-name { font-size: 15px; }
+#ov-gym .rtn-set-inp {
+  background: rgba(8,12,22,.7); border: 1px solid rgba(244,63,94,.18); border-radius: 10px;
+  padding: 12px 6px; font-size: 18px; box-shadow: inset 0 2px 4px rgba(0,0,0,.4);
+  transition: border-color .15s, box-shadow .15s, background .15s;
+}
+#ov-gym .rtn-set-inp:focus { border-color: var(--gym); background: rgba(244,63,94,.06); box-shadow: 0 0 0 3px rgba(244,63,94,.18), inset 0 2px 4px rgba(0,0,0,.4), 0 0 20px -8px rgba(244,63,94,.85); }
+#ov-gym .rtn-set-num { font-size: 13px; }
+#ov-gym .rtn-set-check { width: 34px; height: 34px; border-radius: 10px; background: rgba(10,16,30,.6); border: 1.5px solid var(--border-h); }
+#ov-gym .rtn-set-check.checked { background: linear-gradient(150deg, rgba(16,224,124,.28), rgba(16,224,124,.1)); border-color: var(--ok); color: var(--ok); box-shadow: 0 0 16px -4px rgba(16,224,124,.7), inset 0 1px 0 rgba(255,255,255,.2); }
+#ov-gym .rtn-set-done .rtn-set-inp { background: rgba(16,224,124,.07); border-color: rgba(16,224,124,.3); color: #4dffa0; }
+#ov-gym .rtn-session-bar { padding: 16px 14px 6px; }
+#ov-gym .rtn-session-title { font-size: 21px; color: #ff7d92; text-shadow: 0 0 20px rgba(244,63,94,.5); }
+#ov-gym .rtn-timer-btn { border-radius: 9px; background: rgba(244,63,94,.14); border: 1px solid rgba(244,63,94,.35); color: #ff8fa1; }
+#ov-gym .rtn-timer-band { border-radius: 12px; background: linear-gradient(90deg, rgba(244,63,94,.12), rgba(10,16,30,.4) 60%); border: 1px solid rgba(244,63,94,.35); }
+#ov-gym .rtn-hist-vol { color: var(--tp); }
