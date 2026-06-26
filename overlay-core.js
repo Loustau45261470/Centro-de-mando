@@ -48,6 +48,28 @@ const CMOverlay = (() => {
     close(_openStack[_openStack.length - 1]);
   });
 
-  return { build, open, close };
+  // relocate({ id, accent, eyebrow, title, sourceId }) → función que abre un overlay
+  // que ALOJA (mueve) un contenedor ya existente del DOM, y lo devuelve al cerrar.
+  // No reescribe la lógica de la sección: reutiliza el mismo nodo y sus handlers.
+  function relocate(opts) {
+    return function () {
+      const src = document.getElementById(opts.sourceId);
+      if (!src) { if (typeof showToast === 'function') showToast('No disponible'); return; }
+      const { overlay, body } = build({
+        id: opts.id, accent: opts.accent,
+        onClose: () => { if (src._cmHome) { src._cmHome.parent.insertBefore(src, src._cmHome.next); src._cmHome = null; } },
+      });
+      if (!overlay._cmHosted) {
+        body.innerHTML = `<div class="cm-ov-head"><div class="cm-ov-eyebrow">${opts.eyebrow || ''}</div><div class="cm-ov-title">${opts.title || ''}</div></div><div class="cm-ov-host"></div>`;
+        overlay._cmHosted = true;
+      }
+      const host = body.querySelector('.cm-ov-host');
+      src._cmHome = { parent: src.parentNode, next: src.nextSibling };
+      host.appendChild(src);
+      open(overlay);
+    };
+  }
+
+  return { build, open, close, relocate };
 })();
 window.CMOverlay = CMOverlay;

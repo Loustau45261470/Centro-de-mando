@@ -47,6 +47,9 @@
 .cm-ov-close:hover { background: rgba(255,51,88,.14); border-color: var(--danger); color: #fff; transform: rotate(90deg); }
 .cm-ov-body { flex: 1; overflow-y: auto; padding: 8px 2px; }
 .cm-ov-body::-webkit-scrollbar { width: 0; }
+/* Host de contenido reubicado: la card existente ocupa todo el ancho, sin margen extra */
+.cm-ov-host > .card,
+.cm-ov-host > [id$="-wrap"] { margin: 0 0 12px; max-width: 100%; width: 100%; }
 
 /* Cabecera estándar reutilizable dentro de un cm-overlay */
 .cm-ov-head { margin: 6px 4px 16px; }
