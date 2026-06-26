@@ -17,6 +17,9 @@
 /* Entrenamiento completo: ídem. */
 #rutinas-wrap { display: none; }
 .cm-ov-host #rutinas-wrap { display: block; }
+/* Vida: Metas de Hoy (completo) y Plan Mañana viven en el overlay de Planificación. */
+#metas-hoy-card, #tomorrow-card { display: none; }
+#ov-planner #metas-hoy-card, #ov-planner #tomorrow-card { display: block; }
 
 /* Breadcrumb */
 .po-crumbs { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; margin: 2px 2px 12px; }

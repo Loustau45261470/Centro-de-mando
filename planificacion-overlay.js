@@ -18,7 +18,12 @@ function plannerOverlayOpen() {
         <button class="plov-tab" data-d="manana" onclick="plannerOverlayTab('manana')">Mañana</button>
         <span class="plov-tab-ink"></span>
       </div>
-      <div class="plov-pane" id="plov-pane-hoy"><div class="plov-list" id="plov-list-hoy"></div></div>
+      <div class="plov-pane" id="plov-pane-hoy">
+        <div class="plov-sub">Metas de hoy</div>
+        <div id="plov-metas-host"></div>
+        <div class="plov-sub">Agenda por hora</div>
+        <div class="plov-list" id="plov-list-hoy"></div>
+      </div>
       <div class="plov-pane" id="plov-pane-manana" hidden>
         <div class="plov-sub">Plan de mañana</div>
         <div id="plov-tom-host"></div>
@@ -37,12 +42,15 @@ function plannerOverlayRender() {
   if (typeof buildPlannerSlide !== 'function') return;
   buildPlannerSlide(document.getElementById('plov-list-hoy'), getActiveDate(), true, false);
   buildPlannerSlide(document.getElementById('plov-list-manana'), getTomorrow(), false, false);
-  // Reubicar "Plan Mañana" dentro de la pestaña Mañana (si no está ya)
-  const tom = document.getElementById('tomorrow-card');
-  const host = document.getElementById('plov-tom-host');
-  if (tom && host && tom.parentNode !== host) {
-    tom._plovHome = { parent: tom.parentNode, next: tom.nextSibling };
-    host.appendChild(tom);
+  // Reubicar las cards existentes dentro de las pestañas (si no están ya).
+  _plovHostInto('metas-hoy-card', 'plov-metas-host');
+  _plovHostInto('tomorrow-card', 'plov-tom-host');
+}
+function _plovHostInto(srcId, hostId) {
+  const src = document.getElementById(srcId), host = document.getElementById(hostId);
+  if (src && host && src.parentNode !== host) {
+    src._plovHome = { parent: src.parentNode, next: src.nextSibling };
+    host.appendChild(src);
   }
 }
 
@@ -58,7 +66,9 @@ function _plovApplyTab() {
 }
 
 function _plovRestore() {
-  const tom = document.getElementById('tomorrow-card');
-  if (tom && tom._plovHome) { tom._plovHome.parent.insertBefore(tom, tom._plovHome.next); tom._plovHome = null; }
+  ['metas-hoy-card', 'tomorrow-card'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && el._plovHome) { el._plovHome.parent.insertBefore(el, el._plovHome.next); el._plovHome = null; }
+  });
 }
 window.plannerOverlayOpen = plannerOverlayOpen;
