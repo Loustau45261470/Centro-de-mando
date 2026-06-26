@@ -3,9 +3,13 @@
 
 #proy-overlay { --po-accent: #38BDF8; }
 
-/* Conocimiento: el acceso a Proyectos es el speed-dial 🧠 → overlay.
+/* El acceso a Proyectos en cada sección es el speed-dial → overlay.
    Se oculta el árbol inline (los datos siguen intactos; solo se quita la vista duplicada). */
-#proyectos-wrap-conocimiento { display: none; }
+#proyectos-wrap-conocimiento,
+#proyectos-wrap-vida,
+#proyectos-wrap-salud,
+#proyectos-wrap-finanzas,
+#proyectos-wrap-ia { display: none; }
 
 /* Breadcrumb */
 .po-crumbs { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; margin: 2px 2px 12px; }
