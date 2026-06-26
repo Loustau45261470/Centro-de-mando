@@ -4375,7 +4375,19 @@ input:focus, select:focus, textarea:focus {
 .nt-ico svg { width: 16px; height: 16px; }
 .nt-ico:hover { color: #fff; border-color: var(--nt-accent); transform: translateY(-1px); }
 .nt-del:hover { color: #fff; border-color: var(--danger); background: rgba(255,51,88,.16); }
-.nt-note-date { font-family: var(--mono); font-size: 10.5px; letter-spacing: .5px; color: var(--tt); margin: 3px 0 9px; text-transform: capitalize; }
+.nt-note-meta { display: flex; align-items: center; gap: 9px; margin: 5px 0 10px; }
+.nt-note-tag {
+  display: inline-flex; align-items: center; gap: 5px; flex: none;
+  font-family: var(--mono); font-size: 9.5px; font-weight: 700; letter-spacing: 1.5px;
+  padding: 3px 9px 3px 6px; border-radius: 999px;
+  color: color-mix(in oklab, var(--nt-accent) 88%, #fff);
+  background: color-mix(in oklab, var(--nt-accent) 16%, transparent);
+  border: 1px solid color-mix(in oklab, var(--nt-accent) 38%, transparent);
+  box-shadow: inset 0 0 10px -4px color-mix(in oklab, var(--nt-accent) 80%, transparent);
+}
+.nt-note-tag-ico { width: 13px; height: 13px; display: grid; place-items: center; }
+.nt-note-tag-ico svg { width: 13px; height: 13px; }
+.nt-note-date { font-family: var(--mono); font-size: 10.5px; letter-spacing: .5px; color: var(--tt); text-transform: capitalize; }
 .nt-note-text { font-size: 13.5px; color: var(--ts); white-space: pre-wrap; line-height: 1.55; }
 
 /* ── Bloque de aprendizaje ── */

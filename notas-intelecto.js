@@ -144,6 +144,7 @@ function _ntRenderCat(cat) {
 }
 
 function _ntRenderNoteCard(n, i) {
+  const meta = NOTAS_CATS[n.categoria] || NOTAS_CATS.reflexiones;
   const fields = n.categoria === 'aprendizaje'
     ? `<div class="nt-learn">
         ${_ntFieldRow('bien', 'Hice bien', n.hiceBien)}
@@ -163,7 +164,10 @@ function _ntRenderNoteCard(n, i) {
         <button class="nt-ico nt-del" title="Borrar" onclick="notasDelete('${n.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/></svg></button>
       </div>
     </div>
-    <div class="nt-note-date">${_ntEsc(_ntFmtDate(n.fecha))}</div>
+    <div class="nt-note-meta">
+      <span class="nt-note-tag"><span class="nt-note-tag-ico">${meta.svg}</span>${meta.tag}</span>
+      <span class="nt-note-date">${_ntEsc(_ntFmtDate(n.fecha))}</span>
+    </div>
     ${fields}
   </div>`;
 }
