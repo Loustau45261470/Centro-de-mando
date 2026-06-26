@@ -12,32 +12,6 @@ const _SF_ICONS = {
   proy: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h3.4a2 2 0 0 1 1.4.6L11 7h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 11h18"/></svg>`,
 };
 
-// ── Overlay de Proyectos (reubicación del árbol existente) ────────────────
-let _sfProyWrap = null;
-function _sfProyOverlay() {
-  const { overlay, body } = CMOverlay.build({ id: 'proy-overlay', accent: '#6B8EFF', onClose: _sfRestoreProy });
-  overlay.classList.add('cm-ov-proy');
-  if (!document.getElementById('proy-ov-host')) {
-    body.innerHTML = `<div class="cm-ov-head"><div class="cm-ov-eyebrow">CONOCIMIENTO · PROYECTOS</div><div class="cm-ov-title">Proyectos</div></div><div id="proy-ov-host"></div>`;
-  }
-  return overlay;
-}
-function proyectosOverlayOpen(tab) {
-  const wrap = document.getElementById('proyectos-wrap-' + tab);
-  if (!wrap) return;
-  const overlay = _sfProyOverlay();
-  const host = document.getElementById('proy-ov-host');
-  wrap._sfHome = { parent: wrap.parentNode, next: wrap.nextSibling };
-  _sfProyWrap = wrap;
-  host.appendChild(wrap);
-  CMOverlay.open(overlay);
-}
-function _sfRestoreProy() {
-  const wrap = _sfProyWrap;
-  if (wrap && wrap._sfHome) { wrap._sfHome.parent.insertBefore(wrap, wrap._sfHome.next); wrap._sfHome = null; }
-  _sfProyWrap = null;
-}
-
 // ── Montaje ───────────────────────────────────────────────────────────────
 function _sfMount() {
   if (typeof CMSpeedDial === 'undefined') return;
@@ -50,7 +24,7 @@ function _sfMount() {
     mainIcon: _SF_ICONS.brain,
     items: [
       { icon: _SF_ICONS.notas, label: 'Notas', accent: '#6B8EFF', onClick: () => { if (typeof notasOpen === 'function') notasOpen(); } },
-      { icon: _SF_ICONS.proy, label: 'Proyectos', accent: '#38BDF8', onClick: () => proyectosOverlayOpen('conocimiento') },
+      { icon: _SF_ICONS.proy, label: 'Proyectos', accent: '#38BDF8', onClick: () => { if (window.ProyectosOverlay) ProyectosOverlay.open('conocimiento'); } },
     ],
     observeEl: tabConoc,
     visibleWhen: () => !!(tabConoc && tabConoc.classList.contains('active')),
