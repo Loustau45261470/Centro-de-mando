@@ -258,12 +258,17 @@
   function sayEN(text) { _translateEN(text).then(en => say(en, true)); }
   window.JARVIS_EARS_sayEN = sayEN;   // reutilizable desde otros módulos (p. ej. paleta de comandos)
 
-  let _cmdBusy = false;
+  let _cmdBusy = false, _cmdBusyTimer = null;
+  function _setCmdBusy(v) { _cmdBusy = v; _updateWakeBtn(); }
   async function handleCommand(raw) {
     if (_cmdBusy) { if (typeof showToast === 'function') showToast('⚙️ Procesando tu comando anterior…', 2000); return; }
-    _cmdBusy = true; _updateWakeBtn();
+    _setCmdBusy(true);
+    // Watchdog: si _handleCommandInner no liberara (cuelgue imprevisto), auto-resetear a los 25s.
+    // Sin esto, un comando colgado deja _cmdBusy trabado y bloquea TODOS los comandos siguientes.
+    clearTimeout(_cmdBusyTimer);
+    _cmdBusyTimer = setTimeout(() => _setCmdBusy(false), 25000);
     try { return await _handleCommandInner(raw); }
-    finally { _cmdBusy = false; _updateWakeBtn(); }
+    finally { clearTimeout(_cmdBusyTimer); _setCmdBusy(false); }
   }
   async function _handleCommandInner(raw) {
     const t = _norm(raw);
