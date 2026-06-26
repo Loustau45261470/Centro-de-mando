@@ -48,6 +48,7 @@ function _sfMount() {
   const openWellness = R({ id: 'ov-wellness', accent: '#10E07C', eyebrow: 'SALUD · BIENESTAR', title: 'Bienestar', sourceId: 'bienestar-card' });
   const openGoals = R({ id: 'ov-goals', accent: '#F5A623', eyebrow: 'FINANZAS · OBJETIVOS', title: 'Objetivos de adquisición', sourceId: 'fin-objectives-wrap' });
   const openBudget = R({ id: 'ov-budget', accent: '#22C55E', eyebrow: 'FINANZAS · PRESUPUESTO', title: 'Presupuesto del mes', sourceId: 'budget-card' });
+  window.openBudgetOverlay = openBudget;
   const proyItem = tab => ({ icon: _SF_ICONS.proy, label: 'Proyectos', accent: '#38BDF8', onClick: () => { if (window.ProyectosOverlay) ProyectosOverlay.open(tab); } });
 
   const sections = [

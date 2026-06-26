@@ -11,6 +11,10 @@
 #proyectos-wrap-finanzas,
 #proyectos-wrap-ia { display: none; }
 
+/* Presupuesto completo: oculto inline (vive en el overlay); visible al reubicarse en el host. */
+#budget-card { display: none; }
+.cm-ov-host #budget-card { display: block; }
+
 /* Breadcrumb */
 .po-crumbs { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; margin: 2px 2px 12px; }
 .po-crumb {
