@@ -919,6 +919,7 @@ function renderGoals() {
   renderGoalList(today, 'goalList', 'goalsEmpty', false);
   renderGoalList(tom, 'tomorrowList', 'tomorrowEmpty', false);
   renderGoalsHeader(today);
+  renderMetasReadonly();
   updateStreak();
   buildTickerAlerts();
   renderDayPlanner();
@@ -927,6 +928,25 @@ function renderGoals() {
   const tomorrow2 = getTomorrow();
   const hasTimed  = (S.goals[today2]||[]).some(g => g.time) || (S.goals[tomorrow2]||[]).some(g => g.time);
   if (hasTimed) renderReminders('vida');
+}
+
+// Metas de hoy en la sección: solo lectura (ver + marcar). Crear/editar/borrar viven en Planificación (overlay).
+function renderMetasReadonly() {
+  const body = document.getElementById('metasReadonlyBody'); if (!body) return;
+  const date = getActiveDate();
+  const goals = S.goals[date] || [];
+  if (!goals.length) {
+    body.innerHTML = '<div class="mrd-empty">Sin metas para hoy. Abrí <b>Planificación</b> (🧍) para agregarlas.</div>';
+    return;
+  }
+  const done = goals.filter(g => g.done).length;
+  body.innerHTML = `<div class="mrd-prog"><span class="mrd-prog-num">${done}</span><span class="mrd-prog-sep">/</span><span class="mrd-prog-tot">${goals.length}</span><span class="mrd-prog-lbl">completadas</span></div>`
+    + goals.map((g, idx) => `<div class="mrd-item${g.done ? ' done' : ''}">
+        <button class="mrd-check" onclick="toggleGoal('${escHtml(date)}',${idx})" aria-label="Marcar meta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></button>
+        ${g.time ? `<span class="mrd-time">${fmtGoalTime(g.time)}</span>` : ''}
+        <span class="mrd-prio" style="background:${PRIORITY_COLOR[g.priority] || '#666'}"></span>
+        <span class="mrd-text">${escHtml(g.text)}</span>
+      </div>`).join('');
 }
 
 const GOAL_PERIODS = [
@@ -1197,6 +1217,8 @@ function savePlannerNote(date, hour, text) {
     if (!Object.keys(S.dayPlanner[date]).length) delete S.dayPlanner[date];
   }
   saveState();
+  // Reflejar el cambio en la vista reducida de la sección (y en el overlay si está abierto).
+  if (typeof renderDayPlanner === 'function') renderDayPlanner();
 }
 
 function autoResizePlanner(ta) {
