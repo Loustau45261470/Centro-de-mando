@@ -3189,6 +3189,7 @@ function renderFinanzasTab() {
   renderActivity();
   renderFinObjectives();
   renderBudget();
+  renderBudgetSummary();
   if (nwPieInst) updateNWCharts();
 }
 
@@ -4457,6 +4458,81 @@ function renderBudget() {
     ${resRows}
     <div class="budget-block-hdr"><span>Plan vs. real · ${monthLabel}</span></div>
     ${comparison}`;
+  if (typeof renderBudgetSummary === 'function') renderBudgetSummary();
+}
+
+// ── Resumen comparativo de presupuesto (vista de sección; el detalle vive en el overlay) ──
+function _budgetMonthTotal(mk) {
+  const b = S.budgets && S.budgets[mk]; if (!b) return 0;
+  let t = 0;
+  (b.fixed || []).forEach(it => t += _budgetItemTotal(it));
+  (b.reserved || []).forEach(it => t += (+it.amount || 0));
+  return t;
+}
+function _spentMonth(mk) {
+  return (S.transactions || []).filter(t => t.type === 'expense' && t.currency === 'ARS' && t.date && t.date.slice(0, 7) === mk)
+    .reduce((s, t) => s + (+t.amount || 0), 0);
+}
+function renderBudgetSummary() {
+  const body = document.getElementById('budgetSummaryBody'); if (!body) return;
+  if (!S.budgets) S.budgets = {};
+  const mk = _curMonthKey();
+  const budget = _budgetMonthTotal(mk), spent = _spentMonth(mk);
+  const ratio = budget > 0 ? spent / budget : 0;
+  const over = budget > 0 && spent > budget;
+
+  // Por categoría (plan vs real), top 5 por gasto real
+  const realByCat = {}, budByCat = {};
+  (S.transactions || []).forEach(t => {
+    if (t.type === 'expense' && t.currency === 'ARS' && t.date && t.date.slice(0, 7) === mk) {
+      const c = t.category || 'other'; realByCat[c] = (realByCat[c] || 0) + (+t.amount || 0);
+    }
+  });
+  const b = S.budgets[mk];
+  if (b) {
+    (b.fixed || []).forEach(it => { if (it.category) budByCat[it.category] = (budByCat[it.category] || 0) + _budgetItemTotal(it); });
+    (b.reserved || []).forEach(it => { if (it.category) budByCat[it.category] = (budByCat[it.category] || 0) + (+it.amount || 0); });
+  }
+  const cats = [...new Set([...Object.keys(budByCat), ...Object.keys(realByCat)])]
+    .sort((a, c) => (realByCat[c] || 0) - (realByCat[a] || 0)).slice(0, 5);
+
+  // Tendencia últimos 6 meses
+  const months = []; const now = new Date();
+  for (let i = 5; i >= 0; i--) { const d = new Date(now.getFullYear(), now.getMonth() - i, 1); months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`); }
+  const trend = months.map(m => ({ m, spent: _spentMonth(m), budget: _budgetMonthTotal(m) }));
+  const maxT = Math.max(1, ...trend.map(t => Math.max(t.spent, t.budget)));
+
+  const catRows = cats.map(c => {
+    const ci = getCatInfo(c, 'expense'); const plan = budByCat[c] || 0, real = realByCat[c] || 0;
+    const w = plan > 0 ? Math.min(real / plan * 100, 100) : (real > 0 ? 100 : 0);
+    const ov = plan > 0 && real > plan;
+    return `<div class="bsum-cat">
+      <div class="bsum-cat-top"><span class="bsum-cat-name">${ci.icon} ${ci.label || c}</span><span class="bsum-cat-val mono ${ov ? 'text-danger' : ''}">${fmtMoney(real, 'ARS')} / ${fmtMoney(plan, 'ARS')}</span></div>
+      <div class="bsum-cat-bar"><div class="bsum-cat-fill${ov ? ' over' : ''}" style="width:${w}%"></div></div>
+    </div>`;
+  }).join('') || '<p class="empty-state">Sin movimientos este mes</p>';
+
+  const trendCols = trend.map(t => {
+    const h = Math.round(t.spent / maxT * 100), bh = Math.round(t.budget / maxT * 100);
+    const [, mm] = t.m.split('-'); const ov = t.budget > 0 && t.spent > t.budget;
+    return `<div class="bsum-tcol" title="${CAL_MONTHS[+mm - 1]}: gastado ${fmtMoney(t.spent, 'ARS')} / plan ${fmtMoney(t.budget, 'ARS')}">
+      <div class="bsum-tbars"><div class="bsum-tbudget" style="height:${Math.max(bh, 2)}%"></div><div class="bsum-tspent${ov ? ' over' : ''}" style="height:${Math.max(h, 2)}%"></div></div>
+      <div class="bsum-tlbl">${CAL_MONTHS[+mm - 1].slice(0, 3)}</div>
+    </div>`;
+  }).join('');
+
+  body.innerHTML = `
+    <div class="bsum-head">
+      <div><div class="bsum-lbl">Gastado este mes</div><div class="bsum-spent${over ? ' over' : ''}">${fmtMoney(spent, 'ARS')}</div></div>
+      <div class="bsum-head-r"><div class="bsum-lbl">Presupuesto</div><div class="bsum-budget">${fmtMoney(budget, 'ARS')}</div></div>
+    </div>
+    <div class="bsum-bar"><div class="bsum-bar-fill${over ? ' over' : ''}" style="width:${Math.min(ratio * 100, 100)}%"></div></div>
+    <div class="bsum-meta">${budget > 0 ? Math.round(ratio * 100) + '% usado' : 'Sin presupuesto cargado'} · ${over ? `<span class="text-danger">excedido ${fmtMoney(spent - budget, 'ARS')}</span>` : `quedan ${fmtMoney(budget - spent, 'ARS')}`}</div>
+    <div class="bsum-sec">Por categoría · real / plan</div>
+    ${catRows}
+    <div class="bsum-sec">Gastado · últimos 6 meses</div>
+    <div class="bsum-trend">${trendCols}</div>
+    <button class="bsum-full" onclick="if(window.openBudgetOverlay)openBudgetOverlay()">Ver presupuesto completo →</button>`;
 }
 
 function fillBudgetCatSelect(elId, selected) {
