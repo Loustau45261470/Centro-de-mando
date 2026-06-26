@@ -51,6 +51,9 @@
 }
 @keyframes cm-sd-spin { to { transform: rotate(360deg); } }
 
+/* Modo "solo" (1 item): el FAB es acción directa, sin abanico */
+.cm-sd-solo .cm-sd-items { display: none !important; }
+
 /* Abanico de items (se apilan hacia arriba) */
 .cm-sd-items {
   position: absolute; right: 4px; bottom: 68px;

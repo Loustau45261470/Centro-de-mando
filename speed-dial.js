@@ -37,7 +37,13 @@ const CMSpeedDial = (() => {
     const backdrop = sd.querySelector('.cm-sd-backdrop');
     const setOpen = on => { sd.classList.toggle('open', on); main.setAttribute('aria-expanded', String(on)); };
 
-    main.addEventListener('click', e => { e.stopPropagation(); setOpen(!sd.classList.contains('open')); });
+    const solo = (cfg.items || []).length <= 1;
+    if (solo) {
+      sd.classList.add('cm-sd-solo');
+      main.addEventListener('click', e => { e.stopPropagation(); const it = (cfg.items || [])[0]; if (it && typeof it.onClick === 'function') it.onClick(); });
+    } else {
+      main.addEventListener('click', e => { e.stopPropagation(); setOpen(!sd.classList.contains('open')); });
+    }
     backdrop.addEventListener('click', () => setOpen(false));
     sd.querySelectorAll('.cm-sd-item').forEach(btn => {
       btn.addEventListener('click', e => {
