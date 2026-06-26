@@ -4478,3 +4478,21 @@ input:focus, select:focus, textarea:focus {
 .bsum-tlbl { font-family: var(--mono); font-size: 9.5px; color: var(--tt); text-transform: uppercase; }
 .bsum-full { width: 100%; margin-top: 18px; padding: 11px; border-radius: 11px; cursor: pointer; font-family: var(--sans); font-size: 13px; font-weight: 700; color: color-mix(in oklab, var(--bsum-accent) 88%, #fff); background: color-mix(in oklab, var(--bsum-accent) 14%, transparent); border: 1px solid color-mix(in oklab, var(--bsum-accent) 38%, transparent); transition: background .15s, border-color .15s; }
 .bsum-full:hover { background: color-mix(in oklab, var(--bsum-accent) 24%, transparent); border-color: var(--bsum-accent); }
+
+/* ════════════════════ ENTRENAMIENTO · resumen (sección) ════════════════════ */
+#entrenamiento-resumen-card { --ent-accent: var(--c-salud, #F43F5E); }
+.ent-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; margin-bottom: 14px; }
+.ent-kpi { text-align: center; padding: 11px 6px; border-radius: 12px; background: linear-gradient(180deg, color-mix(in oklab, var(--ent-accent) 10%, transparent), rgba(10,16,30,.4)); border: 1px solid color-mix(in oklab, var(--ent-accent) 22%, var(--border)); }
+.ent-kpi-num { font-size: 24px; font-weight: 800; letter-spacing: -.02em; color: var(--tp); line-height: 1; font-variant-numeric: tabular-nums; }
+.ent-kpi-u { font-size: 13px; font-weight: 700; color: var(--ts); }
+.ent-kpi-lbl { font-family: var(--mono); font-size: 9px; letter-spacing: .5px; text-transform: uppercase; color: var(--tt); margin-top: 5px; }
+.ent-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 7px; margin-bottom: 14px; }
+.ent-day { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.ent-day-dot { width: 100%; height: 30px; border-radius: 9px; background: rgba(120,150,220,.06); border: 1px solid var(--border); }
+.ent-day.ent-done .ent-day-dot { background: linear-gradient(180deg, var(--ent-accent), color-mix(in oklab, var(--ent-accent) 55%, #000)); border-color: color-mix(in oklab, var(--ent-accent) 60%, transparent); box-shadow: 0 0 14px -4px var(--ent-accent), inset 0 1px 0 rgba(255,255,255,.25); }
+.ent-day.ent-rest .ent-day-dot { background: rgba(120,150,220,.12); border-color: var(--border-h); }
+.ent-day-lbl { font-family: var(--mono); font-size: 10px; color: var(--tt); }
+.ent-last { font-size: 12.5px; color: var(--ts); margin-bottom: 14px; }
+.ent-last b { color: var(--tp); }
+.ent-full { width: 100%; padding: 11px; border-radius: 11px; cursor: pointer; font-family: var(--sans); font-size: 13px; font-weight: 700; color: color-mix(in oklab, var(--ent-accent) 88%, #fff); background: color-mix(in oklab, var(--ent-accent) 14%, transparent); border: 1px solid color-mix(in oklab, var(--ent-accent) 38%, transparent); transition: background .15s, border-color .15s; }
+.ent-full:hover { background: color-mix(in oklab, var(--ent-accent) 24%, transparent); border-color: var(--ent-accent); }

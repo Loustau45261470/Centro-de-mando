@@ -45,6 +45,7 @@ function _sfMount() {
   const R = (CMOverlay && CMOverlay.relocate) ? CMOverlay.relocate : () => () => {};
   const openPlanner = () => { if (typeof plannerOverlayOpen === 'function') plannerOverlayOpen(); };
   const openGym = R({ id: 'ov-gym', accent: '#F43F5E', eyebrow: 'SALUD · ENTRENAMIENTO', title: 'Entrenamiento', sourceId: 'rutinas-wrap' });
+  window.openGymOverlay = openGym;
   const openWellness = R({ id: 'ov-wellness', accent: '#10E07C', eyebrow: 'SALUD · BIENESTAR', title: 'Bienestar', sourceId: 'bienestar-card' });
   const openGoals = R({ id: 'ov-goals', accent: '#F5A623', eyebrow: 'FINANZAS · OBJETIVOS', title: 'Objetivos de adquisición', sourceId: 'fin-objectives-wrap' });
   const openBudget = R({ id: 'ov-budget', accent: '#22C55E', eyebrow: 'FINANZAS · PRESUPUESTO', title: 'Presupuesto del mes', sourceId: 'budget-card' });

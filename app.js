@@ -1491,6 +1491,52 @@ function deleteFinObjective(id) {
 // ════════════════════════════════════════════════════════
 function renderSaludTab() {
   renderRutinas();
+  renderEntrenamientoResumen();
+}
+
+// ── Resumen de entrenamiento (sección) · el detalle completo vive en el overlay ──
+function _gymDays() {
+  const h = (S.habitTrackers && S.habitTrackers.salud || []).find(x => x.id === 'habit-entrenamientos');
+  return (h && h.days) || (S.workoutCalendar && S.workoutCalendar.days) || {};
+}
+function renderEntrenamientoResumen() {
+  const body = document.getElementById('entrenoResumenBody'); if (!body) return;
+  const days = _gymDays();
+  const now = new Date(), y = now.getFullYear(), m = now.getMonth(), today = now.getDate();
+  const pct = Math.round(typeof achGymMonthPct === 'function' ? achGymMonthPct(y, m) : 0);
+  let doneMonth = 0;
+  for (let d = 1; d <= today; d++) if (days[_dStr(y, m, d)] === 'done') doneMonth++;
+  // Racha de días: cuenta 'done' consecutivos; 'rest' no corta; hoy vacío no corta.
+  let dayStreak = 0;
+  for (let i = 0; i < 400; i++) {
+    const dd = new Date(y, m, today - i), ds = _dStr(dd.getFullYear(), dd.getMonth(), dd.getDate()), v = days[ds];
+    if (v === 'done') dayStreak++;
+    else if (v === 'rest') continue;
+    else { if (i === 0) continue; break; }
+  }
+  // Tira últimos 7 días
+  const DOW = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
+  const strip = [];
+  for (let i = 6; i >= 0; i--) {
+    const dd = new Date(y, m, today - i), ds = _dStr(dd.getFullYear(), dd.getMonth(), dd.getDate());
+    strip.push({ v: days[ds] || '', lbl: DOW[dd.getDay()] });
+  }
+  const streakMonths = typeof achGymStreak75 === 'function' ? achGymStreak75() : 0;
+  const logDates = Object.keys(S.workoutLog || {}).filter(d => Object.values(S.workoutLog[d] || {}).some(s => s && s.length)).sort();
+  const last = logDates[logDates.length - 1];
+  let lastTxt = 'Sin registros';
+  if (last) { const exCount = Object.values(S.workoutLog[last]).filter(s => s && s.length).length; lastTxt = `${fmtDate(last)} · ${exCount} ej.`; }
+
+  body.innerHTML = `
+    <div class="ent-kpis">
+      <div class="ent-kpi"><div class="ent-kpi-num">${dayStreak}</div><div class="ent-kpi-lbl">Racha días</div></div>
+      <div class="ent-kpi"><div class="ent-kpi-num">${doneMonth}</div><div class="ent-kpi-lbl">Este mes</div></div>
+      <div class="ent-kpi"><div class="ent-kpi-num">${pct}<span class="ent-kpi-u">%</span></div><div class="ent-kpi-lbl">Adherencia</div></div>
+      <div class="ent-kpi"><div class="ent-kpi-num">${streakMonths}</div><div class="ent-kpi-lbl">Meses ≥75%</div></div>
+    </div>
+    <div class="ent-week">${strip.map(s => `<div class="ent-day ent-${s.v || 'none'}"><span class="ent-day-dot"></span><span class="ent-day-lbl">${s.lbl}</span></div>`).join('')}</div>
+    <div class="ent-last">Último entreno: <b>${lastTxt}</b></div>
+    <button class="ent-full" onclick="if(window.openGymOverlay)openGymOverlay()">Abrir entrenamiento completo →</button>`;
 }
 
 // ════════════════════════════════════════════════════════
