@@ -7379,6 +7379,14 @@ _auth.onAuthStateChanged(user => {
   };
 
   window.renderProyectos = renderProyectos;
+  // API compartida para el navegador inmersivo (proyectos-overlay.js): mismos datos, persistencia y re-render del árbol inline.
+  window.Proyectos = {
+    get: tab => (trees[tab] || (trees[tab] = loadTree(tab))),
+    save: (tab) => { saveTree(tab, trees[tab]); renderProyectos(tab); },
+    findById: (tab, id) => findById(trees[tab] || [], id),
+    newNode: (label, isFolder) => ({ id: uid(), label: label || (isFolder ? 'Nueva carpeta' : 'Nueva tarea'), icon: isFolder ? '📁' : '📄', tipo: isFolder ? 'carpeta' : 'tarea', open: false, description: '', notes: '', detailOpen: false, done: false, priority: '', dueDate: '', progress: 0, children: [] }),
+    removeById: (tab, id) => { trees[tab] = removeById(trees[tab], id); saveTree(tab, trees[tab]); renderProyectos(tab); },
+  };
 
   // Recarga trees desde S.proyectos (llamado tras loadState o sync remoto)
   window._reloadProyectosFromState = function() {
