@@ -23,6 +23,9 @@
 /* Finanzas: wishlist completa vive en el overlay de Adquisición; la sección muestra el Top 5. */
 #wishlist-card { display: none; }
 #ov-goals #wishlist-card { display: block; }
+/* Recordatorios: la card completa (crear/editar) vive en el overlay; la sección muestra solo notificaciones. */
+[id^="reminders-wrap-"] { display: none; }
+.cm-ov-host [id^="reminders-wrap-"] { display: block; }
 
 /* Breadcrumb */
 .po-crumbs { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; margin: 2px 2px 12px; }

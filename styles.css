@@ -4545,3 +4545,18 @@ input:focus, select:focus, textarea:focus {
 .bsum-tspent { animation: bsum-bar-rise .7s var(--ease-out-expo) both; }
 @keyframes bsum-bar-rise { from { height: 0 !important; opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { .bsum-gauge-val, .bsum-tspent { animation: none !important; } }
+
+/* ════════════════════ RECORDATORIOS · notificación en sección ════════════════════ */
+.rnotif-card { --rn-accent: var(--hud, #38BDF8); }
+.rnotif-empty { font-size: 13px; color: var(--tt); padding: 6px 2px; line-height: 1.5; }
+.rnotif-empty b { color: var(--ts); }
+.rnotif-item { display: flex; align-items: center; gap: 11px; padding: 10px 11px; border-radius: 11px; background: rgba(10,16,30,.4); border: 1px solid var(--border); margin-bottom: 7px; }
+.rnotif-item.imminent { border-color: color-mix(in oklab, var(--warn) 45%, var(--border)); background: linear-gradient(90deg, rgba(245,166,35,.08), rgba(10,16,30,.4) 40%); }
+.rnotif-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--rn-accent); box-shadow: 0 0 8px var(--rn-accent); }
+.rnotif-item.imminent .rnotif-dot { background: var(--warn); box-shadow: 0 0 10px var(--warn); animation: rnotif-pulse 1.6s ease-in-out infinite; }
+@keyframes rnotif-pulse { 50% { opacity: .4; } }
+.rnotif-body { flex: 1; min-width: 0; }
+.rnotif-title { font-size: 14px; font-weight: 600; color: var(--tp); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rnotif-when { font-family: var(--mono); font-size: 10.5px; color: var(--tt); margin-top: 2px; text-transform: capitalize; }
+.rnotif-cd { font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--rn-accent); flex: none; }
+.rnotif-item.imminent .rnotif-cd { color: var(--warn); }

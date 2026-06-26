@@ -4068,6 +4068,31 @@ function renderReminders(tab) {
     </div>
     ${isEmpty ? '<div class="empty-state">Sin recordatorios</div>' : urgentHTML + upcomingHTML + noDateHTML + pastHTML}
   </div>`;
+  renderRemindersNotif(tab);
+}
+
+// Notificación de recordatorios en la sección (solo lectura). La creación vive en el overlay.
+function renderRemindersNotif(tab) {
+  const body = document.getElementById('reminders-notif-' + tab); if (!body) return;
+  if (!S.reminders) S.reminders = {};
+  const now = Date.now();
+  const dated = (S.reminders[tab] || []).filter(r => r.datetime && new Date(r.datetime) - now > 0)
+    .sort((a, b) => new Date(a.datetime) - new Date(b.datetime)).slice(0, 4);
+  if (!dated.length) {
+    body.innerHTML = '<div class="rnotif-empty">Sin recordatorios próximos. Abrí <b>Recordatorios</b> desde el FAB para crear uno.</div>';
+    return;
+  }
+  body.innerHTML = dated.map(r => {
+    const cd = (typeof remCountdown === 'function') ? remCountdown(r.datetime) : '';
+    const d = new Date(r.datetime);
+    const when = d.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' }) + ' · ' + d.toTimeString().slice(0, 5);
+    const imminent = new Date(r.datetime) - now < 86400000;
+    return `<div class="rnotif-item${imminent ? ' imminent' : ''}">
+      <span class="rnotif-dot"></span>
+      <div class="rnotif-body"><div class="rnotif-title">${escHtml(r.title)}</div><div class="rnotif-when">${when}</div></div>
+      ${cd ? `<span class="rnotif-cd">${cd}</span>` : ''}
+    </div>`;
+  }).join('');
 }
 
 function openAddReminder(tab) {

@@ -21,6 +21,7 @@ const _SF_ICONS = {
   wellness: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 6-7 10-7 10z"/><path d="M12 12v-2"/></svg>`,
   goals: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8h12l-1 11.5a1 1 0 0 1-1 .9H8a1 1 0 0 1-1-.9z"/><path d="M9 8a3 3 0 0 1 6 0"/></svg>`,
   budget: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3.5" width="14" height="17" rx="2.5"/><path d="M8 7h8"/><path d="M8 11h2M11 11h2M14 11h2M8 14.5h2M11 14.5h2M14 14.5v3"/></svg>`,
+  bell: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>`,
 };
 
 // ── Presupuesto: overlay que aloja el presupuesto + las obligaciones recurrentes ──
@@ -51,6 +52,10 @@ function _sfMount() {
   if (typeof CMSpeedDial === 'undefined') return;
   const tabConoc = document.getElementById('tab-conocimiento');
 
+  // Openers de overlays inmersivos por reubicación del contenido existente.
+  const R = (CMOverlay && CMOverlay.relocate) ? CMOverlay.relocate : () => () => {};
+  const remItem = tab => ({ icon: _SF_ICONS.bell, label: 'Recordatorios', accent: '#7DD3FC', onClick: R({ id: 'ov-rem-' + tab, accent: '#7DD3FC', eyebrow: 'RECORDATORIOS', title: 'Recordatorios', sourceId: 'reminders-wrap-' + tab }) });
+
   CMSpeedDial.create({
     id: 'sd-conocimiento',
     accent: '#6B8EFF',
@@ -59,13 +64,12 @@ function _sfMount() {
     items: [
       { icon: _SF_ICONS.notas, label: 'Notas', accent: '#6B8EFF', onClick: () => { if (typeof notasOpen === 'function') notasOpen(); } },
       { icon: _SF_ICONS.proy, label: 'Proyectos', accent: '#38BDF8', onClick: () => { if (window.ProyectosOverlay) ProyectosOverlay.open('conocimiento'); } },
+      remItem('conocimiento'),
     ],
     observeEl: tabConoc,
     visibleWhen: () => !!(tabConoc && tabConoc.classList.contains('active')),
   });
 
-  // Openers de overlays inmersivos por reubicación del contenido existente.
-  const R = (CMOverlay && CMOverlay.relocate) ? CMOverlay.relocate : () => () => {};
   const openPlanner = () => { if (typeof plannerOverlayOpen === 'function') plannerOverlayOpen(); };
   const openGym = R({ id: 'ov-gym', accent: '#F43F5E', eyebrow: 'SALUD · ENTRENAMIENTO', title: 'Entrenamiento', sourceId: 'rutinas-wrap' });
   window.openGymOverlay = openGym;
@@ -78,18 +82,21 @@ function _sfMount() {
     { tab: 'vida', accent: '#00D4FF', icon: _SF_ICONS.vida, name: 'Vida', items: [
       proyItem('vida'),
       { icon: _SF_ICONS.planner, label: 'Planificación', accent: '#00D4FF', onClick: openPlanner },
+      remItem('vida'),
     ] },
     { tab: 'salud', accent: '#F43F5E', icon: _SF_ICONS.salud, name: 'Salud', items: [
       proyItem('salud'),
       { icon: _SF_ICONS.gym, label: 'Entrenamiento', accent: '#F43F5E', onClick: openGym },
       { icon: _SF_ICONS.wellness, label: 'Bienestar', accent: '#10E07C', onClick: openWellness },
+      remItem('salud'),
     ] },
     { tab: 'finanzas', accent: '#22C55E', icon: _SF_ICONS.finanzas, name: 'Finanzas', items: [
       proyItem('finanzas'),
       { icon: _SF_ICONS.goals, label: 'Adquisición', accent: '#F5A623', onClick: openGoals },
       { icon: _SF_ICONS.budget, label: 'Presupuesto', accent: '#22C55E', onClick: openBudget },
+      remItem('finanzas'),
     ] },
-    { tab: 'ia', accent: '#C4D0E4', icon: _SF_ICONS.ia, name: 'IA', items: [proyItem('ia')] },
+    { tab: 'ia', accent: '#C4D0E4', icon: _SF_ICONS.ia, name: 'IA', items: [proyItem('ia'), remItem('ia')] },
   ];
   sections.forEach(s => {
     const el = document.getElementById('tab-' + s.tab);
