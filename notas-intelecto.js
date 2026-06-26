@@ -30,6 +30,7 @@ let _ntView = null;        // null = home (3 rectángulos) | clave de categoría
 let _ntSearch = '';
 let _ntSort = 'desc';      // 'desc' = más reciente primero | 'asc'
 let _ntEditing = null;     // id de nota en edición, 'new', o null
+let _ntTagFilter = null;   // null = todas | etiqueta seleccionada dentro de la categoría
 
 // ── Datos (persistidos en S.notas, sync Firestore) ───────────────────────
 function _ntAll() { return (typeof S !== 'undefined' && Array.isArray(S.notas)) ? S.notas : []; }
@@ -41,6 +42,22 @@ function _ntPersist(arr) {
 function _ntByCat(cat) { return _ntAll().filter(n => n.categoria === cat); }
 function _ntFmtDate(iso) { return (typeof fmtDate === 'function') ? fmtDate(iso) : (iso || ''); }
 function _ntToday() { return (typeof localStr === 'function') ? localStr(new Date()) : new Date().toISOString().slice(0, 10); }
+
+// Etiquetas (sub-tags) distintas presentes en una categoría
+function _ntTagsOf(cat) {
+  return [...new Set(_ntByCat(cat).map(n => (n.tag || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+}
+// Filtrado central: etiqueta + búsqueda + orden por fecha
+function _ntFilteredNotes(cat) {
+  const q = _ntSearch.trim().toLowerCase();
+  let notes = _ntByCat(cat);
+  if (_ntTagFilter) notes = notes.filter(n => (n.tag || '').trim() === _ntTagFilter);
+  if (q) notes = notes.filter(n => (`${n.titulo || ''} ${n.tag || ''} ${_ntText(n)}`).toLowerCase().includes(q));
+  return notes.sort((a, b) => {
+    const cmp = (a.fecha || '').localeCompare(b.fecha || '');
+    return _ntSort === 'asc' ? cmp : -cmp;
+  });
+}
 
 // Texto buscable / preview de una nota según su categoría
 function _ntText(n) {
@@ -113,18 +130,15 @@ function _ntRenderHome() {
   </div><div class="nt-rects">${cards}</div>`;
 }
 
-// ── Vista de categoría: lista + búsqueda + orden + alta ───────────────────
+// ── Vista de categoría: lista + búsqueda + orden + filtro por etiqueta + alta ─
 function _ntRenderCat(cat) {
   const meta = NOTAS_CATS[cat];
-  const q = _ntSearch.trim().toLowerCase();
-  let notes = _ntByCat(cat);
-  if (q) notes = notes.filter(n => (`${n.titulo || ''} ${_ntText(n)}`).toLowerCase().includes(q));
-  notes.sort((a, b) => {
-    const cmp = (a.fecha || '').localeCompare(b.fecha || '');
-    return _ntSort === 'asc' ? cmp : -cmp;
-  });
-
-  const list = notes.map((n, i) => _ntRenderNoteCard(n, i)).join('');
+  const list = _ntFilteredNotes(cat).map((n, i) => _ntRenderNoteCard(n, i)).join('');
+  const tags = _ntTagsOf(cat);
+  const tagBar = tags.length ? `<div class="nt-tagbar">
+    <button class="nt-tagchip${!_ntTagFilter ? ' on' : ''}" data-tag="">Todas</button>
+    ${tags.map(t => `<button class="nt-tagchip${_ntTagFilter === t ? ' on' : ''}" data-tag="${_ntEsc(t)}"><span class="nt-tagchip-dot"></span>${_ntEsc(t)}</button>`).join('')}
+  </div>` : '';
   return `<div class="nt-cat nt-cat-anim" style="--nt-accent:${meta.accent}">
     <div class="nt-cat-bar">
       <span class="nt-cat-chip">${meta.svg}</span>
@@ -139,12 +153,12 @@ function _ntRenderCat(cat) {
       <button class="nt-btn nt-sort" onclick="_ntToggleSort()">${_ntSort === 'desc' ? '↓ Reciente' : '↑ Antigua'}</button>
       <button class="nt-btn nt-add" onclick="notasNew('${cat}')"><span class="nt-add-plus">+</span> Nueva</button>
     </div>
+    ${tagBar}
     <div class="nt-list">${list}</div>
   </div>`;
 }
 
 function _ntRenderNoteCard(n, i) {
-  const meta = NOTAS_CATS[n.categoria] || NOTAS_CATS.reflexiones;
   const fields = n.categoria === 'aprendizaje'
     ? `<div class="nt-learn">
         ${_ntFieldRow('bien', 'Hice bien', n.hiceBien)}
@@ -165,7 +179,7 @@ function _ntRenderNoteCard(n, i) {
       </div>
     </div>
     <div class="nt-note-meta">
-      <span class="nt-note-tag"><span class="nt-note-tag-ico">${meta.svg}</span>${meta.tag}</span>
+      ${n.tag ? `<button class="nt-note-tag" data-tag="${_ntEsc(n.tag)}" title="Filtrar por ${_ntEsc(n.tag)}"><span class="nt-note-tag-dot"></span>${_ntEsc(n.tag)}</button>` : ''}
       <span class="nt-note-date">${_ntEsc(_ntFmtDate(n.fecha))}</span>
     </div>
     ${fields}
@@ -200,8 +214,17 @@ function _ntRenderForm() {
     <div class="nt-form">
       <label class="nt-flbl">Título</label>
       <input class="nt-input" id="nt-f-titulo" type="text" value="${_ntEsc(v.titulo || '')}" placeholder="(sin título)">
-      <label class="nt-flbl">Fecha</label>
-      <input class="nt-input" id="nt-f-fecha" type="date" value="${_ntEsc(v.fecha || _ntToday())}">
+      <div class="nt-form-row">
+        <div>
+          <label class="nt-flbl">Etiqueta</label>
+          <input class="nt-input" id="nt-f-tag" type="text" list="nt-tag-list" value="${_ntEsc(v.tag || '')}" placeholder="Ej: Novia, Dios, GYM…">
+          <datalist id="nt-tag-list">${_ntTagsOf(cat).map(t => `<option value="${_ntEsc(t)}"></option>`).join('')}</datalist>
+        </div>
+        <div>
+          <label class="nt-flbl">Fecha</label>
+          <input class="nt-input" id="nt-f-fecha" type="date" value="${_ntEsc(v.fecha || _ntToday())}">
+        </div>
+      </div>
       ${body}
       <div class="nt-form-acts">
         <button class="nt-btn nt-add" onclick="_ntSaveForm()">Guardar</button>
@@ -217,20 +240,17 @@ function _ntFocusForm() { const el = document.getElementById('nt-f-titulo'); if 
 // ════════════════════════════════════════════════════════════════════════
 let _ntFormCat = 'reflexiones';
 
-function notasOpenCat(cat) { _ntView = cat; _ntSearch = ''; _ntEditing = null; notasRender(); }
+function notasOpenCat(cat) { _ntView = cat; _ntSearch = ''; _ntTagFilter = null; _ntEditing = null; notasRender(); }
 function notasNew(cat) { _ntFormCat = cat; _ntEditing = 'new'; notasRender(); }
 function notasEdit(id) { _ntEditing = id; notasRender(); }
 function _ntCancelForm() { _ntEditing = null; notasRender(); }
 function _ntOnSearch(val) { _ntSearch = val; const l = document.querySelector('.nt-list'); if (l) l.innerHTML = _ntCatListHTML(_ntView); }
 function _ntToggleSort() { _ntSort = _ntSort === 'desc' ? 'asc' : 'desc'; notasRender(); }
+function _ntSetTagFilter(t) { const v = (t || '').trim(); _ntTagFilter = (v && v !== _ntTagFilter) ? v : null; notasRender(); }
 
-// Reusa el filtrado de _ntRenderCat para refrescar sólo la lista al buscar
+// Refresca sólo la lista (búsqueda en vivo) reutilizando el filtrado central
 function _ntCatListHTML(cat) {
-  const q = _ntSearch.trim().toLowerCase();
-  let notes = _ntByCat(cat);
-  if (q) notes = notes.filter(n => (`${n.titulo || ''} ${_ntText(n)}`).toLowerCase().includes(q));
-  notes.sort((a, b) => { const cmp = (a.fecha || '').localeCompare(b.fecha || ''); return _ntSort === 'asc' ? cmp : -cmp; });
-  return notes.map(n => _ntRenderNoteCard(n)).join('');
+  return _ntFilteredNotes(cat).map((n, i) => _ntRenderNoteCard(n, i)).join('');
 }
 
 function _ntVal(id) { const el = document.getElementById(id); return el ? el.value.trim() : ''; }
@@ -240,6 +260,7 @@ function _ntSaveForm() {
   const cat = editing ? editing.categoria : _ntFormCat;
   const base = {
     titulo: _ntVal('nt-f-titulo'),
+    tag: _ntVal('nt-f-tag'),
     fecha: _ntVal('nt-f-fecha') || _ntToday(),
   };
   const extra = cat === 'aprendizaje'
@@ -297,6 +318,12 @@ function _ntMount() {
   // Escape cierra todo el panel
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && ov.classList.contains('show')) { e.stopPropagation(); notasClose(); }
+  });
+
+  // Click en chip/etiqueta con data-tag → filtra la categoría por esa etiqueta
+  document.getElementById('notas-body').addEventListener('click', e => {
+    const el = e.target.closest && e.target.closest('[data-tag]');
+    if (el) { e.stopPropagation(); _ntSetTagFilter(el.dataset.tag); }
   });
 
   // Tilt 3D de los rectángulos (solo punteros finos con hover; en móvil no aplica)
