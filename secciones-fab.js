@@ -43,7 +43,7 @@ function _sfMount() {
 
   // Openers de overlays inmersivos por reubicación del contenido existente.
   const R = (CMOverlay && CMOverlay.relocate) ? CMOverlay.relocate : () => () => {};
-  const openPlanner = R({ id: 'ov-planner', accent: '#00D4FF', eyebrow: 'VIDA · PLANIFICACIÓN', title: 'Planificación del día', sourceId: 'dayPlannerCard' });
+  const openPlanner = () => { if (typeof plannerOverlayOpen === 'function') plannerOverlayOpen(); };
   const openGym = R({ id: 'ov-gym', accent: '#F43F5E', eyebrow: 'SALUD · ENTRENAMIENTO', title: 'Entrenamiento', sourceId: 'rutinas-wrap' });
   const openWellness = R({ id: 'ov-wellness', accent: '#10E07C', eyebrow: 'SALUD · BIENESTAR', title: 'Bienestar', sourceId: 'bienestar-card' });
   const openGoals = R({ id: 'ov-goals', accent: '#F5A623', eyebrow: 'FINANZAS · OBJETIVOS', title: 'Objetivos de adquisición', sourceId: 'fin-objectives-wrap' });
