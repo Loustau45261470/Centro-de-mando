@@ -20,6 +20,8 @@ Un apartado de notas dentro de la pestaña de Intelecto del Centro de Mando, div
   - **Reflexiones**: título, fecha, texto libre.
   - **Anotaciones personales**: título, fecha, texto libre.
   - **Aprendizaje**: título, fecha, suceso/hecho, qué hice bien, qué hice mal, qué aprendí, cómo lo haría mejor la próxima vez.
+- [ ] Cada nota puede tener una **etiqueta** propia (sub-tag libre: Novia, Dios, GYM, Estudio…), opcional, con autocompletado de etiquetas ya usadas en esa categoría.
+- [ ] Dentro de una categoría, barra de **filtro por etiqueta** (chips "Todas" + cada etiqueta distinta); clic en una etiqueta de nota también filtra.
 - [ ] Las notas se guardan en Firestore (estado `S`) y se sincronizan entre dispositivos como el resto del Centro de Mando.
 - [ ] Cerrar el panel con la tecla **Escape**.
 - [ ] Dentro de una categoría abierta: cruz (✕) en la esquina superior derecha que vuelve a la vista de los tres rectángulos.

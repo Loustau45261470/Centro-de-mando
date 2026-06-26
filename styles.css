@@ -4377,17 +4377,40 @@ input:focus, select:focus, textarea:focus {
 .nt-del:hover { color: #fff; border-color: var(--danger); background: rgba(255,51,88,.16); }
 .nt-note-meta { display: flex; align-items: center; gap: 9px; margin: 5px 0 10px; }
 .nt-note-tag {
-  display: inline-flex; align-items: center; gap: 5px; flex: none;
-  font-family: var(--mono); font-size: 9.5px; font-weight: 700; letter-spacing: 1.5px;
-  padding: 3px 9px 3px 6px; border-radius: 999px;
+  display: inline-flex; align-items: center; gap: 6px; flex: none; cursor: pointer;
+  font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: .4px;
+  padding: 3px 10px 3px 8px; border-radius: 999px;
   color: color-mix(in oklab, var(--nt-accent) 88%, #fff);
   background: color-mix(in oklab, var(--nt-accent) 16%, transparent);
   border: 1px solid color-mix(in oklab, var(--nt-accent) 38%, transparent);
   box-shadow: inset 0 0 10px -4px color-mix(in oklab, var(--nt-accent) 80%, transparent);
+  transition: background .15s, border-color .15s, transform .12s;
 }
-.nt-note-tag-ico { width: 13px; height: 13px; display: grid; place-items: center; }
-.nt-note-tag-ico svg { width: 13px; height: 13px; }
+.nt-note-tag:hover { background: color-mix(in oklab, var(--nt-accent) 28%, transparent); border-color: var(--nt-accent); transform: translateY(-1px); }
+.nt-note-tag-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--nt-accent); box-shadow: 0 0 8px var(--nt-accent); }
 .nt-note-date { font-family: var(--mono); font-size: 10.5px; letter-spacing: .5px; color: var(--tt); text-transform: capitalize; }
+
+/* ── Barra de filtro por etiqueta ── */
+.nt-tagbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.nt-tagchip {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .3px;
+  padding: 6px 12px; border-radius: 999px; color: var(--ts);
+  background: rgba(120,150,220,.06); border: 1px solid var(--border);
+  transition: color .15s, background .15s, border-color .15s, box-shadow .15s, transform .12s;
+}
+.nt-tagchip:hover { color: var(--tp); border-color: color-mix(in oklab, var(--nt-accent) 50%, var(--border)); transform: translateY(-1px); }
+.nt-tagchip-dot { width: 6px; height: 6px; border-radius: 50%; background: color-mix(in oklab, var(--nt-accent) 80%, transparent); }
+.nt-tagchip.on {
+  color: #fff; border-color: color-mix(in oklab, var(--nt-accent) 65%, transparent);
+  background: linear-gradient(150deg, color-mix(in oklab, var(--nt-accent) 42%, transparent), color-mix(in oklab, var(--nt-accent) 20%, transparent));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.2), 0 0 18px -6px color-mix(in oklab, var(--nt-accent) 90%, transparent);
+}
+.nt-tagchip.on .nt-tagchip-dot { background: #fff; box-shadow: 0 0 8px rgba(255,255,255,.7); }
+
+/* ── Fila de 2 columnas en el formulario (etiqueta + fecha) ── */
+.nt-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.nt-form-row > div { min-width: 0; }
 .nt-note-text { font-size: 13.5px; color: var(--ts); white-space: pre-wrap; line-height: 1.55; }
 
 /* ── Bloque de aprendizaje ── */
