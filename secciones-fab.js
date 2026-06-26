@@ -47,7 +47,7 @@ function _sfMount() {
   const openGym = R({ id: 'ov-gym', accent: '#F43F5E', eyebrow: 'SALUD · ENTRENAMIENTO', title: 'Entrenamiento', sourceId: 'rutinas-wrap' });
   window.openGymOverlay = openGym;
   const openWellness = R({ id: 'ov-wellness', accent: '#10E07C', eyebrow: 'SALUD · BIENESTAR', title: 'Bienestar', sourceId: 'bienestar-card' });
-  const openGoals = R({ id: 'ov-goals', accent: '#F5A623', eyebrow: 'FINANZAS · OBJETIVOS', title: 'Objetivos de adquisición', sourceId: 'fin-objectives-wrap' });
+  const openGoals = R({ id: 'ov-goals', accent: '#F5A623', eyebrow: 'FINANZAS · ADQUISICIÓN', title: 'Objetivos de adquisición', sourceId: 'wishlist-card' });
   const openBudget = R({ id: 'ov-budget', accent: '#22C55E', eyebrow: 'FINANZAS · PRESUPUESTO', title: 'Presupuesto del mes', sourceId: 'budget-card' });
   window.openBudgetOverlay = openBudget;
   const proyItem = tab => ({ icon: _SF_ICONS.proy, label: 'Proyectos', accent: '#38BDF8', onClick: () => { if (window.ProyectosOverlay) ProyectosOverlay.open(tab); } });
@@ -64,7 +64,7 @@ function _sfMount() {
     ] },
     { tab: 'finanzas', accent: '#22C55E', icon: _SF_ICONS.finanzas, name: 'Finanzas', items: [
       proyItem('finanzas'),
-      { icon: _SF_ICONS.goals, label: 'Objetivos', accent: '#F5A623', onClick: openGoals },
+      { icon: _SF_ICONS.goals, label: 'Adquisición', accent: '#F5A623', onClick: openGoals },
       { icon: _SF_ICONS.budget, label: 'Presupuesto', accent: '#22C55E', onClick: openBudget },
     ] },
     { tab: 'ia', accent: '#C4D0E4', icon: _SF_ICONS.ia, name: 'IA', items: [proyItem('ia')] },
