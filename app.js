@@ -308,6 +308,7 @@ let _fbSaveTid  = null;
 let _fbSaveInProgress = false;  // true mientras el async de _fbSave está corriendo (guard para onSnapshot)
 let _lastWriteId = null;  // ID del último write propio — filtra el eco de onSnapshot
 let _lastSyncedSavedAt = null;  // _savedAt del estado que tenemos en mano (de la nube); null = cargado de localStorage sin confirmar nube
+let _lastSyncedState = null;    // copia del último estado sincronizado (ancestro común para el merge 3-vías)
 let _forceSaveOnce = false;     // override puntual del guard anti-pisada (forzarGuardado())
 
 // Métrica de "cantidad de datos": usada solo para el guard de tamaño de emergencia.
@@ -382,6 +383,28 @@ function _rescueLocal(cloudObj, localObj) {
   return r;
 }
 
+// Igualdad estructural simple (para detectar qué clave tocó cada dispositivo).
+function _eq(a, b) {
+  try { return JSON.stringify(a) === JSON.stringify(b); } catch (e) { return a === b; }
+}
+
+// Merge 3-vías a nivel de clave top-level del estado.
+// base = último estado sincronizado (ancestro común). Si solo un lado cambió una
+// clave respecto del ancestro, gana ese lado; si ambos la cambiaron, gana cloud
+// (más reciente) y los ítems nuevos solo-local se re-agregan luego con _rescueLocal.
+function _mergeStates(base, local, cloud) {
+  base = base || {};
+  const out = { ...(cloud || {}) };
+  const keys = new Set([...Object.keys(local || {}), ...Object.keys(cloud || {})]);
+  keys.forEach(k => {
+    if (k === '_savedAt' || k === '_wid') return;
+    const localChanged = !_eq(local?.[k], base[k]);
+    const cloudChanged = !_eq(cloud?.[k], base[k]);
+    if (localChanged && !cloudChanged) out[k] = local[k];
+  });
+  return out;
+}
+
 const _fbDoSave = async () => {
     if (_fbSaveInProgress) return;
     _fbSaveInProgress = true;
@@ -394,12 +417,13 @@ const _fbDoSave = async () => {
         if (snap.exists && snap.data()?.state) { cloudRaw = snap.data().state; cloudData = snap.data(); }
       } catch (e) {}
 
-      // ── DIAGNÓSTICO sync (NO cambia el comportamiento de guardado) ──────────
-      // Detecta la condición de pisada last-write-wins: sesión confirmada pero la
-      // nube tiene cambios más nuevos que nuestro último sync → estamos por pisar
-      // datos de otro dispositivo. Registra evento + toast; no altera toSave.
-      if (sessionConfirmed && cloudData && cloudData._savedAt != null &&
-          _lastSyncedSavedAt != null && cloudData._savedAt > _lastSyncedSavedAt) {
+      // ── Detección de pisada last-write-wins ─────────────────────────────────
+      // Sesión confirmada pero la nube tiene cambios más nuevos que nuestro último
+      // sync → otro dispositivo escribió algo que no vimos. Lo registramos (diagSync)
+      // y abajo hacemos merge 3-vías en vez de pisar.
+      const _cloudNewer = sessionConfirmed && cloudData && cloudData._savedAt != null &&
+          _lastSyncedSavedAt != null && cloudData._savedAt > _lastSyncedSavedAt;
+      if (_cloudNewer) {
         let cm = -1, lm = -1;
         try { cm = _dataMetric(JSON.parse(cloudRaw)); lm = _dataMetric(localObj); } catch (e) {}
         const ev = {
@@ -412,12 +436,27 @@ const _fbDoSave = async () => {
           const log = JSON.parse(localStorage.getItem('_syncDiag') || '[]');
           log.unshift(ev); localStorage.setItem('_syncDiag', JSON.stringify(log.slice(0, 30)));
         } catch (e) {}
-        console.warn('[SYNC-DIAG] a punto de pisar nube más nueva', ev);
-        showToast('⚠️ SYNC: la nube tenía cambios más nuevos (Δ' + ev.aheadSeg +
-          's · nube ' + cm + ' vs local ' + lm + ' ítems). Avisá + diagSync()', 13000);
+        console.warn('[SYNC] nube más nueva detectada → merge 3-vías', ev);
+        showToast('🔀 Sync: combinando cambios de ambos dispositivos (Δ' + ev.aheadSeg + 's)', 6000);
       }
 
       let toSave = localObj;
+
+      // Anti-pisada (sesión confirmada): la nube quedó más nueva → NO sobrescribir.
+      // Merge 3-vías por clave top-level (cada lado conserva lo que tocó) + rescate
+      // de ítems nuevos que solo tenga local. forzarGuardado() lo saltea.
+      if (cloudRaw && _cloudNewer && !_forceSaveOnce) {
+        try {
+          const cloudObj = JSON.parse(cloudRaw);
+          toSave = _lastSyncedState
+            ? _rescueLocal(_mergeStates(_lastSyncedState, localObj, cloudObj), localObj)
+            : _rescueLocal(cloudObj, localObj);
+          S = toSave;
+          localStorage.setItem('lifedash_v2', JSON.stringify(S));
+          _lastSyncedSavedAt = cloudData._savedAt;
+          _reRenderAll();
+        } catch (e) { console.warn('[sync merge]', e); }
+      }
 
       if (cloudRaw && !_forceSaveOnce && !sessionConfirmed) {
         try {
@@ -445,6 +484,7 @@ const _fbDoSave = async () => {
       try {
         await _DOC().set({ state: JSON.stringify(toSave), _wid: wid, _savedAt: savedAt }, { merge: true });
         _lastSyncedSavedAt = savedAt;
+        _lastSyncedState = JSON.parse(JSON.stringify(toSave));
         _saveSnap(JSON.stringify(toSave), savedAt);
       } catch (e) {
         console.warn('[fbSave]', e.code, e.message);
@@ -554,7 +594,7 @@ function _applyRemoteState(raw, savedAt) {
   try {
     const incoming = JSON.parse(raw);
     S = incoming;
-    if (savedAt != null) _lastSyncedSavedAt = savedAt;
+    if (savedAt != null) { _lastSyncedSavedAt = savedAt; _lastSyncedState = JSON.parse(raw); }
     Object.keys(DEFAULT_STATE).forEach(k => {
       if (S[k] === undefined) S[k] = JSON.parse(JSON.stringify(DEFAULT_STATE[k]));
     });
@@ -601,6 +641,7 @@ async function loadState() {
     if (snap.exists && snap.data()?.state) {
       S = JSON.parse(snap.data().state);
       _lastSyncedSavedAt = snap.data()._savedAt || 0;
+      _lastSyncedState = JSON.parse(snap.data().state);
     } else {
       try { S = JSON.parse(localStorage.getItem('lifedash_v2')) || {}; } catch { S = {}; }
     }
