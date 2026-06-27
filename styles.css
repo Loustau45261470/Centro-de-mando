@@ -4337,7 +4337,9 @@ input:focus, select:focus, textarea:focus {
 .nt-input:focus { outline: none; border-color: var(--nt-accent); background: rgba(12,20,38,.7);
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--nt-accent) 18%, transparent), 0 0 22px -8px color-mix(in oklab, var(--nt-accent) 80%, transparent); }
 .nt-search { padding-left: 36px; }
-.nt-ta { resize: vertical; min-height: 64px; line-height: 1.5; }
+.nt-ta { resize: vertical; min-height: 88px; line-height: 1.6; }
+/* Campo de texto principal (reflexión / nota libre): aprovecha el alto del overlay. */
+.nt-ta-xl { min-height: min(48vh, 440px); line-height: 1.65; }
 .nt-btn {
   background: rgba(120,150,220,.08); border: 1px solid var(--border); border-radius: 12px;
   color: var(--tp); font-family: var(--sans); font-size: 13px; font-weight: 600;
