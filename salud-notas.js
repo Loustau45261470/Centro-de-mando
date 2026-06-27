@@ -142,7 +142,7 @@ function _snForm() {
         <div><label class="nt-flbl">Fecha</label><input class="nt-input" id="sn-f-fecha" type="date" value="${_snEsc(v.fecha || _snToday())}"></div>
       </div>
       <label class="nt-flbl">Texto</label>
-      <textarea class="nt-input nt-ta" id="sn-f-texto" rows="5">${_snEsc(v.texto || '')}</textarea>
+      <textarea class="nt-input nt-ta nt-ta-xl" id="sn-f-texto" rows="14" placeholder="Escribí tu nota…">${_snEsc(v.texto || '')}</textarea>
       <div class="nt-form-acts">
         <button class="nt-btn nt-add" onclick="_snSave()">Guardar</button>
         <button class="nt-btn" onclick="_snCancel()">Cancelar</button>
