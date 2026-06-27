@@ -205,7 +205,7 @@ function _ntRenderForm() {
        ${ta('nt-f-aprendi', 'Qué aprendí', v.aprendi)}
        ${ta('nt-f-mejor', 'Cómo lo haría mejor la próxima vez', v.mejorarProxima)}`
     : `<label class="nt-flbl">Texto</label>
-       <textarea class="nt-input nt-ta nt-ta-xl" id="nt-f-texto" rows="14" placeholder="Escribí tu reflexión…">${_ntEsc(v.texto || '')}</textarea>`;
+       <textarea class="nt-input nt-ta nt-ta-xl" id="nt-f-texto" rows="14" placeholder="${cat === 'personales' ? 'Escribí tu anotación…' : 'Escribí tu reflexión…'}">${_ntEsc(v.texto || '')}</textarea>`;
   return `<div class="nt-cat nt-cat-anim" style="--nt-accent:${meta.accent}">
     <div class="nt-cat-bar">
       <span class="nt-cat-chip">${meta.svg}</span>
