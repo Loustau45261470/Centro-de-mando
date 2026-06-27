@@ -382,10 +382,7 @@ function _rescueLocal(cloudObj, localObj) {
   return r;
 }
 
-function _fbSave() {
-  clearTimeout(_fbSaveTid);
-  _fbSaveTid = setTimeout(async () => {
-    _fbSaveTid = null;
+const _fbDoSave = async () => {
     if (_fbSaveInProgress) return;
     _fbSaveInProgress = true;
     const localObj = JSON.parse(JSON.stringify(S));
@@ -456,7 +453,19 @@ function _fbSave() {
     } finally {
       _fbSaveInProgress = false;
     }
-  }, 2000);
+};
+
+function _fbSave() {
+  clearTimeout(_fbSaveTid);
+  _fbSaveTid = setTimeout(() => { _fbSaveTid = null; _fbDoSave(); }, 2000);
+}
+
+// Flush inmediato del save pendiente (al ocultar/cerrar la app, sin esperar el debounce de 2s).
+function _fbFlush() {
+  if (!_fbSaveTid) return;        // no hay cambio pendiente
+  clearTimeout(_fbSaveTid);
+  _fbSaveTid = null;
+  _fbDoSave();
 }
 
 // Guarda un snapshot post-write (fire-and-forget). Mantiene los últimos 20.
@@ -7081,7 +7090,9 @@ setInterval(checkReminderNotifications, 60000);
 setInterval(() => { if (!Object.keys(_rtnTimers).length) _msHub.showReminders(); }, 60000);
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) { checkReminderNotifications(); _syncOnFocus(); _msHub.showReminders(); }
+  else { _fbFlush(); }   // al ocultar: subir cambios pendientes sin esperar el debounce de 2s
 });
+window.addEventListener('pagehide', _fbFlush);
 
 renderGoals();
 renderSleepTracker();
