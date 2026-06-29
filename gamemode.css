@@ -173,7 +173,10 @@
 .gm-tn-req { font-family: var(--mono); font-size: 9px; color: rgba(150,180,210,.5); }
 
 .gm-tnode.on .gm-tn-ring, .gm-tnode.claim .gm-tn-ring { opacity: .92; animation: gm-spin 7s linear infinite; }
-.gm-tnode.on .gm-tn-medal { filter: drop-shadow(0 0 16px color-mix(in srgb, var(--nc) 60%, transparent)); animation: gm-pulse 2.6s ease-in-out infinite; }
+.gm-tnode.on .gm-tn-medal { filter: drop-shadow(0 0 5px color-mix(in srgb, var(--rar, var(--nc)) 80%, transparent)) drop-shadow(0 0 17px color-mix(in srgb, var(--rar, var(--nc)) 55%, transparent)); animation: gm-pulse 2.6s ease-in-out infinite; }
+/* Rareza máxima (Tier 5): aura prismática multicolor */
+.gm-tnode.on[data-rar="supreme"] .gm-tn-medal { filter: drop-shadow(0 0 6px #ff5fc4) drop-shadow(0 0 14px #54c8ff) drop-shadow(0 0 24px #ffd84a); }
+.gm-tnode.on[data-rar="legend"] .gm-tn-medal { filter: drop-shadow(0 0 5px #ffce88) drop-shadow(0 0 18px color-mix(in srgb, var(--rar) 65%, transparent)); }
 .gm-tnode.on .gm-tn-ico { color: var(--nc); filter: drop-shadow(0 0 6px color-mix(in srgb, var(--nc) 55%, transparent)); }
 .gm-tnode.on .gm-tn-core { background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--nc) 22%, #0a0f18), #070b12 78%); }
 .gm-tnode.on .gm-tn-name { color: var(--nc); text-shadow: 0 0 10px color-mix(in srgb, var(--nc) 45%, transparent); }

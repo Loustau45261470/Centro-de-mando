@@ -194,27 +194,47 @@ function gmRenderTree() {
 const GM_TREE_NODE_W = 124;
 const GM_TREE_CAT_COLOR = { cuerpo: '--c-salud', mente: '--c-conocimiento', finanzas: '--c-finanzas', espiritu: '--c-jarvis', vinculos: '--c-vida', trabajo: '--c-ia', patrimonio: '--accent', cross: '--hud-bright' };
 let _gmTreeTx = 0, _gmTreeTy = 0, _gmTreeScale = 1, _gmTreeW = 0, _gmTreeH = 0;
-// Iconos estilo "focus icon" (Hearts of Iron IV): marco metálico dorado biselado con
-// remaches + escena interior detallada y multicolor (gradientes metálicos). viewBox 0 0 64 64.
+// Iconos estilo "focus icon" (videojuego RPG): marco HEXAGONAL biselado cuyo metal cambia por
+// rareza/tier (bronce → plata → oro → azul → violeta → cian → fuego → prismático), con remaches en
+// los vértices, plato hundido y brillo especular. Escena interior detallada y multicolor. viewBox 0 0 64 64.
 // Los gradientes viven en GM_TREE_DEFS (un <defs> global inyectado una vez en el árbol).
 const GM_TREE_DEFS = `<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
-<linearGradient id="gm-rim" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffeaa6"/><stop offset=".42" stop-color="#dba637"/><stop offset=".74" stop-color="#9a6c16"/><stop offset="1" stop-color="#5c3c08"/></linearGradient>
-<radialGradient id="gm-plate" cx=".5" cy=".36" r=".72"><stop offset="0" stop-color="#1c2a3c"/><stop offset=".68" stop-color="#0d1622"/><stop offset="1" stop-color="#060a11"/></radialGradient>
-<linearGradient id="gm-stud" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe9ad"/><stop offset="1" stop-color="#7a4f12"/></linearGradient>
+<radialGradient id="gm-plate" cx=".5" cy=".34" r=".75"><stop offset="0" stop-color="#1b2738"/><stop offset=".66" stop-color="#0c1420"/><stop offset="1" stop-color="#05080e"/></radialGradient>
+<linearGradient id="gm-stud" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff3cf"/><stop offset="1" stop-color="#6e4710"/></linearGradient>
 <linearGradient id="gm-gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffeaa6"/><stop offset=".5" stop-color="#e6b34c"/><stop offset="1" stop-color="#8a5e14"/></linearGradient>
 <linearGradient id="gm-steel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4f8fd"/><stop offset=".5" stop-color="#b2c2d4"/><stop offset="1" stop-color="#56697e"/></linearGradient>
 <linearGradient id="gm-red" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff9d92"/><stop offset=".5" stop-color="#e23b46"/><stop offset="1" stop-color="#7c1620"/></linearGradient>
 <linearGradient id="gm-green" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#bdf0c2"/><stop offset=".5" stop-color="#46b65f"/><stop offset="1" stop-color="#176030"/></linearGradient>
+<linearGradient id="gm-rim-novice" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d8c39a"/><stop offset=".45" stop-color="#9c7c46"/><stop offset=".78" stop-color="#6b4f25"/><stop offset="1" stop-color="#3c2a10"/></linearGradient>
+<linearGradient id="gm-rim-adept" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fbfdff"/><stop offset=".44" stop-color="#c2d0df"/><stop offset=".78" stop-color="#7d8ea1"/><stop offset="1" stop-color="#41505f"/></linearGradient>
+<linearGradient id="gm-rim-master" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffeaa6"/><stop offset=".42" stop-color="#e6b34c"/><stop offset=".74" stop-color="#a9781f"/><stop offset="1" stop-color="#5c3c08"/></linearGradient>
+<linearGradient id="gm-rim-grand" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#dff1ff"/><stop offset=".42" stop-color="#6cc0ff"/><stop offset=".74" stop-color="#2a7fd6"/><stop offset="1" stop-color="#123f73"/></linearGradient>
+<linearGradient id="gm-rim-epic" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f1ddff"/><stop offset=".42" stop-color="#b984ff"/><stop offset=".74" stop-color="#7d3ce0"/><stop offset="1" stop-color="#3f1a7a"/></linearGradient>
+<linearGradient id="gm-rim-mythic" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d6fff5"/><stop offset=".42" stop-color="#54e6cf"/><stop offset=".74" stop-color="#1f9f93"/><stop offset="1" stop-color="#0c5a54"/></linearGradient>
+<linearGradient id="gm-rim-legend" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe3b0"/><stop offset=".4" stop-color="#ff9d3c"/><stop offset=".74" stop-color="#e0560f"/><stop offset="1" stop-color="#7d2a06"/></linearGradient>
+<linearGradient id="gm-rim-supreme" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff6ec7"/><stop offset=".26" stop-color="#ffd84a"/><stop offset=".5" stop-color="#5dffa0"/><stop offset=".74" stop-color="#54c8ff"/><stop offset="1" stop-color="#b06bff"/></linearGradient>
+<linearGradient id="gm-bevel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity=".6"/><stop offset=".5" stop-color="#ffffff" stop-opacity="0"/></linearGradient>
 </defs></svg>`;
-// Marco metálico común: aro dorado biselado + plato hundido + remaches + brillo especular superior.
-function gmFrame() {
+// Hexágono apuntado (coincide con el clip-path del medallón). Coordenadas en viewBox 0-64.
+const GM_HEX_OUT = '32 1.4 59 16.7 59 47.3 32 62.6 5 47.3 5 16.7';
+const GM_HEX_IN = '32 6.3 54.6 19.1 54.6 44.9 32 57.7 9.4 44.9 9.4 19.1';
+// Marco hexagonal biselado: aro de rareza + plato hundido + remaches en vértices + brillo especular.
+function gmFrame(rim) {
+  const r = rim || 'gm-rim-master';
+  const verts = [[32, 5.2], [56, 18.2], [56, 45.8], [32, 58.8], [8, 45.8], [8, 18.2]];
   let studs = '';
-  for (let i = 0; i < 12; i++) {
-    const a = (i / 12) * Math.PI * 2 - Math.PI / 2;
-    studs += `<circle cx="${(32 + Math.cos(a) * 28).toFixed(1)}" cy="${(32 + Math.sin(a) * 28).toFixed(1)}" r="1.15" fill="url(#gm-stud)"/>`;
-  }
-  return `<circle cx="32" cy="32" r="31" fill="url(#gm-rim)"/><circle cx="32" cy="32" r="31" fill="none" stroke="#3f2a06" stroke-width="1"/><circle cx="32" cy="32" r="25.5" fill="url(#gm-plate)"/><circle cx="32" cy="32" r="25.5" fill="none" stroke="#ffe6a0" stroke-width="1" opacity=".4"/>${studs}<path d="M32 1.5A30.5 30.5 0 0 1 62.5 32" fill="none" stroke="#fff7df" stroke-width="1.4" opacity=".35" stroke-linecap="round"/>`;
+  for (const [x, y] of verts) studs += `<circle cx="${x}" cy="${y}" r="1.5" fill="url(#gm-stud)"/><circle cx="${x}" cy="${(y - 0.45).toFixed(2)}" r=".55" fill="#fff8e0" opacity=".75"/>`;
+  return `<polygon points="${GM_HEX_OUT}" fill="url(#${r})"/>`
+    + `<polygon points="${GM_HEX_OUT}" fill="none" stroke="#120c02" stroke-opacity=".55" stroke-width="1.1"/>`
+    + `<polygon points="${GM_HEX_IN}" fill="url(#gm-plate)"/>`
+    + `<polygon points="${GM_HEX_IN}" fill="none" stroke="#ffffff" stroke-opacity=".15" stroke-width="1"/>`
+    + `<path d="M9.4 19.1 L32 6.3 L54.6 19.1" fill="none" stroke="url(#gm-bevel)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>`
+    + studs;
 }
+// Rareza por tier → gradiente del aro + color del aura/glow (usado por CSS via --rar).
+const GM_RARITY_RIM = { 0: 'gm-rim-novice', 1: 'gm-rim-adept', 1.5: 'gm-rim-master', 2: 'gm-rim-grand', 2.5: 'gm-rim-epic', 3: 'gm-rim-mythic', 4: 'gm-rim-legend', 5: 'gm-rim-supreme' };
+const GM_RARITY_COLOR = { 0: '#c79a4e', 1: '#cdddec', 1.5: '#ffce58', 2: '#5db4ff', 2.5: '#b06bff', 3: '#3fd9c4', 4: '#ff9436', 5: '#ff5fc4' };
+const GM_RARITY_KEY = { 0: 'novice', 1: 'adept', 1.5: 'master', 2: 'grand', 2.5: 'epic', 3: 'mythic', 4: 'legend', 5: 'supreme' };
 const GM_ICONS = {
   strength: '<rect x="20" y="30.3" width="24" height="3.4" rx="1.7" fill="url(#gm-steel)"/><rect x="13.5" y="23.5" width="6.5" height="17" rx="2.2" fill="url(#gm-gold)"/><rect x="44" y="23.5" width="6.5" height="17" rx="2.2" fill="url(#gm-gold)"/><rect x="18.4" y="26.5" width="3.4" height="11" rx="1.7" fill="url(#gm-steel)"/><rect x="42.2" y="26.5" width="3.4" height="11" rx="1.7" fill="url(#gm-steel)"/>',
   combat: '<g transform="translate(32 33) rotate(45)"><path d="M0 -19 L2.3 -13 L2.3 10 L-2.3 10 L-2.3 -13Z" fill="url(#gm-steel)"/><rect x="-6.5" y="9" width="13" height="3.2" rx="1.2" fill="url(#gm-gold)"/><rect x="-1.8" y="11.5" width="3.6" height="8" rx="1.6" fill="url(#gm-gold)"/></g><g transform="translate(32 33) rotate(-45)"><path d="M0 -19 L2.3 -13 L2.3 10 L-2.3 10 L-2.3 -13Z" fill="url(#gm-steel)"/><rect x="-6.5" y="9" width="13" height="3.2" rx="1.2" fill="url(#gm-gold)"/><rect x="-1.8" y="11.5" width="3.6" height="8" rx="1.6" fill="url(#gm-gold)"/></g>',
@@ -256,7 +276,7 @@ const GM_NODE_ICON = {
   hombre_de_familia: 'home', polimata: 'star', guerrero_sabio: 'combat', hombre_integro: 'integrity',
   lector_casual: 'intellect', lector_entusiasta: 'intellect', amante_libros: 'intellect', lector_supremo: 'crown',
 };
-function gmNodeSvg(n) { return `<svg viewBox="0 0 64 64" stroke-linejoin="round">${gmFrame()}${GM_ICONS[GM_NODE_ICON[n.id]] || GM_ICONS.star}</svg>`; }
+function gmNodeSvg(n) { return `<svg viewBox="0 0 64 64" stroke-linejoin="round">${gmFrame(GM_RARITY_RIM[n.tier])}${GM_ICONS[GM_NODE_ICON[n.id]] || GM_ICONS.star}</svg>`; }
 const GM_TIER_LABELS = { 0: ['T0', 'INICIADO'], 1: ['T1', 'PROFESIONAL'], 1.5: ['T1.5', 'MAESTRÍA'], 2: ['T2', 'TECHO'], 2.5: ['T2.5', 'COMBINACIÓN'], 3: ['T3', 'CRUZADA'], 4: ['T4', 'CONVERGENCIA'], 5: ['T5', 'CIMA'] };
 // Layout automático: filas por tier (Tier 0 arriba). Cada skill (cadena T0→T1→T1.5) tiene su
 // PROPIA columna, así toda la progresión de un mismo hábito cae en una línea vertical recta.
@@ -326,7 +346,7 @@ function gmTreeRender() {
     const reqTxt = ((n.requires && n.requires.metrics) || []).map(gmTreeMetricLabel).join(' · ');
     const tier = String(n.tier).replace('.', '·');
     const cls = on ? 'on' : (claimable ? 'claim' : 'off');
-    nodes += `<div class="gm-tnode ${cls}" style="left:${p.x}px;top:${p.y}px;--nc:var(${GM_TREE_CAT_COLOR[n.cat] || '--accent'})" onmouseenter="gmTreeHover('${n.id}')" onmouseleave="gmTreeHoverOut()" onclick="event.stopPropagation();gmTreeHover('${n.id}')">
+    nodes += `<div class="gm-tnode ${cls}" data-rar="${GM_RARITY_KEY[n.tier] || 'master'}" style="left:${p.x}px;top:${p.y}px;--nc:var(${GM_TREE_CAT_COLOR[n.cat] || '--accent'});--rar:${GM_RARITY_COLOR[n.tier] || '#ffce58'}" onmouseenter="gmTreeHover('${n.id}')" onmouseleave="gmTreeHoverOut()" onclick="event.stopPropagation();gmTreeHover('${n.id}')">
       <div class="gm-tn-medal">
         <span class="gm-tn-bk tl"></span><span class="gm-tn-bk tr"></span><span class="gm-tn-bk bl"></span><span class="gm-tn-bk br"></span>
         <span class="gm-tn-ring"></span><span class="gm-tn-ring2"></span>
