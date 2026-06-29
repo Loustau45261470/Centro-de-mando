@@ -486,6 +486,8 @@ const _fbDoSave = async () => {
           hadBase: !!_lastSyncedState, hadCloud: !!cloudRaw,
           lastSynced: _lastSyncedSavedAt, cloudSavedAt: cloudData ? cloudData._savedAt : null,
           localItems: _dataMetric(localObj), cloudItems: _cItems, saveItems: _dataMetric(toSave),
+          baseItems: (() => { try { return _dataMetric(_lastSyncedState); } catch (e) { return -1; } })(),
+          snapDrops: window._snapDrops || 0,
         };
         const log = JSON.parse(localStorage.getItem('_saveDiag') || '[]');
         log.unshift(rec); localStorage.setItem('_saveDiag', JSON.stringify(log.slice(0, 40)));
@@ -555,6 +557,12 @@ window.diagSave = function () {
 window.diagLoad = function () {
   let d = null; try { d = JSON.parse(localStorage.getItem('_loadDiag') || 'null'); } catch (e) {}
   console.log('[LOAD]', d); return d;
+};
+
+// Diag de los apply remotos (cuándo el device integró un cambio del otro). diagApply() en consola.
+window.diagApply = function () {
+  let l = []; try { l = JSON.parse(localStorage.getItem('_applyDiag') || '[]'); } catch (e) {}
+  console.table(l); console.log('snapDrops:', window._snapDrops || 0); return l;
 };
 
 // ── Recuperación manual (consola del navegador) ───────────────────────────────
@@ -636,6 +644,12 @@ function _applyRemoteState(raw, savedAt) {
     localStorage.setItem('lifedash_v2', JSON.stringify(S));
     _reRenderAll();
     if (typeof window._reloadProyectosFromState === 'function') window._reloadProyectosFromState();
+    try {
+      const _ad = JSON.parse(localStorage.getItem('_applyDiag') || '[]');
+      _ad.unshift({ t: new Date().toLocaleString('es-AR'), items: _dataMetric(S), savedAt: savedAt || null });
+      localStorage.setItem('_applyDiag', JSON.stringify(_ad.slice(0, 30)));
+      console.log('[APPLY]', _ad[0]);
+    } catch (e) {}
     showToast('🔄 Sincronizado');
   } catch(e) { console.warn('[sync] applyRemoteState error:', e); }
 }
@@ -643,7 +657,7 @@ function _applyRemoteState(raw, savedAt) {
 // ── Real-time Firestore listener ──────────────────────────
 function _startFirestoreSync() {
   _DOC().onSnapshot(snap => {
-    if (_fbSaveTid || _fbSaveInProgress) return;        // save local en vuelo — no pisar S
+    if (_fbSaveTid || _fbSaveInProgress) { window._snapDrops = (window._snapDrops || 0) + 1; return; }  // save en vuelo — descarta update remoto
     if (!snap.exists || !snap.data()?.state) return;
     if (snap.data()._wid && snap.data()._wid === _lastWriteId) return;  // eco propio
     _applyRemoteState(snap.data().state, snap.data()._savedAt);
@@ -652,7 +666,7 @@ function _startFirestoreSync() {
 
 // ── On visibility restore (iOS kills WS in background) ───
 async function _syncOnFocus() {
-  if (_fbSaveTid || _fbSaveInProgress) return;
+  if (_fbSaveTid || _fbSaveInProgress) { window._snapDrops = (window._snapDrops || 0) + 1; return; }
   try {
     const snap = await _DOC().get();
     if (!snap.exists || !snap.data()?.state) return;
