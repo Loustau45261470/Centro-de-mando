@@ -440,7 +440,7 @@ const _fbDoSave = async () => {
         showToast('🔀 Sync: combinando cambios de ambos dispositivos (Δ' + ev.aheadSeg + 's)', 6000);
       }
 
-      let toSave = localObj;
+      let toSave = localObj, _writeBranch = 'overwrite';
 
       // Anti-pisada (sesión confirmada): la nube quedó más nueva → NO sobrescribir.
       // Merge 3-vías por clave top-level (cada lado conserva lo que tocó) + rescate
@@ -451,6 +451,7 @@ const _fbDoSave = async () => {
           toSave = _lastSyncedState
             ? _rescueLocal(_mergeStates(_lastSyncedState, localObj, cloudObj), localObj)
             : _rescueLocal(cloudObj, localObj);
+          _writeBranch = _lastSyncedState ? 'merge3way' : 'rescue-noBase';
           S = toSave;
           localStorage.setItem('lifedash_v2', JSON.stringify(S));
           _lastSyncedSavedAt = cloudData._savedAt;
@@ -465,6 +466,7 @@ const _fbDoSave = async () => {
           const localM = _dataMetric(localObj);
           if (cloudM > localM + 3) {
             toSave = _rescueLocal(cloudObj, localObj);
+            _writeBranch = 'rescue-unconfirmed';
             S = toSave;
             localStorage.setItem('lifedash_v2', JSON.stringify(S));
             _lastSyncedSavedAt = cloudData._savedAt;
@@ -477,6 +479,22 @@ const _fbDoSave = async () => {
       }
 
       if (cloudRaw) await _maybeBackup(cloudRaw);
+
+      // ── Diag de cada write (entender por qué un device pisa al otro). diagSave() en consola.
+      try {
+        const _cItems = cloudRaw ? (() => { try { return _dataMetric(JSON.parse(cloudRaw)); } catch (e) { return -1; } })() : -1;
+        const rec = {
+          t: new Date().toLocaleString('es-AR'),
+          branch: _writeBranch, sessionConfirmed, cloudNewer: !!_cloudNewer, forced: _forceSaveOnce,
+          hadBase: !!_lastSyncedState, hadCloud: !!cloudRaw,
+          lastSynced: _lastSyncedSavedAt, cloudSavedAt: cloudData ? cloudData._savedAt : null,
+          localItems: _dataMetric(localObj), cloudItems: _cItems, saveItems: _dataMetric(toSave),
+        };
+        const log = JSON.parse(localStorage.getItem('_saveDiag') || '[]');
+        log.unshift(rec); localStorage.setItem('_saveDiag', JSON.stringify(log.slice(0, 40)));
+        console.log('[SAVE]', rec);
+      } catch (e) {}
+
       _forceSaveOnce = false;
       const wid = Math.random().toString(36).slice(2);
       _lastWriteId = wid;
@@ -528,6 +546,18 @@ window.forzarGuardado = function () { _forceSaveOnce = true; saveState(); showTo
 window.diagSync = function () {
   let l = []; try { l = JSON.parse(localStorage.getItem('_syncDiag') || '[]'); } catch (e) {}
   console.table(l); return l;
+};
+
+// Diag del path de CADA write (branch tomada). diagSave() en consola.
+window.diagSave = function () {
+  let l = []; try { l = JSON.parse(localStorage.getItem('_saveDiag') || '[]'); } catch (e) {}
+  console.table(l); return l;
+};
+
+// Diag de la última CARGA inicial (de dónde vino el estado). diagLoad() en consola.
+window.diagLoad = function () {
+  let d = null; try { d = JSON.parse(localStorage.getItem('_loadDiag') || 'null'); } catch (e) {}
+  console.log('[LOAD]', d); return d;
 };
 
 // ── Recuperación manual (consola del navegador) ───────────────────────────────
@@ -636,18 +666,28 @@ async function _syncOnFocus() {
 // ─────────────────────────────────────────────────────────────────────────
 
 async function loadState() {
+  let _loadSrc = '?';
   try {
     const snap = await _DOC().get();
     if (snap.exists && snap.data()?.state) {
       S = JSON.parse(snap.data().state);
       _lastSyncedSavedAt = snap.data()._savedAt || 0;
       _lastSyncedState = JSON.parse(snap.data().state);
+      _loadSrc = (snap.metadata && snap.metadata.fromCache) ? 'cloud-cache' : 'cloud';
     } else {
       try { S = JSON.parse(localStorage.getItem('lifedash_v2')) || {}; } catch { S = {}; }
+      _loadSrc = 'local-noDoc';
     }
   } catch(e) {
     try { S = JSON.parse(localStorage.getItem('lifedash_v2')) || {}; } catch { S = {}; }
+    _loadSrc = 'local-error';
   }
+  // ── Diag de carga (de dónde vino el estado inicial). diagLoad() en consola.
+  try {
+    const _ld = { t: new Date().toLocaleString('es-AR'), src: _loadSrc, lastSynced: _lastSyncedSavedAt, items: _dataMetric(S) };
+    localStorage.setItem('_loadDiag', JSON.stringify(_ld));
+    console.log('[LOAD]', _ld);
+  } catch (e) {}
   // Merge defaults for any missing keys
   Object.keys(DEFAULT_STATE).forEach(k => {
     if (S[k] === undefined) S[k] = JSON.parse(JSON.stringify(DEFAULT_STATE[k]));
