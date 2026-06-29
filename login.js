@@ -178,7 +178,13 @@
       const localRaw = localStorage.getItem('lifedash_v2');
       if (localRaw) {
         try {
-          await _DOC().set({ state: localRaw });
+          // Subir local SOLO si la nube está vacía (bootstrap). Si ya tiene datos NO
+          // pisar — loadState() y el sync con merge se encargan; así un device recién
+          // abierto no borra los cambios del otro. Siempre con _savedAt + merge.
+          const snap = await _DOC().get();
+          if (!(snap.exists && snap.data() && snap.data().state)) {
+            await _DOC().set({ state: localRaw, _savedAt: Date.now() }, { merge: true });
+          }
         } catch(e) {
           errEl.textContent = '[ SYNC ERROR: ' + (e.code || e.message) + ' ]';
           await new Promise(r => setTimeout(r, 3000));
@@ -216,7 +222,13 @@
     btnEl.disabled = true;
     const localRaw = localStorage.getItem('lifedash_v2');
     if (localRaw) {
-      try { await _DOC().set({ state: localRaw }); } catch(e) {}
+      // Mismo guard que el login normal: bootstrap solo si la nube está vacía.
+      try {
+        const snap = await _DOC().get();
+        if (!(snap.exists && snap.data() && snap.data().state)) {
+          await _DOC().set({ state: localRaw, _savedAt: Date.now() }, { merge: true });
+        }
+      } catch(e) {}
     }
     btnEl.textContent = 'ACCESO CONCEDIDO';
     btnEl.style.color = '#00FF88';
