@@ -417,44 +417,41 @@ const _fbDoSave = async () => {
         if (snap.exists && snap.data()?.state) { cloudRaw = snap.data().state; cloudData = snap.data(); }
       } catch (e) {}
 
-      // ── Detección de pisada last-write-wins ─────────────────────────────────
-      // Sesión confirmada pero la nube tiene cambios más nuevos que nuestro último
-      // sync → otro dispositivo escribió algo que no vimos. Lo registramos (diagSync)
-      // y abajo hacemos merge 3-vías en vez de pisar.
-      const _cloudNewer = sessionConfirmed && cloudData && cloudData._savedAt != null &&
-          _lastSyncedSavedAt != null && cloudData._savedAt > _lastSyncedSavedAt;
-      if (_cloudNewer) {
+      // ── Detección de divergencia con la nube (anti-pisada) ──────────────────
+      // Disparador por CONTENIDO (no por _savedAt, que puede faltar en el doc):
+      // si la nube difiere de nuestro último estado sincronizado, otro dispositivo
+      // escribió algo que no vimos → hay que mergear, no pisar.
+      const _cloudDiverged = sessionConfirmed && _lastSyncedState && cloudRaw &&
+          cloudRaw !== JSON.stringify(_lastSyncedState);
+      if (_cloudDiverged) {
         let cm = -1, lm = -1;
         try { cm = _dataMetric(JSON.parse(cloudRaw)); lm = _dataMetric(localObj); } catch (e) {}
         const ev = {
           t: new Date().toLocaleString('es-AR'),
-          cloudSavedAt: cloudData._savedAt, lastSynced: _lastSyncedSavedAt,
-          aheadSeg: Math.round((cloudData._savedAt - _lastSyncedSavedAt) / 1000),
+          cloudSavedAt: cloudData ? cloudData._savedAt : null, lastSynced: _lastSyncedSavedAt,
           cloudItems: cm, localItems: lm,
         };
         try {
           const log = JSON.parse(localStorage.getItem('_syncDiag') || '[]');
           log.unshift(ev); localStorage.setItem('_syncDiag', JSON.stringify(log.slice(0, 30)));
         } catch (e) {}
-        console.warn('[SYNC] nube más nueva detectada → merge 3-vías', ev);
-        showToast('🔀 Sync: combinando cambios de ambos dispositivos (Δ' + ev.aheadSeg + 's)', 6000);
+        console.warn('[SYNC] nube divergió del ancestro → merge 3-vías', ev);
+        showToast('🔀 Sync: combinando cambios de ambos dispositivos', 6000);
       }
 
       let toSave = localObj, _writeBranch = 'overwrite';
 
-      // Anti-pisada (sesión confirmada): la nube quedó más nueva → NO sobrescribir.
+      // Anti-pisada: la nube divergió de nuestro ancestro → NO sobrescribir.
       // Merge 3-vías por clave top-level (cada lado conserva lo que tocó) + rescate
       // de ítems nuevos que solo tenga local. forzarGuardado() lo saltea.
-      if (cloudRaw && _cloudNewer && !_forceSaveOnce) {
+      if (cloudRaw && _cloudDiverged && !_forceSaveOnce) {
         try {
           const cloudObj = JSON.parse(cloudRaw);
-          toSave = _lastSyncedState
-            ? _rescueLocal(_mergeStates(_lastSyncedState, localObj, cloudObj), localObj)
-            : _rescueLocal(cloudObj, localObj);
-          _writeBranch = _lastSyncedState ? 'merge3way' : 'rescue-noBase';
+          toSave = _rescueLocal(_mergeStates(_lastSyncedState, localObj, cloudObj), localObj);
+          _writeBranch = 'merge3way';
           S = toSave;
           localStorage.setItem('lifedash_v2', JSON.stringify(S));
-          _lastSyncedSavedAt = cloudData._savedAt;
+          if (cloudData && cloudData._savedAt != null) _lastSyncedSavedAt = cloudData._savedAt;
           _reRenderAll();
         } catch (e) { console.warn('[sync merge]', e); }
       }
@@ -485,7 +482,7 @@ const _fbDoSave = async () => {
         const _cItems = cloudRaw ? (() => { try { return _dataMetric(JSON.parse(cloudRaw)); } catch (e) { return -1; } })() : -1;
         const rec = {
           t: new Date().toLocaleString('es-AR'),
-          branch: _writeBranch, sessionConfirmed, cloudNewer: !!_cloudNewer, forced: _forceSaveOnce,
+          branch: _writeBranch, sessionConfirmed, cloudDiverged: !!_cloudDiverged, forced: _forceSaveOnce,
           hadBase: !!_lastSyncedState, hadCloud: !!cloudRaw,
           lastSynced: _lastSyncedSavedAt, cloudSavedAt: cloudData ? cloudData._savedAt : null,
           localItems: _dataMetric(localObj), cloudItems: _cItems, saveItems: _dataMetric(toSave),
