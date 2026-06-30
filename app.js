@@ -491,7 +491,6 @@ const _fbDoSave = async () => {
         };
         const log = JSON.parse(localStorage.getItem('_saveDiag') || '[]');
         log.unshift(rec); localStorage.setItem('_saveDiag', JSON.stringify(log.slice(0, 40)));
-        console.log('[SAVE]', rec);
       } catch (e) {}
 
       _forceSaveOnce = false;
@@ -648,7 +647,6 @@ function _applyRemoteState(raw, savedAt) {
       const _ad = JSON.parse(localStorage.getItem('_applyDiag') || '[]');
       _ad.unshift({ t: new Date().toLocaleString('es-AR'), items: _dataMetric(S), savedAt: savedAt || null });
       localStorage.setItem('_applyDiag', JSON.stringify(_ad.slice(0, 30)));
-      console.log('[APPLY]', _ad[0]);
     } catch (e) {}
     showToast('🔄 Sincronizado');
   } catch(e) { console.warn('[sync] applyRemoteState error:', e); }
@@ -697,7 +695,6 @@ async function loadState() {
   try {
     const _ld = { t: new Date().toLocaleString('es-AR'), src: _loadSrc, lastSynced: _lastSyncedSavedAt, items: _dataMetric(S) };
     localStorage.setItem('_loadDiag', JSON.stringify(_ld));
-    console.log('[LOAD]', _ld);
   } catch (e) {}
   // Merge defaults for any missing keys
   Object.keys(DEFAULT_STATE).forEach(k => {
