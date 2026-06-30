@@ -1,7 +1,7 @@
 // Centro de Mando — Service Worker
 // Maneja Web Push, clicks de notificación, y caché offline del app shell.
 
-const CACHE = 'cdm-shell-v112';
+const CACHE = 'cdm-shell-v113';
 const BASE  = '/Centro-de-mando/';
 const SHELL = [
   BASE,
@@ -56,8 +56,11 @@ self.addEventListener('install', event => {
   self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE).then(cache =>
-      // Cachear cada recurso por separado: un fallo no aborta la instalación
-      Promise.allSettled(SHELL.map(u => cache.add(u)))
+      // Cachear cada recurso por separado: un fallo no aborta la instalación.
+      // cache:'reload' evita que cache.add reutilice la caché HTTP del navegador
+      // (si no, el SW nuevo podía guardar app.js/styles.css VIEJOS y seguías
+      //  viendo la versión anterior aunque la versión del SW hubiese cambiado).
+      Promise.allSettled(SHELL.map(u => cache.add(new Request(u, { cache: 'reload' }))))
     )
   );
 });
