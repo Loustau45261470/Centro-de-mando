@@ -841,6 +841,10 @@ textarea { resize: vertical; min-height: 60px; }
 .txn-month-filter::-webkit-scrollbar { display:none; }
 .txn-month-btn { padding:7px 14px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--tt);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;margin-bottom:-1px;transition:all .15s; }
 .txn-month-btn.active { color:var(--accent);border-bottom-color:var(--accent); }
+/* Botón "Ver historial →" en la tarjeta de actividad: reutiliza .bsum-full con acento finanzas */
+#activity-card { --bsum-accent: var(--c-finanzas, #22C55E); }
+/* Chip de mes activo dentro del overlay de historial (vive fuera de #tab-finanzas) */
+#ov-historial .txn-month-btn.active { color: var(--cm-accent, #22C55E); border-bottom-color: var(--cm-accent, #22C55E); }
 
 .month-balance-row { display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.05); }
 .month-balance-row:last-child { border-bottom:none; }
