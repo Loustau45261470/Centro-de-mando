@@ -547,22 +547,20 @@
           <button class="push-btn" id="toggleMonthBalance" onclick="toggleMonthBalanceView()" style="display:none">↓ Historial mensual</button>
           <div id="monthBalanceList" style="display:none"></div>
         </div>
+        <!-- ── Presupuesto: resumen comparativo (sección) · detalle completo en overlay ── -->
+        <div class="card" id="budget-summary-card">
+          <div class="card-title">🧮 Presupuesto · resumen</div>
+          <div id="budgetSummaryBody"></div>
+        </div>
+        <!-- ── Presupuesto mensual completo (vive en el overlay del FAB → Presupuesto) ── -->
+        <div class="card" id="budget-card">
+          <div class="card-title">
+            🧮 Presupuesto del mes
+            <select class="inp budget-month-sel" id="budgetMonthSel" onchange="setBudgetMonth(this.value)"></select>
+          </div>
+          <div id="budgetBody"></div>
+        </div>
       </div>
-    </div>
-
-    <!-- ── Presupuesto: resumen comparativo (sección) · detalle completo en overlay ── -->
-    <div class="card" id="budget-summary-card">
-      <div class="card-title">🧮 Presupuesto · resumen</div>
-      <div id="budgetSummaryBody"></div>
-    </div>
-
-    <!-- ── Presupuesto mensual completo (vive en el overlay del FAB → Presupuesto) ── -->
-    <div class="card" id="budget-card">
-      <div class="card-title">
-        🧮 Presupuesto del mes
-        <select class="inp budget-month-sel" id="budgetMonthSel" onchange="setBudgetMonth(this.value)"></select>
-      </div>
-      <div id="budgetBody"></div>
     </div>
 
     <div class="affirmation-strip aff-mid"><span id="affirmation2-finanzas"></span></div>
