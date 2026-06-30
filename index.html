@@ -237,7 +237,26 @@
 
     <!-- Quarterly Objectives: Vida -->
     <div id="qobj-wrap-vida"></div>
-    <div id="proyectos-wrap-vida"></div>
+
+    <!-- Day Planner -->
+    <div class="card" id="dayPlannerCard">
+      <div class="card-title">
+        <div class="flex items-center gap-8">
+          📅 Planificación del Día
+        </div>
+        <div style="display:flex;align-items:center;gap:9px">
+          <span id="plannerDateLabel" style="font-size:11px;font-weight:500;color:var(--ts);text-transform:none;letter-spacing:0"></span>
+          <div id="plannerDots" style="display:flex;gap:5px;align-items:center"></div>
+        </div>
+      </div>
+      <div id="plannerMotivation" style="display:flex;align-items:center;justify-content:center;min-height:36px;margin-bottom:12px;padding:8px 10px;background:rgba(124,142,232,0.08);border-left:3px solid var(--accent);border-radius:6px">
+        <span id="plannerQuoteText" style="font-size:13.5px;color:var(--accent);font-style:italic;text-align:center;letter-spacing:.02em;line-height:1.5;font-weight:600;transition:opacity .45s ease;display:block;max-width:100%;white-space:nowrap;overflow:hidden"></span>
+      </div>
+      <div class="planner-swiper" id="plannerSwiper">
+        <div class="planner-slide" id="dayPlannerList"></div>
+        <div class="planner-slide" id="dayPlannerListTom"></div>
+      </div>
+    </div>
 
     <!-- Metas de hoy (sección): solo lectura. Crear/editar viven en Planificación (overlay). -->
     <div class="card" id="metas-readonly-card">
@@ -276,25 +295,7 @@
       <div id="tomorrowEmpty" class="empty-state">Nada planeado para mañana</div>
     </div>
 
-    <!-- Day Planner -->
-    <div class="card" id="dayPlannerCard">
-      <div class="card-title">
-        <div class="flex items-center gap-8">
-          📅 Planificación del Día
-        </div>
-        <div style="display:flex;align-items:center;gap:9px">
-          <span id="plannerDateLabel" style="font-size:11px;font-weight:500;color:var(--ts);text-transform:none;letter-spacing:0"></span>
-          <div id="plannerDots" style="display:flex;gap:5px;align-items:center"></div>
-        </div>
-      </div>
-      <div id="plannerMotivation" style="display:flex;align-items:center;justify-content:center;min-height:36px;margin-bottom:12px;padding:8px 10px;background:rgba(124,142,232,0.08);border-left:3px solid var(--accent);border-radius:6px">
-        <span id="plannerQuoteText" style="font-size:13.5px;color:var(--accent);font-style:italic;text-align:center;letter-spacing:.02em;line-height:1.5;font-weight:600;transition:opacity .45s ease;display:block;max-width:100%;white-space:nowrap;overflow:hidden"></span>
-      </div>
-      <div class="planner-swiper" id="plannerSwiper">
-        <div class="planner-slide" id="dayPlannerList"></div>
-        <div class="planner-slide" id="dayPlannerListTom"></div>
-      </div>
-    </div>
+    <div id="proyectos-wrap-vida"></div>
 
     <div id="vida-habits-wrap"></div>
     <div class="affirmation-strip aff-mid"><span id="affirmation2-vida"></span></div>
