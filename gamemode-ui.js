@@ -283,6 +283,17 @@ const GM_NODE_ICON = {
   lector_casual: 'intellect', lector_entusiasta: 'intellect', amante_libros: 'intellect', lector_supremo: 'crown',
 };
 function gmNodeSvg(n) { return `<svg viewBox="0 0 64 64" stroke-linejoin="round">${gmFrame(GM_RARITY_RIM[n.tier])}${GM_ICONS[GM_NODE_ICON[n.id]] || GM_ICONS.star}</svg>`; }
+// Emblemas de imagen (PNG generados con IA) que reemplazan al glyph SVG interior.
+// Agregar aquí la KEY de cada concepto cuyo archivo emblems/<key>.png ya esté disponible.
+// Mientras una key no esté en el set, ese nodo usa el glyph SVG de fallback (gmNodeSvg).
+const GM_EMBLEM_HAVE = new Set([]);
+// Renderiza el medallón: marco hexagonal de rareza SIEMPRE + (imagen del emblema si existe, si no glyph SVG).
+function gmNodeArt(n) {
+  const key = GM_NODE_ICON[n.id] || 'star';
+  const has = GM_EMBLEM_HAVE.has(key);
+  const frame = `<svg class="gm-tn-frame" viewBox="0 0 64 64" stroke-linejoin="round">${gmFrame(GM_RARITY_RIM[n.tier])}${has ? '' : (GM_ICONS[key] || GM_ICONS.star)}</svg>`;
+  return has ? `${frame}<img class="gm-tn-photo" src="emblems/${key}.png" alt="" loading="lazy">` : frame;
+}
 const GM_TIER_LABELS = { 0: ['T0', 'INICIADO'], 1: ['T1', 'PROFESIONAL'], 1.5: ['T1.5', 'MAESTRÍA'], 2: ['T2', 'TECHO'], 2.5: ['T2.5', 'COMBINACIÓN'], 3: ['T3', 'CRUZADA'], 4: ['T4', 'CONVERGENCIA'], 5: ['T5', 'CIMA'] };
 // Layout automático: filas por tier (Tier 0 arriba). Cada skill (cadena T0→T1→T1.5) tiene su
 // PROPIA columna, así toda la progresión de un mismo hábito cae en una línea vertical recta.
@@ -356,7 +367,7 @@ function gmTreeRender() {
       <div class="gm-tn-medal">
         <span class="gm-tn-bk tl"></span><span class="gm-tn-bk tr"></span><span class="gm-tn-bk bl"></span><span class="gm-tn-bk br"></span>
         <span class="gm-tn-ring"></span><span class="gm-tn-ring2"></span>
-        <span class="gm-tn-core"><span class="gm-tn-scan"></span><span class="gm-tn-ico">${gmNodeSvg(n)}</span></span>
+        <span class="gm-tn-core"><span class="gm-tn-scan"></span><span class="gm-tn-ico">${gmNodeArt(n)}</span></span>
         <span class="gm-tn-tier">T${tier}</span>
         ${on ? '<span class="gm-tn-badge">✓</span>' : (claimable ? '<span class="gm-tn-badge rdy">!</span>' : '<span class="gm-tn-badge lock">' + (n.manual ? '◈' : '✕') + '</span>')}
       </div>

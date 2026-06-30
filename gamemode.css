@@ -160,8 +160,11 @@
 .gm-tn-ring { position: absolute; inset: 0; opacity: .12; background: conic-gradient(from 0deg, var(--nc), transparent 35%, var(--nc) 70%, transparent); }
 .gm-tn-ring2 { position: absolute; inset: 5px; background: #0a1018; }
 .gm-tn-core { position: absolute; inset: 9px; background: radial-gradient(circle at 50% 32%, #18222f, #0a0f18 75%); display: grid; place-items: center; }
-.gm-tn-ico { display: grid; place-items: center; transition: filter .3s, opacity .3s; }
+.gm-tn-ico { position: relative; display: grid; place-items: center; transition: filter .3s, opacity .3s; }
 .gm-tn-ico svg { width: 58px; height: 58px; }
+/* Emblema-imagen (PNG): centrado sobre el marco hexagonal, recortado al hexágono interior. */
+.gm-tn-photo { position: absolute; inset: 0; margin: auto; width: 42px; height: 42px; object-fit: contain;
+  clip-path: polygon(50% 4%, 90% 27%, 90% 73%, 50% 96%, 10% 73%, 10% 27%); pointer-events: none; }
 /* Estado bloqueado: medalla metálica apagada (los gradientes ya no usan currentColor). */
 .gm-tnode.off .gm-tn-ico { filter: grayscale(.85) brightness(.5); opacity: .82; }
 .gm-tier-label { position: absolute; left: 16px; width: 132px; display: flex; flex-direction: column; gap: 2px; pointer-events: none; }
@@ -243,6 +246,7 @@
 @keyframes gm-cscan { 0% { transform: translateY(-110%); } 55%, 100% { transform: translateY(110%); } }
 .gm-tn-ico { z-index: 1; }
 .gm-tn-ico svg { width: 64px; height: 64px; }
+.gm-tn-photo { width: 47px; height: 47px; }
 .gm-tnode.on .gm-tn-ico { filter: drop-shadow(0 0 8px color-mix(in srgb, var(--nc) 55%, transparent)); }
 .gm-tnode.claim .gm-tn-ico { filter: drop-shadow(0 0 6px color-mix(in srgb, var(--nc) 45%, transparent)); }
 .gm-tn-name { font-size: 11.5px; font-weight: 700; letter-spacing: .2px; color: rgba(195,210,230,.5); }
