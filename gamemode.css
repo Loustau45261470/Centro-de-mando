@@ -266,6 +266,17 @@
 .gm-td-cat { font-family: var(--mono); font-size: 11px; color: var(--nc); margin-top: 3px; opacity: .9; }
 .gm-td-req { font-size: 12px; color: rgba(205,218,238,.82); margin-top: 9px; line-height: 1.45; }
 .gm-td-req b { font-family: var(--mono); font-size: 9px; letter-spacing: 1px; color: rgba(150,180,210,.6); display: block; margin-bottom: 1px; }
+/* Tap → emblema grande + descripción con "pop" */
+.gm-td-top { display: flex; gap: 14px; align-items: center; }
+.gm-td-titles { min-width: 0; flex: 1; }
+.gm-td-ico { position: relative; width: 88px; height: 88px; flex: 0 0 88px;
+  filter: drop-shadow(0 0 16px color-mix(in srgb, var(--rar, var(--nc)) 60%, transparent)) drop-shadow(0 0 5px color-mix(in srgb, var(--rar) 75%, transparent)); }
+.gm-td-ico .gm-tn-frame { position: absolute; inset: 0; width: 100%; height: 100%; }
+.gm-td-ico[data-rar="supreme"] { filter: drop-shadow(0 0 7px #ff5fc4) drop-shadow(0 0 16px #54c8ff) drop-shadow(0 0 26px #ffd84a); }
+#gm-tree-detail.show .gm-td-ico { animation: gm-td-pop .5s var(--ease-out-quart) both; }
+#gm-tree-detail.show.pop { animation: gm-td-in .3s var(--ease-out-quart); }
+@keyframes gm-td-pop { 0% { transform: scale(.35) rotate(-14deg); opacity: 0; } 58% { transform: scale(1.14) rotate(4deg); } 100% { transform: scale(1) rotate(0); opacity: 1; } }
+@keyframes gm-td-in { from { transform: scale(.9) translateY(12px); opacity: .2; } to { transform: none; opacity: 1; } }
 
 /* leyenda */
 #gm-tree-legend { position: absolute; top: 66px; right: 16px; z-index: 4; display: flex; flex-direction: column; gap: 6px; padding: 11px 13px; border-radius: 12px;
@@ -280,7 +291,8 @@
 }
 @media (prefers-reduced-motion: reduce) {
   #gm-tree-grid, #gm-tree-viewport::before, .gm-tn-ring, .gm-tn-scan, .gm-tpath.on,
-  .gm-tnode.on .gm-tn-medal, .gm-tnode.claim .gm-tn-medal, .gm-tn-badge.rdy { animation: none !important; }
+  .gm-tnode.on .gm-tn-medal, .gm-tnode.claim .gm-tn-medal, .gm-tn-badge.rdy,
+  #gm-tree-detail.show .gm-td-ico, #gm-tree-detail.show.pop { animation: none !important; }
   .gm-tspark { display: none; }
 }
 
