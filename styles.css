@@ -3647,8 +3647,10 @@ body:has(#login-screen) #hud-frame { opacity: 0; }
   }
   /* Finanzas: 2 columnas reales en vez del masonry (evita huecos entre tarjetas) ·
      izq: objetivos/calendarios/obligaciones/recordatorios · der: patrimonio + resto */
-  #tab-finanzas.tab-panel.active { column-count: auto; }
-  #tab-finanzas .fin-cols {
+  #tab-finanzas.tab-panel.active,
+  #tab-vida.tab-panel.active { column-count: auto; }
+  #tab-finanzas .fin-cols,
+  #tab-vida .fin-cols {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 20px;
@@ -3656,8 +3658,10 @@ body:has(#login-screen) #hud-frame { opacity: 0; }
   }
   /* min-width:0 → las columnas pueden encogerse por debajo del ancho de su contenido
      (evita el desborde horizontal clásico de grid cuando una tarjeta tiene contenido ancho) */
-  #tab-finanzas .fin-col { min-width: 0; }
-  #tab-finanzas .fin-col > * { min-width: 0; max-width: 100%; }
+  #tab-finanzas .fin-col,
+  #tab-vida .fin-col { min-width: 0; }
+  #tab-finanzas .fin-col > *,
+  #tab-vida .fin-col > * { min-width: 0; max-width: 100%; }
   /* cada tarjeta es una unidad de masonry: no se parte entre columnas */
   .tab-panel.active .card,
   .tab-panel.active > [id^="qobj-wrap-"],
