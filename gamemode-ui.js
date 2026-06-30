@@ -286,7 +286,7 @@ function gmNodeSvg(n) { return `<svg viewBox="0 0 64 64" stroke-linejoin="round"
 // Emblemas de imagen (PNG generados con IA) que reemplazan al glyph SVG interior.
 // Agregar aquí la KEY de cada concepto cuyo archivo emblems/<key>.png ya esté disponible.
 // Mientras una key no esté en el set, ese nodo usa el glyph SVG de fallback (gmNodeSvg).
-const GM_EMBLEM_HAVE = new Set([]);
+const GM_EMBLEM_HAVE = new Set(['strength', 'combat', 'nutrition', 'endurance', 'intellect', 'focus', 'mind', 'economist', 'ledger', 'faith', 'love', 'family', 'cat', 'execution', 'responsibility', 'tools', 'wealth', 'crown', 'weapon', 'license', 'temperance', 'graduate', 'business', 'medal', 'home', 'star', 'integrity']);
 // Renderiza el medallón: marco hexagonal de rareza SIEMPRE + (imagen del emblema si existe, si no glyph SVG).
 function gmNodeArt(n) {
   const key = GM_NODE_ICON[n.id] || 'star';
