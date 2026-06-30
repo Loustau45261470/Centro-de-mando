@@ -273,20 +273,20 @@ const GM_ICONS = {
 const GM_NODE_ICON = {
   hombre_de_hierro: 'strength', combatiente: 'combat', saludable: 'nutrition', resistente: 'endurance', estudiante: 'intellect', alerta: 'focus', sereno: 'mind', aprendiz_de_capital: 'economist', ordenado: 'ledger', creyente: 'faith', atento: 'love', hijo_presente_n: 'family', protector_felino: 'cat', hacedor: 'execution', confiable: 'responsibility', aprendiz: 'tools',
   hombre_de_acero: 'strength', veterano_de_combate: 'combat', nutricionista: 'nutrition', incansable: 'endurance', letrado: 'intellect', enfocado: 'focus', estoico: 'mind', inversor: 'economist', austero: 'ledger', devoto_n: 'faith', companero: 'love', hijo_ejemplar: 'family', padre_felino: 'cat', ejecutor: 'execution', responsable: 'responsibility', programador: 'tools',
-  patrimonio_en_marcha: 'wealth', base_solida: 'wealth', capital_creciente: 'wealth', independencia_visible: 'wealth', umbral_de_libertad: 'wealth', patrimonio_de_elite: 'crown',
-  hombre_de_titanio: 'strength', letal: 'combat', impecable: 'nutrition', inagotable: 'endurance', jurista: 'intellect', imperturbable: 'focus', inquebrantable: 'mind', visionario_del_capital: 'economist', patrimonial: 'ledger', consagrado: 'faith', incondicional: 'love', hijo_de_honor: 'family', guardian_felino: 'cat', implacable: 'execution', inflexible: 'responsibility', arquitecto_digital: 'tools',
-  manejo_de_armas: 'weapon', tenencia: 'weapon', marine: 'medal', templanza_real: 'temperance', catolico_practicante: 'faith', graduado: 'graduate', primer_ingreso_negocio_ia: 'business', coleccionista: 'medal',
-  comandante_de_combate: 'combat', cuerpo_operativo: 'strength', mente_templada: 'intellect', doctor_en_potencia: 'graduate', forjador_de_riqueza: 'wealth', vida_ordenada: 'temperance', pilar_del_hogar: 'home', arquitecto_de_sistemas: 'execution',
-  centinela: 'weapon', calculador: 'economist', metodico: 'responsibility', sosten: 'home', templado: 'strength', estudioso_del_sistema: 'tools', recto: 'temperance', presente_en_casa: 'home', templado_de_acero: 'combat',
-  protector: 'temperance', estratega_total: 'economist', disciplinado: 'focus', proveedor: 'home', resiliente: 'faith', visionario: 'tools', sobrio: 'temperance', lider_silencioso: 'crown', inquebrantable_total: 'mind',
-  hombre_de_familia: 'home', polimata: 'star', guerrero_sabio: 'combat', hombre_integro: 'integrity',
-  lector_casual: 'intellect', lector_entusiasta: 'intellect', amante_libros: 'intellect', lector_supremo: 'crown',
+  patrimonio_en_marcha: 'patrimony', base_solida: 'patrimony', capital_creciente: 'patrimony', independencia_visible: 'gem', umbral_de_libertad: 'gem', patrimonio_de_elite: 'crown',
+  hombre_de_titanio: 'strength', letal: 'combat', impecable: 'nutrition', inagotable: 'endurance', jurista: 'law', imperturbable: 'focus', inquebrantable: 'mind', visionario_del_capital: 'economist', patrimonial: 'ledger', consagrado: 'faith', incondicional: 'love', hijo_de_honor: 'family', guardian_felino: 'cat', implacable: 'execution', inflexible: 'responsibility', arquitecto_digital: 'tools',
+  manejo_de_armas: 'firearm', tenencia: 'firearm', marine: 'marine', templanza_real: 'temperance', catolico_practicante: 'faith', graduado: 'graduate', primer_ingreso_negocio_ia: 'robot', coleccionista: 'medal',
+  comandante_de_combate: 'commander', cuerpo_operativo: 'operative', mente_templada: 'tempered_mind', doctor_en_potencia: 'doctor', forjador_de_riqueza: 'wealth_forge', vida_ordenada: 'dove', pilar_del_hogar: 'home_pillar', arquitecto_de_sistemas: 'architect',
+  centinela: 'sentinel', calculador: 'abacus', metodico: 'method', sosten: 'support', templado: 'forged', estudioso_del_sistema: 'coder', recto: 'righteous', presente_en_casa: 'presence_home', templado_de_acero: 'steel_swords',
+  protector: 'guardian', estratega_total: 'strategist', disciplinado: 'discipline', proveedor: 'provider', resiliente: 'resilient_star', visionario: 'oracle', sobrio: 'dove', lider_silencioso: 'crown', inquebrantable_total: 'diamond_mind',
+  hombre_de_familia: 'great_family', polimata: 'polymath', guerrero_sabio: 'wise_warrior', hombre_integro: 'temple',
+  lector_casual: 'reader', lector_entusiasta: 'reader', amante_libros: 'reader', lector_supremo: 'crown',
 };
 function gmNodeSvg(n) { return `<svg viewBox="0 0 64 64" stroke-linejoin="round">${gmFrame(GM_RARITY_RIM[n.tier])}${GM_ICONS[GM_NODE_ICON[n.id]] || GM_ICONS.star}</svg>`; }
 // Emblemas de imagen (PNG generados con IA) que reemplazan al glyph SVG interior.
 // Agregar aquí la KEY de cada concepto cuyo archivo emblems/<key>.png ya esté disponible.
 // Mientras una key no esté en el set, ese nodo usa el glyph SVG de fallback (gmNodeSvg).
-const GM_EMBLEM_HAVE = new Set(['strength', 'combat', 'nutrition', 'endurance', 'intellect', 'focus', 'mind', 'economist', 'ledger', 'faith', 'love', 'family', 'cat', 'execution', 'responsibility', 'tools', 'wealth', 'crown', 'weapon', 'license', 'temperance', 'graduate', 'business', 'medal', 'home', 'star', 'integrity']);
+const GM_EMBLEM_HAVE = new Set(['strength', 'combat', 'nutrition', 'endurance', 'intellect', 'focus', 'mind', 'economist', 'ledger', 'faith', 'love', 'family', 'cat', 'execution', 'responsibility', 'tools', 'patrimony', 'gem', 'crown', 'law', 'firearm', 'marine', 'temperance', 'graduate', 'robot', 'medal', 'commander', 'operative', 'tempered_mind', 'doctor', 'wealth_forge', 'dove', 'home_pillar', 'architect', 'reader', 'sentinel', 'abacus', 'method', 'support', 'forged', 'coder', 'righteous', 'presence_home', 'steel_swords', 'guardian', 'strategist', 'discipline', 'provider', 'resilient_star', 'oracle', 'diamond_mind', 'great_family', 'polymath', 'wise_warrior', 'temple']);
 // Renderiza el medallón: marco hexagonal de rareza SIEMPRE + (imagen del emblema si existe, si no glyph SVG).
 function gmNodeArt(n) {
   const key = GM_NODE_ICON[n.id] || 'star';
