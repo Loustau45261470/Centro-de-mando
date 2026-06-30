@@ -1,7 +1,7 @@
 // Centro de Mando — Service Worker
 // Maneja Web Push, clicks de notificación, y caché offline del app shell.
 
-const CACHE = 'cdm-shell-v102';
+const CACHE = 'cdm-shell-v103';
 const BASE  = '/Centro-de-mando/';
 const SHELL = [
   BASE,
@@ -46,6 +46,9 @@ const SHELL = [
   'https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js',
   'https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js',
 ];
+// Emblemas del árbol de habilidades (PNG generados con IA)
+['strength','combat','nutrition','endurance','intellect','focus','mind','economist','ledger','faith','love','family','cat','execution','responsibility','tools','wealth','crown','weapon','license','temperance','graduate','business','medal','home','star','integrity']
+  .forEach(k => SHELL.push(BASE + 'emblems/' + k + '.png'));
 
 self.addEventListener('install', event => {
   self.skipWaiting();
