@@ -1,7 +1,7 @@
 // Centro de Mando — Service Worker
 // Maneja Web Push, clicks de notificación, y caché offline del app shell.
 
-const CACHE = 'cdm-shell-v104';
+const CACHE = 'cdm-shell-v105';
 const BASE  = '/Centro-de-mando/';
 const SHELL = [
   BASE,
@@ -47,7 +47,7 @@ const SHELL = [
   'https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js',
 ];
 // Emblemas del árbol de habilidades (PNG generados con IA)
-['strength','combat','nutrition','endurance','intellect','focus','mind','economist','ledger','faith','love','family','cat','execution','responsibility','tools','wealth','crown','weapon','license','temperance','graduate','business','medal','home','star','integrity']
+['strength','combat','nutrition','endurance','intellect','focus','mind','economist','ledger','faith','love','family','cat','execution','responsibility','tools','patrimony','gem','crown','law','firearm','marine','temperance','graduate','robot','medal','commander','operative','tempered_mind','doctor','wealth_forge','dove','home_pillar','architect','reader','sentinel','abacus','method','support','forged','coder','righteous','presence_home','steel_swords','guardian','strategist','discipline','provider','resilient_star','oracle','diamond_mind','great_family','polymath','wise_warrior','temple']
   .forEach(k => SHELL.push(BASE + 'emblems/' + k + '.png'));
 
 self.addEventListener('install', event => {
