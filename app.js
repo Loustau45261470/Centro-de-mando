@@ -4899,16 +4899,18 @@ function renderActivity() {
 
   if (!txnActiveMonth || !months.includes(txnActiveMonth)) txnActiveMonth = months[0] || curMK;
 
-  // Month filter tabs
+  // Month filter tabs (sección + espejo en el overlay de historial)
+  const chipsHtml = months.map(m => {
+    const [y,mo] = m.split('-');
+    const lbl = CAL_MONTHS[+mo-1].slice(0,3)+' '+y.slice(2);
+    return `<button class="txn-month-btn${m===txnActiveMonth?' active':''}" onclick="setTxnMonth('${m}')">${lbl}</button>`;
+  }).join('');
   const filterEl = document.getElementById('txnMonthFilter');
-  if (months.length > 1) {
-    filterEl.style.display = '';
-    filterEl.innerHTML = months.map(m => {
-      const [y,mo] = m.split('-');
-      const lbl = CAL_MONTHS[+mo-1].slice(0,3)+' '+y.slice(2);
-      return `<button class="txn-month-btn${m===txnActiveMonth?' active':''}" onclick="setTxnMonth('${m}')">${lbl}</button>`;
-    }).join('');
-  } else { filterEl.style.display = 'none'; }
+  if (months.length > 1) { filterEl.style.display = ''; filterEl.innerHTML = chipsHtml; }
+  else { filterEl.style.display = 'none'; }
+  // Overlay de historial = archivo completo: muestra siempre todos los meses con datos.
+  const histFilterEl = document.getElementById('txnHistMonthFilter');
+  if (histFilterEl) histFilterEl.innerHTML = chipsHtml;
 
   const filtered = S.transactions.filter(t => t.date && t.date.startsWith(txnActiveMonth));
 
@@ -4959,6 +4961,10 @@ function renderActivity() {
 
   // Expense chart
   renderTxnChart(filtered);
+
+  // "Ver historial →" en la sección (abre el overlay que aloja la lista)
+  const verHistBtn = document.getElementById('verHistorialBtn');
+  if (verHistBtn) verHistBtn.style.display = S.transactions.length ? '' : 'none';
 
   // Monthly balance toggle button
   const histBtn = document.getElementById('toggleMonthBalance');

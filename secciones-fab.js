@@ -22,6 +22,7 @@ const _SF_ICONS = {
   goals: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8h12l-1 11.5a1 1 0 0 1-1 .9H8a1 1 0 0 1-1-.9z"/><path d="M9 8a3 3 0 0 1 6 0"/></svg>`,
   budget: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3.5" width="14" height="17" rx="2.5"/><path d="M8 7h8"/><path d="M8 11h2M11 11h2M14 11h2M8 14.5h2M11 14.5h2M14 14.5v3"/></svg>`,
   bell: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>`,
+  history: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 4v4h4"/><path d="M12 8v4l3 2"/></svg>`,
 };
 
 // ── Presupuesto: overlay que aloja el presupuesto + las obligaciones recurrentes ──
@@ -46,6 +47,37 @@ function _sfRestoreBudget() {
   _sfBudgetSrcs = [];
 }
 window.openBudgetOverlay = _sfOpenBudget;
+
+// ── Historial: overlay que aloja la lista de movimientos por mes ──
+// La lista (cabecera + filas + estado vacío) se reubica UNA sola vez al montar
+// dentro del overlay, de modo que ya no ocupa espacio en la sección. Abrir/cerrar
+// solo muestra/oculta el overlay. renderActivity() sigue renderizando por id.
+let _sfHistMoved = false;
+function _sfEnsureHistorial() {
+  if (typeof CMOverlay === 'undefined') return null;
+  const { overlay, body } = CMOverlay.build({ id: 'ov-historial', accent: '#22C55E' });
+  if (!overlay._sfBuilt) {
+    body.innerHTML = `<div class="cm-ov-head"><div class="cm-ov-eyebrow">FINANZAS · HISTORIAL</div><div class="cm-ov-title">Historial de movimientos</div></div>
+      <div class="txn-month-filter" id="txnHistMonthFilter"></div>
+      <div class="cm-ov-host" id="ov-historial-host"></div>`;
+    overlay._sfBuilt = true;
+  }
+  if (!_sfHistMoved) {
+    const host = document.getElementById('ov-historial-host');
+    ['activityColHdr', 'activityList', 'activityEmpty'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el && host) host.appendChild(el);
+    });
+    _sfHistMoved = true;
+    if (typeof renderActivity === 'function') renderActivity();
+  }
+  return overlay;
+}
+function _sfOpenHistorial() {
+  const overlay = _sfEnsureHistorial();
+  if (overlay) CMOverlay.open(overlay);
+}
+window.openHistorialOverlay = _sfOpenHistorial;
 
 // ── Montaje ───────────────────────────────────────────────────────────────
 function _sfMount() {
@@ -93,6 +125,7 @@ function _sfMount() {
       proyItem('finanzas'),
       { icon: _SF_ICONS.goals, label: 'Adquisición', accent: '#F5A623', onClick: openGoals },
       { icon: _SF_ICONS.budget, label: 'Presupuesto', accent: '#22C55E', onClick: openBudget },
+      { icon: _SF_ICONS.history, label: 'Historial', accent: '#22C55E', onClick: _sfOpenHistorial },
       { icon: _SF_ICONS.notas, label: 'Notas', accent: '#22C55E', onClick: () => { if (typeof finanzasNotasOpen === 'function') finanzasNotasOpen(); } },
       remItem('finanzas'),
     ] },
@@ -107,6 +140,9 @@ function _sfMount() {
       visibleWhen: () => !!(el && el.classList.contains('active')),
     });
   });
+
+  // Saca la lista de movimientos de la sección hacia el overlay desde el arranque.
+  _sfEnsureHistorial();
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _sfMount);
