@@ -451,11 +451,18 @@ function gmTreeHover(id) {
   const status = on ? '● ACTIVA' : (claimable ? '◈ LISTA PARA RECLAMAR' : '○ BLOQUEADA');
   el.style.setProperty('--nc', 'var(' + (GM_TREE_CAT_COLOR[n.cat] || '--accent') + ')');
   el.className = 'show' + (on ? ' on' : '');
-  el.innerHTML = `<div class="gm-td-h"><span class="gm-td-tier">TIER ${String(n.tier)}</span><span class="gm-td-status">${status}</span></div>
-    <div class="gm-td-name">${_gmEsc(n.name)}</div>
-    <div class="gm-td-cat">${_gmEsc(catName)}${n.manual ? ' · manual' : ''}</div>
+  el.innerHTML = `<div class="gm-td-top">
+      <div class="gm-td-ico" data-rar="${GM_RARITY_KEY[n.tier] || 'master'}" style="--rar:${GM_RARITY_COLOR[n.tier] || '#ffce58'}">${gmNodeArt(n)}</div>
+      <div class="gm-td-titles">
+        <div class="gm-td-h"><span class="gm-td-tier">TIER ${String(n.tier)}</span><span class="gm-td-status">${status}</span></div>
+        <div class="gm-td-name">${_gmEsc(n.name)}</div>
+        <div class="gm-td-cat">${_gmEsc(catName)}${n.manual ? ' · manual' : ''}</div>
+      </div>
+    </div>
     ${reqM ? `<div class="gm-td-req"><b>REQUIERE</b>${_gmEsc(reqM)}</div>` : ''}
     ${reqN.length ? `<div class="gm-td-req"><b>UNE</b>${_gmEsc(reqN.join('  +  '))}</div>` : ''}`;
+  // re-disparar la animación de "pop" en cada apertura
+  void el.offsetWidth; el.classList.add('pop');
 }
 function gmTreeHoverOut() { const el = document.getElementById('gm-tree-detail'); if (el && !('ontouchstart' in window)) el.classList.remove('show'); }
 function gmClaimNode(id) {
