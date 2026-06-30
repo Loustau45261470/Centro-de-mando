@@ -235,6 +235,9 @@
       <div id="intel-body-vida" class="intel-body"></div>
     </div>
 
+    <!-- ── 2 columnas: izq objetivos/planificación/metas · der hábitos + resto ── -->
+    <div class="fin-cols">
+      <div class="fin-col">
     <!-- Quarterly Objectives: Vida -->
     <div id="qobj-wrap-vida"></div>
 
@@ -284,23 +287,30 @@
       <div id="goalsEmpty" class="empty-state">Agrega tu primera meta del día</div>
       <button class="push-btn" id="pushBtn" onclick="pushRemaining()" style="display:none">→ Empujar restantes a mañana</button>
     </div>
-
-    <!-- Tomorrow goals -->
-    <div class="card" id="tomorrow-card">
-      <div class="card-title">
-        📋 Plan Mañana
-        <button class="btn btn-ghost btn-sm" onclick="openModal('modal-add-goal-tom')">+ Meta</button>
       </div>
-      <div id="tomorrowList"></div>
-      <div id="tomorrowEmpty" class="empty-state">Nada planeado para mañana</div>
+      <div class="fin-col">
+        <!-- Hábitos: arriba a la derecha -->
+        <div id="vida-habits-wrap"></div>
+
+        <!-- Tomorrow goals -->
+        <div class="card" id="tomorrow-card">
+          <div class="card-title">
+            📋 Plan Mañana
+            <button class="btn btn-ghost btn-sm" onclick="openModal('modal-add-goal-tom')">+ Meta</button>
+          </div>
+          <div id="tomorrowList"></div>
+          <div id="tomorrowEmpty" class="empty-state">Nada planeado para mañana</div>
+        </div>
+
+        <div id="proyectos-wrap-vida"></div>
+
+        <!-- Reminders -->
+        <div class="card rnotif-card"><div class="card-title">🔔 Recordatorios</div><div id="reminders-notif-vida"></div></div>
+        <div id="reminders-wrap-vida"></div>
+      </div>
     </div>
 
-    <div id="proyectos-wrap-vida"></div>
-
-    <div id="vida-habits-wrap"></div>
     <div class="affirmation-strip aff-mid"><span id="affirmation2-vida"></span></div>
-    <div class="card rnotif-card"><div class="card-title">🔔 Recordatorios</div><div id="reminders-notif-vida"></div></div>
-    <div id="reminders-wrap-vida"></div>
   </div>
 
   <!-- ████ SALUD Y DEPORTE TAB ████ -->
