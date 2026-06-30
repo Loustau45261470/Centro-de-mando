@@ -1,7 +1,7 @@
 // Centro de Mando — Service Worker
 // Maneja Web Push, clicks de notificación, y caché offline del app shell.
 
-const CACHE = 'cdm-shell-v105';
+const CACHE = 'cdm-shell-v106';
 const BASE  = '/Centro-de-mando/';
 const SHELL = [
   BASE,
@@ -47,7 +47,7 @@ const SHELL = [
   'https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js',
 ];
 // Emblemas del árbol de habilidades (PNG generados con IA)
-['strength','combat','nutrition','endurance','intellect','focus','mind','economist','ledger','faith','love','family','cat','execution','responsibility','tools','patrimony','gem','crown','law','firearm','marine','temperance','graduate','robot','medal','commander','operative','tempered_mind','doctor','wealth_forge','dove','home_pillar','architect','reader','sentinel','abacus','method','support','forged','coder','righteous','presence_home','steel_swords','guardian','strategist','discipline','provider','resilient_star','oracle','diamond_mind','great_family','polymath','wise_warrior','temple']
+['strength_1','strength_2','strength_3','combat_1','combat_2','combat_3','nutrition_1','nutrition_2','nutrition_3','endurance_1','endurance_2','endurance_3','focus_1','focus_2','focus_3','mind_1','mind_2','mind_3','intellect_1','intellect_2','economist_1','economist_2','economist_3','ledger_1','ledger_2','ledger_3','faith_1','faith_2','faith_3','love_1','love_2','love_3','family_1','family_2','family_3','cat_1','cat_2','cat_3','execution_1','execution_2','execution_3','responsibility_1','responsibility_2','responsibility_3','tools_1','tools_2','tools_3','reader_1','reader_2','reader_3','church','firearm','patrimony','gem','crown','law','marine','temperance','graduate','robot','medal','commander','operative','tempered_mind','doctor','wealth_forge','dove','home_pillar','architect','sentinel','abacus','method','support','forged','coder','righteous','presence_home','steel_swords','guardian','strategist','discipline','provider','resilient_star','oracle','diamond_mind','great_family','polymath','wise_warrior','temple']
   .forEach(k => SHELL.push(BASE + 'emblems/' + k + '.png'));
 
 self.addEventListener('install', event => {
