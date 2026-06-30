@@ -4441,6 +4441,20 @@ input:focus, select:focus, textarea:focus {
 .nt-flbl { font-family: var(--mono); font-size: 11px; letter-spacing: .5px; font-weight: 600; color: var(--ts); margin: 10px 0 3px; text-transform: uppercase; }
 .nt-form-acts { display: flex; gap: 9px; margin-top: 16px; }
 
+/* ── Estado vacío (Ideas / Estudio / Finanzas) ── */
+.nt-empty { padding: 26px 18px; text-align: center; font-size: 13.5px; color: var(--tt);
+  border: 1px dashed var(--border); border-radius: 14px; background: rgba(10,16,30,.3); }
+
+/* ── Notas de estudio: tarjeta de materia clickeable (div, no button) ── */
+.es-card { cursor: pointer; }
+.es-card-acts { display: flex; align-items: center; gap: 5px; flex: none; }
+
+/* ── Finanzas: lista compacta (el texto no se despliega completo) ── */
+.nt-list-compact { gap: 8px; }
+.nt-note-compact { padding-top: 11px; padding-bottom: 11px; }
+.nt-note-compact .nt-note-meta { margin: 4px 0 6px; }
+.fn-snip { font-size: 12.5px; color: var(--tt); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* ── Reduced motion ── */
 @media (prefers-reduced-motion: reduce) {
   #notas-fab.on, #notas-overlay.show #notas-panel, .nt-rect, .nt-cat-anim, .nt-note { animation: none !important; }

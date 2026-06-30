@@ -15,6 +15,8 @@ const NOTAS_ICONS = {
   aprendizaje: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="8.4"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="0.7" fill="currentColor" stroke="none"/><path d="M12 1.2v3M12 19.8v3M1.2 12h3M19.8 12h3"/></svg>`,
   // Anotaciones personales — pluma / escritura
   personales: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 18.5l2.6-.7L18.2 7.2a1.9 1.9 0 0 0 0-2.7l-.2-.2a1.9 1.9 0 0 0-2.7 0L4.7 15.1 4 17.7l1 .8z"/><path d="M13.7 6l3.3 3.3"/></svg>`,
+  // Ideas — lámpara / chispa
+  ideas: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 1 4 10.5c-.6.6-1 1.3-1 2.1V16H9v-.4c0-.8-.4-1.5-1-2.1A6 6 0 0 1 12 3z"/></svg>`,
 };
 const NOTAS_FAB_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="3.5" width="13" height="17.2" rx="2.4"/><path d="M8 3.5v17.2"/><path d="M11 8.2h4M11 12h4"/><path d="M17.5 9.5l3 1.6-3 1.6z" fill="currentColor" stroke="none"/></svg>`;
 
@@ -22,8 +24,9 @@ const NOTAS_CATS = {
   reflexiones: { label: 'Reflexiones',            svg: NOTAS_ICONS.reflexiones, accent: '#6B8EFF', tag: 'REFLEXIÓN' },
   aprendizaje: { label: 'Aprendizaje',            svg: NOTAS_ICONS.aprendizaje, accent: '#38BDF8', tag: 'APRENDIZAJE' },
   personales:  { label: 'Anotaciones personales', svg: NOTAS_ICONS.personales,  accent: '#818CF8', tag: 'PERSONAL' },
+  ideas:       { label: 'Ideas',                   svg: NOTAS_ICONS.ideas,       accent: '#FBBF24', tag: 'IDEA' },
 };
-const NOTAS_CAT_KEYS = ['reflexiones', 'aprendizaje', 'personales'];
+const NOTAS_CAT_KEYS = ['reflexiones', 'aprendizaje', 'personales', 'ideas'];
 
 // ── Estado UI (no sincronizado) ──────────────────────────────────────────
 let _ntView = null;        // null = home (3 rectángulos) | clave de categoría
@@ -90,6 +93,11 @@ function notasHome() { _ntView = null; _ntSearch = ''; _ntEditing = null; notasR
 function notasRender() {
   const body = document.getElementById('notas-body');
   if (!body) return;
+  if (_ntView === 'estudio' && typeof estudioRenderHTML === 'function') {
+    body.innerHTML = estudioRenderHTML();
+    if (typeof estudioAfterRender === 'function') estudioAfterRender();
+    return;
+  }
   if (_ntEditing) { body.innerHTML = _ntRenderForm(); _ntFocusForm(); return; }
   body.innerHTML = _ntView ? _ntRenderCat(_ntView) : _ntRenderHome();
 }
@@ -124,10 +132,11 @@ function _ntRenderHome() {
       </span>
     </button>`;
   }).join('');
+  const estudioCard = (typeof estudioHomeCardHTML === 'function') ? estudioHomeCardHTML(NOTAS_CAT_KEYS.length) : '';
   return `<div class="nt-head">
     <div class="nt-head-eyebrow">INTELECTO · ARCHIVO</div>
     <div class="nt-home-title">Notas</div>
-  </div><div class="nt-rects">${cards}</div>`;
+  </div><div class="nt-rects">${cards}${estudioCard}</div>`;
 }
 
 // ── Vista de categoría: lista + búsqueda + orden + filtro por etiqueta + alta ─
@@ -205,7 +214,7 @@ function _ntRenderForm() {
        ${ta('nt-f-aprendi', 'Qué aprendí', v.aprendi)}
        ${ta('nt-f-mejor', 'Cómo lo haría mejor la próxima vez', v.mejorarProxima)}`
     : `<label class="nt-flbl">Texto</label>
-       <textarea class="nt-input nt-ta nt-ta-xl" id="nt-f-texto" rows="14" placeholder="${cat === 'personales' ? 'Escribí tu anotación…' : 'Escribí tu reflexión…'}">${_ntEsc(v.texto || '')}</textarea>`;
+       <textarea class="nt-input nt-ta nt-ta-xl" id="nt-f-texto" rows="14" placeholder="${cat === 'ideas' ? 'Escribí tu idea…' : cat === 'personales' ? 'Escribí tu anotación…' : 'Escribí tu reflexión…'}">${_ntEsc(v.texto || '')}</textarea>`;
   return `<div class="nt-cat nt-cat-anim" style="--nt-accent:${meta.accent}">
     <div class="nt-cat-bar">
       <span class="nt-cat-chip">${meta.svg}</span>

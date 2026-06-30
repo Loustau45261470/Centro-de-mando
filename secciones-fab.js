@@ -93,6 +93,7 @@ function _sfMount() {
       proyItem('finanzas'),
       { icon: _SF_ICONS.goals, label: 'Adquisición', accent: '#F5A623', onClick: openGoals },
       { icon: _SF_ICONS.budget, label: 'Presupuesto', accent: '#22C55E', onClick: openBudget },
+      { icon: _SF_ICONS.notas, label: 'Notas', accent: '#22C55E', onClick: () => { if (typeof finanzasNotasOpen === 'function') finanzasNotasOpen(); } },
       remItem('finanzas'),
     ] },
     { tab: 'ia', accent: '#C4D0E4', icon: _SF_ICONS.ia, name: 'IA', items: [proyItem('ia'), remItem('ia')] },
