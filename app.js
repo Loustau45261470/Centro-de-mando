@@ -1015,9 +1015,9 @@ const PRIORITY_COLOR = { high:'#FF6B6B', mid:'#F2C063', low:'#6BE3A4' };
 // Tareas del planner: 3 niveles, gradiente de apagado (baja) a llamativo (alta).
 // La distinción es por combinación de factores (color de barra + badge + peso/saturación via clase .prio-N en CSS).
 const PLANNER_PRIO = {
-  1: { label: 'Baja',  color: '#5C8091' },
-  2: { label: 'Media', color: '#E0A62E' },
-  3: { label: 'Alta',  color: '#FF4D4D' },
+  1: { label: 'Baja',  color: '#8BA5C0' },   // --ts   (apagado)
+  2: { label: 'Media', color: '#F5A623' },   // --warn
+  3: { label: 'Alta',  color: '#FF3358' },   // --danger (llamativo)
 };
 
 function renderGoals() {
@@ -1408,7 +1408,7 @@ function plannerAutoResize(el) {
 function plannerTaskHTML(date, t, draggable) {
   const cfg = PLANNER_PRIO[t.priority] || PLANNER_PRIO[2];
   return `<div class="ptask prio-${t.priority}${t.done ? ' done' : ''}" data-id="${t.id}"${draggable ? ' data-drag="1"' : ''}>
-    <span class="ptask-bar" title="Arrastrar"></span>
+    ${draggable ? '<span class="ptask-grip" title="Arrastrar" aria-hidden="true"></span>' : ''}
     <button class="ptask-badge" onclick="plannerCyclePrio('${escHtml(date)}','${t.id}')" title="Prioridad: ${cfg.label} — clic para cambiar">${cfg.label}</button>
     <textarea class="ptask-text" rows="1" placeholder="Tarea…"
       oninput="plannerAutoResize(this)"
@@ -1536,7 +1536,7 @@ function plannerInitDrag(listEl, date) {
   if (typeof Sortable === 'undefined') return;
   listEl.querySelectorAll('.slot-tasks').forEach(cont => {
     Sortable.create(cont, {
-      group: 'planner-' + date, animation: 150, draggable: '.ptask', handle: '.ptask-bar',
+      group: 'planner-' + date, animation: 150, draggable: '.ptask', handle: '.ptask-grip',
       onEnd: ev => plannerMoveTask(date, ev.item.dataset.id, ev.to.dataset.time),
     });
   });
