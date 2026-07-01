@@ -4875,6 +4875,10 @@ let txnActiveMonth = null;
 function getAvailableMonths() {
   const months = new Set();
   S.transactions.forEach(t => { if (t.date) months.add(t.date.slice(0,7)); });
+  // El mes actual siempre está disponible aunque no tenga movimientos todavía,
+  // así Actividad rota al mes en curso el día 1 en vez de quedarse en el último mes con datos.
+  const now = new Date();
+  months.add(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`);
   return [...months].sort().reverse();
 }
 
