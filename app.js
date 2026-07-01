@@ -6,7 +6,8 @@
 const DEFAULT_STATE = {
   // Main
   goals: {},        // { 'YYYY-MM-DD': [{ id, text, done, priority, time? }] }
-  dayPlanner: {},   // { 'YYYY-MM-DD': { 'HH:00': noteText } }
+  dayPlanner: {},   // legacy (nota libre por hora) — reemplazado por dayPlan
+  dayPlan: {},      // { 'YYYY-MM-DD': { grid:{ 'H': 60|30|15 }, tasks:[{ id, time:'HH:MM', priority:1|2|3, text, done }] } }
   streak: { count: 0, lastDate: null },
   // Gym
   gyms: [],         // [{ id, name }]
@@ -1011,6 +1012,13 @@ function updateDayProgress() {
 // MAIN TAB — GOALS
 // ════════════════════════════════════════════════════════
 const PRIORITY_COLOR = { high:'#FF6B6B', mid:'#F2C063', low:'#6BE3A4' };
+// Tareas del planner: 3 niveles, gradiente de apagado (baja) a llamativo (alta).
+// La distinción es por combinación de factores (color de barra + badge + peso/saturación via clase .prio-N en CSS).
+const PLANNER_PRIO = {
+  1: { label: 'Baja',  color: '#5C8091' },
+  2: { label: 'Media', color: '#E0A62E' },
+  3: { label: 'Alta',  color: '#FF4D4D' },
+};
 
 function renderGoals() {
   const today = getActiveDate(), tom = getTomorrow();
@@ -1305,82 +1313,233 @@ function toggleGoalById(date, id) {
   if (idx >= 0) toggleGoal(date, idx);
 }
 
-function savePlannerNote(date, hour, text) {
-  if (!S.dayPlanner) S.dayPlanner = {};
-  if (!S.dayPlanner[date]) S.dayPlanner[date] = {};
-  if (text.trim()) {
-    S.dayPlanner[date][hour] = text;
-  } else {
-    delete S.dayPlanner[date][hour];
-    if (!Object.keys(S.dayPlanner[date]).length) delete S.dayPlanner[date];
-  }
-  saveState();
-  // Reflejar el cambio en la vista reducida de la sección (y en el overlay si está abierto).
-  if (typeof renderDayPlanner === 'function') renderDayPlanner();
+// ── Estado de tareas del día ──
+const _plannerOpen = new Set();                 // horas expandidas (solo UI, no persistido): 'date|H'
+function _pkey(date, h) { return date + '|' + h; }
+function _pad2(n) { return String(n).padStart(2, '0'); }
+function _pid() { return 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+function getDayPlan(date) {
+  if (!S.dayPlan) S.dayPlan = {};
+  if (!S.dayPlan[date]) S.dayPlan[date] = { grid: {}, tasks: [] };
+  const p = S.dayPlan[date];
+  if (!p.grid)  p.grid  = {};
+  if (!p.tasks) p.tasks = [];
+  return p;
+}
+function plannerHourGrid(date, h) { return getDayPlan(date).grid[h] || 60; }
+function plannerSlotsFor(h, grid) {
+  const slots = [];
+  for (let m = 0; m < 60; m += grid) slots.push(`${_pad2(h)}:${_pad2(m)}`);
+  return slots;
+}
+// Tareas de una hora, ordenadas por prioridad desc (sort estable → respeta orden de creación en empate).
+function plannerHourTasks(date, h) {
+  return getDayPlan(date).tasks
+    .filter(t => parseInt(t.time.split(':')[0], 10) === h)
+    .sort((a, b) => b.priority - a.priority);
 }
 
-function autoResizePlanner(ta) {
-  ta.style.height = 'auto';
-  ta.style.height = (ta.scrollHeight) + 'px';
+function togglePlannerHour(date, h) {
+  const k = _pkey(date, h);
+  if (_plannerOpen.has(k)) _plannerOpen.delete(k); else _plannerOpen.add(k);
+  renderDayPlanner();
+}
+function plannerSetGrid(date, h, grid) {
+  const p = getDayPlan(date);
+  p.grid[h] = grid;
+  // Reflow: cada tarea de esta hora se ajusta al inicio de su sub-tramo contenedor (nunca se pierde).
+  p.tasks.forEach(t => {
+    if (parseInt(t.time.split(':')[0], 10) !== h) return;
+    const min = parseInt(t.time.split(':')[1], 10);
+    t.time = `${_pad2(h)}:${_pad2(Math.floor(min / grid) * grid)}`;
+  });
+  _plannerOpen.add(_pkey(date, h));
+  saveState(); renderDayPlanner();
+}
+function plannerAddTask(date, time) {
+  const p = getDayPlan(date);
+  const task = { id: _pid(), time, priority: 2, text: '', done: false };
+  p.tasks.push(task);
+  _plannerOpen.add(_pkey(date, parseInt(time.split(':')[0], 10)));
+  saveState(); renderDayPlanner();
+  requestAnimationFrame(() => {
+    const el = document.querySelector(`.ptask[data-id="${task.id}"] .ptask-text`);
+    if (el) el.focus();
+  });
+}
+function plannerTaskText(date, id, text) {
+  const p = getDayPlan(date);
+  const t = p.tasks.find(x => x.id === id);
+  if (!t) return;
+  if (text.trim()) { t.text = text; saveState(); }
+  else { p.tasks = p.tasks.filter(x => x.id !== id); saveState(); renderDayPlanner(); } // vacía al salir → se elimina
+}
+function plannerCyclePrio(date, id) {
+  const t = getDayPlan(date).tasks.find(x => x.id === id);
+  if (!t) return;
+  t.priority = (t.priority % 3) + 1;              // 1→2→3→1
+  saveState(); renderDayPlanner();
+}
+function plannerToggleTask(date, id) {
+  const t = getDayPlan(date).tasks.find(x => x.id === id);
+  if (!t) return;
+  t.done = !t.done;
+  saveState(); renderDayPlanner();
+}
+function plannerDeleteTask(date, id) {
+  const p = getDayPlan(date);
+  p.tasks = p.tasks.filter(x => x.id !== id);
+  saveState(); renderDayPlanner();
+}
+function plannerMoveTask(date, id, newTime) {
+  const t = getDayPlan(date).tasks.find(x => x.id === id);
+  if (!t || t.time === newTime) { renderDayPlanner(); return; }
+  t.time = newTime;
+  _plannerOpen.add(_pkey(date, parseInt(newTime.split(':')[0], 10)));
+  saveState(); renderDayPlanner();
+}
+function plannerAutoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = el.scrollHeight + 'px';
+}
+
+// ── HTML de una tarea (badge de prioridad + texto + eliminar + checkbox a la derecha) ──
+function plannerTaskHTML(date, t, draggable) {
+  const cfg = PLANNER_PRIO[t.priority] || PLANNER_PRIO[2];
+  return `<div class="ptask prio-${t.priority}${t.done ? ' done' : ''}" data-id="${t.id}"${draggable ? ' data-drag="1"' : ''}>
+    <span class="ptask-bar" title="Arrastrar"></span>
+    <button class="ptask-badge" onclick="plannerCyclePrio('${escHtml(date)}','${t.id}')" title="Prioridad: ${cfg.label} — clic para cambiar">${cfg.label}</button>
+    <textarea class="ptask-text" rows="1" placeholder="Tarea…"
+      oninput="plannerAutoResize(this)"
+      onblur="plannerTaskText('${escHtml(date)}','${t.id}',this.value)">${escHtml(t.text)}</textarea>
+    <button class="ptask-del" onclick="plannerDeleteTask('${escHtml(date)}','${t.id}')" title="Eliminar" aria-label="Eliminar">✕</button>
+    <label class="ptask-check"><input type="checkbox"${t.done ? ' checked' : ''} onchange="plannerToggleTask('${escHtml(date)}','${t.id}')"></label>
+  </div>`;
+}
+
+// ── Barra de progreso del día + resumen de pendientes por prioridad ──
+function plannerDaybarHTML(date) {
+  const tasks = getDayPlan(date).tasks;
+  const total = tasks.length;
+  const done  = tasks.filter(t => t.done).length;
+  const pct   = total ? Math.round(done / total * 100) : 0;
+  const pend  = pr => tasks.filter(t => !t.done && t.priority === pr).length;
+  return `<div class="planner-daybar">
+    <div class="pdb-prog">
+      <div class="pdb-track"><div class="pdb-fill" style="width:${pct}%"></div></div>
+      <span class="pdb-count">${done}/${total}</span>
+    </div>
+    <div class="pdb-prios">
+      <span class="pdb-pill prio-3">Alta ${pend(3)}</span>
+      <span class="pdb-pill prio-2">Media ${pend(2)}</span>
+      <span class="pdb-pill prio-1">Baja ${pend(1)}</span>
+    </div>
+  </div>`;
 }
 
 function buildPlannerSlide(listEl, date, isToday, reduced) {
   if (!listEl) return;
-  const planner = (S.dayPlanner && S.dayPlanner[date]) || {};
-  const goals   = (S.goals[date] || []).filter(g => g.time);
-  const now     = new Date();
-  const curH    = isToday ? now.getHours()   : -1;
-  const curMin  = isToday ? now.getMinutes() : 0;
+  const goals  = (S.goals[date] || []).filter(g => g.time);
+  const now    = new Date();
+  const curH   = isToday ? now.getHours()   : -1;
+  const curMin = isToday ? now.getMinutes() : 0;
+  const editingId = document.activeElement && document.activeElement.classList.contains('ptask-text')
+    ? (document.activeElement.closest('.ptask') || {}).dataset?.id : null;
 
-  const activeEl   = document.activeElement;
-  const activeHour = activeEl && activeEl.classList.contains('planner-note') ? activeEl.dataset.hour : null;
+  const hasAnyTask = getDayPlan(date).tasks.length > 0;
+  // Vista reducida (dashboard): sin tareas ni metas → vacío para que el caller muestre el mensaje.
+  if (reduced && !hasAnyTask && !goals.length) { listEl.innerHTML = ''; return; }
 
-  const hours = [];
-  for (let h = 6; h <= 23; h++) hours.push(h);
-
-  listEl.innerHTML = hours.map(h => {
-    const key  = `${String(h).padStart(2,'0')}:00`;
-    const note = planner[key] || '';
+  const rows = [];
+  for (let h = 6; h <= 23; h++) {
     const isCurrent = h === curH;
-    const isNext    = h === curH + 1;
+    const hourGoals = goals.filter(g => parseInt(g.time.split(':')[0], 10) === h);
+    const tasks     = plannerHourTasks(date, h);
 
-    const hourGoals  = goals.filter(g => parseInt(g.time.split(':')[0]) === h);
-    // Modo reducido (vista inline): sólo horas con texto o metas.
-    if (reduced && !note.trim() && !hourGoals.length) return '';
-    const chipsHtml  = hourGoals.map(g =>
-      `<div class="planner-goal-chip${g.done?' done':''}" onclick="toggleGoalById('${escHtml(date)}','${escHtml(g.id)}')" title="${escHtml(g.text)}">
-        <span class="chip-dot" style="background:${PRIORITY_COLOR[g.priority]||'#666'}"></span>
+    if (reduced && !tasks.length && !hourGoals.length) continue;
+
+    const chipsHtml = hourGoals.map(g =>
+      `<div class="planner-goal-chip${g.done ? ' done' : ''}" onclick="toggleGoalById('${escHtml(date)}','${escHtml(g.id)}')" title="${escHtml(g.text)}">
+        <span class="chip-dot" style="background:${PRIORITY_COLOR[g.priority] || '#666'}"></span>
         <span class="chip-text">${escHtml(g.text)}</span>
         ${g.done ? '<span style="font-size:10px;margin-left:2px">✓</span>' : ''}
       </div>`
     ).join('');
+    const chipsBlock = chipsHtml ? `<div class="planner-goal-chips">${chipsHtml}</div>` : '';
+    const nowLine = isCurrent
+      ? `<div class="planner-now-line" style="top:${8 + (curMin / 60) * 30}px"></div>` : '';
 
-    const progressLine = isCurrent
-      ? `<div class="planner-now-line" style="top:${8 + (curMin/60)*32}px"></div>`
-      : '';
+    if (reduced) {
+      const tHtml = tasks.map(t => plannerTaskHTML(date, t, false)).join('');
+      rows.push(`<div class="planner-row${isCurrent ? ' current-hour' : ''}">
+        ${nowLine}
+        <div class="planner-time">${_pad2(h)}:00</div>
+        <div class="planner-content">${tHtml}${chipsBlock}</div>
+      </div>`);
+      continue;
+    }
 
-    return `<div class="planner-row${isCurrent?' current-hour':''}">
-      ${progressLine}
-      <div class="planner-time">${fmtGoalTime(key)}</div>
-      <div class="planner-content">
-        <textarea class="planner-note" rows="1"
-          placeholder="${isCurrent ? '← ahora' : isNext ? 'después…' : '…'}"
-          data-hour="${key}"
-          onblur="savePlannerNote('${escHtml(date)}','${key}',this.value)"
-          oninput="autoResizePlanner(this)"
-        >${escHtml(note)}</textarea>
-        ${chipsHtml ? `<div class="planner-goal-chips">${chipsHtml}</div>` : ''}
-      </div>
-    </div>`;
-  }).join('');
+    // Vista completa (overlay): hora expandible con selector de tramo (15/30/60) + slots.
+    const grid  = plannerHourGrid(date, h);
+    const open  = _plannerOpen.has(_pkey(date, h));
+    const doneN = tasks.filter(t => t.done).length;
+    const summary = tasks.length
+      ? `${tasks.length} tarea${tasks.length > 1 ? 's' : ''}${doneN ? ` · ${doneN}✓` : ''}` : 'vacío';
 
-  listEl.querySelectorAll('.planner-note').forEach(ta => autoResizePlanner(ta));
+    let body = '';
+    if (open) {
+      const gridSel = [60, 30, 15].map(g =>
+        `<button class="pgs${grid === g ? ' on' : ''}" onclick="plannerSetGrid('${escHtml(date)}',${h},${g})">${g}m</button>`
+      ).join('');
+      const slots = plannerSlotsFor(h, grid).map(time => {
+        const slotTasks = tasks.filter(t => t.time === time)
+          .map(t => plannerTaskHTML(date, t, true)).join('');
+        const mm = time.split(':')[1];
+        return `<div class="planner-slot">
+          <div class="pslot-label">:${mm}</div>
+          <div class="slot-tasks" data-time="${time}" data-date="${escHtml(date)}">${slotTasks}</div>
+          <button class="pslot-add" onclick="plannerAddTask('${escHtml(date)}','${time}')" aria-label="Agregar tarea">＋</button>
+        </div>`;
+      }).join('');
+      body = `<div class="planner-hour-body">
+        <div class="planner-grid-sel" role="group" aria-label="Tramo">${gridSel}</div>
+        <div class="planner-slots">${slots}</div>
+      </div>`;
+    }
 
-  // Scroll slide to current hour on today's panel (only if not editing)
-  if (isToday && !activeHour) {
+    rows.push(`<div class="planner-row ph-full${isCurrent ? ' current-hour' : ''}${open ? ' open' : ''}">
+      ${nowLine}
+      <button class="planner-hour-head" onclick="togglePlannerHour('${escHtml(date)}',${h})" aria-expanded="${open}">
+        <span class="planner-time">${_pad2(h)}:00</span>
+        <span class="ph-summary${tasks.length ? '' : ' empty'}">${summary}</span>
+        <span class="ph-caret" aria-hidden="true">▸</span>
+      </button>
+      ${chipsBlock}
+      ${body}
+    </div>`);
+  }
+
+  listEl.innerHTML = plannerDaybarHTML(date) + rows.join('');
+  listEl.querySelectorAll('.ptask-text').forEach(el => plannerAutoResize(el));
+  if (!reduced) plannerInitDrag(listEl, date);
+
+  // Scroll a la hora actual (solo hoy y si no se está editando).
+  if (isToday && !editingId) {
     const curRow = listEl.querySelector('.current-hour');
     if (curRow) curRow.scrollIntoView({ block: 'center' });
   }
+}
+
+// Drag & drop de tareas entre tramos/horas (SortableJS). Grupo por fecha → no cruza días.
+function plannerInitDrag(listEl, date) {
+  if (typeof Sortable === 'undefined') return;
+  listEl.querySelectorAll('.slot-tasks').forEach(cont => {
+    Sortable.create(cont, {
+      group: 'planner-' + date, animation: 150, draggable: '.ptask', handle: '.ptask-bar',
+      onEnd: ev => plannerMoveTask(date, ev.item.dataset.id, ev.to.dataset.time),
+    });
+  });
 }
 
 function updatePlannerLabel() {
