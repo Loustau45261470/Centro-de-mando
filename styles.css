@@ -4584,6 +4584,15 @@ input:focus, select:focus, textarea:focus {
 .nt-note-compact .nt-note-meta { margin: 4px 0 6px; }
 .fn-snip { font-size: 12.5px; color: var(--tt); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* ── Fichero (personas, overlay de Vida) ── */
+.fp-rows { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+.fp-row { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
+.fp-row-lbl { font-family: var(--mono); font-size: 10.5px; letter-spacing: .5px; font-weight: 600; color: var(--nt-accent, var(--accent)); text-transform: uppercase; flex: none; }
+.fp-row-val { font-size: 13.5px; color: var(--ts); line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; }
+.fp-empty { padding: 26px 10px; text-align: center; color: var(--tt); font-size: 13px; }
+.fp-missing { border-color: #F43F5E !important; }
+.fp-edad { font-family: var(--mono); font-size: 11px; color: var(--ts); margin-top: 4px; }
+
 /* ── Reduced motion ── */
 @media (prefers-reduced-motion: reduce) {
   #notas-fab.on, #notas-overlay.show #notas-panel, .nt-rect, .nt-cat-anim, .nt-note { animation: none !important; }
