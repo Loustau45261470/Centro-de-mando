@@ -62,14 +62,14 @@ const CarteraInversion = (() => {
   function prediccion(d) {
     const p = d.prediccion || {};
     const lista = (arr, ico, cl) => (arr || []).map(x =>
-      `<div class="ci-pred"><span class="${cl}">${ico}</span><span class="mono bold">${esc(x.simbolo)}</span><span class="ci-razon">${esc(x.razon)}</span></div>`).join('') || '<div class="text-ter">—</div>';
+      `<div class="ci-pred"><span class="${cl}">${ico}</span><span class="mono bold">${esc(x.simbolo)}</span><span class="mono ci-est ${varCls(x.estPct)}">${pct(x.estPct)}</span><span class="ci-razon">${esc(x.razon)}</span></div>`).join('') || '<div class="text-ter">—</div>';
     const picks = (p.picks || []).map(x =>
-      `<div class="ci-pred"><span class="mono bold">${esc(x.simbolo)}</span><span class="mono text-ter">${money(x.precio)}</span><span class="ci-razon">${esc(x.razon)}</span></div>`).join('') || '<div class="text-ter">—</div>';
+      `<div class="ci-pred"><span class="mono bold">${esc(x.simbolo)}</span><span class="mono text-ter">${money(x.precio)}</span><span class="mono ci-est ${varCls(x.estPct)}">${pct(x.estPct)}</span><span class="ci-razon">${esc(x.razon)}</span></div>`).join('') || '<div class="text-ter">—</div>';
     return `<div class="card ci-card">
       <div class="card-title">🔮 Predicción · ${mesLabel(d.mes)}</div>
-      <div class="ci-sub">Mejores 3 esperadas</div>${lista(p.mejores, '▲', 'text-ok')}
-      <div class="ci-sub">Peores 3 esperadas</div>${lista(p.peores, '▼', 'text-danger')}
-      <div class="ci-sub">5 picks del mes (paper trading — no se compra)</div>${picks}
+      <div class="ci-sub">Mejores 3 esperadas · % estimado</div>${lista(p.mejores, '▲', 'text-ok')}
+      <div class="ci-sub">Peores 3 esperadas · % estimado</div>${lista(p.peores, '▼', 'text-danger')}
+      <div class="ci-sub">5 picks del mes (paper trading — no se compra) · % estimado</div>${picks}
     </div>`;
   }
 
