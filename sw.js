@@ -1,7 +1,7 @@
 // Centro de Mando — Service Worker
 // Maneja Web Push, clicks de notificación, y caché offline del app shell.
 
-const CACHE = 'cdm-shell-v123';
+const CACHE = 'cdm-shell-v124';
 const BASE  = '/Centro-de-mando/';
 const SHELL = [
   BASE,
@@ -33,6 +33,7 @@ const SHELL = [
   BASE + 'notas-estudio.js',
   BASE + 'salud-notas.js',
   BASE + 'finanzas-notas.js',
+  BASE + 'cartera-inversion.js',
   BASE + 'login.js',
   BASE + 'theme-switcher.js',
   BASE + 'jarvis-core-stats.js',
@@ -88,6 +89,17 @@ self.addEventListener('fetch', event => {
       fetch(req.url, { cache: 'reload', credentials: 'same-origin' })
         .then(res => { const c = res.clone(); caches.open(CACHE).then(ch => ch.put(BASE, c)); return res; })
         .catch(() => caches.match(BASE).then(r => r || caches.match(BASE + 'index.html')))
+    );
+    return;
+  }
+
+  // Datos de cartera (JSON que commitea el agente cloud cada mes) → network-first,
+  // fallback a caché para offline. Cache-first lo dejaría congelado en la 1ª versión.
+  if (url.pathname.includes('/data/cartera/')) {
+    event.respondWith(
+      fetch(req)
+        .then(res => { if (res && res.ok) { const c = res.clone(); caches.open(CACHE).then(ch => ch.put(req, c)); } return res; })
+        .catch(() => caches.match(req))
     );
     return;
   }
