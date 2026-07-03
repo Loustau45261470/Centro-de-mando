@@ -5102,6 +5102,7 @@ function toggleActivityList() {
 }
 
 function renderActivity() {
+  if (!Array.isArray(S.transactions)) return; // estado aún no cargado (loadState es async; _sfMount puede llamar antes)
   autoDeductSubscriptions();
 
   const months = getAvailableMonths();
