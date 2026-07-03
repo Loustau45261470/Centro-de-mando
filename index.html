@@ -1569,6 +1569,27 @@
 
 <!-- ══════ HUD AMBIENT ENGINE · campo de circuito/partículas reactivo ══════ -->
 <script src="hud-ambient.js"></script>
+
+<!-- DIAGNÓSTICO temporal: qué versión de HTML/SW corre este dispositivo (quitar al confirmar) -->
+<div id="build-badge" style="position:fixed;bottom:4px;right:6px;z-index:99999;font-family:monospace;font-size:10px;color:#7dd3fc;background:rgba(0,0,0,0.65);padding:3px 8px;border-radius:6px;pointer-events:none">html v119</div>
+<script>
+  (function () {
+    var badge = document.getElementById('build-badge');
+    function paint(swInfo) {
+      badge.textContent = 'html v119 · sw ' + swInfo + ' · w' + window.innerWidth;
+    }
+    function refresh() {
+      if (window.caches && caches.keys) {
+        caches.keys().then(function (keys) {
+          var shells = keys.filter(function (k) { return k.indexOf('cdm-shell') === 0; });
+          paint(shells.length ? shells.join(',') : 'sin caché');
+        }).catch(function () { paint('err'); });
+      } else paint('no-sw');
+    }
+    refresh();
+    window.addEventListener('resize', refresh);
+  })();
+</script>
 </body>
 </html>
 
