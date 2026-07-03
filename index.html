@@ -420,9 +420,9 @@
         <div id="proyectos-wrap-conocimiento"></div>
       </div>
       <div class="fin-col">
-        <!-- Progreso de carrera + hábitos debajo, a la derecha -->
-        <div id="law-progress-wrap"></div>
+        <!-- Hábitos primero a la derecha, Progreso de carrera debajo -->
         <div id="conocimiento-habits-wrap"></div>
+        <div id="law-progress-wrap"></div>
         <!-- Recordatorios: último de la fila derecha -->
         <div class="card rnotif-card"><div class="card-title">🔔 Recordatorios</div><div id="reminders-notif-conocimiento"></div></div>
         <div id="reminders-wrap-conocimiento"></div>
@@ -1571,12 +1571,12 @@
 <script src="hud-ambient.js"></script>
 
 <!-- DIAGNÓSTICO temporal: qué versión de HTML/SW corre este dispositivo (quitar al confirmar) -->
-<div id="build-badge" style="position:fixed;bottom:4px;right:6px;z-index:99999;font-family:monospace;font-size:10px;color:#7dd3fc;background:rgba(0,0,0,0.65);padding:3px 8px;border-radius:6px;pointer-events:none">html v119</div>
+<div id="build-badge" style="position:fixed;bottom:4px;right:6px;z-index:99999;font-family:monospace;font-size:10px;color:#7dd3fc;background:rgba(0,0,0,0.65);padding:3px 8px;border-radius:6px;pointer-events:none">html v120</div>
 <script>
   (function () {
     var badge = document.getElementById('build-badge');
     function paint(swInfo) {
-      badge.textContent = 'html v119 · sw ' + swInfo + ' · w' + window.innerWidth;
+      badge.textContent = 'html v120 · sw ' + swInfo + ' · w' + window.innerWidth;
     }
     function refresh() {
       if (window.caches && caches.keys) {
