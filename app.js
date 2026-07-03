@@ -2259,7 +2259,16 @@ function saveRtnEx() {
     const ex = rtn.exercises.find(e => e.id === exId);
     if (ex) { ex.name = name; ex.equipment = equipment; ex.restSecs = restSecs; ex.notes = notes; }
   } else {
-    rtn.exercises.push({ id: uid(), name, equipment, restSecs, notes });
+    const newEx = { id: uid(), name, equipment, restSecs, notes };
+    const inActiveSession = S.activeRtnSession && S.activeRtnSession.routineId === rtnId;
+    if (inActiveSession && !S.activeRtnSession.exOrder) {
+      S.activeRtnSession.exOrder = rtn.exercises.map(e => e.id);
+    }
+    rtn.exercises.push(newEx);
+    if (inActiveSession) {
+      S.activeRtnSession.exOrder.push(newEx.id);
+      S.activeRtnSession.exSets[newEx.id] = [];
+    }
   }
   saveState(); renderRutinas(); closeModal('modal-rtn-ex');
   showToast(exId ? 'Ejercicio actualizado' : 'Ejercicio agregado');
@@ -2895,6 +2904,7 @@ function renderActiveSession() {
             <span class="rtn-ex-title-name">${ex.name}</span>
             <span class="rtn-ex-title-equip">(${ex.equipment})</span>
           </div>
+          <button onclick="event.stopPropagation();editRtnEx('${routineId}','${ex.id}')" style="${btnStyle}" title="Cambiar ejercicio">✎</button>
           <button onclick="event.stopPropagation();moveRtnSessionEx('${ex.id}',-1)" style="${btnStyle}${isFirst ? ';'+btnDisabled : ''}">↑</button>
           <button onclick="event.stopPropagation();moveRtnSessionEx('${ex.id}',+1)" style="${btnStyle}${isLast ? ';'+btnDisabled : ''}">↓</button>
           <span class="rtn-ex-chevron" id="rtn-exchev-${ex.id}" style="transform:${isExpanded ? 'rotate(-180deg)' : 'rotate(0deg)'}">▾</span>
@@ -2928,7 +2938,9 @@ function renderActiveSession() {
         </div>
         <button class="btn btn-ghost btn-sm" style="color:var(--ts);flex-shrink:0" onclick="cancelRtnSession()">✕ Cancelar</button>
       </div>
-      <div class="rtn-session-exes">${exBlocks}</div>
+      <div class="rtn-session-exes">${exBlocks}
+        <button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="openAddRtnEx('${routineId}')">+ Ejercicio</button>
+      </div>
       <div style="padding:0 14px 14px">
         <button class="btn btn-primary w-full" onclick="finishRtnSession()">✓ Finalizar sesión</button>
       </div>
