@@ -794,6 +794,24 @@
   </div>
 </div>
 
+<!-- Edit Routine -->
+<div class="modal-overlay" id="modal-edit-routine" onclick="if(event.target===this)closeModal('modal-edit-routine')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Editar rutina</div>
+    <input type="hidden" id="editRtnId">
+    <div class="input-row">
+      <div class="field" style="width:64px"><label>Ícono</label><input class="inp" id="editRtnIcon" maxlength="4" style="text-align:center;font-size:20px"></div>
+      <div class="field" style="flex:1"><label>Nombre</label><input class="inp" id="editRtnName"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" style="color:var(--danger)" onclick="deleteRoutine()">🗑 Borrar rutina</button>
+      <button class="btn btn-ghost" onclick="closeModal('modal-edit-routine')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveEditRoutine()">Guardar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Routine Exercise Form -->
 <div class="modal-overlay" id="modal-rtn-ex">
   <div class="modal">

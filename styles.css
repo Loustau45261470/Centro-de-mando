@@ -628,13 +628,13 @@ textarea { resize: vertical; min-height: 60px; }
 .rtn-ex-block-body { padding: 6px 12px 12px; }
 .rtn-ex-notes { font-size: 12px; color: var(--ts); padding: 6px 0; }
 .rtn-sets-header {
-  display: grid; grid-template-columns: 26px 1fr 1fr 26px; gap: 8px;
+  display: grid; grid-template-columns: 26px 1fr 1fr 26px 24px; gap: 8px;
   font-size: 9px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase;
   color: rgba(255,255,255,.28); padding: 7px 0 6px;
   border-bottom: 1px solid rgba(255,255,255,.07); margin-bottom: 6px;
 }
 .rtn-set-row {
-  display: grid; grid-template-columns: 26px 1fr 1fr 26px; gap: 8px;
+  display: grid; grid-template-columns: 26px 1fr 1fr 26px 24px; gap: 8px;
   align-items: center; margin-bottom: 4px;
 }
 .rtn-set-num {

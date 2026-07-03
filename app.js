@@ -1982,6 +1982,9 @@ function renderRutinas() {
             <div class="rtn-name">${r.name}</div>
             <div class="rtn-preview" style="margin-top:1px;font-size:11px;color:var(--tt)">${r.exercises.length} ejercicios</div>
           </div>
+          <button class="icon-btn" onclick="event.stopPropagation();openEditRoutine('${r.id}')" style="color:var(--tt);flex-shrink:0">
+            <svg viewBox="0 0 24 24" style="width:15px;height:15px"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
           <button class="btn btn-ghost" onclick="event.stopPropagation();openAddRtnEx('${r.id}')" style="font-size:10px;padding:2px 7px;flex-shrink:0;line-height:1.4">+ Ej</button>
           <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();startRutinaSession('${r.id}')" style="flex-shrink:0">▶ Empezar</button>
           <span class="rtn-chevron">▾</span>
@@ -2183,6 +2186,38 @@ function addRoutine() {
   if (newCard) newCard.classList.add('rtn-open');
   showToast('Rutina creada — agregá el primer ejercicio');
   openAddRtnEx(newId);
+}
+
+function openEditRoutine(rtnId) {
+  const rtn = S.routines.find(r => r.id === rtnId);
+  if (!rtn) return;
+  document.getElementById('editRtnId').value   = rtnId;
+  document.getElementById('editRtnName').value = rtn.name;
+  document.getElementById('editRtnIcon').value = rtn.icon;
+  openModal('modal-edit-routine');
+}
+
+function saveEditRoutine() {
+  const id = document.getElementById('editRtnId').value;
+  const rtn = S.routines.find(r => r.id === id);
+  if (!rtn) return;
+  const name = document.getElementById('editRtnName').value.trim();
+  const icon = document.getElementById('editRtnIcon').value.trim();
+  if (name) rtn.name = name;
+  if (icon) rtn.icon = icon;
+  saveState(); renderRutinas(); closeModal('modal-edit-routine');
+  showToast('Rutina actualizada');
+}
+
+function deleteRoutine() {
+  const id = document.getElementById('editRtnId').value;
+  const rtn = S.routines.find(r => r.id === id);
+  if (!rtn) return;
+  if (!confirm(`¿Borrar la rutina "${rtn.name}"? Se perderá el historial asociado.`)) return;
+  S.routines = S.routines.filter(r => r.id !== id);
+  delete S.routineLog[id];
+  saveState(); renderRutinas(); closeModal('modal-edit-routine');
+  showToast('Rutina borrada');
 }
 
 function openAddRtnEx(rtnId) {
@@ -2842,6 +2877,7 @@ function renderActiveSession() {
         <input class="rtn-set-inp" type="number" placeholder="reps" value="${s.reps || ''}"
           data-rtn-exid="${ex.id}" data-si="${si}" data-f="r">
         <button class="rtn-set-check${s.done ? ' checked' : ''}" onclick="checkRtnSet('${ex.id}',${si})">✓</button>
+        ${sets.length > 1 ? `<button class="rtn-set-del" onclick="deleteRtnSet('${ex.id}',${si})">✕</button>` : '<span></span>'}
       </div>`).join('');
     const tRem = _rtnTimerRemaining[ex.id];
     const tVisible = tRem !== undefined;
@@ -2866,7 +2902,7 @@ function renderActiveSession() {
         <div class="rtn-ex-block-body" id="rtn-exbody-${ex.id}" style="${isExpanded ? '' : 'display:none'}">
           ${ex.notes ? `<div class="rtn-ex-notes">💡 ${ex.notes}</div>` : ''}
           <div style="${ex.notes ? 'margin-top:8px' : ''}">
-            <div class="rtn-sets-header"><div>Serie</div><div>KG</div><div>Reps</div><div style="text-align:center;font-size:10px">✓</div></div>
+            <div class="rtn-sets-header"><div>Serie</div><div>KG</div><div>Reps</div><div style="text-align:center;font-size:10px">✓</div><div></div></div>
             <div id="rtn-sets-${ex.id}">${setsHtml}</div>
             <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="addRtnSet('${ex.id}')">+ Serie</button>
           </div>
