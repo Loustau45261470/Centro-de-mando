@@ -103,7 +103,9 @@ const CarteraInversion = (() => {
       <div class="ci-grid">
         <div>${tablaActivos(d)}${topRendimiento(d)}</div>
         <div>${prediccion(d)}${evaluacion(d)}</div>
-      </div>`;
+      </div>
+      <div id="sgc-proyecciones"></div>`;
+    if (window.SGC) SGC.renderProyecciones(document.getElementById('sgc-proyecciones'), d);
   }
 
   function open() {
@@ -117,7 +119,9 @@ const CarteraInversion = (() => {
       .then(d => render(bx, d))
       .catch(() => {
         bx.innerHTML = `<div class="empty-state">Todavía no hay análisis disponible.<br>
-          La routine corre el 1° de cada mes a las 8:00 y publica el informe acá automáticamente.</div>`;
+          La routine corre el 1° de cada mes a las 8:00 y publica el informe acá automáticamente.</div>
+          <div id="sgc-proyecciones"></div>`;
+        if (window.SGC) SGC.renderProyecciones(document.getElementById('sgc-proyecciones'));
       });
   }
 
