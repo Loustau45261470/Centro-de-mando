@@ -9,6 +9,18 @@
 // })
 // ════════════════════════════════════════════════════════════════════════
 
+function _sdExportBackup() {
+  const state = typeof S !== 'undefined' ? S : {};
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `lifedash-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  if (typeof showToast === 'function') showToast('Backup exportado');
+}
+
 const CMSpeedDial = (() => {
   function create(cfg) {
     if (document.getElementById(cfg.id)) return;
