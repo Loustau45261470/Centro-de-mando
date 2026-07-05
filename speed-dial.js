@@ -21,6 +21,66 @@ function _sdExportBackup() {
   if (typeof showToast === 'function') showToast('Backup exportado');
 }
 
+function _sdRestoreBackup() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json,application/json';
+  input.style.display = 'none';
+  document.body.appendChild(input);
+  const warn = msg => { if (typeof showToast === 'function') showToast(msg); else alert(msg); };
+
+  input.addEventListener('change', () => {
+    const file = input.files && input.files[0];
+    input.remove();
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onerror = () => warn('No se pudo leer el archivo');
+    reader.onload = () => {
+      let data;
+      try {
+        data = JSON.parse(reader.result);
+      } catch (e) {
+        warn('Backup inválido: el archivo no es JSON válido');
+        return;
+      }
+      const KNOWN_KEYS = ['sgc', 'routineLog', 'routines', 'habitTrackers', 'accounts'];
+      const validKeys = data && typeof data === 'object' && !Array.isArray(data)
+        ? KNOWN_KEYS.filter(k => k in data).length
+        : 0;
+      if (validKeys < 2) {
+        warn('Backup inválido: no tiene el formato esperado del estado');
+        return;
+      }
+
+      const currentKB = (JSON.stringify(S).length / 1024).toFixed(1);
+      const backupKB = (JSON.stringify(data).length / 1024).toFixed(1);
+      const ok = confirm(
+        `Archivo: ${file.name}\n` +
+        `Claves en el backup: ${Object.keys(data).length}\n\n` +
+        `Esto reemplaza TODO el estado actual (${currentKB} KB) por el del backup (${backupKB} KB). ¿Continuar?`
+      );
+      if (!ok) return;
+
+      S = data;
+      saveState();
+      warn('Restaurando y sincronizando…');
+
+      const start = Date.now();
+      const waitTid = setInterval(() => {
+        const synced = !_fbSaveTid && !_fbSaveInProgress;
+        const timedOut = Date.now() - start > 20000;
+        if (synced || timedOut) {
+          clearInterval(waitTid);
+          location.reload();
+        }
+      }, 500);
+    };
+    reader.readAsText(file);
+  });
+  input.click();
+}
+
 const CMSpeedDial = (() => {
   function create(cfg) {
     if (document.getElementById(cfg.id)) return;
