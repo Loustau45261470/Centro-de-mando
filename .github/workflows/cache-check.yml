@@ -1,0 +1,65 @@
+name: Cache Version Check
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  check-cache-bump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verificar bump de CACHE en sw.js
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -e
+
+          # Base del diff: el estado previo al push completo (cubre pushes
+          # multi-commit). Si BEFORE es todo ceros (rama nueva) o no resuelve
+          # (force-push con base desconocida), fallback a HEAD^; si tampoco
+          # hay padre (primer commit), salir sin error.
+          ZEROS="0000000000000000000000000000000000000000"
+          if [ -n "$BEFORE" ] && [ "$BEFORE" != "$ZEROS" ] && git rev-parse --verify -q "$BEFORE" > /dev/null; then
+            BASE="$BEFORE"
+          elif git rev-parse --verify -q HEAD^ > /dev/null; then
+            BASE="HEAD^"
+          else
+            echo "Sin base de diff disponible (primer commit o historia insuficiente). Nada que chequear."
+            exit 0
+          fi
+
+          echo "Comparando rango: $BASE..HEAD"
+          CHANGED_FILES=$(git diff --name-only "$BASE"..HEAD)
+
+          # Archivos que disparan la exigencia de bump: *.js, *.css, index.html
+          # excluyendo sw.js, todo .github/** y archivos que empiecen con "_".
+          TRIGGERING_FILES=$(echo "$CHANGED_FILES" | grep -E '(\.js|\.css)$|(^|/)index\.html$' \
+            | grep -v -E '(^|/)sw\.js$' \
+            | grep -v -E '^\.github/' \
+            | grep -v -E '(^|/)_[^/]*$' \
+            || true)
+
+          if [ -z "$TRIGGERING_FILES" ]; then
+            echo "Este push no tocó archivos que requieran bump de CACHE."
+            exit 0
+          fi
+
+          echo "Archivos que requieren bump de CACHE:"
+          echo "$TRIGGERING_FILES"
+
+          CACHE_DIFF=$(git diff "$BASE"..HEAD -- sw.js | grep '^[+-].*const CACHE' || true)
+
+          if [ -z "$CACHE_DIFF" ]; then
+            echo "ERROR: se modificaron archivos .js/.css/index.html pero 'const CACHE' en sw.js NO cambió en este push."
+            echo "Hay que bumpear la línea 'const CACHE' en sw.js para que el cambio llegue a los dispositivos (cache-first)."
+            exit 1
+          fi
+
+          echo "OK: const CACHE fue bumpeado en sw.js."
