@@ -107,14 +107,25 @@ function _fnForm() {
         <div><label class="nt-flbl">Etiqueta</label><input class="nt-input" id="fn-f-tag" type="text" list="fn-tag-list" value="${_fnEsc(v.tag || '')}" placeholder="Ej: IOL, gastos, meta…"><datalist id="fn-tag-list">${_fnTags().map(t => `<option value="${_fnEsc(t)}"></option>`).join('')}</datalist></div>
         <div><label class="nt-flbl">Fecha</label><input class="nt-input" id="fn-f-fecha" type="date" value="${_fnEsc(v.fecha || _fnToday())}"></div>
       </div>
-      <label class="nt-flbl">Texto</label>
+      <div class="nt-flbl-row"><label class="nt-flbl">Texto</label><button type="button" class="nt-btn nt-preview-btn" onclick="_fnTogglePreview()">Vista previa</button></div>
       <textarea class="nt-input nt-ta nt-ta-xl" id="fn-f-texto" rows="14" placeholder="Escribí tu anotación…">${_fnEsc(v.texto || '')}</textarea>
+      <div class="rn-preview-box" id="fn-f-preview" style="display:none"></div>
       <div class="nt-form-acts">
         <button class="nt-btn nt-add" onclick="finanzasSave()">Guardar</button>
         <button class="nt-btn" onclick="finanzasCancel()">Cancelar</button>
       </div>
     </div>
   </div>`;
+}
+
+// Vista previa (solo lectura) del textarea de la anotación, toggleable.
+function _fnTogglePreview() {
+  const box = document.getElementById('fn-f-preview');
+  const ta = document.getElementById('fn-f-texto');
+  if (!box || !ta) return;
+  const show = box.style.display === 'none';
+  if (show) box.innerHTML = rnRender(ta.value, { interactive: false });
+  box.style.display = show ? '' : 'none';
 }
 
 // ── Acciones ─────────────────────────────────────────────────────────────

@@ -97,6 +97,16 @@ function estudioAfterRender() {
   if (el) el.focus();
 }
 
+// Vista previa (solo lectura) del textarea de anotaciones de página, toggleable.
+function _esTogglePreview() {
+  const box = document.getElementById('es-f-preview');
+  const ta = document.getElementById('es-f-texto');
+  if (!box || !ta) return;
+  const show = box.style.display === 'none';
+  if (show) box.innerHTML = rnRender(ta.value, { interactive: false });
+  box.style.display = show ? '' : 'none';
+}
+
 // ── Lista de materias (home de Notas de estudio) ─────────────────────────
 function _esMateriasView() {
   const anios = _esAnios();
@@ -180,7 +190,6 @@ function _esPaginasView(mid) {
 
 function _esPageCard(p, i) {
   const delay = typeof i === 'number' ? `style="--d:${Math.min(i, 8) * 55}ms"` : '';
-  const snip = (p.texto || '').slice(0, 220);
   return `<div class="nt-note" ${delay}>
     <span class="nt-note-edge"></span>
     <div class="nt-note-head">
@@ -191,8 +200,17 @@ function _esPageCard(p, i) {
       </div>
     </div>
     <div class="nt-note-meta"><span class="nt-note-date">${_esEsc(_esFmtDate(p.fecha))}</span></div>
-    ${snip ? `<div class="nt-note-text">${_esEsc(snip)}${(p.texto || '').length > 220 ? '…' : ''}</div>` : ''}
+    ${p.texto ? rnRender(p.texto, { texto: p.texto, onSave: (nuevo) => _esUpdateTexto(p.id, nuevo) }) : ''}
   </div>`;
+}
+// Actualiza el texto de una página (usado por los checkboxes interactivos de rich-notes) y refresca la vista.
+function _esUpdateTexto(id, nuevoTexto) {
+  const all = _esPaginas().slice();
+  const i = all.findIndex(p => p.id === id);
+  if (i < 0) return;
+  all[i] = { ...all[i], texto: nuevoTexto };
+  _esPersistP(all);
+  if (_esView !== 'materias' && !_esEditing) notasRender();
 }
 
 // ── Formulario de materia ────────────────────────────────────────────────
@@ -234,8 +252,9 @@ function _esPageForm() {
     <div class="nt-form">
       <label class="nt-flbl">Título</label>
       <input class="nt-input" id="es-f-first" type="text" value="${_esEsc(v.titulo || '')}" placeholder="(sin título)">
-      <label class="nt-flbl">Anotaciones</label>
+      <div class="nt-flbl-row"><label class="nt-flbl">Anotaciones</label><button type="button" class="nt-btn nt-preview-btn" onclick="_esTogglePreview()">Vista previa</button></div>
       <textarea class="nt-input nt-ta nt-ta-xl" id="es-f-texto" rows="16" placeholder="Escribí tus anotaciones…">${_esEsc(v.texto || '')}</textarea>
+      <div class="rn-preview-box" id="es-f-preview" style="display:none"></div>
       <div class="nt-form-acts">
         <button class="nt-btn nt-add" onclick="estudioSavePage()">Guardar</button>
         <button class="nt-btn" onclick="estudioCancelPage()">Cancelar</button>

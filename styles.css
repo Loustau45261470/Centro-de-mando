@@ -4573,6 +4573,37 @@ input:focus, select:focus, textarea:focus {
 .nt-form { display: flex; flex-direction: column; gap: 5px; }
 .nt-flbl { font-family: var(--mono); font-size: 11px; letter-spacing: .5px; font-weight: 600; color: var(--ts); margin: 10px 0 3px; text-transform: uppercase; }
 .nt-form-acts { display: flex; gap: 9px; margin-top: 16px; }
+.nt-flbl-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.nt-flbl-row .nt-flbl { margin: 10px 0 3px; }
+.nt-preview-btn { padding: 4px 11px; font-size: 11.5px; }
+.rn-preview-box { padding: 12px 14px; border-radius: 12px; border: 1px dashed var(--border); background: rgba(10,16,30,.35); margin-top: 4px; }
+
+/* ── Rich Notes: render enriquecido estilo Notion sobre texto plano ── */
+.rn-content { font-size: 13.5px; color: var(--ts); line-height: 1.55; display: flex; flex-direction: column; gap: 6px; }
+.rn-h1, .rn-h2, .rn-h3 { color: var(--tp); font-weight: 800; letter-spacing: -.01em; margin: 4px 0 0; line-height: 1.3; }
+.rn-h1 { font-size: 19px; }
+.rn-h2 { font-size: 16.5px; }
+.rn-h3 { font-size: 14.5px; }
+.rn-p { margin: 0; white-space: pre-wrap; }
+.rn-list { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 3px; }
+.rn-bullet-list { list-style: disc; }
+.rn-numbered-list { list-style: decimal; }
+.rn-bullet-item, .rn-numbered-item { padding-left: 2px; }
+.rn-todo-list { list-style: none; padding-left: 0; }
+.rn-todo-item { display: flex; align-items: flex-start; gap: 8px; }
+.rn-todo-check, .rn-todo-check-static { flex: none; width: 15px; height: 15px; margin-top: 2px; border-radius: 4px; accent-color: var(--nt-accent, var(--accent)); cursor: pointer; }
+.rn-todo-check-static { display: inline-block; border: 1.5px solid var(--border); cursor: default; }
+.rn-todo-check-static.checked { background: var(--nt-accent, var(--accent)); border-color: var(--nt-accent, var(--accent)); }
+.rn-todo-done .rn-todo-text { color: var(--tt); text-decoration: line-through; }
+.rn-quote { margin: 0; padding: 6px 12px; border-left: 3px solid var(--nt-accent, var(--accent)); color: var(--ts); font-style: italic; background: rgba(120,150,220,.05); border-radius: 0 8px 8px 0; }
+.rn-toggle { border: 1px solid var(--border); border-radius: 10px; padding: 6px 10px; background: rgba(120,150,220,.04); }
+.rn-toggle-summary { cursor: pointer; font-weight: 600; color: var(--tp); list-style: none; }
+.rn-toggle-summary::-webkit-details-marker { display: none; }
+.rn-toggle-summary::before { content: '▸'; display: inline-block; margin-right: 6px; color: var(--nt-accent, var(--accent)); transition: transform .15s; }
+.rn-toggle[open] .rn-toggle-summary::before { transform: rotate(90deg); }
+.rn-toggle-body { margin-top: 6px; padding-left: 16px; color: var(--ts); white-space: pre-wrap; }
+.rn-divider { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
+.rn-code { font-family: var(--mono); font-size: 12px; padding: 1px 5px; border-radius: 5px; background: rgba(120,150,220,.12); color: var(--tp); }
 
 /* ── Estado vacío (Ideas / Estudio / Finanzas) ── */
 .nt-empty { padding: 26px 18px; text-align: center; font-size: 13.5px; color: var(--tt);

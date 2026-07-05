@@ -176,7 +176,7 @@ function _ntRenderNoteCard(n, i) {
         ${_ntFieldRow('next', 'Mejoraría', n.mejorarProxima)}
         ${n.suceso ? `<div class="nt-suceso">${_ntEsc(n.suceso)}</div>` : ''}
       </div>`
-    : (n.texto ? `<div class="nt-note-text">${_ntEsc(n.texto)}</div>` : '');
+    : (n.texto ? rnRender(n.texto, { texto: n.texto, onSave: (nuevo) => _ntUpdateTexto(n.id, nuevo) }) : '');
   const delay = typeof i === 'number' ? `style="--d:${Math.min(i, 8) * 55}ms"` : '';
   return `<div class="nt-note" ${delay}>
     <span class="nt-note-edge"></span>
@@ -213,8 +213,9 @@ function _ntRenderForm() {
        ${ta('nt-f-mal', 'Qué hice mal', v.hiceMal)}
        ${ta('nt-f-aprendi', 'Qué aprendí', v.aprendi)}
        ${ta('nt-f-mejor', 'Cómo lo haría mejor la próxima vez', v.mejorarProxima)}`
-    : `<label class="nt-flbl">Texto</label>
-       <textarea class="nt-input nt-ta nt-ta-xl" id="nt-f-texto" rows="14" placeholder="${cat === 'ideas' ? 'Escribí tu idea…' : cat === 'personales' ? 'Escribí tu anotación…' : 'Escribí tu reflexión…'}">${_ntEsc(v.texto || '')}</textarea>`;
+    : `<div class="nt-flbl-row"><label class="nt-flbl">Texto</label><button type="button" class="nt-btn nt-preview-btn" onclick="_ntTogglePreview()">Vista previa</button></div>
+       <textarea class="nt-input nt-ta nt-ta-xl" id="nt-f-texto" rows="14" placeholder="${cat === 'ideas' ? 'Escribí tu idea…' : cat === 'personales' ? 'Escribí tu anotación…' : 'Escribí tu reflexión…'}">${_ntEsc(v.texto || '')}</textarea>
+       <div class="rn-preview-box" id="nt-f-preview" style="display:none"></div>`;
   return `<div class="nt-cat nt-cat-anim" style="--nt-accent:${meta.accent}">
     <div class="nt-cat-bar">
       <span class="nt-cat-chip">${meta.svg}</span>
@@ -245,6 +246,16 @@ function _ntRenderForm() {
 }
 function _ntFocusForm() { const el = document.getElementById('nt-f-titulo'); if (el) el.focus(); }
 
+// Vista previa (solo lectura) del textarea de texto libre, toggleable.
+function _ntTogglePreview() {
+  const box = document.getElementById('nt-f-preview');
+  const ta = document.getElementById('nt-f-texto');
+  if (!box || !ta) return;
+  const show = box.style.display === 'none';
+  if (show) box.innerHTML = rnRender(ta.value, { interactive: false });
+  box.style.display = show ? '' : 'none';
+}
+
 // ════════════════════════════════════════════════════════════════════════
 // ACCIONES
 // ════════════════════════════════════════════════════════════════════════
@@ -264,6 +275,16 @@ function _ntCatListHTML(cat) {
 }
 
 function _ntVal(id) { const el = document.getElementById(id); return el ? el.value.trim() : ''; }
+
+// Actualiza el texto de una nota (usado por los checkboxes interactivos de rich-notes) y refresca la tarjeta.
+function _ntUpdateTexto(id, nuevoTexto) {
+  const all = _ntAll().slice();
+  const i = all.findIndex(n => n.id === id);
+  if (i < 0) return;
+  all[i] = { ...all[i], texto: nuevoTexto };
+  _ntPersist(all);
+  if (_ntView && !_ntEditing) notasRender();
+}
 
 function _ntSaveForm() {
   const editing = _ntEditing !== 'new' ? _ntAll().find(n => n.id === _ntEditing) : null;
