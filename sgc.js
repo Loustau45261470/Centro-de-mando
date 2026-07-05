@@ -42,7 +42,13 @@ const SGC = (() => {
 
   // ══════════ MÉTRICAS ══════════
 
-  const precisionDe = p => Math.max(0, 100 - Math.abs(p.precioProy - p.precioReal) / p.precioReal * 100);
+  // proyección porcentual: varProy (%) vs variación real desde precioBase.
+  // precisión = 100 - desvío en puntos porcentuales. Soporta legacy (precioProy absoluto).
+  const varRealDe = p => (p.precioReal - p.precioBase) / p.precioBase * 100;
+  const precisionDe = p => p.varProy != null
+    ? Math.max(0, 100 - Math.abs(p.varProy - varRealDe(p)))
+    : Math.max(0, 100 - Math.abs(p.precioProy - p.precioReal) / p.precioReal * 100);
+  const fmtPct = v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
 
   function resolverProyecciones() {
     // proyecciones vencidas sin precio real → intentar resolver con el JSON del agente IOL
@@ -77,13 +83,13 @@ const SGC = (() => {
     return { val, n: ses.length, debiles, pendientes };
   }
 
-  function maxPesoMes(mes) {
-    // { exId: maxWeight } para un 'YYYY-MM' sobre S.routineLog
+  function volMes(mes) {
+    // { exId: volumen total (Σ peso×reps) } para un 'YYYY-MM' sobre S.routineLog
     const out = {};
     Object.values(S.routineLog || {}).forEach(hist => (hist || []).forEach(e => {
       if (!e.date || e.date.slice(0, 7) !== mes || !e.exSets) return;
       Object.entries(e.exSets).forEach(([exId, sets]) => (sets || []).forEach(s => {
-        if ((s.weight || 0) > (out[exId] || 0)) out[exId] = s.weight;
+        out[exId] = (out[exId] || 0) + (s.weight || 0) * (s.reps || 0);
       }));
     }));
     return out;
@@ -92,14 +98,17 @@ const SGC = (() => {
   function metricGym() {
     const mesAct = hoy().slice(0, 7);
     const mesAnt = addMeses(hoy().slice(0, 8) + '01', -1).slice(0, 7);
-    const act = maxPesoMes(mesAct), ant = maxPesoMes(mesAnt);
+    const act = volMes(mesAct), ant = volMes(mesAnt);
     const nombres = {};
     (S.routines || []).forEach(r => (r.exercises || []).forEach(ex => { nombres[ex.id] = ex.name; }));
     const items = Object.keys(ant).filter(id => act[id] != null && ant[id] > 0)
       .map(id => ({ id, nombre: nombres[id] || id, ant: ant[id], act: act[id], prog: (act[id] - ant[id]) / ant[id] * 100 }))
       .sort((a, b) => a.prog - b.prog);
-    const val = items.length ? items.reduce((a, x) => a + x.prog, 0) / items.length : null;
-    return { val, items, mesAct, mesAnt };
+    // valor global: volumen total del mes vs mes anterior (no promedio por ejercicio)
+    const totAnt = Object.values(ant).reduce((a, b) => a + b, 0);
+    const totAct = Object.keys(ant).reduce((a, id) => a + (act[id] || 0), 0);
+    const val = totAnt > 0 ? (totAct - totAnt) / totAnt * 100 : null;
+    return { val, items, mesAct, mesAnt, totAnt, totAct };
   }
 
   function tendencia4Sem(items, fechaFn, valFn) {
@@ -164,10 +173,12 @@ const SGC = (() => {
     }
     if (sec === 'salud') {
       const m = metricGym();
-      const peores = m.items.slice(0, 2).map(x => `<b>${esc(x.nombre)}</b> ${x.prog >= 0 ? '+' : ''}${x.prog.toFixed(1)}%`).join(' · ');
-      el.innerHTML = bloque(`Progresión de peso (${m.mesAnt} → ${m.mesAct})`, m, STD.gym, WARN.gym, '%',
+      const peores = m.items.slice(0, 2).map(x => `<b>${esc(x.nombre)}</b> ${fmtPct(x.prog)}`).join(' · ');
+      el.innerHTML = bloque(`Progresión de volumen (${m.mesAnt} → ${m.mesAct})`, m, STD.gym, WARN.gym, '%',
         'Revisar descanso/nutrición',
-        `<div style="font-size:10px;color:var(--tt);margin-top:3px">${m.items.length ? m.items.length + ' ejercicios comparados' + (peores ? ' · rezagados: ' + peores : '') : 'Se necesitan registros en dos meses consecutivos'}</div>`, 'gym');
+        `<div style="font-size:10px;color:var(--tt);margin-top:3px">${m.items.length
+          ? `${(m.totAct / 1000).toFixed(1)}t vs ${(m.totAnt / 1000).toFixed(1)}t · ${m.items.length} ejercicios comparados` + (peores ? ' · rezagados: ' + peores : '')
+          : 'Se necesitan registros en dos meses consecutivos'}</div>`, 'gym');
     }
   }
 
@@ -280,44 +291,68 @@ const SGC = (() => {
     const pend = (S.sgc.proyecciones || []).filter(p => p.precioReal == null).sort((a, b) => a.fechaVence.localeCompare(b.fechaVence));
     const res = (S.sgc.proyecciones || []).filter(p => p.precioReal != null).sort((a, b) => b.fechaVence.localeCompare(a.fechaVence));
     const m = metricInv();
-    const inp = 'background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:5px 7px;font-size:11px;color:inherit';
-    el.innerHTML = `<div class="ci-card" style="margin-top:14px">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
-        <span style="font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase">🎯 Mis proyecciones (SGC)</span>
-        <span style="font-size:10px;color:var(--tt)">Precisión YTD: <b>${m.val == null ? '—' : m.val.toFixed(1) + '%'}</b> ${badge(m.val, STD.inv, WARN.inv)} · estándar 85%</span>
+    const inp = 'background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:6px 8px;font-size:12px;color:inherit';
+    const activos = (_cartera?.cedears || []).slice().sort((a, b) => (a.simbolo || '').localeCompare(b.simbolo || ''));
+
+    const proyTxt = p => p.varProy != null ? fmtPct(p.varProy) : '$' + (p.precioProy || 0).toLocaleString('es-AR');
+    const realTxt = p => p.varProy != null ? fmtPct(varRealDe(p)) : '$' + (p.precioReal || 0).toLocaleString('es-AR');
+
+    const filaPend = p => {
+      const vencida = hoy() >= p.fechaVence;
+      return `<div class="ci-row" style="grid-template-columns:1fr .9fr 1fr 1.3fr">
+        <span><b>${esc(p.simbolo)}</b></span>
+        <span class="${p.varProy >= 0 ? 'text-ok' : 'text-danger'}" style="font-weight:700">${proyTxt(p)}</span>
+        <span style="font-size:11.5px;color:var(--text-ter,#8b93a7)">${fmtF(p.fechaCreada)} → ${fmtF(p.fechaVence)}</span>
+        <span style="text-align:right">${vencida
+          ? `<input id="sgc-pr-${p.id}" type="number" step="any" placeholder="precio real $" style="${inp};width:100px"> <button class="btn btn-ghost btn-sm" onclick="SGC.cargarReal('${p.id}')">✓</button>`
+          : `<span style="font-size:11px;color:var(--text-ter,#8b93a7)">en ${diasEntre(hoy(), p.fechaVence)} días</span>`}
+          <button class="btn btn-ghost btn-sm" style="opacity:.6" onclick="SGC.borrarProyeccion('${p.id}')">🗑</button></span>
+      </div>`;
+    };
+
+    const filaHist = p => { const prec = precisionDe(p); return `<div class="ci-row" style="grid-template-columns:1fr .9fr .9fr .9fr .6fr">
+      <span><b>${esc(p.simbolo)}</b> <span style="font-size:10px;color:var(--text-ter,#8b93a7)">${fmtF(p.fechaVence)}</span></span>
+      <span>${proyTxt(p)}</span>
+      <span>${realTxt(p)}</span>
+      <span style="font-size:11px;color:var(--text-ter,#8b93a7)">${esc(p.fuente || 'manual')}</span>
+      <span class="ci-est ${prec >= STD.inv ? 'text-ok' : 'text-danger'}">${prec.toFixed(1)}%</span>
+    </div>`; };
+
+    el.innerHTML = `
+      <div class="ci-sub" style="margin-top:16px">🎯 Mis proyecciones (SGC)</div>
+      <div class="ci-kpis" style="grid-template-columns:repeat(3,1fr)">
+        <div class="ci-kpi"><div class="ci-kpi-num ${m.val == null ? '' : m.val >= STD.inv ? 'text-ok' : 'text-danger'}">${m.val == null ? '—' : m.val.toFixed(1) + '%'} ${badge(m.val, STD.inv, WARN.inv)}</div><div class="ci-kpi-lbl">Precisión YTD · estándar 85%</div></div>
+        <div class="ci-kpi"><div class="ci-kpi-num">${res.length}</div><div class="ci-kpi-lbl">Resueltas</div></div>
+        <div class="ci-kpi"><div class="ci-kpi-num">${pend.length}</div><div class="ci-kpi-lbl">Pendientes</div></div>
       </div>
-      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px">
-        <input id="sgc-p-sim" placeholder="Activo (ej: GOOGL)" style="${inp};width:110px;text-transform:uppercase">
-        <input id="sgc-p-precio" type="number" step="any" placeholder="Precio proyectado $" style="${inp};width:130px">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:12px 0">
+        ${activos.length
+          ? `<select id="sgc-p-sim" style="${inp};min-width:110px">${activos.map(a => `<option value="${esc(a.simbolo)}" data-precio="${a.precio}">${esc(a.simbolo)} · $${(a.precio || 0).toLocaleString('es-AR')}</option>`).join('')}</select>`
+          : `<span style="font-size:11px;color:var(--text-ter,#8b93a7)">Sin datos de cartera para elegir activo (reabrí el overlay con conexión)</span>`}
+        <input id="sgc-p-var" type="number" step="any" placeholder="Variación proyectada %" style="${inp};width:160px">
         <select id="sgc-p-hor" style="${inp}"><option value="1">1 mes</option><option value="3" selected>3 meses</option><option value="6">6 meses</option></select>
-        <button class="btn btn-sm" onclick="SGC.guardarProyeccion()">+ Proyectar</button>
+        <button class="btn btn-sm" onclick="SGC.guardarProyeccion()" ${activos.length ? '' : 'disabled'}>+ Proyectar</button>
       </div>
-      ${pend.length ? pend.map(p => {
-        const vencida = hoy() >= p.fechaVence;
-        return `<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.05)">
-          <span><b>${esc(p.simbolo)}</b> → $${p.precioProy.toLocaleString('es-AR')} <span style="color:var(--tt)">(${fmtF(p.fechaCreada)} → ${fmtF(p.fechaVence)})</span></span>
-          <span>${vencida
-            ? `<input id="sgc-pr-${p.id}" type="number" step="any" placeholder="precio real" style="${inp};width:90px"> <button class="btn btn-ghost btn-sm" style="font-size:9px" onclick="SGC.cargarReal('${p.id}')">✓</button>`
-            : `<span style="color:var(--tt);font-size:10px">vence en ${diasEntre(hoy(), p.fechaVence)} días</span>`}
-          <button class="btn btn-ghost btn-sm" style="font-size:9px" onclick="SGC.borrarProyeccion('${p.id}')">🗑</button></span></div>`;
-      }).join('') : '<div style="font-size:10px;color:var(--tt);padding:2px 0">Sin proyecciones pendientes.</div>'}
-      ${res.length ? `<div style="font-size:9px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--tt);margin:8px 0 3px">Resueltas</div>` +
-        res.slice(0, 8).map(p => { const prec = precisionDe(p); return `<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--tt);padding:2px 0">
-          <span><b>${esc(p.simbolo)}</b> proy $${p.precioProy.toLocaleString('es-AR')} vs real $${p.precioReal.toLocaleString('es-AR')} <span style="font-size:9px">(${esc(p.fuente || 'manual')})</span></span>
-          <b class="${prec >= STD.inv ? 'text-ok' : 'text-danger'}">${prec.toFixed(1)}%</b></div>`; }).join('') : ''}
-    </div>`;
+      <div class="ci-hdr ci-row" style="grid-template-columns:1fr .9fr 1fr 1.3fr"><span>Activo</span><span>Proyección</span><span>Período</span><span style="text-align:right">Estado</span></div>
+      ${pend.length ? pend.map(filaPend).join('') : '<div style="font-size:12px;color:var(--text-ter,#8b93a7);padding:6px 2px">Sin proyecciones pendientes — cargá la primera arriba.</div>'}
+      ${res.length ? `
+        <div class="ci-sub">Historial (${res.length})</div>
+        <div class="ci-hdr ci-row" style="grid-template-columns:1fr .9fr .9fr .9fr .6fr"><span>Activo</span><span>Proyectado</span><span>Real</span><span>Fuente</span><span style="text-align:right">Precisión</span></div>
+        <div style="max-height:220px;overflow-y:auto">${res.map(filaHist).join('')}</div>` : ''}`;
   }
 
   function guardarProyeccion() {
-    const sim = (document.getElementById('sgc-p-sim')?.value || '').trim().toUpperCase();
-    const precio = parseFloat(document.getElementById('sgc-p-precio')?.value);
+    const sel = document.getElementById('sgc-p-sim');
+    const sim = (sel?.value || '').trim().toUpperCase();
+    const precioBase = parseFloat(sel?.selectedOptions?.[0]?.dataset?.precio);
+    const varProy = parseFloat(document.getElementById('sgc-p-var')?.value);
     const hor = parseInt(document.getElementById('sgc-p-hor')?.value, 10) || 3;
-    if (!sim) { showToast('Escribí el símbolo del activo'); return; }
-    if (!precio || precio <= 0) { showToast('Cargá el precio proyectado'); return; }
+    if (!sim || !precioBase) { showToast('Elegí un activo de la cartera'); return; }
+    if (isNaN(varProy)) { showToast('Cargá la variación proyectada en %'); return; }
     ensureState();
-    S.sgc.proyecciones.push({ id: uid(), simbolo: sim, precioProy: precio, fechaCreada: hoy(), fechaVence: addMeses(hoy(), hor), precioReal: null, fuente: null });
+    S.sgc.proyecciones.push({ id: uid(), simbolo: sim, varProy, precioBase, fechaCreada: hoy(), fechaVence: addMeses(hoy(), hor), precioReal: null, fuente: null });
     saveState();
-    showToast(`🎯 Proyección de ${sim} registrada — vence ${fmtF(addMeses(hoy(), hor))}`);
+    showToast(`🎯 ${sim} ${fmtPct(varProy)} a ${hor} ${hor === 1 ? 'mes' : 'meses'} — vence ${fmtF(addMeses(hoy(), hor))}`);
     renderProyecciones(document.getElementById('sgc-proyecciones'));
     renderAnalisis('finanzas');
   }
@@ -348,8 +383,8 @@ const SGC = (() => {
     let rows, nombre;
     if (que === 'inv') {
       nombre = 'sgc-inversiones';
-      rows = [['simbolo', 'precio_proyectado', 'precio_real', 'fecha_creada', 'fecha_vence', 'fuente', 'precision_pct'],
-        ...S.sgc.proyecciones.map(p => [p.simbolo, p.precioProy, p.precioReal ?? '', p.fechaCreada, p.fechaVence, p.fuente ?? '', p.precioReal != null ? precisionDe(p).toFixed(2) : ''])];
+      rows = [['simbolo', 'var_proyectada_pct', 'precio_base', 'precio_real', 'var_real_pct', 'fecha_creada', 'fecha_vence', 'fuente', 'precision_pct'],
+        ...S.sgc.proyecciones.map(p => [p.simbolo, p.varProy ?? '', p.precioBase ?? '', p.precioReal ?? '', (p.varProy != null && p.precioReal != null) ? varRealDe(p).toFixed(2) : '', p.fechaCreada, p.fechaVence, p.fuente ?? '', p.precioReal != null ? precisionDe(p).toFixed(2) : ''])];
     } else if (que === 'est') {
       nombre = 'sgc-estudio';
       rows = [['tema', 'duracion_min', 'fecha', 'repasado_el', 'preguntas', 'retencion_pct'],
@@ -357,7 +392,7 @@ const SGC = (() => {
     } else {
       nombre = 'sgc-entrenamiento';
       const m = metricGym();
-      rows = [['ejercicio', 'max_' + m.mesAnt, 'max_' + m.mesAct, 'progresion_pct'],
+      rows = [['ejercicio', 'volumen_' + m.mesAnt, 'volumen_' + m.mesAct, 'progresion_pct'],
         ...m.items.map(x => [x.nombre, x.ant, x.act, x.prog.toFixed(2)])];
     }
     const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
