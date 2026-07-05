@@ -43,11 +43,17 @@ const SGC = (() => {
   // ══════════ MÉTRICAS ══════════
 
   // proyección porcentual: varProy (%) vs variación real desde precioBase.
-  // precisión = 100 - desvío en puntos porcentuales. Soporta legacy (precioProy absoluto).
+  // precisión = 100 - error RELATIVO a la proyección (proy 5% / real 4% → 20% error → 80%).
+  // Soporta legacy (precioProy absoluto, error relativo al precio real).
   const varRealDe = p => (p.precioReal - p.precioBase) / p.precioBase * 100;
-  const precisionDe = p => p.varProy != null
-    ? Math.max(0, 100 - Math.abs(p.varProy - varRealDe(p)))
-    : Math.max(0, 100 - Math.abs(p.precioProy - p.precioReal) / p.precioReal * 100);
+  const precisionDe = p => {
+    if (p.varProy != null) {
+      const err = Math.abs(p.varProy - varRealDe(p));
+      if (p.varProy === 0) return err < 0.05 ? 100 : 0;   // proyección plana: evita /0
+      return Math.max(0, 100 - err / Math.abs(p.varProy) * 100);
+    }
+    return Math.max(0, 100 - Math.abs(p.precioProy - p.precioReal) / p.precioReal * 100);
+  };
   const fmtPct = v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
 
   function resolverProyecciones() {
