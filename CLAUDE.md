@@ -20,6 +20,12 @@ Después de CADA cambio en el código, sin excepción y sin que el usuario lo pi
 Esto dispara el deploy automático en GitHub Pages. No preguntar, no esperar confirmación — hacerlo siempre al terminar.
 Si tocaste un `.js` o `.css`, **bumpear también `const CACHE` en `sw.js`** y commitearlo.
 
+**Verificación obligatoria post-push:** el `git push` exitoso NO significa que el sitio esté actualizado — el deploy de GitHub Pages es un workflow separado (Actions) que puede fallar (ha pasado más de una vez, ej. "Deployment failed, try again later" transitorio de infra de GitHub). Antes de confirmarle al usuario que el cambio está listo/en producción:
+1. `gh run list --limit 3` para ver el run de "pages build and deployment" disparado por el push.
+2. Esperar a que termine (`gh run view <id> --json status,conclusion`) y confirmar `conclusion: success`.
+3. Si falla, `gh run rerun <id>` y volver a verificar antes de avisar al usuario.
+Nunca dar el cambio por "desplegado" solo porque el `git push` no dio error.
+
 ## Repositorio
 https://github.com/Loustau45261470/Centro-de-mando.git
 Rama: main (público)
