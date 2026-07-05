@@ -44,6 +44,7 @@
     if (_sizeCache !== null && now - _sizeLastCalc < 30000) return _sizeCache;
     let bytes = 0;
     try { bytes = (typeof S !== 'undefined' && S) ? JSON.stringify(S).length : 0; } catch (e) {}
+    if (bytes < 1024) return null;  // loadState() async aún no pobló S: no cachear el valor trivial
     _sizeCache = bytes; _sizeLastCalc = now;
     return bytes;
   }
@@ -59,8 +60,8 @@
     const s = syncInfo();
     elSync.textContent = s.t; elSync.className = s.c;
     const b = docSize();
-    elSize.textContent = fmtBytes(b);
-    elSize.className = b >= DOC_WARN ? 'tk-save' : 'tk-dim';  // tk-save=var(--warn); tk-dim=var(--tt)
+    elSize.textContent = b === null ? '…' : fmtBytes(b);
+    elSize.className = (b !== null && b >= DOC_WARN) ? 'tk-save' : 'tk-dim';  // tk-save=var(--warn); tk-dim=var(--tt)
   }
   tick();
   setInterval(tick, 1000);
