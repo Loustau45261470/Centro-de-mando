@@ -582,11 +582,14 @@ window.listarSnaps = async function () {
 window.restaurarSnap = async function (snapRef) {
   const id = String(snapRef).startsWith('snap_') ? snapRef : 'snap_' + snapRef;
   const d = await _db.collection('appdata').doc(id).get();
-  if (!d.exists || !d.data()?.state) { showToast('No existe ese snap: ' + id, 6000); return; }
+  if (!d.exists) { showToast('No existe ese snap: ' + id, 6000); return; }
+  if (!d.data()?.state) { showToast('⚠️ El snap ' + id + ' existe pero está corrupto (sin state) — probá con otro', 8000); return; }
+  const fechaSnap = new Date(parseInt(id.slice(5))).toLocaleString('es-AR');
+  if (!confirm('Esto reemplaza el estado actual por el snap del ' + fechaSnap + '. Lo no guardado se pierde. ¿Continuar?')) return;
   _forceSaveOnce = true;
   _applyRemoteState(d.data().state, Date.now());
   saveState();
-  showToast('✅ Restaurado snap ' + new Date(parseInt(id.slice(5))).toLocaleString('es-AR'), 8000);
+  showToast('✅ Restaurado snap ' + fechaSnap, 8000);
 };
 window.listarBackups = async function () {
   try {
@@ -599,7 +602,9 @@ window.listarBackups = async function () {
 window.restaurarBackup = async function (fecha) {
   const id = String(fecha || '').startsWith('bak_') ? fecha : 'bak_' + fecha;
   const d = await _db.collection('appdata').doc(id).get();
-  if (!d.exists || !d.data()?.state) { showToast('No existe ese backup: ' + id, 6000); return; }
+  if (!d.exists) { showToast('No existe ese backup: ' + id, 6000); return; }
+  if (!d.data()?.state) { showToast('⚠️ El backup ' + id + ' existe pero está corrupto (sin state) — probá con otro', 8000); return; }
+  if (!confirm('Esto reemplaza el estado actual por el backup del ' + fecha + '. Lo no guardado se pierde. ¿Continuar?')) return;
   _forceSaveOnce = true;
   _applyRemoteState(d.data().state, Date.now());
   saveState();
