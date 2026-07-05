@@ -120,8 +120,17 @@ function _snNoteCard(n, i) {
       ${n.tag ? `<button class="nt-note-tag" data-sntag="${_snEsc(n.tag)}" title="Filtrar por ${_snEsc(n.tag)}"><span class="nt-note-tag-dot"></span>${_snEsc(n.tag)}</button>` : ''}
       <span class="nt-note-date">${_snEsc(_snFmtDate(n.fecha))}</span>
     </div>
-    ${n.texto ? `<div class="nt-note-text">${_snEsc(n.texto)}</div>` : ''}
+    ${n.texto ? rnRender(n.texto, { texto: n.texto, onSave: (nuevo) => _snUpdateTexto(n.id, nuevo) }) : ''}
   </div>`;
+}
+// Actualiza el texto de una nota (usado por los checkboxes interactivos de rich-notes) y refresca la vista.
+function _snUpdateTexto(id, nuevoTexto) {
+  const all = _snAll().slice();
+  const i = all.findIndex(n => n.id === id);
+  if (i < 0) return;
+  all[i] = { ...all[i], texto: nuevoTexto };
+  _snPersist(all);
+  if (_snView && !_snEditing) _snRender();
 }
 
 function _snForm() {
@@ -141,14 +150,25 @@ function _snForm() {
         <div><label class="nt-flbl">Etiqueta</label><input class="nt-input" id="sn-f-tag" type="text" list="sn-tag-list" value="${_snEsc(v.tag || '')}" placeholder="Ej: rodilla, pierna…"><datalist id="sn-tag-list">${_snTagsOf(cat).map(t => `<option value="${_snEsc(t)}"></option>`).join('')}</datalist></div>
         <div><label class="nt-flbl">Fecha</label><input class="nt-input" id="sn-f-fecha" type="date" value="${_snEsc(v.fecha || _snToday())}"></div>
       </div>
-      <label class="nt-flbl">Texto</label>
+      <div class="nt-flbl-row"><label class="nt-flbl">Texto</label><button type="button" class="nt-btn nt-preview-btn" onclick="_snTogglePreview()">Vista previa</button></div>
       <textarea class="nt-input nt-ta nt-ta-xl" id="sn-f-texto" rows="14" placeholder="Escribí tu nota…">${_snEsc(v.texto || '')}</textarea>
+      <div class="rn-preview-box" id="sn-f-preview" style="display:none"></div>
       <div class="nt-form-acts">
         <button class="nt-btn nt-add" onclick="_snSave()">Guardar</button>
         <button class="nt-btn" onclick="_snCancel()">Cancelar</button>
       </div>
     </div>
   </div>`;
+}
+
+// Vista previa (solo lectura) del textarea de la nota, toggleable.
+function _snTogglePreview() {
+  const box = document.getElementById('sn-f-preview');
+  const ta = document.getElementById('sn-f-texto');
+  if (!box || !ta) return;
+  const show = box.style.display === 'none';
+  if (show) box.innerHTML = rnRender(ta.value, { interactive: false });
+  box.style.display = show ? '' : 'none';
 }
 
 // ── Acciones ─────────────────────────────────────────────────────────────
