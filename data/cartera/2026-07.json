@@ -1,0 +1,254 @@
+{
+  "generado": "2026-07-03T14:40:00Z",
+  "mes": "2026-07",
+  "cedears": [
+    {
+      "simbolo": "IBM",
+      "precio": 30700,
+      "precioMesAnterior": 30900,
+      "variacionPct": -0.65,
+      "rend3m": 27.44,
+      "rend6m": 2.47,
+      "rend12m": 26.99
+    },
+    {
+      "simbolo": "MSFT",
+      "precio": 20670,
+      "precioMesAnterior": 21620,
+      "variacionPct": -4.39,
+      "rend3m": 12.77,
+      "rend6m": -14.8,
+      "rend12m": 0.22
+    },
+    {
+      "simbolo": "WMT",
+      "precio": 9950,
+      "precioMesAnterior": 9865,
+      "variacionPct": 0.86,
+      "rend3m": -3.68,
+      "rend6m": 3.06,
+      "rend12m": 46.54
+    },
+    {
+      "simbolo": "GOOGL",
+      "precio": 9805,
+      "precioMesAnterior": 9375,
+      "variacionPct": 4.59,
+      "rend3m": 28.76,
+      "rend6m": 16.94,
+      "rend12m": 156.34
+    },
+    {
+      "simbolo": "MELI",
+      "precio": 23290,
+      "precioMesAnterior": 20730,
+      "variacionPct": 12.35,
+      "rend3m": 9.09,
+      "rend6m": -8.67,
+      "rend12m": -10.25
+    },
+    {
+      "simbolo": "META",
+      "precio": 38740,
+      "precioMesAnterior": 39340,
+      "variacionPct": -1.53,
+      "rend3m": 7.85,
+      "rend6m": -7.28,
+      "rend12m": 4.28
+    },
+    {
+      "simbolo": "AMZN",
+      "precio": 2685,
+      "precioMesAnterior": 2630,
+      "variacionPct": 2.09,
+      "rend3m": 23.11,
+      "rend6m": 10.54,
+      "rend12m": 39.84
+    },
+    {
+      "simbolo": "NVDA",
+      "precio": 12910,
+      "precioMesAnterior": 13550,
+      "variacionPct": -4.72,
+      "rend3m": 18.33,
+      "rend6m": 6.69,
+      "rend12m": 57.44
+    },
+    {
+      "simbolo": "V",
+      "precio": 31460,
+      "precioMesAnterior": 26420,
+      "variacionPct": 19.08,
+      "rend3m": 27.47,
+      "rend6m": 5.29,
+      "rend12m": 26.85
+    },
+    {
+      "simbolo": "MA",
+      "precio": 25440,
+      "precioMesAnterior": 21740,
+      "variacionPct": 17.02,
+      "rend3m": 14.54,
+      "rend6m": -3.64,
+      "rend12m": 18.6
+    },
+    {
+      "simbolo": "SPY",
+      "precio": 19800,
+      "precioMesAnterior": 19100,
+      "variacionPct": 3.66,
+      "rend3m": 21.22,
+      "rend6m": 12.1,
+      "rend12m": 52.33
+    },
+    {
+      "simbolo": "NU",
+      "precio": 10740,
+      "precioMesAnterior": 8840,
+      "variacionPct": 21.49,
+      "rend3m": -0.56,
+      "rend6m": -18.2,
+      "rend12m": 27.4
+    },
+    {
+      "simbolo": "ETHA",
+      "precio": 4100,
+      "precioMesAnterior": 4142.5,
+      "variacionPct": -1.03,
+      "rend3m": -14.0,
+      "rend6m": -43.72,
+      "rend12m": -15.38
+    },
+    {
+      "simbolo": "GLD",
+      "precio": 12150,
+      "precioMesAnterior": 12360,
+      "variacionPct": -1.7,
+      "rend3m": -6.83,
+      "rend6m": -1.14,
+      "rend12m": 58.62
+    },
+    {
+      "simbolo": "IBIT",
+      "precio": 5635,
+      "precioMesAnterior": 5625,
+      "variacionPct": 0.18,
+      "rend3m": -2.09,
+      "rend6m": -28.49,
+      "rend12m": -28.03
+    },
+    {
+      "simbolo": "SLV",
+      "precio": 14860,
+      "precioMesAnterior": 16720,
+      "variacionPct": -11.12,
+      "rend3m": -12.07,
+      "rend6m": -11.34,
+      "rend12m": 115.99
+    },
+    {
+      "simbolo": "SMH",
+      "precio": 19280,
+      "precioMesAnterior": 19400,
+      "variacionPct": -0.62,
+      "rend3m": 65.78,
+      "rend6m": 67.65,
+      "rend12m": 171.55
+    },
+    {
+      "simbolo": "COPX",
+      "precio": 8840,
+      "precioMesAnterior": 9770,
+      "variacionPct": -9.52,
+      "rend3m": 6.19,
+      "rend6m": null,
+      "rend12m": null
+    }
+  ],
+  "top": {
+    "3m": [
+      "SMH",
+      "GOOGL",
+      "V"
+    ],
+    "6m": [
+      "SMH",
+      "GOOGL",
+      "SPY"
+    ],
+    "12m": [
+      "SMH",
+      "GOOGL",
+      "SLV"
+    ]
+  },
+  "evaluacion": null,
+  "prediccion": {
+    "mejores": [
+      {
+        "simbolo": "SMH",
+        "razon": "Liderazgo de momentum en la cartera: +65.78% a 3m, +67.65% a 6m y +171.55% a 12m por el ciclo de semiconductores.",
+        "estPct": 8.5
+      },
+      {
+        "simbolo": "GOOGL",
+        "razon": "Segundo mejor activo en todos los plazos (3m +28.76%, 6m +16.94%, 12m +156.34%), tendencia sostenida.",
+        "estPct": 5.5
+      },
+      {
+        "simbolo": "NU",
+        "razon": "Mayor suba mensual de la cartera (+21.49%), fintech LatAm con el momentum de corto plazo más fuerte.",
+        "estPct": 7.0
+      }
+    ],
+    "peores": [
+      {
+        "simbolo": "ETHA",
+        "razon": "Peor rendimiento de la cartera a 6m (-43.72%) y 12m (-15.38%), ETF cripto sin señales de reversión.",
+        "estPct": -7.5
+      },
+      {
+        "simbolo": "IBIT",
+        "razon": "Débil en 6m (-28.49%) y 12m (-28.03%), bitcoin en tendencia bajista prolongada.",
+        "estPct": -5.5
+      },
+      {
+        "simbolo": "SLV",
+        "razon": "Caída de -11.12% en el último mes, plata corrigiendo tras el rally previo de metales.",
+        "estPct": -3.5
+      }
+    ],
+    "picks": [
+      {
+        "simbolo": "AAPL",
+        "precio": 24380,
+        "razon": "Rezagada frente al resto de las Big Tech en 12 meses, espacio para catch-up.",
+        "estPct": 5.0
+      },
+      {
+        "simbolo": "JPM",
+        "precio": 35100,
+        "razon": "Sector bancario con tasas aún elevadas, resultados trimestrales próximos como catalizador.",
+        "estPct": 4.0
+      },
+      {
+        "simbolo": "XOM",
+        "precio": 21600,
+        "razon": "Energía como cobertura ante volatilidad geopolítica, valuación relativa baja.",
+        "estPct": 3.0
+      },
+      {
+        "simbolo": "PYPL",
+        "precio": 8890,
+        "razon": "Fintech con múltiplo comprimido, potencial de recuperación tras años de subperformance.",
+        "estPct": 6.5
+      },
+      {
+        "simbolo": "AMD",
+        "precio": 83350,
+        "razon": "Beneficiario directo del mismo ciclo de IA/semiconductores que impulsa a SMH en la cartera.",
+        "estPct": 9.0
+      }
+    ]
+  }
+}
