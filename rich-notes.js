@@ -65,7 +65,7 @@ function _rnParse(lines, interactive, rnId) {
     let m;
 
     // Toggle / bloque desplegable: ">> Título" + líneas indentadas
-    if ((m = /^>>\s?(.*)$/.exec(line))) {
+    if ((m = /^>>\s?(.*)$/.exec(trimmed))) {
       flushList(); flushQuote();
       const body = [];
       let j = i + 1;
