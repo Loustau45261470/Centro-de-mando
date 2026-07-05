@@ -192,7 +192,7 @@ const SGC = (() => {
 
   // ══════════ ESTUDIO — registro, repasos y quiz ══════════
 
-  let _estForm = false, _quiz = null; // _quiz = { id, idx, revelada }
+  let _estForm = false, _quiz = null, _importForm = false; // _quiz = { id, idx, revelada }
 
   function renderEstudioCard() {
     ensureState();
@@ -202,16 +202,20 @@ const SGC = (() => {
     let inner;
     if (_quiz) inner = quizHtml();
     else if (_estForm) inner = formHtml();
+    else if (_importForm) inner = importHtml();
     else inner = `
       ${pendientes.length ? `<div style="font-size:9px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#FBBF24;margin-bottom:4px">Repasos pendientes</div>` +
         pendientes.map(s => `<div onclick="SGC.iniciarQuiz('${s.id}')" style="cursor:pointer;display:flex;justify-content:space-between;padding:6px 8px;border:1px solid rgba(251,191,36,.3);border-radius:8px;margin-bottom:4px">
           <span style="font-size:11px">📝 <b>${esc(s.tema)}</b></span><span style="font-size:9px;color:var(--tt)">hace ${diasEntre(s.fecha, hoy())} días · ${s.preguntas.length} preguntas</span></div>`).join('') : ''}
       ${ultimas.length ? `<div style="font-size:9px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--tt);margin:6px 0 4px">Últimas sesiones</div>` +
         ultimas.map(s => `<div style="display:flex;justify-content:space-between;font-size:10px;padding:2px 0;color:var(--tt)">
-          <span>${esc(s.tema)} · ${s.duracionMin}′</span>
+          <span>${s.origen === 'dominio' ? '<span title="Importado de Dominio">📋</span> ' : ''}${esc(s.tema)} · ${s.duracionMin}′</span>
           <span>${fmtF(s.fecha)} · ${s.retencion == null ? (hoy() >= addDias(s.fecha, 7) ? '<span style="color:#FBBF24">repaso listo</span>' : 'repaso el ' + fmtF(addDias(s.fecha, 7))) : `<b class="${s.retencion >= STD.est ? 'text-ok' : 'text-danger'}">${s.retencion.toFixed(0)}%</b>`}</span></div>`).join('')
         : '<div class="empty-state" style="padding:10px 0">Sin sesiones registradas. Registrá la primera con sus preguntas de repaso.</div>'}
-      <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="SGC.abrirForm()">+ Sesión de estudio</button>`;
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <button class="btn btn-ghost btn-sm" onclick="SGC.abrirForm()">+ Sesión de estudio</button>
+        <button class="btn btn-ghost btn-sm" onclick="SGC.abrirImport()">📋 Importar de Dominio</button>
+      </div>`;
     el.innerHTML = `<div class="card"><div class="card-title">🎓 Sesiones de estudio <span style="font-size:9px;font-weight:400;color:var(--tt)">SGC · retención a 7 días</span></div>${inner}</div>`;
   }
 
@@ -236,6 +240,57 @@ const SGC = (() => {
   function masPregunta() { if (_nQs >= 5) return; const c = document.getElementById('sgc-e-qs'); if (c) { c.insertAdjacentHTML('beforeend', qRow(_nQs)); _nQs++; } }
   function abrirForm() { _estForm = true; _nQs = 3; renderEstudioCard(); }
   function cerrarForm() { _estForm = false; renderEstudioCard(); }
+
+  // ── Importar simulacro terminado desde Dominio (puente por clipboard) ──
+  function importHtml() {
+    const inp = 'width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:6px 8px;font-size:11px;color:inherit;font-family:var(--mono)';
+    return `
+      <div style="font-size:9px;color:var(--tt);margin-bottom:5px">Pegá el JSON copiado en Dominio (botón <b>📋 Copiar para Centro de Mando</b> al terminar un simulacro). La retención ya viene resuelta por el SRS de Dominio.</div>
+      <textarea id="sgc-imp-json" rows="4" placeholder='{"origen":"dominio","tema":"...","retencion":85,...}' style="${inp}"></textarea>
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <button class="btn btn-sm" onclick="SGC.importarDominio()">Importar</button>
+        <button class="btn btn-ghost btn-sm" onclick="SGC.cerrarImport()">Cancelar</button>
+      </div>`;
+  }
+  function abrirImport() { _importForm = true; renderEstudioCard(); }
+  function cerrarImport() { _importForm = false; renderEstudioCard(); }
+
+  function importarDominio() {
+    const notify = m => (typeof showToast === 'function' ? showToast(m) : alert(m));
+    const el = document.getElementById('sgc-imp-json');
+    const raw = el ? el.value.trim() : '';
+    if (!raw) { notify('Pegá el JSON de Dominio'); return; }
+    let d;
+    try { d = JSON.parse(raw); } catch (e) { notify('JSON inválido — copialo completo desde Dominio'); return; }
+    const rNum = Number(d && d.retencion);
+    if (!d || d.origen !== 'dominio' || typeof d.tema !== 'string' || !d.tema.trim()
+        || !Number.isFinite(rNum) || rNum < 0 || rNum > 100
+        || !d.fecha || isNaN(new Date(d.fecha).getTime())) {
+      notify('JSON de Dominio inválido — revisá que sea el que copió el simulacro'); return;
+    }
+    const fecha = new Date(d.fecha).toISOString().slice(0, 10);       // 'YYYY-MM-DD', como el resto de S.sgc.estudio
+    const dur = Math.max(1, parseInt(d.duracion, 10) || 1);
+    ensureState();
+    // Entrada compatible con metricEst: retención YA resuelta → nunca cae en "pendientes" (retencion == null + 7 días).
+    const mk = (tema, duracionMin, retencion) => ({
+      id: uid(), tema, duracionMin, fecha, preguntas: [],
+      retencion: Math.max(0, Math.min(100, retencion)), repasadoEl: fecha, origen: 'dominio'
+    });
+    // Decisión: por UNIDAD (temas[]) cuando existe — la métrica de "temas débiles" se vuelve accionable a nivel unidad.
+    const temas = Array.isArray(d.temas)
+      ? d.temas.filter(t => t && typeof t.tema === 'string' && t.tema.trim() && Number.isFinite(Number(t.retencion)))
+      : [];
+    if (temas.length) {
+      const durU = Math.max(1, Math.round(dur / temas.length));
+      temas.forEach(t => S.sgc.estudio.push(mk(d.tema.trim() + ' — ' + t.tema.trim(), durU, Number(t.retencion))));
+    } else {
+      S.sgc.estudio.push(mk(d.tema.trim(), dur, rNum));
+    }
+    saveState();
+    _importForm = false;
+    notify(`📋 Importado de Dominio: ${d.tema.trim()} (${rNum.toFixed(0)}%)`);
+    renderEstudioCard(); renderAnalisis('conocimiento');
+  }
 
   function guardarSesion() {
     const v = id => { const e = document.getElementById(id); return e ? e.value.trim() : ''; };
@@ -429,6 +484,6 @@ const SGC = (() => {
   }
   init();
 
-  return { renderAnalisis, renderTodo, renderEstudioCard, renderProyecciones, abrirForm, cerrarForm, masPregunta, guardarSesion, iniciarQuiz, revelarQuiz, salirQuiz, respuestaQuiz, guardarProyeccion, cargarReal, borrarProyeccion, exportCSV };
+  return { renderAnalisis, renderTodo, renderEstudioCard, renderProyecciones, abrirForm, cerrarForm, abrirImport, cerrarImport, importarDominio, masPregunta, guardarSesion, iniciarQuiz, revelarQuiz, salirQuiz, respuestaQuiz, guardarProyeccion, cargarReal, borrarProyeccion, exportCSV };
 })();
 window.SGC = SGC;
