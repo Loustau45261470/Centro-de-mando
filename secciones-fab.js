@@ -119,8 +119,6 @@ function _sfMount() {
       { icon: _SF_ICONS.planner, label: 'Planificación', accent: '#00D4FF', onClick: openPlanner },
       { icon: _SF_ICONS.fichero, label: 'Fichero', accent: '#5EEAD4', onClick: () => { if (typeof ficheroOpen === 'function') ficheroOpen(); } },
       remItem('vida'),
-      { icon: '💾', label: 'Exportar backup', accent: '#00D4FF', onClick: _sdExportBackup },
-      { icon: '📥', label: 'Restaurar backup', accent: '#00D4FF', onClick: _sdRestoreBackup },
     ] },
     { tab: 'salud', accent: '#F43F5E', icon: _SF_ICONS.salud, name: 'Salud', items: [
       proyItem('salud'),
