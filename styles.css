@@ -825,6 +825,8 @@ textarea { resize: vertical; min-height: 60px; }
 .sub-detail { font-size: 13px; color: var(--tt); }
 .sub-amount { font-family: var(--mono); font-size: 15px; font-weight: 700; }
 .sub-alert { animation: blink 1s ease-in-out infinite; background: rgba(255,45,45,.05) !important; }
+.inv-alert { background: rgba(255,45,45,.08) !important; border-left: 3px solid var(--danger, #ff2d2d); padding-left: 8px; }
+.inv-alert-badge { font-size: 11px; font-weight: 700; color: var(--danger, #ff2d2d); margin-left: 6px; }
 
 .order-row {
   display: flex; align-items: flex-start; gap: 10px;

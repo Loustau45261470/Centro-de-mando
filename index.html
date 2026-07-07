@@ -392,6 +392,12 @@
     </div>
     <!-- Entrenamiento completo (vive en el overlay) -->
     <div id="rutinas-wrap"></div>
+
+    <!-- Dieta: checklist marcable, descuenta stock de Inventario (Finanzas) -->
+    <div class="card" id="dieta-card">
+      <div class="card-title">🥗 Dieta</div>
+      <div id="dietaBody"></div>
+    </div>
   </div>
 
   <!-- ████ CONOCIMIENTO TAB ████ -->
@@ -580,6 +586,11 @@
             <select class="inp budget-month-sel" id="budgetMonthSel" onchange="setBudgetMonth(this.value)"></select>
           </div>
           <div id="budgetBody"></div>
+        </div>
+        <!-- ── Inventario de alimentos ── -->
+        <div class="card" id="inventario-card">
+          <div class="card-title">🍱 Inventario</div>
+          <div id="inventarioBody"></div>
         </div>
         <!-- Reminders -->
         <div class="card rnotif-card"><div class="card-title">🔔 Recordatorios</div><div id="reminders-notif-finanzas"></div></div>
@@ -1308,6 +1319,7 @@
       </div>
     </div>
     <div class="field"><label>Cuenta</label><select class="inp" id="txnAccount"><option value="">— Ninguna —</option></select></div>
+    <div class="field"><label>Cantidad comprada (solo si es un ítem de Inventario)</label><input class="inp" type="number" step="0.01" id="txnInvQty" placeholder="Ej: 2 (suma al stock si el nombre coincide)"></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('modal-add-txn')">Cancelar</button>
       <button class="btn btn-primary" onclick="addTransaction()">Registrar</button>
@@ -1397,6 +1409,23 @@
 </div>
 
 <!-- Budget: gasto reservado (add/edit) -->
+<div class="modal-overlay" id="modal-inv-item" onclick="if(event.target===this)closeModal('modal-inv-item')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Nuevo ítem de inventario</div>
+    <div class="field"><label>Nombre</label><input class="inp" id="invItemName" placeholder="Ej: Merluza"></div>
+    <div class="field"><label>Unidad</label><input class="inp" id="invItemUnit" placeholder="kg, litros, unidades…"></div>
+    <div class="input-row">
+      <div class="field" style="flex:1"><label>Consumo diario esperado</label><input class="inp" type="number" step="0.01" id="invItemDaily" placeholder="0"></div>
+      <div class="field" style="flex:1"><label>Consumo mensual esperado</label><input class="inp" type="number" step="0.01" id="invItemMonthly" placeholder="0"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-inv-item')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveInvItem()">Guardar</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-budget-reserved" onclick="if(event.target===this)closeModal('modal-budget-reserved')">
   <div class="modal">
     <div class="modal-handle"></div>
