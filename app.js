@@ -5824,18 +5824,160 @@ function invApplyPurchase(name, qty) {
 }
 
 // ════════════════════════════════════════════════════════
-// DIETA (Salud) — checklist marcable con cantidad editable, descuenta stock
+// DIETA (Salud) — planillas personalizadas (S.dieta.planillas) + checklist
+// marcable con cantidad propia de la planilla activa, descuenta stock.
 // ════════════════════════════════════════════════════════
+function ensureDietaState() {
+  if (!S.dieta) S.dieta = { planillas: [], activeId: null };
+  if (!S.dieta.planillas) S.dieta.planillas = [];
+  if (S.dieta.activeId === undefined) S.dieta.activeId = null;
+}
+
+// Planilla activa vigente; si el id activo apunta a una planilla borrada, la limpia.
+function getActivePlanilla() {
+  ensureDietaState();
+  if (!S.dieta.activeId) return null;
+  const p = S.dieta.planillas.find(p => p.id === S.dieta.activeId);
+  if (!p) { S.dieta.activeId = null; return null; }
+  return p;
+}
+
+function setActivePlanilla(id) {
+  ensureDietaState();
+  S.dieta.activeId = id || null;
+  saveState(); renderDietaPlanillaBar(); renderDieta(); renderDietaResumen();
+}
+
+// ── Selector de planilla activa + acceso a "Gestionar planillas" ──
+function renderDietaPlanillaBar() {
+  const el = document.getElementById('dietaPlanillaBar');
+  if (!el) return;
+  ensureDietaState();
+  const opts = S.dieta.planillas.map(p => `<option value="${p.id}" ${p.id === S.dieta.activeId ? 'selected' : ''}>${p.nombre}</option>`).join('');
+  el.innerHTML = `
+    <div class="flex gap-8 items-center" style="flex-wrap:wrap;margin-bottom:10px">
+      <select class="inp" style="flex:1;min-width:140px" onchange="setActivePlanilla(this.value)">
+        <option value="">— sin planilla activa —</option>
+        ${opts}
+      </select>
+      <button class="btn btn-ghost btn-sm" onclick="openPlanillasListModal()">Gestionar planillas</button>
+    </div>`;
+}
+
+function openPlanillasListModal() {
+  renderPlanillasListModal();
+  openModal('modal-dieta-planillas');
+}
+
+function renderPlanillasListModal() {
+  const body = document.getElementById('dietaPlanillasListBody');
+  if (!body) return;
+  ensureDietaState();
+  const rows = S.dieta.planillas.map(p => `
+    <div class="sub-row">
+      <div class="sub-info">
+        <div class="sub-name">${p.nombre}${p.id === S.dieta.activeId ? ' <span class="inv-alert-badge" style="background:#10E07C22;color:#10E07C">activa</span>' : ''}</div>
+        <div class="sub-detail">${p.items.length} ítem(s)</div>
+      </div>
+      <div class="flex gap-8">
+        <button class="icon-btn" onclick="openPlanillaEditModal('${p.id}')">✎</button>
+        <button class="icon-btn" onclick="deletePlanilla('${p.id}')">${_DEL_SVG}</button>
+      </div>
+    </div>`).join('') || '<p class="empty-state">Sin planillas creadas todavía</p>';
+  body.innerHTML = rows;
+}
+
+function deletePlanilla(id) {
+  if (!confirm('¿Eliminar esta planilla?')) return;
+  ensureDietaState();
+  S.dieta.planillas = S.dieta.planillas.filter(p => p.id !== id);
+  if (S.dieta.activeId === id) S.dieta.activeId = null;
+  saveState(); renderPlanillasListModal(); renderDietaPlanillaBar(); renderDieta(); renderDietaResumen();
+}
+
+// ── Crear/editar planilla: nombre + ítems del Inventario con cantidad propia ──
+let _planillaEditId = null;
+let _planillaEditItems = {}; // itemId -> cantidad (solo los incluidos en la planilla)
+
+function openPlanillaEditModal(id) {
+  ensureDietaState(); ensureInventoryState();
+  _planillaEditId = id || null;
+  const p = id ? S.dieta.planillas.find(p => p.id === id) : null;
+  document.getElementById('planillaEditName').value = p ? p.nombre : '';
+  _planillaEditItems = {};
+  if (p) p.items.forEach(it => { if (_invItem(it.itemId)) _planillaEditItems[it.itemId] = it.cantidad; });
+  renderPlanillaEditItems();
+  document.getElementById('planillaEditDelBtn').style.display = p ? '' : 'none';
+  closeModal('modal-dieta-planillas');
+  openModal('modal-dieta-planilla-edit');
+}
+
+function renderPlanillaEditItems() {
+  const body = document.getElementById('planillaEditItemsBody');
+  if (!body) return;
+  ensureInventoryState();
+  body.innerHTML = S.inventory.items.map(it => {
+    const checked = it.id in _planillaEditItems;
+    const qty = checked ? _planillaEditItems[it.id] : '';
+    return `<div class="sub-row">
+      <label class="ptask-check"><input type="checkbox" ${checked ? 'checked' : ''} onchange="togglePlanillaEditItem('${it.id}',this.checked)"></label>
+      <div class="sub-info"><div class="sub-name">${it.name}</div></div>
+      <input class="inp" style="width:70px" type="number" step="0.01" value="${qty}" placeholder="cant." ${checked ? '' : 'disabled'} onchange="setPlanillaEditQty('${it.id}',this.value)">
+    </div>`;
+  }).join('') || '<p class="empty-state">Sin ítems en el inventario. Agregalos desde Finanzas → Inventario.</p>';
+}
+
+function togglePlanillaEditItem(itemId, checked) {
+  if (checked) _planillaEditItems[itemId] = _planillaEditItems[itemId] || 0;
+  else delete _planillaEditItems[itemId];
+  renderPlanillaEditItems();
+}
+
+function setPlanillaEditQty(itemId, val) {
+  if (itemId in _planillaEditItems) _planillaEditItems[itemId] = +val || 0;
+}
+
+function savePlanillaEdit() {
+  const nombre = document.getElementById('planillaEditName').value.trim();
+  if (!nombre) { showToast('Escribe el nombre de la planilla'); return; }
+  ensureDietaState();
+  const items = Object.keys(_planillaEditItems).map(itemId => ({ itemId, cantidad: +_planillaEditItems[itemId] || 0 }));
+  if (_planillaEditId) {
+    const p = S.dieta.planillas.find(p => p.id === _planillaEditId);
+    if (p) { p.nombre = nombre; p.items = items; }
+  } else {
+    S.dieta.planillas.push({ id: uid(), nombre, items });
+  }
+  saveState(); closeModal('modal-dieta-planilla-edit');
+  renderDietaPlanillaBar(); renderDieta(); renderDietaResumen();
+  showToast('Planilla guardada');
+}
+
+function deletePlanillaEdit() {
+  if (!_planillaEditId) return;
+  closeModal('modal-dieta-planilla-edit');
+  deletePlanilla(_planillaEditId);
+}
+
+// ── Checklist de Dieta: opera sobre los ítems/cantidades de la planilla activa ──
 function renderDieta() {
   const body = document.getElementById('dietaBody');
   if (!body) return;
-  ensureInventoryState();
+  ensureInventoryState(); ensureDietaState();
+  renderDietaPlanillaBar();
+  const planilla = getActivePlanilla();
+  if (!planilla) {
+    body.innerHTML = '<p class="empty-state">No hay una planilla de dieta activa. Creá una desde "Gestionar planillas" y seleccionala arriba para empezar a marcar el checklist.</p>';
+    return;
+  }
   const today = getActiveDate();
   const todayLog = S.inventory.log[today] || {};
 
-  const rows = S.inventory.items.map(it => {
+  const rows = planilla.items.map(pit => {
+    const it = _invItem(pit.itemId);
+    if (!it) return ''; // ítem borrado del Inventario: no se muestra, el resto sigue intacto
     const done = it.id in todayLog;
-    const qty = done ? todayLog[it.id] : it.daily;
+    const qty = done ? todayLog[it.id] : pit.cantidad;
     const neg = it.stock < 0;
     return `<div class="sub-row${neg ? ' inv-alert' : ''}">
       <label class="ptask-check"><input type="checkbox" ${done ? 'checked' : ''} onchange="toggleDietItem('${it.id}')"></label>
@@ -5845,7 +5987,7 @@ function renderDieta() {
       </div>
       <input class="inp" style="width:70px" type="number" step="0.01" id="diet-qty-${it.id}" value="${qty}" ${done ? 'disabled' : ''}>
     </div>`;
-  }).join('') || '<p class="empty-state">Sin ítems en el inventario. Agregalos desde Finanzas → Inventario.</p>';
+  }).join('') || '<p class="empty-state">Los ítems de esta planilla fueron eliminados del inventario.</p>';
 
   body.innerHTML = rows;
 }
@@ -5853,15 +5995,24 @@ function renderDieta() {
 // ── Resumen de dieta (sección) · el checklist completo vive en el overlay ──
 function renderDietaResumen() {
   const body = document.getElementById('dietaResumenBody'); if (!body) return;
-  ensureInventoryState();
+  ensureInventoryState(); ensureDietaState();
+  const planilla = getActivePlanilla();
+
+  if (!planilla) {
+    body.innerHTML = `<p class="empty-state">Sin planilla de dieta activa. Creá una desde el detalle.</p>
+      <button class="ent-full" onclick="if(window.openDietaOverlay)openDietaOverlay()">Abrir dieta completa →</button>`;
+    return;
+  }
+
   const today = getActiveDate();
   const todayLog = S.inventory.log[today] || {};
-  const total = S.inventory.items.length;
-  const done = S.inventory.items.filter(it => it.id in todayLog).length;
-  const alerts = S.inventory.items.filter(it => it.stock < 0).length;
+  const validItems = planilla.items.map(pit => _invItem(pit.itemId)).filter(Boolean);
+  const total = validItems.length;
+  const done = validItems.filter(it => it.id in todayLog).length;
+  const alerts = validItems.filter(it => it.stock < 0).length;
 
   if (!total) {
-    body.innerHTML = `<p class="empty-state">Sin ítems en el inventario. Agregalos desde Finanzas → Inventario.</p>
+    body.innerHTML = `<p class="empty-state">La planilla activa no tiene ítems válidos.</p>
       <button class="ent-full" onclick="if(window.openDietaOverlay)openDietaOverlay()">Abrir dieta completa →</button>`;
     return;
   }

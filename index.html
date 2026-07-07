@@ -401,6 +401,7 @@
     <!-- Dieta completa: checklist marcable, descuenta stock de Inventario (Finanzas) · vive en el overlay -->
     <div class="card" id="dieta-card">
       <div class="card-title">🥗 Dieta</div>
+      <div id="dietaPlanillaBar"></div>
       <div id="dietaBody"></div>
     </div>
   </div>
@@ -1432,6 +1433,37 @@
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('modal-inv-item')">Cancelar</button>
       <button class="btn btn-primary" onclick="saveInvItem()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Dieta: listado de planillas (gestionar) -->
+<div class="modal-overlay" id="modal-dieta-planillas" onclick="if(event.target===this)closeModal('modal-dieta-planillas')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Planillas de dieta</div>
+    <div id="dietaPlanillasListBody"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-dieta-planillas')">Cerrar</button>
+      <button class="btn btn-primary" onclick="openPlanillaEditModal(null)">+ Nueva planilla</button>
+    </div>
+  </div>
+</div>
+
+<!-- Dieta: crear/editar planilla (nombre + ítems del Inventario con cantidad propia) -->
+<div class="modal-overlay" id="modal-dieta-planilla-edit" onclick="if(event.target===this)closeModal('modal-dieta-planilla-edit')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Planilla de dieta</div>
+    <div class="field"><label>Nombre</label><input class="inp" id="planillaEditName" placeholder="Ej: Entrenamiento"></div>
+    <div class="field"><label>Ítems (del Inventario)</label></div>
+    <div id="planillaEditItemsBody"></div>
+    <div class="modal-actions" style="display:flex;gap:8px">
+      <button class="btn btn-danger btn-sm" id="planillaEditDelBtn" onclick="deletePlanillaEdit()">Eliminar</button>
+      <div style="flex:1;display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="closeModal('modal-dieta-planilla-edit')">Cancelar</button>
+        <button class="btn btn-primary" onclick="savePlanillaEdit()">Guardar</button>
+      </div>
     </div>
   </div>
 </div>
