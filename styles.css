@@ -4670,6 +4670,7 @@ input:focus, select:focus, textarea:focus {
 
 /* ════════════════════ PRESUPUESTO · resumen comparativo (sección) ════════════════════ */
 #budget-summary-card { --bsum-accent: var(--c-finanzas, #22C55E); }
+#inventario-resumen-card { --bsum-accent: var(--c-finanzas, #22C55E); }
 .bsum-head { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 10px; }
 .bsum-head-r { text-align: right; }
 .bsum-lbl { font-family: var(--mono); font-size: 10px; letter-spacing: .8px; text-transform: uppercase; color: var(--tt); margin-bottom: 2px; }
@@ -4701,6 +4702,7 @@ input:focus, select:focus, textarea:focus {
 
 /* ════════════════════ ENTRENAMIENTO · resumen (sección) ════════════════════ */
 #entrenamiento-resumen-card { --ent-accent: var(--c-salud, #F43F5E); }
+#dieta-resumen-card { --ent-accent: #10E07C; }
 .ent-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; margin-bottom: 14px; }
 .ent-kpi { text-align: center; padding: 11px 6px; border-radius: 12px; background: linear-gradient(180deg, color-mix(in oklab, var(--ent-accent) 10%, transparent), rgba(10,16,30,.4)); border: 1px solid color-mix(in oklab, var(--ent-accent) 22%, var(--border)); }
 .ent-kpi-num { font-size: 24px; font-weight: 800; letter-spacing: -.02em; color: var(--tp); line-height: 1; font-variant-numeric: tabular-nums; }

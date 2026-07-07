@@ -17,6 +17,12 @@
 /* Entrenamiento completo: ídem. */
 #rutinas-wrap { display: none; }
 .cm-ov-host #rutinas-wrap { display: block; }
+/* Dieta: checklist marcable completo vive en el overlay; la sección muestra un resumen. */
+#dieta-card { display: none; }
+.cm-ov-host #dieta-card { display: block; }
+/* Inventario de alimentos: edición completa vive en el overlay de Presupuesto; la sección muestra un resumen. */
+#inventario-card { display: none; }
+.cm-ov-host #inventario-card { display: block; }
 /* Vida: Metas de Hoy (completo) y Plan Mañana viven en el overlay de Planificación. */
 #metas-hoy-card, #tomorrow-card { display: none; }
 #ov-planner #metas-hoy-card, #ov-planner #tomorrow-card { display: block; }
