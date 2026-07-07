@@ -5740,6 +5740,8 @@ function renderInventory() {
         <div class="sub-detail">Stock: <b class="${neg ? 'text-danger' : ''}">${it.stock} ${it.unit}</b> · Hoy: ${consumedDay}/${it.daily} ${it.unit} · Mes: ${consumedMonth}/${it.monthly} ${it.unit}</div>
       </div>
       <div class="flex gap-8 items-center" style="flex-wrap:wrap">
+        <span class="mono" style="font-size:11px">stock</span>
+        <input class="inp" style="width:60px" type="number" step="0.01" value="${it.stock}" onchange="setInvStock('${it.id}',this.value)">
         <span class="mono" style="font-size:11px">día</span>
         <input class="inp" style="width:60px" type="number" step="0.01" value="${it.daily}" onchange="setInvExpected('${it.id}','daily',this.value)">
         <span class="mono" style="font-size:11px">mes</span>
@@ -5781,6 +5783,12 @@ function renderInventarioResumen() {
 function setInvExpected(id, field, val) {
   const it = _invItem(id); if (!it) return;
   it[field] = +val || 0;
+  saveState(); renderInventory(); renderInventarioResumen(); renderDieta(); renderDietaResumen();
+}
+
+function setInvStock(id, val) {
+  const it = _invItem(id); if (!it) return;
+  it.stock = +val || 0;
   saveState(); renderInventory(); renderInventarioResumen(); renderDieta(); renderDietaResumen();
 }
 
