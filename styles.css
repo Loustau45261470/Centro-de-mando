@@ -590,6 +590,35 @@ textarea { resize: vertical; min-height: 60px; }
 }
 .rtn-ex-name { flex: 1; font-size: 14px; font-weight: 600; }
 .rtn-ex-rest { font-size: 11px; color: var(--tt); font-family: var(--mono); flex-shrink: 0; }
+/* Biblioteca de ejercicios */
+.lib-filter-lbl {
+  font-size: 9px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--tt); margin-bottom: 6px;
+}
+.lib-pill-row { display: flex; flex-wrap: wrap; gap: 5px; }
+.lib-pill {
+  padding: 4px 10px; font-size: 10px; font-weight: 700; letter-spacing: .03em;
+  border-radius: 20px; border: 1px solid var(--border); background: transparent;
+  color: var(--tt); cursor: pointer; transition: all .15s; white-space: nowrap;
+}
+.lib-pill:hover { border-color: var(--c-salud); }
+.lib-pill.active {
+  border-color: var(--c-salud); background: rgba(244,63,94,.12); color: var(--c-salud);
+}
+.lib-ex-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 0; border-bottom: 1px solid var(--border);
+}
+.lib-ex-row:last-child { border-bottom: none; }
+.lib-ex-name { font-size: 14px; font-weight: 600; color: var(--fg); cursor: pointer; }
+.lib-ex-meta { font-size: 10px; color: var(--tt); margin-top: 2px; }
+/* Tabla de historial por ejercicio */
+.ex-hist-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.ex-hist-table th {
+  font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
+  color: rgba(0,200,255,.55); padding: 6px 6px; border-bottom: 1px solid rgba(0,200,255,.18); text-align: left;
+}
+.ex-hist-table td { padding: 7px 6px; border-bottom: 1px solid rgba(255,255,255,.05); }
 .rtn-actions { display: flex; gap: 8px; padding: 10px 14px 14px; }
 .rtn-hist-section { padding: 0 14px 12px; border-top: 1px solid rgba(244,63,94,.08); margin-top: 4px; }
 .rtn-hist-title { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--tt); padding: 10px 0 8px; }
