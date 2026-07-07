@@ -1849,6 +1849,7 @@ function renderSaludTab() {
   renderRutinas();
   renderEntrenamientoResumen();
   renderDieta();
+  renderDietaResumen();
 }
 
 // ── Resumen de entrenamiento (sección) · el detalle completo vive en el overlay ──
@@ -4136,6 +4137,7 @@ function renderFinanzasTab() {
   renderBudget();
   renderBudgetSummary();
   renderInventory();
+  renderInventarioResumen();
   if (nwPieInst) updateNWCharts();
 }
 
@@ -5755,10 +5757,31 @@ function renderInventory() {
     ${rows}`;
 }
 
+// ── Resumen de inventario (sección) · la edición completa vive en el overlay de Presupuesto ──
+function renderInventarioResumen() {
+  const body = document.getElementById('inventarioResumenBody'); if (!body) return;
+  ensureInventoryState();
+  const items = S.inventory.items;
+  const alerts = items.filter(it => it.stock < 0);
+  const rows = items.slice(0, 4).map(it => `
+    <div class="sub-row">
+      <div class="sub-info">
+        <div class="sub-name">${it.name}${it.stock < 0 ? ' <span class="inv-alert-badge">⚠</span>' : ''}</div>
+        <div class="sub-detail">Stock: <b class="${it.stock < 0 ? 'text-danger' : ''}">${it.stock} ${it.unit}</b></div>
+      </div>
+    </div>`).join('') || '<p class="empty-state">Sin ítems en el inventario</p>';
+  const more = items.length > 4 ? `<div class="sub-detail" style="margin-top:6px">+ ${items.length - 4} ítem(s) más</div>` : '';
+
+  body.innerHTML = `
+    ${rows}${more}
+    ${alerts.length ? `<div class="sub-detail text-danger" style="margin-top:6px">⚠ ${alerts.length} ítem(s) con stock negativo</div>` : ''}
+    <button class="bsum-full" onclick="if(window.openBudgetOverlay)openBudgetOverlay()">Ver inventario completo →</button>`;
+}
+
 function setInvExpected(id, field, val) {
   const it = _invItem(id); if (!it) return;
   it[field] = +val || 0;
-  saveState(); renderInventory(); renderDieta();
+  saveState(); renderInventory(); renderInventarioResumen(); renderDieta(); renderDietaResumen();
 }
 
 function openInvItemModal() {
@@ -5780,14 +5803,14 @@ function saveInvItem() {
   S.inventory.items.push(it);
   const mk = _invMonthKey();
   if (S.inventory.history[mk]) S.inventory.history[mk][it.id] = { expectedDaily: daily, expectedMonthly: monthly, real: 0 };
-  saveState(); renderInventory(); renderDieta(); closeModal('modal-inv-item');
+  saveState(); renderInventory(); renderInventarioResumen(); renderDieta(); renderDietaResumen(); closeModal('modal-inv-item');
   showToast('Ítem agregado al inventario');
 }
 
 function deleteInvItem(id) {
   if (!confirm('¿Eliminar este ítem del inventario?')) return;
   S.inventory.items = S.inventory.items.filter(i => i.id !== id);
-  saveState(); renderInventory(); renderDieta();
+  saveState(); renderInventory(); renderInventarioResumen(); renderDieta(); renderDietaResumen();
 }
 
 // Match por nombre (case-insensitive) contra la descripción de un movimiento de Actividad.
@@ -5827,6 +5850,31 @@ function renderDieta() {
   body.innerHTML = rows;
 }
 
+// ── Resumen de dieta (sección) · el checklist completo vive en el overlay ──
+function renderDietaResumen() {
+  const body = document.getElementById('dietaResumenBody'); if (!body) return;
+  ensureInventoryState();
+  const today = getActiveDate();
+  const todayLog = S.inventory.log[today] || {};
+  const total = S.inventory.items.length;
+  const done = S.inventory.items.filter(it => it.id in todayLog).length;
+  const alerts = S.inventory.items.filter(it => it.stock < 0).length;
+
+  if (!total) {
+    body.innerHTML = `<p class="empty-state">Sin ítems en el inventario. Agregalos desde Finanzas → Inventario.</p>
+      <button class="ent-full" onclick="if(window.openDietaOverlay)openDietaOverlay()">Abrir dieta completa →</button>`;
+    return;
+  }
+
+  body.innerHTML = `
+    <div class="ent-kpis" style="grid-template-columns:repeat(${alerts ? 3 : 2},1fr)">
+      <div class="ent-kpi"><div class="ent-kpi-num">${done}<span class="ent-kpi-u">/${total}</span></div><div class="ent-kpi-lbl">Hoy</div></div>
+      <div class="ent-kpi"><div class="ent-kpi-num">${Math.round(total ? (done / total) * 100 : 0)}<span class="ent-kpi-u">%</span></div><div class="ent-kpi-lbl">Cumplido</div></div>
+      ${alerts ? `<div class="ent-kpi"><div class="ent-kpi-num text-danger">${alerts}</div><div class="ent-kpi-lbl">Stock negativo</div></div>` : ''}
+    </div>
+    <button class="ent-full" onclick="if(window.openDietaOverlay)openDietaOverlay()">Abrir dieta completa →</button>`;
+}
+
 function toggleDietItem(id) {
   ensureInventoryState();
   const it = _invItem(id); if (!it) return;
@@ -5843,7 +5891,7 @@ function toggleDietItem(id) {
     it.stock -= qty;
     log[id] = qty;
   }
-  saveState(); renderDieta(); renderInventory();
+  saveState(); renderDieta(); renderDietaResumen(); renderInventory(); renderInventarioResumen();
 }
 
 let txnActiveMonth = null;

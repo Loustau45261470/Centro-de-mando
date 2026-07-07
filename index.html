@@ -393,7 +393,12 @@
     <!-- Entrenamiento completo (vive en el overlay) -->
     <div id="rutinas-wrap"></div>
 
-    <!-- Dieta: checklist marcable, descuenta stock de Inventario (Finanzas) -->
+    <!-- Dieta: resumen (sección) · checklist completo en el overlay (FAB → Dieta) -->
+    <div class="card" id="dieta-resumen-card">
+      <div class="card-title">🥗 Dieta</div>
+      <div id="dietaResumenBody"></div>
+    </div>
+    <!-- Dieta completa: checklist marcable, descuenta stock de Inventario (Finanzas) · vive en el overlay -->
     <div class="card" id="dieta-card">
       <div class="card-title">🥗 Dieta</div>
       <div id="dietaBody"></div>
@@ -587,7 +592,12 @@
           </div>
           <div id="budgetBody"></div>
         </div>
-        <!-- ── Inventario de alimentos ── -->
+        <!-- ── Inventario de alimentos: resumen (sección) · edición completa en el overlay (FAB → Presupuesto) ── -->
+        <div class="card" id="inventario-resumen-card">
+          <div class="card-title">🍱 Inventario</div>
+          <div id="inventarioResumenBody"></div>
+        </div>
+        <!-- Inventario completo: vive en el overlay de Presupuesto -->
         <div class="card" id="inventario-card">
           <div class="card-title">🍱 Inventario</div>
           <div id="inventarioBody"></div>
