@@ -342,7 +342,7 @@ function _rescueLocal(cloudObj, localObj) {
   const r = { ...cloudObj };
   // Arrays con ID
   ['transactions','accounts','subscriptions','orders','wishlist',
-   'photos','finObjectives','fixedExpenses','lawMilestones','routines'
+   'photos','finObjectives','fixedExpenses','lawMilestones','routines','exerciseLibrary'
   ].forEach(key => {
     const c = Array.isArray(cloudObj[key]) ? cloudObj[key] : [];
     const l = Array.isArray(localObj[key]) ? localObj[key] : [];
@@ -2008,6 +2008,195 @@ function initRoutines() {
     });
     saveState();
   }
+
+  migrateExerciseLibrary();
+  seedLibraryExtras();
+}
+
+// ── Biblioteca de ejercicios ──────────────────────────────
+// Mapa duro instancia→músculo de los seeds originales (usado por la migración
+// y como fallback en la distribución muscular para ids viejos ya borrados).
+const RTN_HARD_MUSCLE = {
+  px1:'Pecho', px2:'Pecho', px3:'Hombro lateral', px4:'Tríceps', px5:'Tríceps',
+  px6:'Hombro frontal', px7:'Abdomen', px8:'Antebrazos',
+  pl1:'Espalda', pl2:'Espalda', pl3:'Espalda', pl4:'Hombro posterior',
+  pl5:'Trapecio', pl6:'Bíceps', pl7:'Bíceps', pl8:'Antebrazos', pl9:'Bíceps',
+  lg1:'Glúteo', lg2:'Pantorrillas', lg3:'Cuádriceps', lg4:'Cuádriceps',
+  lg5:'Aductores', lg6:'Femorales'
+};
+
+// Vocabulario de grupos musculares para la biblioteca (alineado al heatmap).
+const LIB_MUSCLES = ['Pecho','Espalda','Hombro frontal','Hombro lateral','Hombro posterior',
+  'Trapecio','Bíceps','Tríceps','Antebrazos','Abdomen','Core',
+  'Cuádriceps','Femorales','Glúteo','Aductores','Pantorrillas','Sin clasificar'];
+
+const LIB_EQUIPMENT = ['Mancuerna','Barra','Máquina','Cable','Peso corporal'];
+
+function exLibById(libId) { return (S.exerciseLibrary || []).find(e => e.id === libId); }
+
+// Resuelve un ejercicio de rutina (nueva forma {id,libId,restSecs,sets}) a un objeto
+// display combinando la biblioteca con los overrides de la rutina.
+function exDisplay(ex) {
+  const lib = exLibById(ex.libId) || {};
+  return {
+    id: ex.id,
+    libId: ex.libId,
+    name: lib.name || ex.name || 'Ejercicio',
+    equipment: lib.equipment || ex.equipment || '—',
+    muscle: lib.muscle || 'Sin clasificar',
+    notes: lib.notes || ex.notes || '',
+    restSecs: (ex.restSecs != null ? ex.restSecs : (lib.defaultRestSecs != null ? lib.defaultRestSecs : 90)),
+    sets: (ex.sets != null ? ex.sets : (lib.defaultSets != null ? lib.defaultSets : 4))
+  };
+}
+
+// Resuelve una instancia de la sesión activa (via exMeta) a objeto display.
+function sessExInfo(id) {
+  const meta = (S.activeRtnSession && S.activeRtnSession.exMeta && S.activeRtnSession.exMeta[id]) || {};
+  const lib = exLibById(meta.libId) || {};
+  return {
+    id,
+    libId: meta.libId,
+    name: lib.name || 'Ejercicio',
+    equipment: lib.equipment || '—',
+    notes: lib.notes || '',
+    restSecs: (meta.restSecs != null ? meta.restSecs : (lib.defaultRestSecs != null ? lib.defaultRestSecs : 90))
+  };
+}
+
+const _libDedupKey = (name, equip) =>
+  (name || '').trim().toLowerCase() + '|' + (equip || '').trim().toLowerCase();
+
+// Migración idempotente: ejercicios de rutinas → biblioteca, sin pérdida de historial.
+function migrateExerciseLibrary() {
+  if (!S.exerciseLibrary) S.exerciseLibrary = [];
+  if (!S.exerciseHistory) S.exerciseHistory = {};
+  if (S._libMigrated) return;
+
+  const byKey = {};
+  S.exerciseLibrary.forEach(l => { byKey[_libDedupKey(l.name, l.equipment)] = l; });
+  const idMap = {};  // oldInstanceId → libId
+
+  // 1. Poblar biblioteca deduplicando por nombre+equipo
+  (S.routines || []).forEach(r => {
+    (r.exercises || []).forEach(ex => {
+      if (ex.libId) { idMap[ex.id] = ex.libId; return; }  // ya en forma nueva: preservar vínculo
+      const key = _libDedupKey(ex.name, ex.equipment);
+      let lib = byKey[key];
+      if (!lib) {
+        lib = {
+          id: 'lib_' + uid(),
+          name: ex.name || 'Ejercicio',
+          equipment: ex.equipment || 'Mancuerna',
+          muscle: RTN_HARD_MUSCLE[ex.id] || 'Sin clasificar',
+          defaultRestSecs: ex.restSecs != null ? ex.restSecs : 90,
+          defaultSets: 4,
+          notes: ex.notes || '',
+          archived: false
+        };
+        byKey[key] = lib;
+        S.exerciseLibrary.push(lib);
+      } else {
+        if (!lib.notes && ex.notes) lib.notes = ex.notes;
+        if ((!lib.muscle || lib.muscle === 'Sin clasificar') && RTN_HARD_MUSCLE[ex.id]) lib.muscle = RTN_HARD_MUSCLE[ex.id];
+      }
+      idMap[ex.id] = lib.id;
+    });
+  });
+
+  // 2. Reescribir cada ejercicio de rutina a la forma nueva (mismo id de instancia)
+  (S.routines || []).forEach(r => {
+    r.exercises = (r.exercises || []).map(ex => {
+      if (ex.libId) return ex;  // ya en forma nueva: no tocar
+      const lib = exLibById(idMap[ex.id]) || {};
+      return {
+        id: ex.id,
+        libId: idMap[ex.id],
+        restSecs: ex.restSecs != null ? ex.restSecs : (lib.defaultRestSecs || 90),
+        sets: 4
+      };
+    });
+  });
+
+  // 3. Re-vincular el historial previo (routineLog) al libId correcto
+  Object.entries(S.routineLog || {}).forEach(([rtnId, entries]) => {
+    (entries || []).forEach(entry => {
+      if (!entry.exSets) return;
+      Object.entries(entry.exSets).forEach(([oldExId, sets]) => {
+        const libId = idMap[oldExId];
+        if (!libId || !sets || !sets.length) return;
+        const cleanSets = sets
+          .filter(s => (s.reps || 0) > 0)
+          .map(s => ({ weight: s.weight || 0, reps: s.reps }));
+        if (!cleanSets.length) return;
+        if (!S.exerciseHistory[libId]) S.exerciseHistory[libId] = [];
+        S.exerciseHistory[libId].push({ date: entry.date, routineId: rtnId, sets: cleanSets });
+      });
+    });
+  });
+  Object.values(S.exerciseHistory).forEach(arr => arr.sort((a, b) => (a.date || '').localeCompare(b.date || '')));
+
+  S._libMigrated = true;
+  saveState();
+}
+
+// Seed de ejercicios precargados para completar los grupos musculares principales.
+function seedLibraryExtras() {
+  if (S._libSeeded) return;
+  if (!S.exerciseLibrary) S.exerciseLibrary = [];
+  const existing = new Set(S.exerciseLibrary.map(l => _libDedupKey(l.name, l.equipment)));
+  const SEED = [
+    // Pecho
+    { name:'Press Plano con Barra',        equipment:'Barra',        muscle:'Pecho',           rest:180 },
+    { name:'Press Inclinado con Mancuernas', equipment:'Mancuerna',  muscle:'Pecho',           rest:150 },
+    { name:'Fondos en Paralelas',          equipment:'Peso corporal',muscle:'Pecho',           rest:150 },
+    { name:'Pec Deck',                     equipment:'Máquina',      muscle:'Pecho',           rest:120 },
+    // Espalda
+    { name:'Dominadas',                    equipment:'Peso corporal',muscle:'Espalda',         rest:180 },
+    { name:'Remo con Barra',               equipment:'Barra',        muscle:'Espalda',         rest:180 },
+    { name:'Remo con Mancuerna',           equipment:'Mancuerna',    muscle:'Espalda',         rest:150 },
+    { name:'Pull-Over en Polea',           equipment:'Cable',        muscle:'Espalda',         rest:120 },
+    // Hombros
+    { name:'Press Militar con Barra',      equipment:'Barra',        muscle:'Hombro frontal',  rest:180 },
+    { name:'Elevaciones Laterales con Mancuernas', equipment:'Mancuerna', muscle:'Hombro lateral', rest:90 },
+    { name:'Pájaros con Mancuernas',       equipment:'Mancuerna',    muscle:'Hombro posterior',rest:90 },
+    { name:'Press Arnold',                 equipment:'Mancuerna',    muscle:'Hombro frontal',  rest:150 },
+    // Bíceps
+    { name:'Curl con Barra',               equipment:'Barra',        muscle:'Bíceps',          rest:120 },
+    { name:'Curl Alternado con Mancuernas',equipment:'Mancuerna',    muscle:'Bíceps',          rest:90 },
+    { name:'Curl en Banco Scott',          equipment:'Máquina',      muscle:'Bíceps',          rest:120 },
+    // Tríceps
+    { name:'Press Francés con Barra',      equipment:'Barra',        muscle:'Tríceps',         rest:120 },
+    { name:'Extensión de Tríceps en Polea',equipment:'Cable',        muscle:'Tríceps',         rest:120 },
+    { name:'Fondos entre Bancos',          equipment:'Peso corporal',muscle:'Tríceps',         rest:120 },
+    // Cuádriceps
+    { name:'Sentadilla con Barra',         equipment:'Barra',        muscle:'Cuádriceps',      rest:210 },
+    { name:'Prensa de Piernas',            equipment:'Máquina',      muscle:'Cuádriceps',      rest:180 },
+    { name:'Zancadas con Mancuernas',      equipment:'Mancuerna',    muscle:'Cuádriceps',      rest:150 },
+    // Femorales
+    { name:'Peso Muerto Rumano',           equipment:'Barra',        muscle:'Femorales',       rest:210 },
+    { name:'Curl Femoral Sentado',         equipment:'Máquina',      muscle:'Femorales',       rest:150 },
+    // Glúteos
+    { name:'Hip Thrust con Barra',         equipment:'Barra',        muscle:'Glúteo',          rest:180 },
+    { name:'Patada de Glúteo en Polea',    equipment:'Cable',        muscle:'Glúteo',          rest:120 },
+    // Core
+    { name:'Plancha',                      equipment:'Peso corporal',muscle:'Core',            rest:60 },
+    { name:'Rueda Abdominal',              equipment:'Peso corporal',muscle:'Core',            rest:90 },
+    { name:'Crunch en Polea',              equipment:'Cable',        muscle:'Abdomen',         rest:90 },
+    // Pantorrillas
+    { name:'Elevación de Talones Sentado', equipment:'Máquina',      muscle:'Pantorrillas',    rest:90 }
+  ];
+  SEED.forEach(s => {
+    const key = _libDedupKey(s.name, s.equipment);
+    if (existing.has(key)) return;
+    S.exerciseLibrary.push({
+      id: 'lib_' + uid(), name: s.name, equipment: s.equipment, muscle: s.muscle,
+      defaultRestSecs: s.rest || 120, defaultSets: s.sets || 4, notes: '', archived: false
+    });
+    existing.add(key);
+  });
+  S._libSeeded = true;
+  saveState();
 }
 
 function fmtRestTime(secs) {
@@ -2037,10 +2226,10 @@ function renderRutinas() {
     const lastDateLabel = last ? `<span style="font-family:var(--mono);font-size:11px;color:var(--tt);flex-shrink:0;margin-right:6px">${last.date.slice(5)}</span>` : '';
 
     const exListHtml = r.exercises.length
-      ? r.exercises.map(ex => `
+      ? r.exercises.map(exRaw => { const ex = exDisplay(exRaw); return `
           <div class="rtn-ex-row">
             <span class="rtn-equip-tag">${ex.equipment}</span>
-            <span class="rtn-ex-name" style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px" onclick="event.stopPropagation();openExHist('${r.id}','${ex.id}')">${ex.name}</span>
+            <span class="rtn-ex-name" style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px" onclick="event.stopPropagation();openExHistByLib('${ex.libId}')">${ex.name}</span>
             <span class="rtn-ex-rest">⏱ ${fmtRestTime(ex.restSecs)}</span>
             <button class="icon-btn" onclick="event.stopPropagation();editRtnEx('${r.id}','${ex.id}')" style="color:var(--tt);flex-shrink:0">
               <svg viewBox="0 0 24 24" style="width:15px;height:15px"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -2048,7 +2237,7 @@ function renderRutinas() {
             <button class="icon-btn" onclick="event.stopPropagation();deleteRtnEx('${r.id}','${ex.id}')" style="color:var(--tt);flex-shrink:0">
               <svg viewBox="0 0 24 24" style="width:15px;height:15px"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
             </button>
-          </div>`).join('')
+          </div>`; }).join('')
       : '<p class="text-xs text-ter" style="padding:8px 0">Sin ejercicios. Agregá uno abajo.</p>';
 
     return `
@@ -2062,7 +2251,7 @@ function renderRutinas() {
           <button class="icon-btn" onclick="event.stopPropagation();openEditRoutine('${r.id}')" style="color:var(--tt);flex-shrink:0">
             <svg viewBox="0 0 24 24" style="width:15px;height:15px"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           </button>
-          <button class="btn btn-ghost" onclick="event.stopPropagation();openAddRtnEx('${r.id}')" style="font-size:10px;padding:2px 7px;flex-shrink:0;line-height:1.4">+ Ej</button>
+          <button class="btn btn-ghost" onclick="event.stopPropagation();openExPicker('add','${r.id}')" style="font-size:10px;padding:2px 7px;flex-shrink:0;line-height:1.4">+ Ej</button>
           <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();startRutinaSession('${r.id}')" style="flex-shrink:0">▶ Empezar</button>
           <span class="rtn-chevron">▾</span>
         </div>
@@ -2088,14 +2277,13 @@ function renderRutinas() {
   const _timeStr = _totalTime === 0 ? '—' : (_th > 0 ? `${_th}h ${_tm}m` : `${_tm}m`);
   const _volStr = _totalVol === 0 ? '0' : _totalVol >= 1000 ? `${(_totalVol/1000).toFixed(1)}t` : _totalVol.toLocaleString();
 
-  const _muscleMap = {
-    px1:'Pecho', px2:'Pecho', px3:'Hombro lateral', px4:'Tríceps', px5:'Tríceps',
-    px6:'Hombro frontal', px7:'Abdomen', px8:'Antebrazos',
-    pl1:'Espalda', pl2:'Espalda', pl3:'Espalda', pl4:'Hombro posterior',
-    pl5:'Trapecio', pl6:'Bíceps', pl7:'Bíceps', pl8:'Antebrazos', pl9:'Bíceps',
-    lg1:'Glúteo', lg2:'Pantorrillas', lg3:'Cuádriceps', lg4:'Cuádriceps',
-    lg5:'Aductores', lg6:'Femorales'
-  };
+  // Mapa instancia→músculo: base dura (ids viejos ya borrados) + músculo actual
+  // de cada ejercicio de rutina resuelto vía biblioteca.
+  const _muscleMap = { ...RTN_HARD_MUSCLE };
+  S.routines.forEach(r => (r.exercises || []).forEach(ex => {
+    const lib = exLibById(ex.libId);
+    if (lib && lib.muscle && lib.muscle !== 'Sin clasificar') _muscleMap[ex.id] = lib.muscle;
+  }));
   const _muscleCounts = {};
   const _muscleStats = {};   // { músculo: { sets, vol, dates:Set, last } }
   _filtLog.forEach(({hist}) => {
@@ -2144,8 +2332,8 @@ function renderRutinas() {
     });
   });
   const _recArr = [];
-  S.routines.forEach(r => r.exercises.forEach(ex => {
-    if (_recMap[ex.id]) _recArr.push({ name: ex.name, ..._recMap[ex.id] });
+  S.routines.forEach(r => r.exercises.forEach(exRaw => {
+    if (_recMap[exRaw.id]) _recArr.push({ name: exDisplay(exRaw).name, ..._recMap[exRaw.id] });
   }));
 
   const statsBodyHtml = `
@@ -2226,6 +2414,7 @@ function renderRutinas() {
 
   const _rutinaOpen = _rtnSections.has('rutinas');
   const _statsOpen  = _rtnSections.has('estadisticas');
+  const _libOpen    = _rtnSections.has('biblioteca');
 
   wrap.innerHTML = `
     <div class="card">
@@ -2236,6 +2425,12 @@ function renderRutinas() {
         <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openModal('modal-add-routine')" style="font-size:9px;letter-spacing:.06em">+ Nueva</button>
       </div>
       <div id="rtn-section-rutinas" style="display:${_rutinaOpen ? 'block' : 'none'}">${cards}</div>
+      <div class="rtn-section-hdr" onclick="toggleRtnSection('biblioteca')">
+        <span id="rtn-section-chev-biblioteca" style="display:inline-block;transition:transform .2s;transform:${_libOpen ? 'rotate(0deg)' : 'rotate(-90deg)'}">▾</span>
+        <span style="flex:1">Biblioteca</span>
+        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openLibEx()" style="font-size:9px;letter-spacing:.06em">+ Nuevo</button>
+      </div>
+      <div id="rtn-section-biblioteca" style="display:${_libOpen ? 'block' : 'none'}">${buildLibraryBody()}</div>
       <div class="rtn-section-hdr" onclick="toggleRtnSection('estadisticas')">
         <span id="rtn-section-chev-estadisticas" style="display:inline-block;transition:transform .2s;transform:${_statsOpen ? 'rotate(0deg)' : 'rotate(-90deg)'}">▾</span>
         <span>Estadísticas</span>
@@ -2243,6 +2438,72 @@ function renderRutinas() {
       <div id="rtn-section-estadisticas" style="display:${_statsOpen ? 'block' : 'none'}">${statsBodyHtml}</div>
     </div>`;
   initScanner();
+}
+
+// ── Biblioteca: filtros + listado ──
+let _libFilterEquip = 'all';
+let _libFilterMuscle = 'all';
+
+function setLibFilter(type, val) {
+  if (type === 'equip') _libFilterEquip = (_libFilterEquip === val ? 'all' : val);
+  else _libFilterMuscle = (_libFilterMuscle === val ? 'all' : val);
+  renderRutinas();
+}
+
+function libUsageCount(libId) {
+  let n = 0;
+  (S.routines || []).forEach(r => (r.exercises || []).forEach(ex => { if (ex.libId === libId) n++; }));
+  return n;
+}
+
+function buildLibraryBody() {
+  const all = (S.exerciseLibrary || []).filter(l => !l.archived);
+  // Grupos musculares presentes, en orden del vocabulario
+  const musclesPresent = LIB_MUSCLES.filter(m => all.some(l => l.muscle === m));
+  const equipPill = (val, label) => {
+    const active = _libFilterEquip === val;
+    return `<button onclick="setLibFilter('equip','${val}')" class="lib-pill${active ? ' active' : ''}">${label}</button>`;
+  };
+  const musclePill = (val, label) => {
+    const active = _libFilterMuscle === val;
+    return `<button onclick="setLibFilter('muscle','${val}')" class="lib-pill${active ? ' active' : ''}">${label}</button>`;
+  };
+
+  const filtered = all.filter(l =>
+    (_libFilterEquip === 'all' || l.equipment === _libFilterEquip) &&
+    (_libFilterMuscle === 'all' || l.muscle === _libFilterMuscle)
+  ).sort((a, b) => a.name.localeCompare(b.name));
+
+  let listHtml;
+  if (all.length === 0) {
+    listHtml = `<p style="font-size:12px;color:var(--tt);text-align:center;padding:18px 0">Biblioteca vacía. Agregá el primer ejercicio.</p>`;
+  } else if (filtered.length === 0) {
+    listHtml = `<p style="font-size:12px;color:var(--tt);text-align:center;padding:18px 0">No hay ejercicios con estos filtros.</p>`;
+  } else {
+    listHtml = filtered.map(l => {
+      const uses = libUsageCount(l.id);
+      return `<div class="lib-ex-row">
+        <div style="flex:1;min-width:0" onclick="openExHistByLib('${l.id}')" >
+          <div class="lib-ex-name">${l.name}</div>
+          <div class="lib-ex-meta">${l.equipment} · ${l.muscle} · ⏱ ${fmtRestTime(l.defaultRestSecs)} · ${l.defaultSets} series${uses ? ` · <span style="color:var(--c-salud)">en ${uses} rutina${uses > 1 ? 's' : ''}</span>` : ''}</div>
+        </div>
+        <button class="icon-btn" onclick="event.stopPropagation();openLibEx('${l.id}')" style="color:var(--tt);flex-shrink:0" title="Editar">
+          <svg viewBox="0 0 24 24" style="width:15px;height:15px"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </button>
+        <button class="icon-btn" onclick="event.stopPropagation();deleteLibEx('${l.id}')" style="color:var(--tt);flex-shrink:0" title="Borrar">
+          <svg viewBox="0 0 24 24" style="width:15px;height:15px"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+        </button>
+      </div>`;
+    }).join('');
+  }
+
+  return `<div style="padding:10px 12px 14px">
+    <div class="lib-filter-lbl">Equipamiento</div>
+    <div class="lib-pill-row">${equipPill('all', 'Todos')}${LIB_EQUIPMENT.map(e => equipPill(e, e)).join('')}</div>
+    <div class="lib-filter-lbl" style="margin-top:10px">Grupo muscular</div>
+    <div class="lib-pill-row">${musclePill('all', 'Todos')}${musclesPresent.map(m => musclePill(m, m)).join('')}</div>
+    <div style="margin-top:12px">${listHtml}</div>
+  </div>`;
 }
 
 function toggleRutina(id) {
@@ -2262,7 +2523,7 @@ function addRoutine() {
   const newCard = document.getElementById('rtn-card-' + newId);
   if (newCard) newCard.classList.add('rtn-open');
   showToast('Rutina creada — agregá el primer ejercicio');
-  openAddRtnEx(newId);
+  openExPicker('add', newId);
 }
 
 function openEditRoutine(rtnId) {
@@ -2297,58 +2558,47 @@ function deleteRoutine() {
   showToast('Rutina borrada');
 }
 
-function openAddRtnEx(rtnId) {
-  document.getElementById('modal-rtn-ex-rtnid').value = rtnId;
-  document.getElementById('modal-rtn-ex-exid').value = '';
-  document.getElementById('rtn-ex-fname').value = '';
-  document.getElementById('rtn-ex-fequip').value = 'Mancuerna';
-  document.getElementById('rtn-ex-frest').value = 90;
-  document.getElementById('rtn-ex-fnotes').value = '';
-  document.getElementById('modal-rtn-ex-title').textContent = 'Nuevo ejercicio';
-  openModal('modal-rtn-ex');
-}
-
+// ── TUNE: descanso/series de un ejercicio dentro de una rutina (override) ──
 function editRtnEx(rtnId, exId) {
   const rtn = S.routines.find(r => r.id === rtnId);
-  const ex  = rtn && rtn.exercises.find(e => e.id === exId);
-  if (!ex) return;
+  const exRaw = rtn && rtn.exercises.find(e => e.id === exId);
+  const sess = S.activeRtnSession;
+  const inSession = sess && sess.exMeta && sess.exMeta[exId];
+  if (!exRaw && !inSession) return;
+  // Ejercicio de la rutina → usar sus overrides; instancia solo-de-sesión (swap) → usar exMeta/exSets.
+  const ex = exRaw
+    ? exDisplay(exRaw)
+    : (() => { const i = sessExInfo(exId); return { ...i, sets: (sess.exSets[exId] || []).length || 4 }; })();
   document.getElementById('modal-rtn-ex-rtnid').value = rtnId;
   document.getElementById('modal-rtn-ex-exid').value  = exId;
-  document.getElementById('rtn-ex-fname').value  = ex.name;
-  document.getElementById('rtn-ex-fequip').value = ex.equipment;
+  document.getElementById('rtn-ex-name-lbl').textContent = ex.name + ' · ' + ex.equipment;
   document.getElementById('rtn-ex-frest').value  = ex.restSecs;
-  document.getElementById('rtn-ex-fnotes').value = ex.notes || '';
-  document.getElementById('modal-rtn-ex-title').textContent = 'Editar ejercicio';
+  document.getElementById('rtn-ex-fsets').value  = ex.sets;
+  document.getElementById('modal-rtn-ex-title').textContent = 'Ajustar ejercicio';
   openModal('modal-rtn-ex');
 }
 
 function saveRtnEx() {
   const rtnId = document.getElementById('modal-rtn-ex-rtnid').value;
   const exId  = document.getElementById('modal-rtn-ex-exid').value;
-  const name  = document.getElementById('rtn-ex-fname').value.trim();
-  const equipment = document.getElementById('rtn-ex-fequip').value;
-  const restSecs  = +document.getElementById('rtn-ex-frest').value || 90;
-  const notes     = document.getElementById('rtn-ex-fnotes').value.trim();
-  if (!name) { showToast('Escribe el nombre del ejercicio'); return; }
+  const restSecs = +document.getElementById('rtn-ex-frest').value || 90;
+  const sets     = Math.max(1, +document.getElementById('rtn-ex-fsets').value || 4);
   const rtn = S.routines.find(r => r.id === rtnId);
-  if (!rtn) return;
-  if (exId) {
-    const ex = rtn.exercises.find(e => e.id === exId);
-    if (ex) { ex.name = name; ex.equipment = equipment; ex.restSecs = restSecs; ex.notes = notes; }
-  } else {
-    const newEx = { id: uid(), name, equipment, restSecs, notes };
-    const inActiveSession = S.activeRtnSession && S.activeRtnSession.routineId === rtnId;
-    if (inActiveSession && !S.activeRtnSession.exOrder) {
-      S.activeRtnSession.exOrder = rtn.exercises.map(e => e.id);
-    }
-    rtn.exercises.push(newEx);
-    if (inActiveSession) {
-      S.activeRtnSession.exOrder.push(newEx.id);
-      S.activeRtnSession.exSets[newEx.id] = [];
-    }
+  const ex = rtn && rtn.exercises.find(e => e.id === exId);
+  if (ex) { ex.restSecs = restSecs; ex.sets = sets; }
+  // Override en vivo si la instancia está en la sesión activa (incluye swaps).
+  const sess = S.activeRtnSession;
+  if (sess && sess.exMeta && sess.exMeta[exId]) {
+    sess.exMeta[exId].restSecs = restSecs;
+    const arr = sess.exSets[exId] || (sess.exSets[exId] = []);
+    while (arr.length < sets) arr.push({ weight: '', reps: '' });
+    // al reducir, no borrar series ya cargadas
+    while (arr.length > sets && !((arr[arr.length - 1].reps || 0) > 0 || (arr[arr.length - 1].weight || 0) > 0)) arr.pop();
+  } else if (!ex) {
+    return;
   }
   saveState(); renderRutinas(); closeModal('modal-rtn-ex');
-  showToast(exId ? 'Ejercicio actualizado' : 'Ejercicio agregado');
+  showToast('Ejercicio ajustado');
 }
 
 function deleteRtnEx(rtnId, exId) {
@@ -2356,6 +2606,155 @@ function deleteRtnEx(rtnId, exId) {
   if (!rtn) return;
   rtn.exercises = rtn.exercises.filter(e => e.id !== exId);
   saveState(); renderRutinas();
+}
+
+// ── Biblioteca: alta/edición/borrado ──
+function openLibEx(libId) {
+  document.getElementById('lib-ex-id').value = libId || '';
+  const musSel = document.getElementById('lib-ex-fmuscle');
+  if (musSel && !musSel.dataset.filled) {
+    musSel.innerHTML = LIB_MUSCLES.filter(m => m !== 'Sin clasificar')
+      .map(m => `<option>${m}</option>`).join('') + '<option>Sin clasificar</option>';
+    musSel.dataset.filled = '1';
+  }
+  if (libId) {
+    const l = exLibById(libId);
+    if (!l) return;
+    document.getElementById('lib-ex-fname').value = l.name;
+    document.getElementById('lib-ex-fequip').value = l.equipment;
+    document.getElementById('lib-ex-fmuscle').value = l.muscle;
+    document.getElementById('lib-ex-frest').value = l.defaultRestSecs;
+    document.getElementById('lib-ex-fsets').value = l.defaultSets;
+    document.getElementById('lib-ex-fnotes').value = l.notes || '';
+    document.getElementById('modal-lib-ex-title').textContent = 'Editar ejercicio';
+  } else {
+    document.getElementById('lib-ex-fname').value = '';
+    document.getElementById('lib-ex-fequip').value = 'Mancuerna';
+    document.getElementById('lib-ex-fmuscle').value = LIB_MUSCLES[0];
+    document.getElementById('lib-ex-frest').value = 120;
+    document.getElementById('lib-ex-fsets').value = 4;
+    document.getElementById('lib-ex-fnotes').value = '';
+    document.getElementById('modal-lib-ex-title').textContent = 'Nuevo ejercicio';
+  }
+  openModal('modal-lib-ex');
+}
+
+function saveLibEx() {
+  const id = document.getElementById('lib-ex-id').value;
+  const name = document.getElementById('lib-ex-fname').value.trim();
+  const equipment = document.getElementById('lib-ex-fequip').value;
+  const muscle = document.getElementById('lib-ex-fmuscle').value;
+  const defaultRestSecs = +document.getElementById('lib-ex-frest').value || 90;
+  const defaultSets = Math.max(1, +document.getElementById('lib-ex-fsets').value || 4);
+  const notes = document.getElementById('lib-ex-fnotes').value.trim();
+  if (!name) { showToast('Escribe el nombre del ejercicio'); return; }
+  if (!muscle) { showToast('Elegí el grupo muscular'); return; }
+  if (!S.exerciseLibrary) S.exerciseLibrary = [];
+  if (id) {
+    const l = exLibById(id);
+    if (l) { l.name = name; l.equipment = equipment; l.muscle = muscle; l.defaultRestSecs = defaultRestSecs; l.defaultSets = defaultSets; l.notes = notes; }
+  } else {
+    S.exerciseLibrary.push({ id: 'lib_' + uid(), name, equipment, muscle, defaultRestSecs, defaultSets, notes, archived: false });
+  }
+  saveState(); renderRutinas(); closeModal('modal-lib-ex');
+  showToast(id ? 'Ejercicio actualizado' : 'Ejercicio agregado a la biblioteca');
+}
+
+function deleteLibEx(libId) {
+  const l = exLibById(libId);
+  if (!l) return;
+  const uses = libUsageCount(libId);
+  const histN = (S.exerciseHistory && S.exerciseHistory[libId] || []).length;
+  if (uses > 0 || histN > 0) {
+    const reason = [uses ? `en ${uses} rutina${uses > 1 ? 's' : ''}` : '', histN ? `${histN} sesión${histN > 1 ? 'es' : ''} de historial` : ''].filter(Boolean).join(' y ');
+    if (!confirm(`"${l.name}" está ${reason}. No se borrará para no perder el historial: se archivará (desaparece de la lista pero conserva sus datos). ¿Archivar?`)) return;
+    l.archived = true;
+    saveState(); renderRutinas();
+    showToast('Ejercicio archivado');
+    return;
+  }
+  if (!confirm(`¿Borrar "${l.name}" de la biblioteca?`)) return;
+  S.exerciseLibrary = S.exerciseLibrary.filter(e => e.id !== libId);
+  saveState(); renderRutinas();
+  showToast('Ejercicio borrado');
+}
+
+// ── Picker: elegir un ejercicio de la biblioteca (agregar a rutina / swap) ──
+let _pickerMode = null;     // 'add' | 'swap'
+let _pickerCtx = null;      // routineId (add) | session exId (swap)
+let _pickerFilterEquip = 'all';
+let _pickerFilterMuscle = 'all';
+
+function openExPicker(mode, ctx) {
+  _pickerMode = mode; _pickerCtx = ctx;
+  _pickerFilterEquip = 'all'; _pickerFilterMuscle = 'all';
+  document.getElementById('modal-ex-picker-title').textContent =
+    mode === 'swap' ? 'Reemplazar ejercicio' : 'Agregar ejercicio';
+  renderExPicker();
+  openModal('modal-ex-picker');
+}
+
+function setPickerFilter(type, val) {
+  if (type === 'equip') _pickerFilterEquip = (_pickerFilterEquip === val ? 'all' : val);
+  else _pickerFilterMuscle = (_pickerFilterMuscle === val ? 'all' : val);
+  renderExPicker();
+}
+
+function renderExPicker() {
+  const all = (S.exerciseLibrary || []).filter(l => !l.archived);
+  const musclesPresent = LIB_MUSCLES.filter(m => all.some(l => l.muscle === m));
+  const eqPill = (val, label) => `<button onclick="setPickerFilter('equip','${val}')" class="lib-pill${_pickerFilterEquip === val ? ' active' : ''}">${label}</button>`;
+  const muPill = (val, label) => `<button onclick="setPickerFilter('muscle','${val}')" class="lib-pill${_pickerFilterMuscle === val ? ' active' : ''}">${label}</button>`;
+  const filtered = all.filter(l =>
+    (_pickerFilterEquip === 'all' || l.equipment === _pickerFilterEquip) &&
+    (_pickerFilterMuscle === 'all' || l.muscle === _pickerFilterMuscle)
+  ).sort((a, b) => a.name.localeCompare(b.name));
+
+  let list;
+  if (all.length === 0) list = `<p style="font-size:12px;color:var(--tt);text-align:center;padding:18px 0">Biblioteca vacía. Creá un ejercicio primero.</p>`;
+  else if (filtered.length === 0) list = `<p style="font-size:12px;color:var(--tt);text-align:center;padding:18px 0">No hay ejercicios con estos filtros.</p>`;
+  else list = filtered.map(l => `<div class="lib-ex-row" style="cursor:pointer" onclick="pickExercise('${l.id}')">
+      <div style="flex:1;min-width:0">
+        <div class="lib-ex-name">${l.name}</div>
+        <div class="lib-ex-meta">${l.equipment} · ${l.muscle} · ⏱ ${fmtRestTime(l.defaultRestSecs)} · ${l.defaultSets} series</div>
+      </div>
+      <span style="color:var(--c-salud);font-weight:800;flex-shrink:0">+</span>
+    </div>`).join('');
+
+  document.getElementById('modal-ex-picker-body').innerHTML = `
+    <div class="lib-filter-lbl">Equipamiento</div>
+    <div class="lib-pill-row">${eqPill('all', 'Todos')}${LIB_EQUIPMENT.map(e => eqPill(e, e)).join('')}</div>
+    <div class="lib-filter-lbl" style="margin-top:10px">Grupo muscular</div>
+    <div class="lib-pill-row">${muPill('all', 'Todos')}${musclesPresent.map(m => muPill(m, m)).join('')}</div>
+    <div style="margin-top:12px">${list}</div>`;
+}
+
+function pickExercise(libId) {
+  const lib = exLibById(libId);
+  if (!lib) return;
+  if (_pickerMode === 'swap') { _doSwapSessionEx(_pickerCtx, libId); }
+  else { _doAddExToRoutine(_pickerCtx, libId); }
+  closeModal('modal-ex-picker');
+}
+
+function _doAddExToRoutine(rtnId, libId) {
+  const rtn = S.routines.find(r => r.id === rtnId);
+  const lib = exLibById(libId);
+  if (!rtn || !lib) return;
+  const newEx = { id: uid(), libId, restSecs: lib.defaultRestSecs, sets: lib.defaultSets };
+  const inActiveSession = S.activeRtnSession && S.activeRtnSession.routineId === rtnId;
+  rtn.exercises.push(newEx);
+  if (inActiveSession) {
+    const sess = S.activeRtnSession;
+    if (!sess.exOrder) sess.exOrder = rtn.exercises.map(e => e.id);
+    else sess.exOrder.push(newEx.id);
+    if (!sess.exMeta) sess.exMeta = {};
+    sess.exMeta[newEx.id] = { libId, restSecs: lib.defaultRestSecs };
+    sess.exSets[newEx.id] = [{ weight: '', reps: '' }];
+    _rtnExpandedEx.add(newEx.id);
+  }
+  saveState(); renderRutinas();
+  showToast('Ejercicio agregado');
 }
 
 // ── Heat color helpers ──
@@ -2543,95 +2942,141 @@ function scanMuscleTap(ev, muscle, viewKey) {
   </div>`;
 }
 
-function openExHist(rtnId, exId) {
-  const rtn = S.routines.find(r => r.id === rtnId);
-  const ex = rtn && rtn.exercises.find(e => e.id === exId);
-  if (!ex) return;
-  const log = (S.routineLog[rtnId] || []).filter(e => e.exSets && e.exSets[exId] && e.exSets[exId].length);
-  document.getElementById('modal-ex-hist-title').textContent = ex.name;
+let _exHistCharts = [];
 
-  // Compute stats
+// Historial GLOBAL por ejercicio de la biblioteca (agrega todas las rutinas/sesiones).
+function openExHistByLib(libId) {
+  const lib = exLibById(libId);
+  const log = (S.exerciseHistory && S.exerciseHistory[libId] || [])
+    .filter(e => e.sets && e.sets.length)
+    .slice().sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  document.getElementById('modal-ex-hist-title').textContent = (lib ? lib.name : 'Ejercicio') + (lib && lib.archived ? ' (archivado)' : '');
+
+  // KPIs
   const monthAgo = new Date(); monthAgo.setDate(monthAgo.getDate() - 30);
-  const monthAgoStr = monthAgo.toISOString().slice(0, 10);
+  const monthAgoStr = localStr(monthAgo);
   const thisMonthCount = log.filter(e => e.date >= monthAgoStr).length;
   let maxWeight = 0, maxReps = 0, maxVol = 0;
-  log.forEach(entry => entry.exSets[exId].forEach(s => {
+  log.forEach(entry => entry.sets.forEach(s => {
     if ((s.weight || 0) > maxWeight) maxWeight = s.weight || 0;
     if ((s.reps   || 0) > maxReps)   maxReps   = s.reps   || 0;
     const v = (s.weight || 0) * (s.reps || 0);
     if (v > maxVol) maxVol = v;
   }));
-
-  // Chart: best weight per session (last 12)
-  const chartSrc = log.slice(-12).map(e => Math.max(...e.exSets[exId].map(s => s.weight || 0)));
-  const chartH = 50, chartW = 220, pad = 8;
-  let chartSvg = '<div style="font-size:11px;color:rgba(0,200,255,.35);padding:8px 0;text-align:center">Sin suficientes sesiones para el gráfico</div>';
-  if (chartSrc.length >= 2) {
-    const minV = Math.min(...chartSrc), maxV = Math.max(...chartSrc);
-    const range = maxV - minV || 1;
-    const n = chartSrc.length;
-    const gx = i => pad + i / (n - 1) * (chartW - pad * 2);
-    const gy = v => chartH - pad - (v - minV) / range * (chartH - pad * 2);
-    const pts = chartSrc.map((v, i) => `${gx(i).toFixed(1)},${gy(v).toFixed(1)}`).join(' ');
-    const firstPt = `${gx(0).toFixed(1)},${gy(chartSrc[0]).toFixed(1)}`;
-    const lastPt  = `${gx(n-1).toFixed(1)},${gy(chartSrc[n-1]).toFixed(1)}`;
-    const base    = (chartH - pad).toFixed(1);
-    const areaD   = `M ${firstPt} L ${pts.split(' ').slice(1).join(' L ')} L ${gx(n-1).toFixed(1)},${base} L ${gx(0).toFixed(1)},${base} Z`;
-    const dots    = chartSrc.map((v, i) => `<circle cx="${gx(i).toFixed(1)}" cy="${gy(v).toFixed(1)}" r="2.5" fill="#00DCFF" stroke="rgba(0,0,20,.8)" stroke-width="1.2"/>`).join('');
-    chartSvg = `<svg viewBox="0 0 ${chartW} ${chartH}" width="100%" height="${chartH}">
-      <path d="${areaD}" fill="rgba(0,200,255,0.12)"/>
-      <polyline points="${pts}" fill="none" stroke="#00DCFF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-      ${dots}
-    </svg>`;
-  }
-
   const maxVolStr = maxVol >= 1000 ? `${(maxVol / 1000).toFixed(1)}<span style="font-size:11px;font-weight:400"> t</span>` : `${maxVol}<span style="font-size:11px;font-weight:400"> kg</span>`;
 
-  const histHtml = log.length === 0
-    ? '<p style="color:rgba(0,200,255,.35);font-size:12px;padding:4px 0">Sin historial aún.</p>'
-    : log.slice().reverse().map(entry => {
-        const sets = entry.exSets[exId];
-        const setRows = sets.map((s, i) => `
-          <div style="display:flex;gap:10px;padding:2px 0;font-size:12px">
-            <span style="color:rgba(0,200,255,.4);width:48px;flex-shrink:0;font-family:var(--mono)">S${i + 1}</span>
-            <span style="font-family:var(--mono);color:#00DCFF;font-weight:700">${s.weight}<span style="font-weight:400;font-size:10px"> kg</span></span>
-            <span style="color:rgba(255,255,255,.25);margin:0 2px">×</span>
-            <span style="font-family:var(--mono);font-weight:700">${s.reps}<span style="font-weight:400;font-size:10px"> reps</span></span>
-          </div>`).join('');
-        return `<div class="ex-hud-hist-entry">
-          <div style="font-size:9px;font-weight:800;letter-spacing:.1em;color:rgba(0,200,255,.6);font-family:var(--mono);margin-bottom:5px">${entry.date}</div>
-          ${setRows}
-        </div>`;
-      }).join('');
+  // Serie por sesión (últimas 15 para los charts)
+  const perSession = log.map(e => {
+    const bestW = Math.max(...e.sets.map(s => s.weight || 0));
+    const totReps = e.sets.reduce((a, s) => a + (s.reps || 0), 0);
+    const vol = e.sets.reduce((a, s) => a + (s.weight || 0) * (s.reps || 0), 0);
+    return { date: e.date, bestW, totReps, vol, nSets: e.sets.length };
+  });
+  const chartData = perSession.slice(-15);
+
+  // Tabla (fecha / series / reps / peso / progreso), más reciente primero
+  const tableRows = perSession.slice().reverse().map((p, i) => {
+    // progreso = delta de mejor peso vs sesión previa cronológica
+    const idxChrono = perSession.length - 1 - i;
+    const prev = idxChrono > 0 ? perSession[idxChrono - 1] : null;
+    let prog = '—', progColor = 'var(--tt)';
+    if (prev) {
+      const d = +(p.bestW - prev.bestW).toFixed(1);
+      if (d > 0) { prog = '▲ ' + d; progColor = 'var(--ok, #34d399)'; }
+      else if (d < 0) { prog = '▼ ' + Math.abs(d); progColor = 'var(--c-salud)'; }
+      else { prog = '='; }
+    }
+    return `<tr>
+      <td style="font-family:var(--mono);color:rgba(0,200,255,.7)">${p.date.slice(5)}</td>
+      <td style="text-align:center">${p.nSets}</td>
+      <td style="text-align:center">${p.totReps}</td>
+      <td style="text-align:center;font-family:var(--mono);color:#00DCFF;font-weight:700">${p.bestW}</td>
+      <td style="text-align:right;color:${progColor};font-family:var(--mono)">${prog}</td>
+    </tr>`;
+  }).join('');
+
+  const tableHtml = log.length === 0
+    ? '<p style="color:rgba(0,200,255,.35);font-size:12px;padding:8px 0;text-align:center">Sin historial aún.</p>'
+    : `<table class="ex-hist-table">
+        <thead><tr><th>Fecha</th><th style="text-align:center">Series</th><th style="text-align:center">Reps</th><th style="text-align:center">Peso</th><th style="text-align:right">Prog.</th></tr></thead>
+        <tbody>${tableRows}</tbody>
+      </table>`;
+
+  const chartsHtml = chartData.length >= 2
+    ? `<div class="ex-hud-chart-wrap">
+        <div class="ex-hud-chart-title">◈ PESO + REPS — últimas ${chartData.length} sesiones</div>
+        <div style="height:150px"><canvas id="exHistChartWR"></canvas></div>
+      </div>
+      <div class="ex-hud-chart-wrap">
+        <div class="ex-hud-chart-title">◈ VOLUMEN (peso × reps) — últimas ${chartData.length} sesiones</div>
+        <div style="height:150px"><canvas id="exHistChartVol"></canvas></div>
+      </div>`
+    : '<div style="font-size:11px;color:rgba(0,200,255,.35);padding:12px 0;text-align:center">Se necesitan al menos 2 sesiones para los gráficos.</div>';
 
   document.getElementById('modal-ex-hist-body').innerHTML = `
     <div style="position:relative;overflow:hidden">
       <div class="ex-hud-scan-line"></div>
       <div class="ex-hud-kpi-row">
         <div class="ex-hud-kpi">
-          <div class="ex-hud-kpi-val">${thisMonthCount}</div>
-          <div class="ex-hud-kpi-lbl">Sesiones / mes</div>
+          <div class="ex-hud-kpi-val">${log.length}</div>
+          <div class="ex-hud-kpi-lbl">Sesiones</div>
         </div>
         <div class="ex-hud-kpi">
           <div class="ex-hud-kpi-val">${maxWeight}<span style="font-size:11px;font-weight:400"> kg</span></div>
-          <div class="ex-hud-kpi-lbl">Record Peso</div>
+          <div class="ex-hud-kpi-lbl">Récord Peso</div>
         </div>
         <div class="ex-hud-kpi">
-          <div class="ex-hud-kpi-val">${maxReps}<span style="font-size:11px;font-weight:400"> reps</span></div>
-          <div class="ex-hud-kpi-lbl">Record Reps</div>
+          <div class="ex-hud-kpi-val">${thisMonthCount}</div>
+          <div class="ex-hud-kpi-lbl">Últimos 30 días</div>
         </div>
         <div class="ex-hud-kpi">
           <div class="ex-hud-kpi-val">${maxVolStr}</div>
-          <div class="ex-hud-kpi-lbl">Record Vol</div>
+          <div class="ex-hud-kpi-lbl">Récord Vol</div>
         </div>
       </div>
-      <div class="ex-hud-chart-wrap">
-        <div class="ex-hud-chart-title">◈ PROGRESIÓN DE PESO — últimas ${Math.min(log.length, 12)} sesiones</div>
-        ${chartSvg}
-      </div>
-      ${histHtml}
+      ${chartsHtml}
+      <div style="margin-top:14px">${tableHtml}</div>
     </div>`;
   openModal('modal-ex-hist');
+
+  // Instanciar charts Chart.js (dark) tras render
+  _exHistCharts.forEach(c => { try { c.destroy(); } catch (e) {} });
+  _exHistCharts = [];
+  if (chartData.length >= 2) {
+    const labels = chartData.map(p => p.date.slice(5));
+    const grid = { color: 'rgba(255,255,255,.06)' };
+    const tick = { color: 'rgba(255,255,255,.5)', font: { size: 9 } };
+    const wrCanvas = document.getElementById('exHistChartWR');
+    if (wrCanvas) _exHistCharts.push(new Chart(wrCanvas.getContext('2d'), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label: 'Peso (kg)', data: chartData.map(p => p.bestW), borderColor: '#00DCFF', backgroundColor: 'rgba(0,220,255,.12)', pointRadius: 3, tension: .3, fill: true, yAxisID: 'y' },
+          { label: 'Reps', data: chartData.map(p => p.totReps), borderColor: '#f43f5e', backgroundColor: 'rgba(244,63,94,.08)', pointRadius: 3, tension: .3, fill: false, yAxisID: 'y1' }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: 'rgba(255,255,255,.65)', font: { size: 10 }, boxWidth: 12 } } },
+        scales: {
+          x: { grid, ticks: tick },
+          y: { position: 'left', grid, ticks: { ...tick, color: '#00DCFF' } },
+          y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { ...tick, color: '#f43f5e' } }
+        }
+      }
+    }));
+    const volCanvas = document.getElementById('exHistChartVol');
+    if (volCanvas) _exHistCharts.push(new Chart(volCanvas.getContext('2d'), {
+      type: 'bar',
+      data: { labels, datasets: [{ label: 'Volumen (kg)', data: chartData.map(p => p.vol), backgroundColor: 'rgba(0,220,255,.45)', borderColor: '#00DCFF', borderWidth: 1, borderRadius: 4 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { x: { grid, ticks: tick }, y: { grid, ticks: tick, beginAtZero: true } }
+      }
+    }));
+  }
 }
 
 // ── Session ──
@@ -2701,9 +3146,8 @@ function _updatePip() {
     if (rem <= 10) pip.classList.add('pip-urgent');
   }
   if (lbl) {
-    const rtn = S.routines && S.routines.find(r => r.id === S.activeRtnSession?.routineId);
-    const ex = rtn && rtn.exercises.find(e => e.id === _pipExId);
-    lbl.textContent = ex ? `Descanso — ${ex.name}` : 'Descanso';
+    const ex = _pipExId ? sessExInfo(_pipExId) : null;
+    lbl.textContent = ex && ex.name ? `Descanso — ${ex.name}` : 'Descanso';
   }
 }
 
@@ -2891,11 +3335,39 @@ function startRutinaSession(rtnId) {
   const rtn = S.routines.find(r => r.id === rtnId);
   if (!rtn) return;
   if (!rtn.exercises.length) { showToast('Agregá ejercicios primero'); return; }
-  const exSets = {};
-  rtn.exercises.forEach(ex => { exSets[ex.id] = [{ weight: '', reps: '' }]; });
-  S.activeRtnSession = { routineId: rtnId, startedAt: Date.now(), exSets, exOrder: rtn.exercises.map(e => e.id) };
+  const exSets = {}, exMeta = {};
+  rtn.exercises.forEach(ex => {
+    exSets[ex.id] = [{ weight: '', reps: '' }];
+    const d = exDisplay(ex);
+    exMeta[ex.id] = { libId: ex.libId, restSecs: d.restSecs };
+  });
+  S.activeRtnSession = { routineId: rtnId, startedAt: Date.now(), exSets, exMeta, exOrder: rtn.exercises.map(e => e.id) };
   _rtnExpandedEx = new Set(rtn.exercises.map(e => e.id));
   saveState(); renderRutinas();
+}
+
+// Swap: reemplaza un ejercicio SOLO en la sesión activa (no toca S.routines).
+function swapSessionEx(exId) { openExPicker('swap', exId); }
+
+function _doSwapSessionEx(oldExId, newLibId) {
+  const sess = S.activeRtnSession;
+  if (!sess) return;
+  _readSaveRtnSets(oldExId);   // preservar lo cargado del original
+  const lib = exLibById(newLibId);
+  if (!lib) return;
+  if (!sess.exMeta) sess.exMeta = {};
+  const newId = uid();
+  sess.exMeta[newId] = { libId: newLibId, restSecs: lib.defaultRestSecs };
+  sess.exSets[newId] = [{ weight: '', reps: '' }];
+  // Reemplazar en el orden visible; el original sale de la vista pero SU exSets/exMeta
+  // quedan para loguear su historial al finalizar.
+  const order = sess.exOrder || [];
+  const i = order.indexOf(oldExId);
+  if (i >= 0) order[i] = newId; else order.push(newId);
+  _rtnExpandedEx.delete(oldExId);
+  _rtnExpandedEx.add(newId);
+  saveState(); renderRutinas();
+  showToast('Ejercicio reemplazado para esta sesión');
 }
 
 function moveRtnSessionEx(exId, dir) {
@@ -2950,8 +3422,17 @@ function renderActiveSession() {
   if (!rtn) { S.activeRtnSession = null; saveState(); renderRutinas(); return; }
   const elapsed = Math.floor((Date.now() - startedAt) / 1000);
 
+  // Compat: sesiones iniciadas antes de la biblioteca no tienen exMeta → reconstruir.
+  if (!S.activeRtnSession.exMeta) {
+    S.activeRtnSession.exMeta = {};
+    rtn.exercises.forEach(ex => {
+      const d = exDisplay(ex);
+      S.activeRtnSession.exMeta[ex.id] = { libId: ex.libId, restSecs: d.restSecs };
+    });
+  }
+
   const _sessionOrder = (S.activeRtnSession.exOrder || rtn.exercises.map(e => e.id));
-  const _orderedExes = _sessionOrder.map(id => rtn.exercises.find(e => e.id === id)).filter(Boolean);
+  const _orderedExes = _sessionOrder.map(id => sessExInfo(id)).filter(e => e.libId || e.name);
 
   const exBlocks = _orderedExes.map((ex, idx) => {
     const sets = exSets[ex.id] || [{ weight: '', reps: '' }];
@@ -2981,7 +3462,9 @@ function renderActiveSession() {
             <span class="rtn-ex-title-name">${ex.name}</span>
             <span class="rtn-ex-title-equip">(${ex.equipment})</span>
           </div>
-          <button onclick="event.stopPropagation();editRtnEx('${routineId}','${ex.id}')" style="${btnStyle}" title="Cambiar ejercicio">✎</button>
+          <button onclick="event.stopPropagation();openExHistByLib('${ex.libId}')" style="${btnStyle}" title="Historial">📊</button>
+          <button onclick="event.stopPropagation();swapSessionEx('${ex.id}')" style="${btnStyle}" title="Reemplazar (solo esta sesión)">⇄</button>
+          <button onclick="event.stopPropagation();editRtnEx('${routineId}','${ex.id}')" style="${btnStyle}" title="Ajustar descanso/series">✎</button>
           <button onclick="event.stopPropagation();moveRtnSessionEx('${ex.id}',-1)" style="${btnStyle}${isFirst ? ';'+btnDisabled : ''}">↑</button>
           <button onclick="event.stopPropagation();moveRtnSessionEx('${ex.id}',+1)" style="${btnStyle}${isLast ? ';'+btnDisabled : ''}">↓</button>
           <span class="rtn-ex-chevron" id="rtn-exchev-${ex.id}" style="transform:${isExpanded ? 'rotate(-180deg)' : 'rotate(0deg)'}">▾</span>
@@ -3011,12 +3494,12 @@ function renderActiveSession() {
             <div class="rtn-session-title">🏋️ ${rtn.name}</div>
             <div class="rtn-chrono" id="rtn-chrono">${fmtChrono(elapsed)}</div>
           </div>
-          <div class="rtn-session-sub">${rtn.exercises.length} ejercicios</div>
+          <div class="rtn-session-sub">${_orderedExes.length} ejercicios</div>
         </div>
         <button class="btn btn-ghost btn-sm" style="color:var(--ts);flex-shrink:0" onclick="cancelRtnSession()">✕ Cancelar</button>
       </div>
       <div class="rtn-session-exes">${exBlocks}
-        <button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="openAddRtnEx('${routineId}')">+ Ejercicio</button>
+        <button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="openExPicker('add','${routineId}')">+ Ejercicio</button>
       </div>
       <div style="padding:0 14px 14px">
         <button class="btn btn-primary w-full" onclick="finishRtnSession()">✓ Finalizar sesión</button>
@@ -3085,9 +3568,8 @@ function checkRtnSet(exId, si) {
     }
   }
   if (sets[si].done) {
-    const rtn = S.routines && S.routines.find(r => r.id === S.activeRtnSession.routineId);
-    const ex = rtn && rtn.exercises.find(e => e.id === exId);
-    if (ex) startRtnTimerBand(exId, ex.restSecs);
+    const ex = sessExInfo(exId);
+    if (ex && ex.restSecs) startRtnTimerBand(exId, ex.restSecs);
   }
 }
 
@@ -3103,8 +3585,7 @@ function startRtnTimerBand(exId, secs) {
   _pipExId = exId;
   _updatePip();
   // Obtener nombre del ejercicio para media session
-  const _rtn = S.routines && S.routines.find(r => r.id === S.activeRtnSession?.routineId);
-  const _ex  = _rtn && _rtn.exercises.find(e => e.id === exId);
+  const _ex  = sessExInfo(exId);
   const _exName = _ex?.name || '';
   _msHub.onTimerStart(exId, _exName);
   _rtnTimers[exId] = setInterval(() => {
@@ -3168,19 +3649,31 @@ function cancelRtnSession() {
 
 function finishRtnSession() {
   if (!S.activeRtnSession) return;
-  const rtn = S.routines && S.routines.find(r => r.id === S.activeRtnSession.routineId);
-  if (rtn) rtn.exercises.forEach(ex => _readSaveRtnSets(ex.id));
-  const { routineId, startedAt, exSets } = S.activeRtnSession;
+  const sess = S.activeRtnSession;
+  // Flush de las filas visibles (los swapeados-out ya quedaron guardados antes del swap).
+  (sess.exOrder || []).forEach(id => _readSaveRtnSets(id));
+  const { routineId, startedAt, exSets, exMeta } = sess;
+  const date = getActiveDate();
   const duration = Math.floor((Date.now() - startedAt) / 1000);
   let vol = 0, totalSets = 0;
   Object.values(exSets).forEach(sets => sets.forEach(s => {
-    if (s.weight && s.reps) { vol += s.weight * s.reps; totalSets++; }
+    if ((s.reps || 0) > 0) { vol += (s.weight || 0) * s.reps; totalSets++; }
   }));
   if (!S.routineLog[routineId]) S.routineLog[routineId] = [];
   S.routineLog[routineId].push({
-    id: uid(), date: getActiveDate(),
+    id: uid(), date,
     exSets: JSON.parse(JSON.stringify(exSets)),
     vol, sets: totalSets, duration
+  });
+  // Historial GLOBAL por ejercicio: cada instancia (incluidos swaps) loguea a su libId.
+  if (!S.exerciseHistory) S.exerciseHistory = {};
+  Object.entries(exSets).forEach(([instId, sets]) => {
+    const libId = exMeta && exMeta[instId] && exMeta[instId].libId;
+    if (!libId) return;
+    const cleanSets = sets.filter(s => (s.reps || 0) > 0).map(s => ({ weight: s.weight || 0, reps: s.reps }));
+    if (!cleanSets.length) return;
+    if (!S.exerciseHistory[libId]) S.exerciseHistory[libId] = [];
+    S.exerciseHistory[libId].push({ date, routineId, sets: cleanSets });
   });
   Object.values(_rtnTimers).forEach(clearInterval);
   _rtnTimers = {};

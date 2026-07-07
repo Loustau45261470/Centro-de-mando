@@ -816,30 +816,68 @@
   </div>
 </div>
 
-<!-- Routine Exercise Form -->
+<!-- Routine Exercise TUNE (descanso/series por rutina) -->
 <div class="modal-overlay" id="modal-rtn-ex">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-title" id="modal-rtn-ex-title">Nuevo ejercicio</div>
+    <div class="modal-title" id="modal-rtn-ex-title">Ajustar ejercicio</div>
     <input type="hidden" id="modal-rtn-ex-rtnid">
     <input type="hidden" id="modal-rtn-ex-exid">
-    <div class="field"><label>Nombre del movimiento</label><input class="inp" id="rtn-ex-fname" placeholder="Ej: Press plano, Curl martillo…"></div>
+    <div id="rtn-ex-name-lbl" style="font-size:13px;font-weight:700;color:var(--fg);margin-bottom:12px"></div>
+    <p style="font-size:11px;color:var(--tt);margin:-6px 0 12px">Solo cambia el descanso y las series para esta rutina. El ejercicio y sus valores por defecto se editan en la Biblioteca.</p>
     <div class="input-row">
-      <div class="field" style="flex:1"><label>Equipo</label>
-        <select class="inp" id="rtn-ex-fequip">
-          <option>Mancuerna</option>
-          <option>Cable</option>
-          <option>Máquina</option>
-          <option>Barra</option>
-          <option>Peso corporal</option>
-        </select>
-      </div>
-      <div class="field" style="width:110px"><label>Descanso (seg)</label><input class="inp" type="number" id="rtn-ex-frest" placeholder="90" value="90"></div>
+      <div class="field" style="flex:1"><label>Descanso (seg)</label><input class="inp" type="number" id="rtn-ex-frest" placeholder="90" value="90"></div>
+      <div class="field" style="width:110px"><label>Series</label><input class="inp" type="number" id="rtn-ex-fsets" placeholder="4" value="4"></div>
     </div>
-    <div class="field"><label>Notas (opcional)</label><input class="inp" id="rtn-ex-fnotes" placeholder="Ej: Con colchoneta, probar unilateral…"></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('modal-rtn-ex')">Cancelar</button>
       <button class="btn btn-primary" onclick="saveRtnEx()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Library Exercise Form (alta/edición en la biblioteca) -->
+<div class="modal-overlay" id="modal-lib-ex">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="modal-lib-ex-title">Nuevo ejercicio</div>
+    <input type="hidden" id="lib-ex-id">
+    <div class="field"><label>Nombre del movimiento</label><input class="inp" id="lib-ex-fname" placeholder="Ej: Press plano, Curl martillo…"></div>
+    <div class="input-row">
+      <div class="field" style="flex:1"><label>Equipo</label>
+        <select class="inp" id="lib-ex-fequip">
+          <option>Mancuerna</option>
+          <option>Barra</option>
+          <option>Máquina</option>
+          <option>Cable</option>
+          <option>Peso corporal</option>
+        </select>
+      </div>
+      <div class="field" style="flex:1"><label>Grupo muscular</label>
+        <select class="inp" id="lib-ex-fmuscle"></select>
+      </div>
+    </div>
+    <div class="input-row">
+      <div class="field" style="flex:1"><label>Descanso x defecto (seg)</label><input class="inp" type="number" id="lib-ex-frest" placeholder="120" value="120"></div>
+      <div class="field" style="width:110px"><label>Series x defecto</label><input class="inp" type="number" id="lib-ex-fsets" placeholder="4" value="4"></div>
+    </div>
+    <div class="field"><label>Notas (opcional)</label><input class="inp" id="lib-ex-fnotes" placeholder="Ej: Con colchoneta, probar unilateral…"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-lib-ex')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveLibEx()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Exercise Picker (elegir de la biblioteca) -->
+<div class="modal-overlay" id="modal-ex-picker">
+  <div class="modal" style="max-height:85vh;display:flex;flex-direction:column">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="modal-ex-picker-title">Agregar ejercicio</div>
+    <div id="modal-ex-picker-body" style="overflow-y:auto;flex:1;padding-bottom:4px"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-ex-picker')">Cerrar</button>
+      <button class="btn btn-primary" onclick="closeModal('modal-ex-picker');openLibEx()">+ Nuevo en biblioteca</button>
     </div>
   </div>
 </div>
