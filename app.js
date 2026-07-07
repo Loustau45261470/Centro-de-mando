@@ -1848,6 +1848,7 @@ function deleteFinObjective(id) {
 function renderSaludTab() {
   renderRutinas();
   renderEntrenamientoResumen();
+  renderDieta();
 }
 
 // ── Resumen de entrenamiento (sección) · el detalle completo vive en el overlay ──
@@ -4134,6 +4135,7 @@ function renderFinanzasTab() {
   renderFinObjectives();
   renderBudget();
   renderBudgetSummary();
+  renderInventory();
   if (nwPieInst) updateNWCharts();
 }
 
@@ -5647,6 +5649,203 @@ function deleteBudgetReserved(id) {
   saveState(); renderBudget(); closeModal('modal-budget-reserved');
 }
 
+// ════════════════════════════════════════════════════════
+// INVENTARIO DE ALIMENTOS (Finanzas × Salud)
+// ════════════════════════════════════════════════════════
+const INV_DEFAULT_ITEMS = [
+  { name: 'Bifes',            unit: 'kg' },
+  { name: 'Carne molida',     unit: 'kg' },
+  { name: 'Pechuga de pollo', unit: 'kg' },
+  { name: 'Pacú',             unit: 'kg' },
+  { name: 'Sábalo',           unit: 'kg' },
+  { name: 'Zanahoria',        unit: 'kg' },
+  { name: 'Cebolla',          unit: 'kg' },
+  { name: 'Tomate',           unit: 'kg' },
+  { name: 'Mandarina',        unit: 'kg' },
+  { name: 'Naranja',          unit: 'kg' },
+  { name: 'Agua',             unit: 'litros' },
+  { name: 'Soda',             unit: 'litros' },
+];
+
+function _invMonthKey(d) { d = d || new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
+
+function ensureInventoryState() {
+  if (!S.inventory) S.inventory = { items: [], log: {}, history: {} };
+  if (!S.inventory.items)   S.inventory.items = [];
+  if (!S.inventory.log)     S.inventory.log = {};
+  if (!S.inventory.history) S.inventory.history = {};
+  if (!S.inventory.items.length) {
+    S.inventory.items = INV_DEFAULT_ITEMS.map(it => ({ id: uid(), name: it.name, unit: it.unit, daily: 0, monthly: 0, stock: 0 }));
+    return true;
+  }
+  return false;
+}
+
+// Suma consumida (Dieta) de un ítem dentro del mes `mk`, según el log diario.
+function _invMonthlyReal(mk, itemId) {
+  let s = 0;
+  for (const ds in S.inventory.log) {
+    if (ds.slice(0, 7) === mk && S.inventory.log[ds] && (itemId in S.inventory.log[ds])) s += (+S.inventory.log[ds][itemId] || 0);
+  }
+  return s;
+}
+
+// Crea el historial del mes `mk` si no existe. Al pasar de mes, congela el real
+// del mes anterior y recalcula la expectativa (diaria/mensual) en base a ese real.
+function ensureInventoryMonth(mk) {
+  ensureInventoryState();
+  if (S.inventory.history[mk]) return false;
+  const prevKeys = Object.keys(S.inventory.history).filter(k => k < mk).sort();
+  const prevMk = prevKeys[prevKeys.length - 1];
+  if (prevMk) {
+    const [py, pmo] = prevMk.split('-').map(Number);
+    const daysInPrev = new Date(py, pmo, 0).getDate();
+    S.inventory.items.forEach(it => {
+      const prevEntry = S.inventory.history[prevMk][it.id];
+      if (!prevEntry) return;
+      const real = _invMonthlyReal(prevMk, it.id);
+      prevEntry.real = real;
+      if (real !== prevEntry.expectedMonthly) {
+        it.monthly = real;
+        it.daily = +(real / daysInPrev).toFixed(2);
+      }
+    });
+  }
+  S.inventory.history[mk] = {};
+  S.inventory.items.forEach(it => {
+    S.inventory.history[mk][it.id] = { expectedDaily: it.daily, expectedMonthly: it.monthly, real: 0 };
+  });
+  return true;
+}
+
+function _invItem(id) { return (S.inventory.items || []).find(i => i.id === id); }
+
+function renderInventory() {
+  const body = document.getElementById('inventarioBody');
+  if (!body) return;
+  if (ensureInventoryState()) saveState();
+  const mk = _invMonthKey();
+  if (ensureInventoryMonth(mk)) saveState();
+  const today = getActiveDate();
+
+  const rows = S.inventory.items.map(it => {
+    const consumedDay = (S.inventory.log[today] && +S.inventory.log[today][it.id]) || 0;
+    const consumedMonth = _invMonthlyReal(mk, it.id);
+    const neg = it.stock < 0;
+    return `<div class="sub-row${neg ? ' inv-alert' : ''}">
+      <div class="sub-info">
+        <div class="sub-name">${it.name} ${neg ? '<span class="inv-alert-badge">⚠ stock negativo</span>' : ''}</div>
+        <div class="sub-detail">Stock: <b class="${neg ? 'text-danger' : ''}">${it.stock} ${it.unit}</b> · Hoy: ${consumedDay}/${it.daily} ${it.unit} · Mes: ${consumedMonth}/${it.monthly} ${it.unit}</div>
+      </div>
+      <div class="flex gap-8 items-center" style="flex-wrap:wrap">
+        <span class="mono" style="font-size:11px">día</span>
+        <input class="inp" style="width:60px" type="number" step="0.01" value="${it.daily}" onchange="setInvExpected('${it.id}','daily',this.value)">
+        <span class="mono" style="font-size:11px">mes</span>
+        <input class="inp" style="width:60px" type="number" step="0.01" value="${it.monthly}" onchange="setInvExpected('${it.id}','monthly',this.value)">
+        <button class="icon-btn" onclick="deleteInvItem('${it.id}')">${_DEL_SVG}</button>
+      </div>
+    </div>`;
+  }).join('') || '<p class="empty-state">Sin ítems en el inventario</p>';
+
+  body.innerHTML = `
+    <div class="budget-block-hdr">
+      <span>Ítems</span>
+      <button class="btn btn-ghost btn-sm" onclick="openInvItemModal()">+ Ítem</button>
+    </div>
+    ${rows}`;
+}
+
+function setInvExpected(id, field, val) {
+  const it = _invItem(id); if (!it) return;
+  it[field] = +val || 0;
+  saveState(); renderInventory(); renderDieta();
+}
+
+function openInvItemModal() {
+  document.getElementById('invItemName').value = '';
+  document.getElementById('invItemUnit').value = 'kg';
+  document.getElementById('invItemDaily').value = '';
+  document.getElementById('invItemMonthly').value = '';
+  openModal('modal-inv-item');
+}
+
+function saveInvItem() {
+  const name = document.getElementById('invItemName').value.trim();
+  if (!name) { showToast('Escribe el nombre'); return; }
+  ensureInventoryState();
+  const unit = document.getElementById('invItemUnit').value.trim() || 'unidades';
+  const daily = +document.getElementById('invItemDaily').value || 0;
+  const monthly = +document.getElementById('invItemMonthly').value || 0;
+  const it = { id: uid(), name, unit, daily, monthly, stock: 0 };
+  S.inventory.items.push(it);
+  const mk = _invMonthKey();
+  if (S.inventory.history[mk]) S.inventory.history[mk][it.id] = { expectedDaily: daily, expectedMonthly: monthly, real: 0 };
+  saveState(); renderInventory(); renderDieta(); closeModal('modal-inv-item');
+  showToast('Ítem agregado al inventario');
+}
+
+function deleteInvItem(id) {
+  if (!confirm('¿Eliminar este ítem del inventario?')) return;
+  S.inventory.items = S.inventory.items.filter(i => i.id !== id);
+  saveState(); renderInventory(); renderDieta();
+}
+
+// Match por nombre (case-insensitive) contra la descripción de un movimiento de Actividad.
+// Si no hay match, no se crea el ítem automáticamente (Tobías debe agregarlo primero).
+function invApplyPurchase(name, qty) {
+  if (!qty) return;
+  ensureInventoryState();
+  const it = S.inventory.items.find(i => i.name.trim().toLowerCase() === name.trim().toLowerCase());
+  if (!it) return;
+  it.stock += qty;
+}
+
+// ════════════════════════════════════════════════════════
+// DIETA (Salud) — checklist marcable con cantidad editable, descuenta stock
+// ════════════════════════════════════════════════════════
+function renderDieta() {
+  const body = document.getElementById('dietaBody');
+  if (!body) return;
+  ensureInventoryState();
+  const today = getActiveDate();
+  const todayLog = S.inventory.log[today] || {};
+
+  const rows = S.inventory.items.map(it => {
+    const done = it.id in todayLog;
+    const qty = done ? todayLog[it.id] : it.daily;
+    const neg = it.stock < 0;
+    return `<div class="sub-row${neg ? ' inv-alert' : ''}">
+      <label class="ptask-check"><input type="checkbox" ${done ? 'checked' : ''} onchange="toggleDietItem('${it.id}')"></label>
+      <div class="sub-info">
+        <div class="sub-name">${it.name} ${neg ? '<span class="inv-alert-badge">⚠ stock negativo</span>' : ''}</div>
+        <div class="sub-detail">Stock: <b class="${neg ? 'text-danger' : ''}">${it.stock} ${it.unit}</b></div>
+      </div>
+      <input class="inp" style="width:70px" type="number" step="0.01" id="diet-qty-${it.id}" value="${qty}" ${done ? 'disabled' : ''}>
+    </div>`;
+  }).join('') || '<p class="empty-state">Sin ítems en el inventario. Agregalos desde Finanzas → Inventario.</p>';
+
+  body.innerHTML = rows;
+}
+
+function toggleDietItem(id) {
+  ensureInventoryState();
+  const it = _invItem(id); if (!it) return;
+  const today = getActiveDate();
+  if (!S.inventory.log[today]) S.inventory.log[today] = {};
+  const log = S.inventory.log[today];
+  if (id in log) {
+    // Desmarcar: restaura el stock y borra el registro del día.
+    it.stock += log[id];
+    delete log[id];
+  } else {
+    const inputEl = document.getElementById('diet-qty-' + id);
+    const qty = inputEl ? (+inputEl.value || 0) : (it.daily || 0);
+    it.stock -= qty;
+    log[id] = qty;
+  }
+  saveState(); renderDieta(); renderInventory();
+}
+
 let txnActiveMonth = null;
 
 function getAvailableMonths() {
@@ -5931,14 +6130,18 @@ function addTransaction() {
   const currency=document.getElementById('txnCurrency').value;
   const accountId=document.getElementById('txnAccount').value;
   const category=document.getElementById('txnCategory').value;
+  const invQtyEl = document.getElementById('txnInvQty');
+  const invQty = invQtyEl ? (+invQtyEl.value || 0) : 0;
   if (accountId) {
     const acc=S.accounts.find(a=>a.id===accountId);
     if (acc) { acc.balance += type==='income'?amount:-amount; snapshotNW(); }
   }
   S.transactions.unshift({ id:uid(), date:getActiveDate(), name, type, amount, currency, accountId, category });
+  if (type === 'expense' && invQty > 0) invApplyPurchase(name, invQty);
   saveState(); renderFinanzasTab(); closeModal('modal-add-txn');
   document.getElementById('txnName').value='';
   document.getElementById('txnAmount').value='';
+  if (invQtyEl) invQtyEl.value = '';
 
   if (type === 'income') {
     // Sparkle near the modal close button / center of screen
