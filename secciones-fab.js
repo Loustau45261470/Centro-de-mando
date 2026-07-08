@@ -25,6 +25,8 @@ const _SF_ICONS = {
   history: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 4v4h4"/><path d="M12 8v4l3 2"/></svg>`,
   cartera: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12A9 9 0 1 1 12 3"/><path d="M12 3a9 9 0 0 1 9 9h-9z"/></svg>`,
   fichero: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3.5" width="16" height="17" rx="2.4"/><path d="M4 8h16M4 16h16"/><circle cx="12" cy="12" r="1.8"/></svg>`,
+  timer: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 13V9M12 5V3M9.5 3h5"/></svg>`,
+  grad: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 2 9l10 5 10-5z"/><path d="M6 11v5c0 1.1 2.7 2.5 6 2.5s6-1.4 6-2.5v-5"/></svg>`,
 };
 
 // ── Presupuesto: overlay que aloja el presupuesto + las obligaciones recurrentes ──
@@ -81,6 +83,37 @@ function _sfOpenHistorial() {
 }
 window.openHistorialOverlay = _sfOpenHistorial;
 
+// ── Sesión de estudio: overlay con Pomodoro + la card de estudio (SGC) ──
+// La card #sgc-estudio-wrap se reubica UNA vez dentro del overlay (patrón
+// Historial), de modo que ya no ocupa la sección; se accede por el abanico.
+let _sfEstMoved = false;
+function _sfEnsureSesionEstudio() {
+  if (typeof CMOverlay === 'undefined') return null;
+  const { overlay, body } = CMOverlay.build({
+    id: 'ov-sesion-estudio', accent: '#6B8EFF',
+    onClose: () => { if (window.Pomodoro) Pomodoro.pauseOnHide(); },
+  });
+  if (!overlay._sfBuilt) {
+    body.innerHTML = `<div class="cm-ov-head"><div class="cm-ov-eyebrow">CONOCIMIENTO · SESIÓN DE ESTUDIO</div><div class="cm-ov-title">Sesión de estudio</div></div>
+      <div class="card" style="margin-bottom:12px"><div class="card-title">⏱ Pomodoro</div><div id="ov-pomodoro"></div></div>
+      <div class="cm-ov-host" id="ov-sesion-estudio-host"></div>`;
+    overlay._sfBuilt = true;
+    if (window.Pomodoro) Pomodoro.mount(document.getElementById('ov-pomodoro'));
+  }
+  if (!_sfEstMoved) {
+    const host = document.getElementById('ov-sesion-estudio-host');
+    const el = document.getElementById('sgc-estudio-wrap');
+    if (el && host) { host.appendChild(el); if (window.SGC) try { SGC.renderEstudioCard(); } catch (e) {} }
+    _sfEstMoved = true;
+  }
+  return overlay;
+}
+function _sfOpenSesionEstudio() {
+  const overlay = _sfEnsureSesionEstudio();
+  if (overlay) { CMOverlay.open(overlay); if (window.Pomodoro) Pomodoro.onShow(); }
+}
+window.openSesionEstudioOverlay = _sfOpenSesionEstudio;
+
 // ── Montaje ───────────────────────────────────────────────────────────────
 function _sfMount() {
   if (typeof CMSpeedDial === 'undefined') return;
@@ -97,6 +130,8 @@ function _sfMount() {
     mainIcon: _SF_ICONS.brain,
     items: [
       { icon: _SF_ICONS.notas, label: 'Notas', accent: '#6B8EFF', onClick: () => { if (typeof notasOpen === 'function') notasOpen(); } },
+      { icon: _SF_ICONS.timer, label: 'Sesión de estudio', accent: '#6B8EFF', onClick: _sfOpenSesionEstudio },
+      { icon: _SF_ICONS.grad, label: 'Finales', accent: '#6B8EFF', onClick: () => { if (window.Finales) Finales.open(); } },
       { icon: _SF_ICONS.proy, label: 'Proyectos', accent: '#38BDF8', onClick: () => { if (window.ProyectosOverlay) ProyectosOverlay.open('conocimiento'); } },
       remItem('conocimiento'),
     ],
@@ -150,6 +185,8 @@ function _sfMount() {
 
   // Saca la lista de movimientos de la sección hacia el overlay desde el arranque.
   _sfEnsureHistorial();
+  // Saca la card de estudio (SGC) hacia el overlay de Sesión de estudio desde el arranque.
+  _sfEnsureSesionEstudio();
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _sfMount);
