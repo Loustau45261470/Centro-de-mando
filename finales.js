@@ -35,15 +35,35 @@ const Finales = (() => {
   }
 
   // ══════════ Apartado en la sección principal ══════════
+  // Bloque de conteo (número-héroe de días o badge VENCIDO) según urgencia.
+  function conteo(d) {
+    if (d < 0) return { urgent: true, html: `<span class="fin-venc-badge">VENCIDO</span>` };
+    const isUrgent = d <= 3;
+    const cd = d === 0 || d <= 3 ? 'var(--danger)' : d <= 7 ? 'var(--warn)' : 'var(--ts, #8BA5C0)';
+    const glow = isUrgent ? 'rgba(255,51,88,.5)' : d <= 7 ? 'rgba(245,166,35,.4)' : 'transparent';
+    const num = d === 0 ? 'HOY' : d;
+    const lbl = d === 0 ? '' : `<div class="fin-count-lbl">${d === 1 ? 'día' : 'días'}</div>`;
+    return { urgent: isUrgent || d === 0, html: `<div class="fin-count-num" style="--cd:${cd};--cd-glow:${glow}">${num}</div>${lbl}` };
+  }
+
   function renderPrincipal() {
     const el = document.getElementById('finales-wrap-conocimiento'); if (!el) return;
     const list = activos();
-    const rows = list.length ? list.map(f => `
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.05)">
-        <span style="font-size:12px"><b>${esc(f.materia)}</b> <span style="font-size:10px;color:var(--tt)">· ${esc(f.tipo)}</span></span>
-        <span style="font-size:12px;white-space:nowrap">${etiqueta(f)} <span style="font-size:9px;color:var(--tt)">${fmtF(f.fecha)}</span></span>
-      </div>`).join('')
-      : '<div class="empty-state" style="padding:10px 0">Sin finales próximos. Cargalos desde el menú de Conocimiento → Finales.</div>';
+    let rows;
+    if (list.length) {
+      rows = '<div class="fin-list">' + list.map((f, i) => {
+        const c = conteo(diasRest(f.fecha));
+        return `<div class="fin-item ${c.urgent ? 'urgent' : ''}" style="animation-delay:${i * 60}ms">
+          <div class="fin-item-main">
+            <div class="fin-item-name">${esc(f.materia)}</div>
+            <div class="fin-item-meta"><span class="fin-tipo-badge">${esc(f.tipo)}</span><span>${fmtF(f.fecha)}</span></div>
+          </div>
+          <div class="fin-count">${c.html}</div>
+        </div>`;
+      }).join('') + '</div>';
+    } else {
+      rows = '<div class="empty-state" style="padding:12px 0">Sin finales próximos. Cargalos desde el menú de Conocimiento → Finales.</div>';
+    }
     el.innerHTML = `<div class="card"><div class="card-title">🎓 Finales <span style="font-size:9px;font-weight:400;color:var(--tt)">días restantes</span></div>${rows}</div>`;
   }
 
