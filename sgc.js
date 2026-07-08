@@ -204,37 +204,44 @@ const SGC = (() => {
     else if (_estForm) inner = formHtml();
     else if (_importForm) inner = importHtml();
     else inner = `
-      ${pendientes.length ? `<div style="font-size:9px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#FBBF24;margin-bottom:4px">Repasos pendientes</div>` +
-        pendientes.map(s => `<div onclick="SGC.iniciarQuiz('${s.id}')" style="cursor:pointer;display:flex;justify-content:space-between;padding:6px 8px;border:1px solid rgba(251,191,36,.3);border-radius:8px;margin-bottom:4px">
-          <span style="font-size:11px">📝 <b>${esc(s.tema)}</b></span><span style="font-size:9px;color:var(--tt)">hace ${diasEntre(s.fecha, hoy())} días · ${s.preguntas.length} preguntas</span></div>`).join('') : ''}
-      ${ultimas.length ? `<div style="font-size:9px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--tt);margin:6px 0 4px">Últimas sesiones</div>` +
-        ultimas.map(s => `<div style="display:flex;justify-content:space-between;font-size:10px;padding:2px 0;color:var(--tt)">
-          <span>${s.origen === 'dominio' ? '<span title="Importado de Dominio">📋</span> ' : ''}${esc(s.tema)} · ${s.duracionMin}′</span>
-          <span>${fmtF(s.fecha)} · ${s.retencion == null ? (hoy() >= addDias(s.fecha, 7) ? '<span style="color:#FBBF24">repaso listo</span>' : 'repaso el ' + fmtF(addDias(s.fecha, 7))) : `<b class="${s.retencion >= STD.est ? 'text-ok' : 'text-danger'}">${s.retencion.toFixed(0)}%</b>`}</span></div>`).join('')
-        : '<div class="empty-state" style="padding:10px 0">Sin sesiones registradas. Registrá la primera con sus preguntas de repaso.</div>'}
-      <div style="display:flex;gap:6px;margin-top:8px">
-        <button class="btn btn-ghost btn-sm" onclick="SGC.abrirForm()">+ Sesión de estudio</button>
-        <button class="btn btn-ghost btn-sm" onclick="SGC.abrirImport()">📋 Importar de Dominio</button>
+      ${pendientes.length ? `<div class="est-sec-lbl pend">⚡ Repasos pendientes</div>` +
+        pendientes.map(s => `<div class="est-review" onclick="SGC.iniciarQuiz('${s.id}')">
+          <div style="min-width:0"><div class="est-review-tema">📝 ${esc(s.tema)}</div>
+            <div class="est-review-meta">hace ${diasEntre(s.fecha, hoy())} días · ${s.preguntas.length} preguntas</div></div>
+          <span class="est-review-go">Repasar ▸</span></div>`).join('') : ''}
+      ${ultimas.length ? `<div class="est-sec-lbl">Últimas sesiones</div>` +
+        ultimas.map(s => {
+          const right = s.retencion == null
+            ? (hoy() >= addDias(s.fecha, 7) ? '<span class="est-ret-pend">repaso listo</span>' : `<span class="est-ret-wait">repaso ${fmtF(addDias(s.fecha, 7))}</span>`)
+            : `<span class="est-ret ${s.retencion >= STD.est ? 'ok' : 'bad'}">${s.retencion.toFixed(0)}<span style="font-size:10px">%</span></span>`;
+          return `<div class="est-sess">
+            <div style="min-width:0"><div class="est-sess-tema">${s.origen === 'dominio' ? '📋 ' : ''}${esc(s.tema)}</div>
+              <div class="est-sess-sub">${s.duracionMin}′ · ${fmtF(s.fecha)}</div></div>
+            <div style="text-align:right;flex-shrink:0">${right}</div></div>`;
+        }).join('')
+        : '<div class="empty-state" style="padding:14px 0">Sin sesiones registradas. Registrá la primera con sus preguntas de repaso.</div>'}
+      <div class="est-actions">
+        <button class="est-btn est-btn-primary" onclick="SGC.abrirForm()">+ Sesión de estudio</button>
+        <button class="est-btn est-btn-ghost" onclick="SGC.abrirImport()">📋 Importar de Dominio</button>
       </div>`;
-    el.innerHTML = `<div class="card"><div class="card-title">🎓 Sesiones de estudio <span style="font-size:9px;font-weight:400;color:var(--tt)">SGC · retención a 7 días</span></div>${inner}</div>`;
+    el.innerHTML = `<div class="card"><div class="card-title">🎓 Sesiones de estudio <span class="est-card-sub">SGC · retención a 7 días</span></div>${inner}</div>`;
   }
 
   function formHtml() {
-    const inp = 'width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:6px 8px;font-size:11px;color:inherit;margin-bottom:5px';
     return `
-      <input id="sgc-e-tema" placeholder="Tema estudiado (ej: Obligaciones — mora)" style="${inp}">
-      <input id="sgc-e-dur" type="number" min="5" placeholder="Duración (min)" style="${inp}">
-      <div style="font-size:9px;color:var(--tt);margin:2px 0 4px">3 a 5 preguntas con respuesta — son tu test de retención del día 7:</div>
+      <input id="sgc-e-tema" class="est-input" placeholder="Tema estudiado (ej: Obligaciones — mora)">
+      <input id="sgc-e-dur" class="est-input" type="number" min="5" placeholder="Duración (min)">
+      <div class="est-hint">3 a 5 preguntas con respuesta — son tu test de retención del día 7:</div>
       <div id="sgc-e-qs">${[0, 1, 2].map(i => qRow(i)).join('')}</div>
-      <button class="btn btn-ghost btn-sm" style="font-size:9px" onclick="SGC.masPregunta()">+ pregunta</button>
-      <div style="display:flex;gap:6px;margin-top:8px">
-        <button class="btn btn-sm" onclick="SGC.guardarSesion()">Guardar sesión</button>
-        <button class="btn btn-ghost btn-sm" onclick="SGC.cerrarForm()">Cancelar</button>
+      <button class="est-btn est-btn-ghost" style="flex:none;font-size:11px;padding:7px 13px;margin-top:2px" onclick="SGC.masPregunta()">+ pregunta</button>
+      <div class="est-actions">
+        <button class="est-btn est-btn-primary" onclick="SGC.guardarSesion()">Guardar sesión</button>
+        <button class="est-btn est-btn-ghost" onclick="SGC.cerrarForm()">Cancelar</button>
       </div>`;
   }
-  const qRow = i => `<div style="display:flex;gap:4px;margin-bottom:4px">
-    <input id="sgc-e-q${i}" placeholder="Pregunta ${i + 1}" style="flex:1.2;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:5px 7px;font-size:10px;color:inherit">
-    <input id="sgc-e-a${i}" placeholder="Respuesta" style="flex:1;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:5px 7px;font-size:10px;color:inherit"></div>`;
+  const qRow = i => `<div class="est-qrow">
+    <input id="sgc-e-q${i}" class="est-input" style="flex:1.2" placeholder="Pregunta ${i + 1}">
+    <input id="sgc-e-a${i}" class="est-input" style="flex:1" placeholder="Respuesta"></div>`;
 
   let _nQs = 3;
   function masPregunta() { if (_nQs >= 5) return; const c = document.getElementById('sgc-e-qs'); if (c) { c.insertAdjacentHTML('beforeend', qRow(_nQs)); _nQs++; } }
@@ -243,13 +250,12 @@ const SGC = (() => {
 
   // ── Importar simulacro terminado desde Dominio (puente por clipboard) ──
   function importHtml() {
-    const inp = 'width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:6px 8px;font-size:11px;color:inherit;font-family:var(--mono)';
     return `
-      <div style="font-size:9px;color:var(--tt);margin-bottom:5px">Pegá el JSON copiado en Dominio (botón <b>📋 Copiar para Centro de Mando</b> al terminar un simulacro). La retención ya viene resuelta por el SRS de Dominio.</div>
-      <textarea id="sgc-imp-json" rows="4" placeholder='{"origen":"dominio","tema":"...","retencion":85,...}' style="${inp}"></textarea>
-      <div style="display:flex;gap:6px;margin-top:8px">
-        <button class="btn btn-sm" onclick="SGC.importarDominio()">Importar</button>
-        <button class="btn btn-ghost btn-sm" onclick="SGC.cerrarImport()">Cancelar</button>
+      <div class="est-hint">Pegá el JSON copiado en Dominio (botón <b>📋 Copiar para Centro de Mando</b> al terminar un simulacro). La retención ya viene resuelta por el SRS de Dominio.</div>
+      <textarea id="sgc-imp-json" class="est-input" rows="4" style="font-family:var(--mono);resize:vertical" placeholder='{"origen":"dominio","tema":"...","retencion":85,...}'></textarea>
+      <div class="est-actions">
+        <button class="est-btn est-btn-primary" onclick="SGC.importarDominio()">Importar</button>
+        <button class="est-btn est-btn-ghost" onclick="SGC.cerrarImport()">Cancelar</button>
       </div>`;
   }
   function abrirImport() { _importForm = true; renderEstudioCard(); }
@@ -317,15 +323,19 @@ const SGC = (() => {
   function quizHtml() {
     const s = S.sgc.estudio.find(x => x.id === _quiz.id); if (!s) { _quiz = null; return ''; }
     const p = s.preguntas[_quiz.idx];
-    return `<div style="font-size:9px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#FBBF24">Repaso: ${esc(s.tema)} · ${_quiz.idx + 1}/${s.preguntas.length}</div>
-      <div style="font-size:13px;font-weight:700;margin:10px 0">${esc(p.q)}</div>
+    const dots = s.preguntas.map((_, i) => `<span class="est-quiz-dot ${i === _quiz.idx ? 'active' : i < _quiz.idx ? 'done' : ''}"></span>`).join('');
+    return `<div class="est-quiz">
+      <div class="est-quiz-tag">⚡ Repaso · ${esc(s.tema)} · ${_quiz.idx + 1}/${s.preguntas.length}</div>
+      <div class="est-quiz-prog">${dots}</div>
+      <div class="est-quiz-q">${esc(p.q)}</div>
       ${_quiz.revelada
-        ? `<div style="font-size:11px;color:var(--tt);border-left:2px solid var(--accent);padding-left:8px;margin-bottom:10px">${esc(p.a)}</div>
-           <div style="display:flex;gap:6px">
-             <button class="btn btn-sm" onclick="SGC.respuestaQuiz(true)">✔ La recordé</button>
-             <button class="btn btn-ghost btn-sm" onclick="SGC.respuestaQuiz(false)">✘ No la recordé</button></div>`
-        : `<button class="btn btn-sm" onclick="SGC.revelarQuiz()">Ver respuesta</button>`}
-      <div style="margin-top:8px"><button class="btn btn-ghost btn-sm" style="font-size:9px" onclick="SGC.salirQuiz()">Salir (retomar después)</button></div>`;
+        ? `<div class="est-quiz-a">${esc(p.a)}</div>
+           <div class="est-quiz-actions">
+             <button class="est-q-ok" onclick="SGC.respuestaQuiz(true)">✔ La recordé</button>
+             <button class="est-q-bad" onclick="SGC.respuestaQuiz(false)">✘ No la recordé</button></div>`
+        : `<button class="est-btn est-btn-primary" style="width:100%" onclick="SGC.revelarQuiz()">Ver respuesta</button>`}
+      <div class="est-quiz-exit"><button class="est-btn est-btn-ghost" style="flex:none;font-size:10px;padding:6px 13px" onclick="SGC.salirQuiz()">Salir (retomar después)</button></div>
+    </div>`;
   }
   function revelarQuiz() { _quiz.revelada = true; renderEstudioCard(); }
   function salirQuiz() { _quiz = null; renderEstudioCard(); }

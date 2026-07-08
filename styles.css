@@ -4931,3 +4931,72 @@ input:focus, select:focus, textarea:focus {
 @media (prefers-reduced-motion: reduce) {
   .pomo-run:not(.paused) .pomo-time, .fin-item.urgent, .fin-item.urgent .fin-count-num, .fin-venc-badge { animation: none; }
 }
+
+/* ═══════════════ SESIÓN DE ESTUDIO (SGC card) ═══════════════ */
+.est-card-sub { font-size: 9px; font-weight: 400; color: var(--tt); letter-spacing: .04em; }
+.est-sec-lbl { display: flex; align-items: center; gap: 6px; font-size: 9px; font-weight: 800; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--tt); margin: 15px 0 9px; }
+.est-sec-lbl.pend { color: var(--warn); }
+
+.est-review { display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer;
+  padding: 12px 14px; margin-bottom: 8px; border-radius: 13px;
+  border: 1px solid rgba(245,166,35,.35); background: linear-gradient(180deg, rgba(245,166,35,.12), rgba(245,166,35,.02));
+  animation: est-in .5s cubic-bezier(.2,.7,.3,1) both, est-cta 2s ease-in-out infinite .5s;
+  transition: transform .14s, box-shadow .14s; }
+.est-review:hover { transform: translateY(-2px); box-shadow: 0 9px 24px -7px rgba(245,166,35,.5); }
+.est-review-tema { font-size: 14px; font-weight: 700; color: var(--tp); }
+.est-review-meta { font-size: 10.5px; color: var(--tt); margin-top: 3px; }
+.est-review-go { flex-shrink: 0; font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--warn); border: 1px solid rgba(245,166,35,.45); border-radius: 999px; padding: 6px 13px; white-space: nowrap; }
+
+.est-sess { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 13px; margin-bottom: 6px; border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.06); background: rgba(255,255,255,.02); }
+.est-sess-tema { font-size: 12.5px; font-weight: 600; color: var(--ts); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.est-sess-sub { font-size: 10px; color: var(--tt); margin-top: 2px; }
+.est-ret { font-family: var(--mono); font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.est-ret.ok { color: var(--ok); text-shadow: 0 0 14px rgba(16,224,124,.35); }
+.est-ret.bad { color: var(--danger); text-shadow: 0 0 14px rgba(255,51,88,.35); }
+.est-ret-pend { font-size: 10px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--warn); }
+.est-ret-wait { font-size: 10px; color: var(--tt); }
+
+.est-actions { display: flex; gap: 8px; margin-top: 13px; }
+.est-btn { flex: 1; font-size: 12.5px; font-weight: 700; padding: 11px 14px; border-radius: 12px; cursor: pointer;
+  border: none; transition: transform .14s, box-shadow .14s, filter .14s, background .14s; }
+.est-btn-primary { color: #fff; background: linear-gradient(135deg, var(--c-conocimiento, #6B8EFF), #4B6EE0);
+  box-shadow: 0 6px 18px rgba(107,142,255,.32); }
+.est-btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(107,142,255,.46); filter: brightness(1.05); }
+.est-btn-primary:active { transform: translateY(0) scale(.98); }
+.est-btn-ghost { color: var(--ts); background: rgba(255,255,255,.045); border: 1px solid rgba(255,255,255,.12); }
+.est-btn-ghost:hover { background: rgba(255,255,255,.09); color: var(--tp); }
+
+.est-input { width: 100%; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.12); border-radius: 10px;
+  padding: 10px 12px; font-size: 13px; color: inherit; margin-bottom: 8px; transition: border-color .14s, box-shadow .14s; }
+.est-input:focus { outline: none; border-color: var(--c-conocimiento, #6B8EFF); box-shadow: 0 0 0 3px rgba(107,142,255,.16); }
+.est-input::placeholder { color: var(--tt); }
+.est-hint { font-size: 10.5px; color: var(--tt); line-height: 1.4; margin: 4px 0 9px; }
+.est-qrow { display: flex; gap: 6px; margin-bottom: 6px; }
+.est-qrow .est-input { margin-bottom: 0; }
+
+.est-quiz { animation: est-in .4s cubic-bezier(.2,.7,.3,1) both; }
+.est-quiz-tag { font-size: 9px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--warn); }
+.est-quiz-prog { display: flex; gap: 5px; margin: 10px 0 2px; }
+.est-quiz-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,.14); transition: background .2s; }
+.est-quiz-dot.active { background: var(--warn); box-shadow: 0 0 10px rgba(245,166,35,.6); }
+.est-quiz-dot.done { background: var(--c-conocimiento, #6B8EFF); }
+.est-quiz-q { font-size: 18px; font-weight: 700; line-height: 1.35; color: var(--tp); margin: 14px 0 16px; }
+.est-quiz-a { font-size: 14px; line-height: 1.45; color: var(--ts); padding: 11px 15px; margin-bottom: 14px;
+  border-left: 3px solid var(--c-conocimiento, #6B8EFF); background: rgba(107,142,255,.07); border-radius: 0 10px 10px 0;
+  animation: est-reveal .35s ease both; }
+.est-quiz-actions { display: flex; gap: 8px; }
+.est-q-ok { flex: 1; font-size: 12.5px; font-weight: 800; padding: 12px; border-radius: 12px; cursor: pointer; border: none;
+  color: #04120b; background: linear-gradient(135deg, var(--ok, #10E07C), #0AA85C); box-shadow: 0 6px 18px rgba(16,224,124,.3); }
+.est-q-ok:hover { filter: brightness(1.06); transform: translateY(-1px); }
+.est-q-bad { flex: 1; font-size: 12.5px; font-weight: 700; padding: 12px; border-radius: 12px; cursor: pointer;
+  color: var(--danger); background: rgba(255,51,88,.1); border: 1px solid rgba(255,51,88,.4); }
+.est-q-bad:hover { background: rgba(255,51,88,.16); }
+.est-quiz-exit { margin-top: 12px; }
+@keyframes est-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes est-reveal { from { opacity: 0; transform: translateX(-7px); } to { opacity: 1; transform: none; } }
+@keyframes est-cta { 0%, 100% { border-color: rgba(245,166,35,.35); } 50% { border-color: rgba(245,166,35,.7); } }
+@media (prefers-reduced-motion: reduce) { .est-review, .est-quiz, .est-quiz-a { animation-iteration-count: 1; } }
