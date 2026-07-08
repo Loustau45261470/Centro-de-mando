@@ -4849,9 +4849,85 @@ input:focus, select:focus, textarea:focus {
 .ci-top-rank { width: 18px; height: 18px; border-radius: 50%; background: rgba(34,197,94,.15); color: #22C55E; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
 .ci-pred { display: flex; align-items: baseline; gap: 8px; padding: 4px 0; font-size: 13px; border-bottom: 1px solid rgba(255,255,255,.04); }
 .ci-razon { color: var(--text-ter, #8b93a7); font-size: 12px; flex: 1; }
-.ci-hist { display: flex; gap: 14px; font-size: 12.5px; padding: 4px 0; color: var(--text-sec, #c8cede); border-bottom: 1px solid rgba(255,255,255,.04); }
+.ci-hist { display: flex; gap: 14px; font-size: 12.5px; padding: 4px 0; color: var(--ts, #8BA5C0); border-bottom: 1px solid rgba(255,255,255,.04); }
 @media (max-width: 900px) {
   .ci-grid { grid-template-columns: 1fr; }
   .ci-kpis { grid-template-columns: repeat(2, 1fr); }
 }
 .ci-est { min-width: 54px; text-align: right; font-size: 12.5px; font-weight: 700; }
+
+/* ═══════════════ POMODORO (Sesión de estudio) ═══════════════ */
+.pomo-config { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-bottom: 18px; }
+.pomo-stepper { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 13px 16px 11px;
+  min-width: 108px; border-radius: 16px; border: 1px solid rgba(107,142,255,.22);
+  background: linear-gradient(180deg, rgba(107,142,255,.09), rgba(107,142,255,.015));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05); }
+.pomo-stepper-lbl { font-size: 9px; font-weight: 800; letter-spacing: .15em; text-transform: uppercase; color: var(--tt); }
+.pomo-stepper-row { display: flex; align-items: center; gap: 12px; }
+.pomo-stepper-btn { width: 32px; height: 32px; border-radius: 10px; border: 1px solid rgba(255,255,255,.14);
+  background: rgba(255,255,255,.04); color: var(--c-conocimiento, #6B8EFF); font-size: 20px; font-weight: 700; line-height: 1;
+  cursor: pointer; display: grid; place-items: center; transition: transform .12s, background .12s, box-shadow .12s; }
+.pomo-stepper-btn:hover { background: rgba(107,142,255,.18); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(107,142,255,.28); }
+.pomo-stepper-btn:active { transform: scale(.9); }
+.pomo-stepper-val { font-family: var(--mono); font-size: 34px; font-weight: 700; font-variant-numeric: tabular-nums;
+  min-width: 56px; text-align: center; color: var(--tp, #EDF4FF); text-shadow: 0 0 20px rgba(107,142,255,.4); }
+.pomo-start { font-size: 13px; font-weight: 700; letter-spacing: .03em; padding: 12px 28px; border-radius: 13px;
+  color: #fff; border: none; cursor: pointer;
+  background: linear-gradient(135deg, var(--c-conocimiento, #6B8EFF), #4B6EE0);
+  box-shadow: 0 6px 20px rgba(107,142,255,.35); transition: transform .14s, box-shadow .14s, filter .14s; }
+.pomo-start:hover { transform: translateY(-2px); box-shadow: 0 11px 30px rgba(107,142,255,.5); filter: brightness(1.06); }
+.pomo-start:active { transform: translateY(0) scale(.97); }
+
+.pomo-run { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 6px 0 2px; --ring: var(--c-conocimiento, #6B8EFF); }
+.pomo-run.break { --ring: var(--ok, #10E07C); }
+.pomo-dial { position: relative; width: 216px; height: 216px; border-radius: 50%;
+  background: conic-gradient(var(--ring) calc(var(--p, 0) * 1turn), rgba(255,255,255,.06) 0deg);
+  display: grid; place-items: center; transition: background .95s linear;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.05), 0 0 46px -10px var(--ring); }
+.pomo-dial::after { content: ''; position: absolute; inset: 13px; border-radius: 50%;
+  background: radial-gradient(circle at 50% 38%, var(--bg2, #070C16), var(--bg, #020508));
+  box-shadow: inset 0 0 34px rgba(0,0,0,.6); }
+.pomo-dial-inner { position: relative; z-index: 1; text-align: center; }
+.pomo-phase { font-size: 10px; font-weight: 800; letter-spacing: .17em; text-transform: uppercase; color: var(--ring); margin-bottom: 3px; }
+.pomo-time { font-family: var(--mono); font-size: 54px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.02;
+  color: #fff; text-shadow: 0 0 28px var(--ring); }
+.pomo-run:not(.paused) .pomo-time { animation: pomo-breathe 2.6s ease-in-out infinite; }
+.pomo-cyc { font-size: 10.5px; color: var(--tt); letter-spacing: .09em; margin-top: 4px; }
+.pomo-paused-tag { font-size: 9px; font-weight: 800; letter-spacing: .16em; color: var(--warn); margin-top: 4px; }
+.pomo-controls { display: flex; gap: 10px; }
+.pomo-done { text-align: center; font-size: 12px; font-weight: 800; letter-spacing: .05em; color: var(--ok);
+  padding: 9px 14px; margin-bottom: 14px; border: 1px solid rgba(16,224,124,.35); border-radius: 11px;
+  background: rgba(16,224,124,.08); animation: fin-in .5s cubic-bezier(.2,.7,.3,1) both; }
+@keyframes pomo-breathe { 0%, 100% { opacity: 1; } 50% { opacity: .72; } }
+
+/* ═══════════════ FINALES (apartado principal) ═══════════════ */
+.fin-list { display: flex; flex-direction: column; gap: 9px; }
+.fin-item { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 13px 15px; border-radius: 15px; border: 1px solid rgba(255,255,255,.08);
+  background: linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.006));
+  animation: fin-in .55s cubic-bezier(.2,.7,.3,1) both; }
+.fin-item-main { min-width: 0; }
+.fin-item-name { font-size: 16px; font-weight: 700; letter-spacing: -.01em; color: var(--tp, #EDF4FF);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fin-item-meta { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 12px; color: var(--tt); }
+.fin-tipo-badge { font-size: 9.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  padding: 2px 9px; border-radius: 999px; background: rgba(107,142,255,.14); color: var(--c-conocimiento, #6B8EFF);
+  border: 1px solid rgba(107,142,255,.28); }
+.fin-count { text-align: right; line-height: 1; flex-shrink: 0; }
+.fin-count-num { font-family: var(--mono); font-size: 32px; font-weight: 700; font-variant-numeric: tabular-nums;
+  color: var(--cd, var(--ts, #8BA5C0)); text-shadow: 0 0 16px var(--cd-glow, transparent); }
+.fin-count-lbl { font-size: 9px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--tt); margin-top: 3px; }
+.fin-item.urgent { border-color: rgba(255,51,88,.45);
+  background: linear-gradient(180deg, rgba(255,51,88,.11), rgba(255,51,88,.02));
+  animation: fin-in .55s cubic-bezier(.2,.7,.3,1) both, fin-pulse 1.9s ease-in-out infinite .55s; }
+.fin-item.urgent .fin-count-num { animation: fin-num-flash 1.9s ease-in-out infinite; }
+.fin-venc-badge { display: inline-block; font-size: 11px; font-weight: 800; letter-spacing: .13em;
+  padding: 4px 11px; border-radius: 7px; background: var(--danger); color: #fff;
+  box-shadow: 0 0 18px -2px var(--danger); animation: fin-shake 2.4s ease-in-out infinite; }
+@keyframes fin-in { from { opacity: 0; transform: translateY(9px) scale(.98); } to { opacity: 1; transform: none; } }
+@keyframes fin-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(255,51,88,0); } 50% { box-shadow: 0 0 24px -3px rgba(255,51,88,.5); } }
+@keyframes fin-num-flash { 0%, 100% { text-shadow: 0 0 16px rgba(255,51,88,.4); } 50% { text-shadow: 0 0 30px rgba(255,51,88,.95); filter: brightness(1.22); } }
+@keyframes fin-shake { 0%, 92%, 100% { transform: translateX(0); } 94% { transform: translateX(-2px); } 96% { transform: translateX(2px); } 98% { transform: translateX(-1px); } }
+@media (prefers-reduced-motion: reduce) {
+  .pomo-run:not(.paused) .pomo-time, .fin-item.urgent, .fin-item.urgent .fin-count-num, .fin-venc-badge { animation: none; }
+}
