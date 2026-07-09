@@ -5,3 +5,13 @@ _make_preview.js
 _preview_finanzas.html
 _verify_*.png
 _shot_*.png
+
+# Segundo cerebro (vault Obsidian personal) — NUNCA al repo público
+context/
+inbox/
+conocimiento/
+proyectos/
+plantillas/
+Inicio.md
+Como-usar-esto.md
+.obsidian/

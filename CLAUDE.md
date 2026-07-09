@@ -74,3 +74,10 @@ El sistema de sync (Firestore ↔ localStorage ↔ múltiples dispositivos) es c
 - `_fbSaveInProgress`: flag que bloquea `onSnapshot` y `_syncOnFocus` mientras hay un write en vuelo. **No eliminar.**
 - `onSnapshot`: listener real-time. Solo aplica si no hay write en vuelo.
 - `snap_<timestamp>`: snapshots post-write (últimos 20) para recuperación. `listarSnaps()` / `restaurarSnap()` en consola.
+
+## Segundo cerebro (vault Obsidian personal — local, NO versionado)
+Esta carpeta es también el vault Obsidian de Tobías. Sus carpetas (`context/`, `inbox/`, `conocimiento/`, `proyectos/`, `plantillas/`, `.obsidian/`) y `Inicio.md`/`Como-usar-esto.md` están en `.gitignore`: **jamás commitearlos ni subirlos — el repo es público.**
+- Al trabajar con notas, leer primero `context/perfil.md` y `context/objetivos.md`.
+- Todo material nuevo que Tobías comparta → convertirlo en nota (moldes en `plantillas/`), enlazarla con `[[enlaces]]` y guardarla en la carpeta correcta; ideas rápidas van a `inbox/` y "ordená el inbox" las clasifica.
+- Formato Obsidian: markdown, `[[enlaces]]`, frontmatter, etiquetas `#idea #pendiente #importante #recurso #aprendizaje`. Toda nota de `conocimiento/` se enlaza en `conocimiento/Indice.md`.
+- Tono: reflexivo para dudas y planteamientos (estudio, decisiones, ideas en formación); directo y conciso para lo técnico/operativo.
