@@ -1,0 +1,19 @@
+{
+  "_doc": "Registro witness de fixes (idea adaptada de ruflo-core/witness, sin criptografía). Cada entrada tiene un marker: una substring distintiva que DEBE seguir presente en el archivo. Si un marker desaparece, el fix pudo haber sido revertido — alertar antes de asumir que 'ya estaba arreglado'. Se chequea con grep en cada verificación y en /mantenimiento.",
+  "fixes": [
+    {
+      "id": "sync-write-in-flight-guard",
+      "fecha": "2026-07-10",
+      "desc": "Flag que bloquea onSnapshot y _syncOnFocus mientras hay un write en vuelo, para que un snapshot remoto viejo no pise el estado local recién guardado. NO eliminar.",
+      "file": "app.js",
+      "marker": "_fbSaveInProgress"
+    },
+    {
+      "id": "sync-session-confirmed-rescue",
+      "fecha": "2026-07-10",
+      "desc": "Distingue sesión confirmada contra cloud (write directo) de sesión cargada de localStorage (rescue desde cloud antes de guardar), evitando pisar datos remotos más nuevos.",
+      "file": "app.js",
+      "marker": "_lastSyncedSavedAt"
+    }
+  ]
+}

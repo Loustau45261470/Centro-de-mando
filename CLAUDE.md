@@ -75,9 +75,15 @@ El sistema de sync (Firestore ↔ localStorage ↔ múltiples dispositivos) es c
 - `onSnapshot`: listener real-time. Solo aplica si no hay write en vuelo.
 - `snap_<timestamp>`: snapshots post-write (últimos 20) para recuperación. `listarSnaps()` / `restaurarSnap()` en consola.
 
-## Segundo cerebro (vault Obsidian personal — vive fuera de este repo)
-El vault Obsidian de Tobías vive un nivel arriba, en `Proyectos/` (root: `context/`, `inbox/`, `conocimiento/`, `proyectos/`, `plantillas/`, `.obsidian/`, `_CLAUDE.md`, `Inicio.md`, `Como-usar-esto.md`). Ya NO está dentro de este repo — se movió para que el vault cubra todos los proyectos bajo `Proyectos/`, no solo Centro de Mando. `OBSIDIAN_VAULT_PATH` apunta a `Proyectos/`; el hook `load_vault_context` inyecta el manual del vault en cualquier sesión bajo esa carpeta.
-- Al trabajar con notas, leer primero `context/perfil.md` y `context/objetivos.md` (rutas: `Proyectos/context/...`).
+## Registro witness de fixes (`fixes.json`)
+Registro anti-regresión de bugs resueltos (adaptado del plugin witness de ruflo, sin criptografía). Cada entrada: `{id, fecha, desc, file, marker}` — `marker` es una substring distintiva que debe seguir presente en `file` mientras el fix siga vivo.
+- **Al resolver un bug no trivial** (especialmente de sync/datos): agregar su entrada a `fixes.json` en el mismo commit del fix.
+- **Antes de diagnosticar un bug "que ya habíamos arreglado"** y en cada verificación post-cambio: `grep` de cada `marker` en su `file`. Marker ausente = el fix probablemente se revirtió — esa es la primera hipótesis a investigar, no un bug nuevo.
+- `fixes.json` no es parte del shell de la PWA (no agregarlo a `sw.js`).
+
+## Segundo cerebro (vault Obsidian personal — carpeta separada, fuera de cualquier repo)
+El vault Obsidian de Tobías vive en `C:\Users\Tobias\Desktop\Claude\Vault\` (root: `context/`, `inbox/`, `conocimiento/`, `proyectos/`, `plantillas/`, `.obsidian/`, `_CLAUDE.md`, `Inicio.md`, `Como-usar-esto.md`), separado de `Proyectos/` (código) para que Obsidian no mezcle notas con node_modules/binarios. `OBSIDIAN_VAULT_PATH` apunta a `Vault/`; el hook `load_vault_context` solo inyecta el manual cuando el cwd de la sesión está bajo `Vault/` (NO se dispara automáticamente al trabajar en `Proyectos/`).
+- Al trabajar con notas, leer primero `context/perfil.md` y `context/objetivos.md` (rutas: `Vault/context/...`).
 - Todo material nuevo que Tobías comparta → convertirlo en nota (moldes en `plantillas/`), enlazarla con `[[enlaces]]` y guardarla en la carpeta correcta; ideas rápidas van a `inbox/` y "ordená el inbox" las clasifica.
 - Formato Obsidian: markdown, `[[enlaces]]`, frontmatter, etiquetas `#idea #pendiente #importante #recurso #aprendizaje`. Toda nota de `conocimiento/` se enlaza en `conocimiento/Indice.md`.
 - Tono: reflexivo para dudas y planteamientos (estudio, decisiones, ideas en formación); directo y conciso para lo técnico/operativo.
