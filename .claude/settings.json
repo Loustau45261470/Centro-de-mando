@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:anthropic.skilljar.com)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/scripts/guard-sync-files.js\"",
+            "statusMessage": "Guard: archivos de sync/reglas"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "printf '%s\\n' \"RECORDATORIO OBLIGATORIO (en CADA peticion, antes de responder): 1) Lee y sigue las reglas de los CLAUDE.md activos (global + proyecto). 2) Analiza TODAS las skills disponibles y usa las que apliquen a la tarea. 3) Declara cada skill al usarla con el formato -> Skill: <nombre> - que hace y por que sirve para esta tarea concreta. 4) Si ninguna skill aplica, dilo en una linea. Motivo: aprendizaje del usuario sobre que skill sirve para cada tarea.\"",
+            "statusMessage": "Recordatorio de reglas + skills"
+          }
+        ]
+      }
+    ]
+  }
+}
