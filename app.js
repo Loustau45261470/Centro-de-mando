@@ -8923,13 +8923,20 @@ _auth.onAuthStateChanged(user => {
 
   // Recarga trees desde S.proyectos (llamado tras loadState o sync remoto)
   window._reloadProyectosFromState = function() {
+    // [DIAG proyectos-borrado] detecta si un re-render por sync pierde nodos del árbol activo.
+    const _countNodes = t => (t || []).reduce((a, x) => a + 1 + _countNodes(x.children || []), 0);
+    const _activeTab = document.querySelector('.tab-panel.active')?.id?.replace('tab-', '') || 'vida';
+    const _beforeN = _countNodes(trees[_activeTab]);
     TABS.forEach(tab => {
       if (typeof S !== 'undefined' && S.proyectos?.[tab] != null) {
         trees[tab] = S.proyectos[tab];
       }
     });
-    const activeTab = document.querySelector('.tab-panel.active')?.id?.replace('tab-', '') || 'vida';
-    renderProyectos(activeTab);
+    const _afterN = _countNodes(trees[_activeTab]);
+    if (_afterN < _beforeN && typeof showToast === 'function') {
+      showToast(`⚠️ [diag] Sync recargó Proyectos y perdió nodos: ${_beforeN}→${_afterN}`, 8000);
+    }
+    renderProyectos(_activeTab);
   };
 
   // ── API para comandos de voz (JARVIS EARS) ──
@@ -8955,6 +8962,8 @@ _auth.onAuthStateChanged(user => {
         })(trees[tab]);
       });
       if (!best) return null;
+      // [DIAG proyectos-borrado] avisa si un comando de voz (mal escuchado) borró un nodo.
+      if (typeof showToast === 'function') showToast(`🎙️ [diag] Voz borró proyecto: "${best.node.label}"`, 8000);
       trees[best.tab] = removeById(trees[best.tab], best.node.id);
       saveTree(best.tab, trees[best.tab]);
       try { renderProyectos(best.tab); } catch (e) {}
