@@ -4869,6 +4869,25 @@ function renderReminders(tab) {
     goalUrgent.sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
   }
 
+  // ── Inyecta nodos de Proyectos con fecha límite como ítems virtuales (todas las secciones) ──
+  let proyImminent = [], proyUpcoming = [], proyPast = [];
+  if (window.Proyectos && typeof window.Proyectos.get === 'function') {
+    const proyItems = [];
+    const walkProy = nodes => (nodes || []).forEach(n => {
+      if (n && n.dueDate && !n.done) {
+        proyItems.push({ _isProject: true, _tab: tab, _nodeId: n.id, _icon: n.icon || '📁',
+          id: 'proy_' + n.id, title: n.label || '(sin título)',
+          datetime: n.dueDate + 'T23:59:59',
+          priority: n.priority === '1' ? 'high' : n.priority === '3' ? 'low' : 'medium' });
+      }
+      if (n && n.children) walkProy(n.children);
+    });
+    try { walkProy(window.Proyectos.get(tab)); } catch (e) {}
+    proyPast     = proyItems.filter(p => new Date(p.datetime) - now <= 0).sort((a, b) => new Date(b.datetime) - new Date(a.datetime));
+    proyImminent = proyItems.filter(p => { const d = new Date(p.datetime) - now; return d > 0 && d < 86400000; }).sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
+    proyUpcoming = proyItems.filter(p => new Date(p.datetime) - now >= 86400000).sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
+  }
+
   // Categorize regular reminders
   const imminent = all.filter(r => r.datetime && (new Date(r.datetime) - now) > 0 && (new Date(r.datetime) - now) < 86400000);
   const critical = all.filter(r => !r.datetime && r.priority === 'critical');
@@ -4883,11 +4902,31 @@ function renderReminders(tab) {
     </div>`;
 
   // Urgent block (critical no-date + imminent dated + timed goals)
-  const urgentAll = [...critical, ...goalUrgent, ...imminent.sort((a,b)=>new Date(a.datetime)-new Date(b.datetime))];
+  const urgentAll = [...critical, ...goalUrgent, ...proyPast, ...proyImminent, ...imminent.sort((a,b)=>new Date(a.datetime)-new Date(b.datetime))];
   const urgentHTML = urgentAll.length ? `
     <div class="rem-urgent-section">
       <div class="rem-urgent-label">⚠ Atención inmediata</div>
       ${urgentAll.map(r => {
+        if (r._isProject) {
+          const isPast = new Date(r.datetime) - now <= 0;
+          const cd = remCountdown(r.datetime);
+          const txt = isPast ? '¡Atrasada!' : (cd || 'Vence hoy');
+          const style = isPast ? 'color:#FF6B6B;text-shadow:0 0 10px rgba(255,107,107,.7)' : '';
+          const dstr = new Date(r.datetime).toLocaleDateString('es-AR', { weekday:'short', day:'numeric', month:'short' });
+          return `<div class="rem-urgent-item priority-${r.priority}">
+            <div class="rem-urgent-row">
+              <div style="flex:1;min-width:0">
+                <div style="display:flex;align-items:center;gap:7px;margin-bottom:4px">
+                  <span style="font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:5px;background:rgba(255,255,255,.09);color:var(--ts)">${r._icon} Proyecto</span>
+                  <span style="font-size:10px;color:var(--tt);font-family:var(--mono)">${dstr}</span>
+                </div>
+                <div class="rem-urgent-title">${escHtml(r.title)}</div>
+                <div class="rem-urgent-countdown" style="${style}">${txt}</div>
+              </div>
+              <button class="btn btn-ghost btn-sm" style="flex-shrink:0;font-size:12px" onclick="Proyectos.setDone('${r._tab}','${r._nodeId}',true)">✓ Completar</button>
+            </div>
+          </div>`;
+        }
         if (r._isGoal) {
           const cd = remCountdown(r.datetime);
           const isPast = new Date(r.datetime) - now <= 0;
@@ -4922,6 +4961,21 @@ function renderReminders(tab) {
     </div>` : '';
 
   const remItemHTML = r => {
+    if (r._isProject) {
+      const cfgP = REM_CFG[r.priority] || REM_CFG.medium;
+      const dstr = new Date(r.datetime).toLocaleDateString('es-AR', { weekday:'short', day:'numeric', month:'short' });
+      return `<div class="rem-item" style="cursor:pointer" onclick="Proyectos.openDetail('${r._tab}','${r._nodeId}')">
+        <div class="rem-priority-dot" style="background:${cfgP.dot}"></div>
+        <div class="rem-info">
+          <div class="rem-title">${escHtml(r.title)}</div>
+          <div class="rem-meta">${r._icon} Proyecto · ${dstr}</div>
+        </div>
+        <span class="rem-badge rem-badge-${r.priority}">${cfgP.label}</span>
+        <div class="rem-actions">
+          <button class="icon-btn" title="Completar" onclick="event.stopPropagation();Proyectos.setDone('${r._tab}','${r._nodeId}',true)">✓</button>
+        </div>
+      </div>`;
+    }
     const cfg = REM_CFG[r.priority] || REM_CFG.medium;
     const isPast = r.datetime && (new Date(r.datetime) - now) <= 0;
     const dateStr = r.datetime ? remFormatDate(r.datetime) : 'Sin fecha';
@@ -4939,7 +4993,8 @@ function renderReminders(tab) {
     </div>`;
   };
 
-  const upcomingHTML = upcoming.length ? upcoming.map(remItemHTML).join('') : '';
+  const upcomingMerged = [...upcoming, ...proyUpcoming].sort((a,b)=>new Date(a.datetime)-new Date(b.datetime));
+  const upcomingHTML = upcomingMerged.length ? upcomingMerged.map(remItemHTML).join('') : '';
   const noDateHTML   = noDate.length
     ? `<div class="rem-nodate-section">📌 Sin fecha asignada</div>${noDate.map(remItemHTML).join('')}`
     : '';
@@ -4947,7 +5002,7 @@ function renderReminders(tab) {
     ? `<div class="rem-nodate-section" style="margin-top:14px">✓ Pasados</div>${past.map(remItemHTML).join('')}`
     : '';
 
-  const isEmpty = all.length === 0;
+  const isEmpty = all.length === 0 && proyImminent.length === 0 && proyUpcoming.length === 0 && proyPast.length === 0;
 
   wrap.innerHTML = `<div class="card">
     <div class="card-title">
@@ -8689,6 +8744,7 @@ _auth.onAuthStateChanged(user => {
       labelEl.classList.toggle('done', node.done);
       if (node.done && window.JARVIS) JARVIS.onTaskDone();
       saveTree(tab, trees[tab]);
+      if (typeof renderReminders === 'function') renderReminders(tab);
     };
 
     const iconEl = document.createElement('span');
@@ -8840,6 +8896,7 @@ _auth.onAuthStateChanged(user => {
     if (window.JARVIS) JARVIS.onDeleteProject();
     trees[tab] = removeById(trees[tab], id);
     saveTree(tab, trees[tab]); renderProyectos(tab);
+    if (typeof renderReminders === 'function') renderReminders(tab);
   }
 
   function removeById(nodes, id) {
@@ -8909,6 +8966,7 @@ _auth.onAuthStateChanged(user => {
     saveTree(tab, trees[tab]);
     closeModal('modal-proy-detail');
     renderProyectos(tab);
+    if (typeof renderReminders === 'function') renderReminders(tab);
   };
 
   window.renderProyectos = renderProyectos;
@@ -8919,6 +8977,17 @@ _auth.onAuthStateChanged(user => {
     findById: (tab, id) => findById(trees[tab] || [], id),
     newNode: (label, isFolder) => ({ id: uid(), label: label || (isFolder ? 'Nueva carpeta' : 'Nueva tarea'), icon: isFolder ? '📁' : '📄', tipo: isFolder ? 'carpeta' : 'tarea', open: false, description: '', notes: '', detailOpen: false, done: false, priority: '', dueDate: '', progress: 0, children: [] }),
     removeById: (tab, id) => { trees[tab] = removeById(trees[tab], id); saveTree(tab, trees[tab]); renderProyectos(tab); },
+    // Marca done desde el board de recordatorios (y refresca el board para que salga de ahí).
+    setDone: (tab, id, val) => {
+      const n = findById(trees[tab] || [], id); if (!n) return;
+      n.done = !!val;
+      if (n.done) { n.advances = n.advances || []; n.advances.push(getActiveDate()); }
+      saveTree(tab, trees[tab]); renderProyectos(tab);
+      if (typeof renderReminders === 'function') renderReminders(tab);
+      if (n.done && window.JARVIS) try { JARVIS.onTaskDone(); } catch (e) {}
+    },
+    // Abre el modal de detalle del nodo (para editar fecha/prioridad desde el board).
+    openDetail: (tab, id) => { const n = findById(trees[tab] || [], id); if (n) openDetailModal(tab, n); },
   };
 
   // Recarga trees desde S.proyectos (llamado tras loadState o sync remoto)
