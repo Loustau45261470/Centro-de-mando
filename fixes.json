@@ -14,6 +14,13 @@
       "desc": "Distingue sesión confirmada contra cloud (write directo) de sesión cargada de localStorage (rescue desde cloud antes de guardar), evitando pisar datos remotos más nuevos.",
       "file": "app.js",
       "marker": "_lastSyncedSavedAt"
+    },
+    {
+      "id": "planner-empty-task-blur-delete-race",
+      "fecha": "2026-07-13",
+      "desc": "La tarea nueva del planner (vacía y auto-enfocada) se borraba en el primer blur, incluso si era un blur transitorio (tap que reenfocaba la casilla). Ahora el borrado por-vacía es diferido y se re-chequea: sólo elimina si la tarea sigue vacía Y el usuario ya no la tiene enfocada.",
+      "file": "app.js",
+      "marker": "reenfocada o con texto"
     }
   ]
 }

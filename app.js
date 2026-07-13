@@ -1449,8 +1449,20 @@ function plannerTaskText(date, id, text) {
   const p = getDayPlan(date);
   const t = p.tasks.find(x => x.id === id);
   if (!t) return;
-  if (text.trim()) { t.text = text; saveState(); }
-  else { p.tasks = p.tasks.filter(x => x.id !== id); saveState(); renderDayPlanner(); } // vacía al salir → se elimina
+  if (text.trim()) { t.text = text; saveState(); return; }
+  // Vacía al salir → se elimina, PERO diferido y re-chequeando: un blur transitorio
+  // (tap que reenfoca la casilla, o un re-render) NO debe borrar la tarea que el
+  // usuario recién creó y está por escribir. Sólo se elimina si sigue vacía y el
+  // usuario ya no la tiene enfocada.
+  setTimeout(() => {
+    const live = document.querySelector(`.ptask[data-id="${id}"] .ptask-text`);
+    if (live && (document.activeElement === live || live.value.trim())) return; // reenfocada o con texto
+    const pp = getDayPlan(date);
+    const tt = pp.tasks.find(x => x.id === id);
+    if (!tt || (tt.text && tt.text.trim())) return;
+    pp.tasks = pp.tasks.filter(x => x.id !== id);
+    saveState(); renderDayPlanner();
+  }, 200);
 }
 function plannerCyclePrio(date, id) {
   const t = getDayPlan(date).tasks.find(x => x.id === id);
