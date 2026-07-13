@@ -2181,6 +2181,11 @@ textarea { resize: vertical; min-height: 60px; }
   display: flex; align-items: center; gap: 1px;
   opacity: 0; transition: opacity .15s; flex-shrink: 0;
 }
+/* Táctil (celular/PWA): sin hover no se revelaban las acciones del nodo
+   (Detalles → fecha límite, agregar, ícono, eliminar). Mostrarlas siempre. */
+@media (hover: none) {
+  .proy-node-actions { opacity: 1; }
+}
 .proy-node-action-btn {
   display: flex; align-items: center; justify-content: center;
   width: 26px; height: 26px;
