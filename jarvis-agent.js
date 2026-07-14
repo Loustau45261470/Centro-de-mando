@@ -5,8 +5,20 @@
   const KEY_STORE  = 'agent_api_key_v1';
   const HIST_STORE = 'agent_chat_v1';
   const HIST_CAP   = 40;   // máximo de mensajes guardados (acota tamaño y costo de tokens)
-  const MODEL      = 'claude-haiku-4-5-20251001';
+  const MODEL_FAST  = 'claude-haiku-4-5-20251001';
+  const MODEL_SMART = 'claude-sonnet-5';
   const API_URL    = 'https://api.anthropic.com/v1/messages';
+
+  // Heurística de ruteo: decide una vez por mensaje del usuario qué modelo usar para todo el turno.
+  function _pickModel(userText) {
+    const override = localStorage.getItem('jarvis_agent_model');
+    if (override === 'fast') return MODEL_FAST;
+    if (override === 'smart') return MODEL_SMART;
+    const text = userText || '';
+    if (text.length > 180) return MODEL_SMART;
+    if (/analiz|anális|tendenc|estrateg|resum[ií\b]|compar[aá]|por qué|diagnos|proyect[aá]|evalu[aá]|revis[aá] (el|mi|todo)/i.test(text)) return MODEL_SMART;
+    return MODEL_FAST;
+  }
 
   let apiKey  = localStorage.getItem(KEY_STORE) || '';
   let apiHist = [];   // full API message history (role + content)
@@ -51,6 +63,10 @@
     apiHist = [];
     displayLog = [];
     localStorage.removeItem(HIST_STORE);
+    if (typeof S !== 'undefined' && S) {
+      S.agentChat = { apiHist: [], displayLog: [], updatedAt: Date.now() };
+      if (typeof saveState === 'function') saveState();
+    }
     document.getElementById('agent-messages').innerHTML = '';
     _welcome();
   };
@@ -67,7 +83,8 @@
     inp.value = ''; inp.style.height = 'auto';
     _addMsg('user', text);
     apiHist.push({ role: 'user', content: text });
-    await _run();
+    const model = _pickModel(text);
+    await _run(model);
   };
 
   /* ── UI helpers ── */
@@ -85,16 +102,21 @@
     if (document.getElementById('agent-messages').children.length) return;
     _addMsg('assistant', 'Hola, Señor. Soy tu asistente integrado en el dashboard.\n\nPuedo ayudarte a:\n• Crear, editar o eliminar proyectos\n• Agregar o completar tareas\n• Registrar tu bienestar\n• Responder preguntas sobre tus datos\n\n¿En qué te ayudo?');
   }
-  function _renderMsg(role, text) {
+  function _renderMsg(role, text, model) {
     const el = document.createElement('div');
     el.className = 'agent-msg ' + role;
-    el.innerHTML = _fmt(text);
+    let html = _fmt(text);
+    if (role === 'assistant' && model) {
+      const label = model === MODEL_SMART ? '🧠 sonnet' : '⚡ haiku';
+      html += ` <span style="opacity:.45;font-size:9px">${label}</span>`;
+    }
+    el.innerHTML = html;
     document.getElementById('agent-messages').appendChild(el);
     _scrollBottom();
   }
-  function _addMsg(role, text) {
-    displayLog.push({ role, text });
-    _renderMsg(role, text);
+  function _addMsg(role, text, model) {
+    displayLog.push({ role, text, model });
+    _renderMsg(role, text, model);
   }
   function _persist() {
     try {
@@ -106,7 +128,12 @@
         while (i < ah.length && !(ah[i].role === 'user' && typeof ah[i].content === 'string')) i++;
         apiHist = ah.slice(i);
       }
-      localStorage.setItem(HIST_STORE, JSON.stringify({ apiHist, displayLog }));
+      const updatedAt = Date.now();
+      localStorage.setItem(HIST_STORE, JSON.stringify({ apiHist, displayLog, updatedAt }));
+      if (typeof S !== 'undefined' && S) {
+        S.agentChat = { apiHist, displayLog, updatedAt };
+        if (typeof saveState === 'function') saveState();
+      }
     } catch (e) {
       console.warn('[agent] persist:', e);
       if (!_persistWarned) {
@@ -128,12 +155,19 @@
   }
   function _restoreChat() {
     try {
-      const saved = JSON.parse(localStorage.getItem(HIST_STORE) || 'null');
+      const localSaved = JSON.parse(localStorage.getItem(HIST_STORE) || 'null');
+      const cloudSaved  = (typeof S !== 'undefined' && S && S.agentChat) ? S.agentChat : null;
+      let saved = null;
+      if (localSaved && cloudSaved) {
+        saved = (cloudSaved.updatedAt || 0) >= (localSaved.updatedAt || 0) ? cloudSaved : localSaved;
+      } else {
+        saved = cloudSaved || localSaved;
+      }
       if (!saved || !Array.isArray(saved.displayLog) || !saved.displayLog.length) return false;
       apiHist    = _sanitizeApiHist(Array.isArray(saved.apiHist) ? saved.apiHist : []);
       displayLog = saved.displayLog;
       document.getElementById('agent-messages').innerHTML = '';
-      displayLog.forEach(m => _renderMsg(m.role, m.text));
+      displayLog.forEach(m => _renderMsg(m.role, m.text, m.model));
       return true;
     } catch { return false; }
   }
@@ -228,6 +262,7 @@
       ultimoPeso: bw ? `${bw.value} ${bw.unit || 'kg'} (${bw.date})` : 'No registrado',
       objetivosTrimestre: quarter,
       habitosHoy: habitsToday.join(', ') || 'ninguno',
+      jarvisMemory: S.jarvisMemory || [],
     };
   }
 
@@ -337,6 +372,39 @@
       name: 'undo_last',
       description: 'Deshace la última acción registrada (borrado, creación, cambio) — usar cuando el usuario pide deshacer/revertir',
       input_schema: { type: 'object', properties: {} },
+    },
+    {
+      name: 'remember',
+      description: 'Guarda un hecho o preferencia en la memoria persistente del asistente, para recordarlo en futuras conversaciones.',
+      input_schema: {
+        type: 'object',
+        properties: { text: { type: 'string', description: 'El hecho o preferencia a recordar' } },
+        required: ['text'],
+      },
+    },
+    {
+      name: 'forget',
+      description: 'Elimina un hecho de la memoria persistente. Busca por texto parcial.',
+      input_schema: {
+        type: 'object',
+        properties: { search: { type: 'string', description: 'Texto a buscar entre los recuerdos guardados' } },
+        required: ['search'],
+      },
+    },
+    {
+      name: 'query_data',
+      description: 'Consulta datos filtrados por rango de fechas/texto: transacciones, metas, hábitos, peso, recordatorios, auditoría, memoria — usar en vez de get_app_state cuando la pregunta es sobre un período o algo específico',
+      input_schema: {
+        type: 'object',
+        properties: {
+          area:  { type: 'string', enum: ['transactions','goals','habits','weight','reminders','audit','memory'] },
+          from:  { type: 'string', description: 'Fecha desde (YYYY-MM-DD)' },
+          to:    { type: 'string', description: 'Fecha hasta (YYYY-MM-DD)' },
+          q:     { type: 'string', description: 'Texto de búsqueda' },
+          limit: { type: 'integer', description: 'Máximo de resultados' },
+        },
+        required: ['area'],
+      },
     },
     {
       name: 'set_wellness',
@@ -490,6 +558,21 @@
       return JSON.stringify(JARVIS_BRAIN.execute('undo_last', {}));
     }
 
+    if (name === 'remember') {
+      if (!window.JARVIS_BRAIN) return 'La memoria persistente no está disponible en esta vista.';
+      return JSON.stringify(JARVIS_BRAIN.execute('remember', { text: input.text }));
+    }
+
+    if (name === 'forget') {
+      if (!window.JARVIS_BRAIN) return 'La memoria persistente no está disponible en esta vista.';
+      return JSON.stringify(JARVIS_BRAIN.execute('forget', { search: input.search }));
+    }
+
+    if (name === 'query_data') {
+      if (!window.JARVIS_BRAIN) return 'La consulta de datos no está disponible en esta vista.';
+      return JSON.stringify(JARVIS_BRAIN.query(input));
+    }
+
     if (name === 'set_wellness') {
       if (!S.sleepLog[today]) S.sleepLog[today] = {};
       if (!S.sleepLog[today].wellness) S.sleepLog[today].wellness = {};
@@ -520,10 +603,12 @@ Instrucciones:
 - Si necesitás datos actuales, usá get_app_state primero
 - Cuando el usuario pida crear/modificar/eliminar algo, ejecutalo directamente con las tools
 - Los borrados (delete_project) requieren confirmación explícita del usuario antes de llamar la tool con confirm:true; si el usuario quiere deshacer/revertir la última acción, usá undo_last
+- Tenés memoria persistente entre conversaciones: si el usuario te pide recordar algo usá remember; si pide olvidar algo usá forget; consultá tu memoria vía get_app_state o query_data antes de asumir que no sabés algo del usuario
+- Para preguntas sobre un período de tiempo o un dato específico (transacciones, metas, hábitos, peso, recordatorios, auditoría, memoria), usá query_data en vez de get_app_state
 - Confirmá brevemente lo que hiciste
 - Si hay un error o no podés hacer algo, explicalo en una frase`;
 
-  async function _call(msgs) {
+  async function _call(msgs, model) {
     // Bloque dinámico: lo único que cambia por turno/día va DESPUÉS del breakpoint de caching.
     const today = (typeof getActiveDate === 'function') ? getActiveDate() : new Date().toISOString().slice(0, 10);
     const sys = [
@@ -539,7 +624,7 @@ Instrucciones:
         'anthropic-version': '2023-06-01',
         'anthropic-dangerous-direct-browser-access': 'true',
       },
-      body: JSON.stringify({ model: MODEL, max_tokens: 1024, system: sys, tools: TOOLS, messages: msgs }),
+      body: JSON.stringify({ model: model || MODEL_FAST, max_tokens: 1024, system: sys, tools: TOOLS, messages: msgs }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -549,13 +634,13 @@ Instrucciones:
   }
 
   /* ── agent loop ── */
-  async function _run() {
+  async function _run(model) {
     busy = true;
     _showTyping();
     _setStatus('● PROCESANDO', false);
 
     try {
-      let data = await _call(apiHist);
+      let data = await _call(apiHist, model);
 
       // tool-use loop
       while (data.stop_reason === 'tool_use') {
@@ -581,7 +666,7 @@ Instrucciones:
         // Este push debe correr SIEMPRE que hubo bloques tool_use (incluso si _exec tiró),
         // para que el historial nunca quede con un tool_use sin su tool_result (400 en toda llamada futura).
         apiHist.push({ role: 'user', content: results });
-        data = await _call(apiHist);
+        data = await _call(apiHist, model);
       }
 
       // final text
@@ -589,7 +674,7 @@ Instrucciones:
       if (txt) {
         apiHist.push({ role: 'assistant', content: txt });
         _hideTyping();
-        _addMsg('assistant', txt);
+        _addMsg('assistant', txt, model);
       } else {
         _hideTyping();
       }
