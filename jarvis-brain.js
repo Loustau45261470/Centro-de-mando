@@ -31,6 +31,95 @@
     return qo.periods.find(x => x.id === qo.activePeriod) || qo.periods[0];
   }
 
+  // Suma/resta días a una fecha 'YYYY-MM-DD' (aritmética en UTC para evitar corrimientos de huso)
+  function _addDays(dateStr, delta) {
+    const d = new Date(dateStr + 'T00:00:00Z');
+    d.setUTCDate(d.getUTCDate() + delta);
+    return d.toISOString().slice(0, 10);
+  }
+
+  // Racha de un hábito: días consecutivos 'done'/'partial' hasta hoy, saltando 'rest' (no corta), hoy vacío no corta.
+  function _habitStreak(days, today) {
+    let streak = 0;
+    for (let i = 0; i < 400; i++) {
+      const ds = _addDays(today, -i);
+      const v = (days || {})[ds];
+      if (v === 'done' || v === 'partial') streak++;
+      else if (v === 'rest') continue;
+      else { if (i === 0) continue; break; }
+    }
+    return streak;
+  }
+
+  /* ── Tendencias compactas: contexto temporal más allá de la foto de hoy ── */
+  function _trends() {
+    if (typeof S === 'undefined' || !S) return [];
+    const today = _today();
+    const T = [];
+
+    // Rachas de hábitos
+    try {
+      const habLines = [];
+      TABS.forEach(sec => ((S.habitTrackers && S.habitTrackers[sec]) || []).forEach(h => {
+        habLines.push(`${h.name} ${_habitStreak(h.days, today)}d`);
+      }));
+      if (habLines.length) T.push('Rachas hábitos: ' + habLines.join(' | '));
+    } catch (e) {}
+
+    // Finanzas: mes actual vs mes anterior
+    try {
+      const mk = today.slice(0, 7);
+      let [py, pm] = mk.split('-').map(Number); pm--; if (pm < 1) { pm = 12; py--; }
+      const pmk = py + '-' + String(pm).padStart(2, '0');
+      let inc = 0, exp = 0, pinc = 0, pexp = 0;
+      (S.transactions || []).forEach(t => {
+        const tm = (t.date || '').slice(0, 7), amt = +t.amount || 0;
+        if (tm === mk) { if (t.type === 'income') inc += amt; else exp += amt; }
+        else if (tm === pmk) { if (t.type === 'income') pinc += amt; else pexp += amt; }
+      });
+      if (inc || exp || pinc || pexp) {
+        const pct = (cur, prev) => prev ? (Math.round((cur - prev) / prev * 100) + '%') : (cur ? '+100%' : '0%');
+        T.push(`Finanzas mes: ingresos ${inc} (Δ${pct(inc, pinc)}) · gastos ${exp} (Δ${pct(exp, pexp)}) vs mes ant.`);
+      }
+    } catch (e) {}
+
+    // Peso corporal: último valor y delta vs ~7 y ~30 días atrás
+    try {
+      const bw = S.bodyWeight || [];
+      if (bw.length) {
+        const last = bw[bw.length - 1];
+        const near = (n, tol) => {
+          const target = _addDays(today, -n);
+          let best = null, bestDiff = Infinity;
+          bw.forEach(e => {
+            if (e.date === last.date) return;
+            const diff = Math.abs((new Date(e.date) - new Date(target)) / 86400000);
+            if (diff <= tol && diff < bestDiff) { best = e; bestDiff = diff; }
+          });
+          return best;
+        };
+        const w7 = near(7, 3), w30 = near(30, 8);
+        let s = `Peso: ${last.value}${last.unit} (${last.date})`;
+        if (w7) { const d = Math.round((last.value - w7.value) * 10) / 10; s += ` · Δ7d ${d >= 0 ? '+' : ''}${d}${last.unit}`; }
+        if (w30) { const d = Math.round((last.value - w30.value) * 10) / 10; s += ` · Δ30d ${d >= 0 ? '+' : ''}${d}${last.unit}`; }
+        T.push(s);
+      }
+    } catch (e) {}
+
+    // Metas diarias completadas: últimos 7 días vs 7 anteriores
+    try {
+      let d1 = 0, t1 = 0, d2 = 0, t2 = 0;
+      for (let i = 0; i < 7; i++) { const g = (S.goals && S.goals[_addDays(today, -i)]) || []; t1 += g.length; d1 += g.filter(x => x.done).length; }
+      for (let i = 7; i < 14; i++) { const g = (S.goals && S.goals[_addDays(today, -i)]) || []; t2 += g.length; d2 += g.filter(x => x.done).length; }
+      if (t1 || t2) {
+        const rate = (d, t) => t ? (Math.round(d / t * 100) + '%') : 'n/d';
+        T.push(`Metas diarias: ${rate(d1, t1)} últimos 7d (${d1}/${t1}) vs ${rate(d2, t2)} 7d previos (${d2}/${t2})`);
+      }
+    } catch (e) {}
+
+    return T;
+  }
+
   /* ── Snapshot legible del estado completo ── */
   function snapshot() {
     if (typeof S === 'undefined' || !S) return 'Estado no disponible.';
@@ -129,6 +218,11 @@
     if (rem.length) L.push('\nRECORDATORIOS: ' + rem.slice(0, 12).join(' · '));
 
     if (S.streak) L.push('\nRACHA DE METAS: ' + S.streak.count + ' días');
+
+    // Tendencias (contexto temporal, no solo hoy)
+    const trendLines = _trends();
+    if (trendLines.length) L.push('\nTENDENCIAS:\n' + trendLines.map(t => '  ' + t).join('\n'));
+
     return L.join('\n');
   }
 
@@ -408,7 +502,8 @@
           return { ok: false, msg: 'Unknown action, sir.' };
       }
     } catch (e) {
-      return { ok: false, msg: 'That action failed, sir.' };
+      console.error('[JARVIS_BRAIN] ' + action, e);
+      return { ok: false, msg: 'That action failed, sir.', error: String(e && e.message || e) };
     }
   }
 
