@@ -587,6 +587,7 @@
           if (!accId && S.accounts && S.accounts.length) accId = S.accounts[0].id;
           const cur = a.currency || (S.accounts && S.accounts[0] && S.accounts[0].currency) || 'ARS';
           const nt = { id: uid(), date: _today(), name: a.name || '', type: a.type === 'income' ? 'income' : 'expense', amount: amt, currency: cur, accountId: accId, category: a.category || '' };
+          if (accId) { const acc = (S.accounts || []).find(x => x.id === accId); if (acc) { acc.balance += nt.type === 'income' ? amt : -amt; if (typeof snapshotNW === 'function') snapshotNW(); } }
           S.transactions.unshift(nt);
           saveState(); if (typeof renderFinanzasTab === 'function') renderFinanzasTab();
           _logAudit(a, action, `Agregó movimiento: ${nt.name}`, { type: 'delete_created', kind: 'transaction', id: nt.id, accountId: nt.accountId, txnType: nt.type, amount: nt.amount });
