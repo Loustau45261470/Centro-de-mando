@@ -82,6 +82,16 @@
 }
 .po-details:focus { outline: none; border-color: var(--po-accent); box-shadow: 0 0 0 3px color-mix(in oklab, var(--po-accent) 16%, transparent); }
 
+/* Prioridad + Fecha límite (select / date) */
+.po-meta-row { display: flex; gap: 12px; margin-top: 4px; }
+.po-meta-col { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.po-input {
+  background: rgba(10,16,30,.5); border: 1px solid var(--border); border-radius: 12px;
+  color: var(--tp); font-family: var(--sans); font-size: 14px; padding: 0 12px; height: 44px; width: 100%;
+  color-scheme: dark; transition: border-color .2s, box-shadow .2s;
+}
+.po-input:focus { outline: none; border-color: var(--po-accent); box-shadow: 0 0 0 3px color-mix(in oklab, var(--po-accent) 16%, transparent); }
+
 /* Secciones */
 .po-sec { margin-top: 18px; }
 .po-sec-h {

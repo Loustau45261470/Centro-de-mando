@@ -104,6 +104,22 @@ function _poRenderNode(node, children) {
       <label class="po-flbl">Detalles</label>
       <textarea class="po-details" rows="3" placeholder="Descripción, objetivo, contexto…" onchange="poSaveDetails(this.value)">${_poEsc(node.description || '')}</textarea>
 
+      <div class="po-meta-row">
+        <div class="po-meta-col">
+          <label class="po-flbl">Prioridad</label>
+          <select class="po-input" onchange="poSavePriority(this.value)">
+            <option value="">— Sin prioridad —</option>
+            <option value="1"${node.priority === '1' ? ' selected' : ''}>🔴 Alta</option>
+            <option value="2"${node.priority === '2' ? ' selected' : ''}>🟠 Media</option>
+            <option value="3"${node.priority === '3' ? ' selected' : ''}>🔵 Baja</option>
+          </select>
+        </div>
+        <div class="po-meta-col">
+          <label class="po-flbl">Fecha límite</label>
+          <input type="date" class="po-input" value="${node.dueDate || ''}" onchange="poSaveDue(this.value)">
+        </div>
+      </div>
+
       <div class="po-sec">
         <div class="po-sec-h"><span>Subcarpetas</span><button class="po-add" onclick="poAddChild(true)">${PO_ICONS.plus} Subcarpeta</button></div>
         <div class="po-grid">${subs.map((n, i) => _poFolderCard(n, i)).join('') || _poEmpty('Sin subcarpetas')}</div>
@@ -169,6 +185,16 @@ function poSaveTitle(val) {
 function poSaveDetails(val) {
   const { node } = _poResolve(); if (!node) return;
   node.description = (val || '').trim(); _poSave();
+}
+function poSavePriority(val) {
+  const { node } = _poResolve(); if (!node) return;
+  node.priority = val || ''; _poSave();
+  if (typeof renderReminders === 'function') try { renderReminders(_poTab); } catch (e) {}
+}
+function poSaveDue(val) {
+  const { node } = _poResolve(); if (!node) return;
+  node.dueDate = val || ''; _poSave();
+  if (typeof renderReminders === 'function') try { renderReminders(_poTab); } catch (e) {}
 }
 function poDelCurrent() {
   const { node } = _poResolve(); if (!node) return;
