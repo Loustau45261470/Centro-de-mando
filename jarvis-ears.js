@@ -10,6 +10,7 @@
   let cmdTimer = null, recStartedAt = 0;
   const LISTEN_MS = 32000; // ventana de escucha muy amplia, para charlas largas sin repetir "Jarvis"
   let restartTimes = [], restartTimer = null; // anti-tormenta de reinicios
+  let _recConfirmed = false; // true solo cuando el motor confirmó (onstart) que el mic está realmente escuchando
 
   // ── Anti-eco: NUNCA escuchar la propia voz de JARVIS ──
   // Mientras habla, se aborta el reconocimiento (descarta el buffer de audio, así su voz jamás
@@ -29,7 +30,7 @@
     if (talking && !_micSuppressed) {
       // JARVIS empezó a hablar → apagar el micrófono para no oírse a sí mismo
       _micSuppressed = true; _suppressedAt = Date.now();
-      if (rec) { try { rec.onend = null; rec.abort(); } catch(e){} rec = null; }
+      if (rec) { try { rec.onend = null; rec.abort(); } catch(e){} rec = null; _recConfirmed = false; }
       if (restartTimer) { clearTimeout(restartTimer); restartTimer = null; }
     } else if (_micSuppressed && (!_selfEcho() || Date.now() - _suppressedAt > 8000)) {
       // terminó de hablar (o safety: 8s máx) → reabrir el micrófono fresco
@@ -102,11 +103,12 @@
       // 'no-speech' y 'aborted' son normales — el reinicio automático de onend los cubre
     };
     rec.onend = () => {
-      rec = null;
+      rec = null; _recConfirmed = false;
       _scheduleRestart(); // reinicio automático (Chrome corta la sesión solo)
     };
+    rec.onstart = () => { _recConfirmed = true; _ui(); }; // confirma que el mic quedó realmente escuchando
     try { rec.start(); recStartedAt = Date.now(); restartTimes.push(recStartedAt); }
-    catch(e) { rec = null; _scheduleRestart(); }
+    catch(e) { rec = null; restartTimes.push(Date.now()); _scheduleRestart(); }
   }
 
   // Reinicio resiliente: espaciado normal, pero si Chrome entra en bucle de cortes
@@ -115,15 +117,23 @@
   function _scheduleRestart() {
     if (mode === 'off' || restartTimer || _micSuppressed) return;
     const now = Date.now();
-    restartTimes = restartTimes.filter(t => now - t < 10000);
-    const delay = restartTimes.length >= 5 ? 2000 : 250;
+    restartTimes = restartTimes.filter(t => now - t < 30000);
+    if (restartTimes.length >= 8) {
+      // 8 reinicios en 30s pese a la desaceleración de abajo: el mic no logra mantenerse activo — apagar honestamente
+      restartTimes = [];
+      wakeOn = false; localStorage.setItem('jarvis_wake', '0');
+      mode = 'off'; stopRec(); _ui(); _updateWakeBtn();
+      if (typeof showToast === 'function') showToast('🎤 No pude mantener el micrófono activo — wake word desactivado', 7000);
+      return;
+    }
+    const delay = restartTimes.filter(t => now - t < 10000).length >= 5 ? 2000 : 250;
     restartTimer = setTimeout(() => { restartTimer = null; startRec(); }, delay);
   }
 
   function stopRec() {
     if (restartTimer) { clearTimeout(restartTimer); restartTimer = null; }
     if (!rec) return;
-    const r = rec; rec = null;
+    const r = rec; rec = null; _recConfirmed = false;
     try { r.onend = null; r.stop(); } catch(e) {}
   }
 
@@ -221,6 +231,7 @@
   // Traduce a inglés un texto generado localmente en español (briefing/insights del centro de mando),
   // para que JARVIS lo HABLE en inglés aunque la tarjeta en pantalla siga en español.
   // Sin key de IA o ante cualquier error → devuelve el texto original (degradación elegante).
+  let _translateWarned = false; // toast de degradación una sola vez por sesión, no en cada llamada
   async function _translateEN(text) {
     const key = localStorage.getItem('jarvis_gemini_key');
     if (!key || !text) return text;
@@ -252,7 +263,14 @@
       if (!res.ok) return text;
       const data = await res.json();
       return ((parse(data) || '') + '').trim() || text;
-    } catch (e) { return text; }
+    } catch (e) {
+      console.warn('JARVIS translate error:', e.message);
+      if (!_translateWarned) {
+        _translateWarned = true;
+        if (typeof showToast === 'function') showToast('🌐 Traducción no disponible — JARVIS hablará en español', 5000);
+      }
+      return text;
+    }
   }
   // Hablar en inglés un texto que puede venir en español (traduce y luego habla)
   function sayEN(text) { _translateEN(text).then(en => say(en, true)); }
@@ -518,6 +536,13 @@
 
   /* ── Toggle wake word + guardado de keys (todo por dispositivo) ── */
   function toggleWake() {
+    if (!wakeOn && !SR) {
+      // este navegador no tiene SpeechRecognition (p. ej. Firefox) — no fingir que quedó escuchando
+      wakeOn = false; localStorage.setItem('jarvis_wake', '0'); mode = 'off';
+      _ui(); _updateWakeBtn();
+      if (typeof showToast === 'function') showToast('🎤 Este navegador no soporta reconocimiento de voz (usá Chrome/Edge)', 6000);
+      return;
+    }
     wakeOn = !wakeOn;
     localStorage.setItem('jarvis_wake', wakeOn ? '1' : '0'); // solo este dispositivo — no sincroniza
     if (wakeOn) { mode = 'passive'; startRec(); say('Listening for your call, sir.'); }
@@ -534,6 +559,9 @@
     } else if (mode === 'command') {
       b.textContent = '🎙️ Escuchando…';
       b.style.color = 'rgba(0,255,136,1)'; b.style.borderColor = 'rgba(0,255,136,0.4)';
+    } else if (mode === 'passive' && !_recConfirmed) {
+      b.textContent = '🎙️ Iniciando…';
+      b.style.color = 'rgba(0,200,255,0.5)'; b.style.borderColor = 'rgba(0,200,255,0.15)';
     } else if (mode === 'passive') {
       b.textContent = '👁️ Esperando "Jarvis"…';
       b.style.color = 'rgba(0,200,255,0.75)'; b.style.borderColor = 'rgba(0,200,255,0.25)';

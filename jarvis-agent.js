@@ -12,6 +12,7 @@
   let apiHist = [];   // full API message history (role + content)
   let displayLog = []; // mensajes visibles {role, text} para re-render al restaurar
   let busy    = false;
+  let _persistWarned = false; // toast de error de guardado, una sola vez por sesión
 
   /* ── panel open/close ── */
   window.agentToggle = function () {
@@ -106,13 +107,30 @@
         apiHist = ah.slice(i);
       }
       localStorage.setItem(HIST_STORE, JSON.stringify({ apiHist, displayLog }));
-    } catch (e) { console.warn('[agent] persist:', e); }
+    } catch (e) {
+      console.warn('[agent] persist:', e);
+      if (!_persistWarned) {
+        _persistWarned = true;
+        if (typeof showToast === 'function') showToast('⚠️ No se pudo guardar el historial del chat', 5000);
+      }
+    }
+  }
+  // Descarta un mensaje assistant colgante (tool_use sin su tool_result) al final del historial.
+  // Puede quedar así si una sesión previa se cerró/crasheó justo entre el push del assistant y el del user con resultados.
+  function _sanitizeApiHist(hist) {
+    if (!Array.isArray(hist) || !hist.length) return hist;
+    const last = hist[hist.length - 1];
+    if (last && last.role === 'assistant' && Array.isArray(last.content) && last.content.some(b => b && b.type === 'tool_use')) {
+      console.warn('[agent] historial restaurado con tool_use colgante al final — se descarta ese mensaje.');
+      return hist.slice(0, -1);
+    }
+    return hist;
   }
   function _restoreChat() {
     try {
       const saved = JSON.parse(localStorage.getItem(HIST_STORE) || 'null');
       if (!saved || !Array.isArray(saved.displayLog) || !saved.displayLog.length) return false;
-      apiHist    = Array.isArray(saved.apiHist) ? saved.apiHist : [];
+      apiHist    = _sanitizeApiHist(Array.isArray(saved.apiHist) ? saved.apiHist : []);
       displayLog = saved.displayLog;
       document.getElementById('agent-messages').innerHTML = '';
       displayLog.forEach(m => _renderMsg(m.role, m.text));
@@ -165,8 +183,7 @@
     const projects = {};
     TABS.forEach(tab => {
       try {
-        const raw = localStorage.getItem('proyectos_' + tab + '_v1');
-        projects[tab] = _flatTree(raw ? JSON.parse(raw) : []);
+        projects[tab] = window.Proyectos ? _flatTree(window.Proyectos.get(tab) || []) : [];
       } catch { projects[tab] = []; }
     });
     const wellness = S.sleepLog?.[today]?.wellness || {};
@@ -331,6 +348,23 @@
     },
   ];
 
+  // Busca un nodo (proyecto o tarea) por texto parcial dentro del árbol REAL de la app (window.Proyectos),
+  // no de una copia en localStorage — así lo que la tool lee/muta es lo mismo que ve la UI.
+  function _findProjNode(tab, search) {
+    if (!window.Proyectos) return null;
+    const tree = window.Proyectos.get(tab) || [];
+    const s = (search || '').toLowerCase();
+    const walk = (nodes) => {
+      for (const n of (nodes || [])) {
+        if ((n.label || '').toLowerCase().includes(s)) return n;
+        const f = walk(n.children);
+        if (f) return f;
+      }
+      return null;
+    };
+    return walk(tree);
+  }
+
   /* ── tool execution ── */
   function _exec(name, input) {
     const today = (typeof getActiveDate === 'function') ? getActiveDate() : new Date().toISOString().slice(0,10);
@@ -373,57 +407,45 @@
     }
 
     if (name === 'add_project') {
-      const key = 'proyectos_' + input.tab + '_v1';
-      let tree = []; try { tree = JSON.parse(localStorage.getItem(key) || '[]'); } catch {}
-      const n = { id: uid(), label: input.label, icon: input.icon || '📁', open: true, description: input.description || '', notes: '', detailOpen: false, children: [] };
+      if (!window.Proyectos) return `Proyectos no disponible en esta vista.`;
+      const tree = window.Proyectos.get(input.tab);
+      const n = window.Proyectos.newNode(input.label, true);
+      if (input.icon) n.icon = input.icon;
+      n.description = input.description || '';
       tree.push(n);
-      localStorage.setItem(key, JSON.stringify(tree));
-      if (typeof renderProyectos === 'function') renderProyectos(input.tab);
+      window.Proyectos.save(input.tab);
       return `Proyecto "${input.label}" creado en ${input.tab}.`;
     }
 
     if (name === 'add_project_task') {
-      const key = 'proyectos_' + input.tab + '_v1';
-      let tree = []; try { tree = JSON.parse(localStorage.getItem(key) || '[]'); } catch {}
-      const s = input.project_name.toLowerCase();
-      const _find = (nodes) => { for (const n of nodes) { if (n.label.toLowerCase().includes(s)) return n; const f = _find(n.children || []); if (f) return f; } return null; };
-      const parent = _find(tree);
+      if (!window.Proyectos) return `Proyectos no disponible en esta vista.`;
+      const parent = _findProjNode(input.tab, input.project_name);
       if (!parent) return `No encontré "${input.project_name}" en ${input.tab}.`;
       if (!parent.children) parent.children = [];
-      parent.children.push({ id: uid(), label: input.task_label, icon: '📄', open: false, description: '', notes: '', detailOpen: false, children: [] });
+      parent.children.push(window.Proyectos.newNode(input.task_label, false));
       parent.open = true;
-      localStorage.setItem(key, JSON.stringify(tree));
-      if (typeof renderProyectos === 'function') renderProyectos(input.tab);
+      window.Proyectos.save(input.tab);
       return `Tarea "${input.task_label}" agregada a "${parent.label}".`;
     }
 
     if (name === 'update_project') {
-      const key = 'proyectos_' + input.tab + '_v1';
-      let tree = []; try { tree = JSON.parse(localStorage.getItem(key) || '[]'); } catch {}
-      const s = input.search.toLowerCase();
-      const _find = (nodes) => { for (const n of nodes) { if (n.label.toLowerCase().includes(s)) return n; const f = _find(n.children || []); if (f) return f; } return null; };
-      const node = _find(tree);
+      if (!window.Proyectos) return `Proyectos no disponible en esta vista.`;
+      const node = _findProjNode(input.tab, input.search);
       if (!node) return `No encontré "${input.search}" en ${input.tab}.`;
       const old = node.label;
-      if (input.new_label)              node.label       = input.new_label;
+      if (input.new_label)                 node.label       = input.new_label;
       if (input.description !== undefined) node.description = input.description;
       if (input.notes       !== undefined) node.notes       = input.notes;
-      localStorage.setItem(key, JSON.stringify(tree));
-      if (typeof renderProyectos === 'function') renderProyectos(input.tab);
+      window.Proyectos.save(input.tab);
       return `Proyecto "${old}" actualizado.`;
     }
 
     if (name === 'delete_project') {
-      const key = 'proyectos_' + input.tab + '_v1';
-      let tree = []; try { tree = JSON.parse(localStorage.getItem(key) || '[]'); } catch {}
-      const s = input.search.toLowerCase();
-      const _findId = (nodes) => { for (const n of nodes) { if (n.label.toLowerCase().includes(s)) return n.id; const f = _findId(n.children || []); if (f) return f; } return null; };
-      const id = _findId(tree);
-      if (!id) return `No encontré "${input.search}" en ${input.tab}.`;
-      const _remove = (nodes) => nodes.filter(n => n.id !== id).map(n => ({ ...n, children: _remove(n.children || []) }));
-      localStorage.setItem(key, JSON.stringify(_remove(tree)));
-      if (typeof renderProyectos === 'function') renderProyectos(input.tab);
-      return `Proyecto eliminado de ${input.tab}.`;
+      if (!window.Proyectos) return `Proyectos no disponible en esta vista.`;
+      const node = _findProjNode(input.tab, input.search);
+      if (!node) return `No encontré "${input.search}" en ${input.tab}.`;
+      window.Proyectos.removeById(input.tab, node.id);
+      return `Proyecto "${node.label}" eliminado de ${input.tab}.`;
     }
 
     if (name === 'set_wellness') {
@@ -446,8 +468,8 @@
   }
 
   /* ── API call ── */
-  async function _call(msgs) {
-    const sys = `Sos un asistente personal integrado en el "Centro de Mando" de Tobias — su dashboard personal. Hablás en español rioplatense (vos, che). Sos directo, conciso e inteligente.
+  // Bloque estable: persona + instrucciones, byte-idéntico entre requests → se cachea (cache_control ephemeral).
+  const SYS_STABLE = `Sos un asistente personal integrado en el "Centro de Mando" de Tobias — su dashboard personal. Hablás en español rioplatense (vos, che). Sos directo, conciso e inteligente.
 
 El dashboard tiene: metas diarias, proyectos por sección (vida, finanzas, salud, conocimiento, ia), bienestar (calidad de sueño, energía, ánimo, dolor, estrés en escala 1-5), objetivos trimestrales, finanzas, salud y más.
 
@@ -456,6 +478,14 @@ Instrucciones:
 - Cuando el usuario pida crear/modificar/eliminar algo, ejecutalo directamente con las tools
 - Confirmá brevemente lo que hiciste
 - Si hay un error o no podés hacer algo, explicalo en una frase`;
+
+  async function _call(msgs) {
+    // Bloque dinámico: lo único que cambia por turno/día va DESPUÉS del breakpoint de caching.
+    const today = (typeof getActiveDate === 'function') ? getActiveDate() : new Date().toISOString().slice(0, 10);
+    const sys = [
+      { type: 'text', text: SYS_STABLE, cache_control: { type: 'ephemeral' } },
+      { type: 'text', text: `Fecha actual: ${today}.` },
+    ];
 
     const res = await fetch(API_URL, {
       method: 'POST',
@@ -491,9 +521,21 @@ Instrucciones:
         const results = [];
         for (const blk of data.content) {
           if (blk.type !== 'tool_use') continue;
-          const out = _exec(blk.name, blk.input);
-          results.push({ type: 'tool_result', tool_use_id: blk.id, content: out });
+          try {
+            const out = _exec(blk.name, blk.input);
+            results.push({ type: 'tool_result', tool_use_id: blk.id, content: out });
+          } catch (e) {
+            console.error('[agent] tool_use falló:', blk.name, e);
+            results.push({
+              type: 'tool_result',
+              tool_use_id: blk.id,
+              content: JSON.stringify({ ok: false, error: String(e && e.message || e) }),
+              is_error: true,
+            });
+          }
         }
+        // Este push debe correr SIEMPRE que hubo bloques tool_use (incluso si _exec tiró),
+        // para que el historial nunca quede con un tool_use sin su tool_result (400 en toda llamada futura).
         apiHist.push({ role: 'user', content: results });
         data = await _call(apiHist);
       }

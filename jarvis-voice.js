@@ -19,8 +19,11 @@
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
 
   async function speakElevenLabs(text) {
-    // Cache de audio: cada frase única se genera una sola vez en la vida (ahorra cuota de ElevenLabs)
-    const cacheUrl = 'https://jarvis-tts.cache/' + EL_VOICE + '/' + encodeURIComponent(text);
+    // Modelo TTS: Flash v2.5 por defecto (más barato/rápido); override posible vía localStorage.
+    const elModel = localStorage.getItem('jarvis_el_model') || 'eleven_flash_v2_5';
+    // Cache de audio: cada frase única se genera una sola vez en la vida (ahorra cuota de ElevenLabs).
+    // El modelo va en la clave: una frase cacheada con un modelo viejo no debe servirse tras cambiar de modelo.
+    const cacheUrl = 'https://jarvis-tts.cache/' + EL_VOICE + '/' + elModel + '/' + encodeURIComponent(text);
     let blob = null;
     try {
       const c = await caches.open('jarvis-tts-v1');
@@ -37,7 +40,7 @@
         },
         body: JSON.stringify({
           text,
-          model_id: 'eleven_multilingual_v2',
+          model_id: elModel,
           voice_settings: { stability: 0.38, similarity_boost: 0.85, style: 0.12, use_speaker_boost: true }
         })
       });
@@ -66,9 +69,67 @@
     });
   }
 
-  // NO se usa speechSynthesis (voz del navegador): quedaba trabada en "hablando=true" (bug de
-  // Chrome) e interfería con el reconocimiento de voz a nivel del subsistema de audio, dejando
-  // sordo a JARVIS. La voz es SOLO ElevenLabs; sin ella, silencio.
+  // Preprocesador TTS: los datos de la app vienen en formato es-AR ($1.234.567,89 · 45,5%) pero
+  // JARVIS habla en inglés — sin esto, ElevenLabs/speechSynthesis leen los símbolos literalmente.
+  // Puro: solo regex, sin dependencias. Se aplica a TODO texto antes de sintetizar.
+  function _ttsPrep(text) {
+    if (!text) return text;
+    let out = text;
+    // es-AR → número plano en inglés: punto = separador de miles, coma = decimal
+    function esArToPlain(numStr) {
+      if (numStr.indexOf(',') !== -1) {
+        const parts = numStr.split(',');
+        return parts[0].replace(/\./g, '') + '.' + parts[1];
+      }
+      return numStr.replace(/\./g, '');
+    }
+    // 1) Montos: "$1.234.567,89" → "1234567.89 pesos"
+    out = out.replace(/\$\s?(\d{1,3}(?:\.\d{3})*(?:,\d+)?|\d+(?:,\d+)?)/g, (m, num) => esArToPlain(num) + ' pesos');
+    // 2) Porcentajes: "45,5%" → "45.5 percent"
+    out = out.replace(/(\d+(?:,\d+)?)\s?%/g, (m, num) => num.replace(',', '.') + ' percent');
+    // 3) Números es-AR sueltos con separador de miles (sin $ ni %): "1.234.567" → "1234567"
+    //    Exige al menos un grupo de EXACTAMENTE 3 dígitos tras el punto, para no tocar decimales
+    //    normales (ej. "3.14") ni fechas ISO ("2026-07-14", que usa guiones, no puntos).
+    out = out.replace(/\b\d{1,3}(?:\.\d{3})+(?:,\d+)?\b/g, (m) => esArToPlain(m));
+    return out;
+  }
+
+  // Fallback de voz del navegador: se usa SOLO cuando ElevenLabs falla (sin key es aparte, ver
+  // _elHint), para que una key vencida/rate-limit no deje a JARVIS mudo. Nunca reemplaza a
+  // ElevenLabs como voz primaria (issues históricos de speechSynthesis trabado — ver fixes.json);
+  // es puramente el "no te quedes sin hablar" ante un error puntual de la API.
+  function _speakBrowser(text) {
+    try {
+      if (!window.speechSynthesis) return;
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'en-GB';
+      speechSynthesis.speak(u);
+    } catch(e) {}
+  }
+
+  const _DAY_MS = 24 * 60 * 60 * 1000;
+  function _elToastOncePerDay(key, msg) {
+    if (typeof showToast !== 'function') return;
+    const last = parseInt(localStorage.getItem(key) || '0', 10);
+    if (Date.now() - last < _DAY_MS) return;
+    localStorage.setItem(key, String(Date.now()));
+    showToast(msg, 10000);
+  }
+  // Traduce el status HTTP embebido en el Error de speakElevenLabs ("EL 401") a un aviso visible,
+  // limitado a 1 vez por día por tipo, para que una key vencida o un rate-limit no dejen a
+  // Tobías sin saber por qué JARVIS "sonó distinto" (voz del navegador en vez de la premium).
+  function _elHandleFailure(err) {
+    const m = /EL (\d+)/.exec((err && err.message) || '');
+    const status = m ? parseInt(m[1], 10) : null;
+    if (status === 401 || status === 403) {
+      _elToastOncePerDay('jarvis_el_authfail_toast_at', '🔑 La key de ElevenLabs es inválida o venció — JARVIS usa la voz del navegador.');
+    } else if (status === 429) {
+      _elToastOncePerDay('jarvis_el_ratelimit_toast_at', '⏳ Se alcanzó el límite de uso de ElevenLabs — JARVIS usa la voz del navegador.');
+    }
+  }
+
+  // ElevenLabs es la voz primaria; ante fallo (key inválida, rate-limit, error de red) se cae a
+  // la voz del navegador para que la frase igual suene — JARVIS nunca queda mudo.
 
   // Cuota de ElevenLabs: se consulta una vez por hora. Las respuestas dinámicas usan la voz
   // de JARVIS mientras queden créditos, reservando 1500 para las frases fijas nuevas.
@@ -107,6 +168,8 @@
         const remaining = d.character_limit - d.character_count;
         _elQuota.ok = remaining > 1500;
         _elMaybeWarn(remaining);
+      } else if (res.status === 401 || res.status === 403) {
+        _elHandleFailure({ message: 'EL ' + res.status });
       }
     } catch(e) {}
     return _elQuota.ok;
@@ -118,17 +181,21 @@
     try { await _elQuotaOk(); } catch(e) {}
   }
 
-  // Voz SOLO por ElevenLabs (en vivo o cacheada). Sin key / sin cuota / error → SILENCIO.
-  // Nunca se cae a la voz del navegador: speechSynthesis se trababa y dejaba sordo al mic.
+  // Voz primaria por ElevenLabs (en vivo o cacheada). Sin key / sin cuota → silencio (deliberado,
+  // ver _elHint y reserva de cuota). Ante error de ElevenLabs (key inválida, rate-limit, red)
+  // se cae a _speakBrowser() para que la frase igual suene — ver _elHandleFailure.
   async function speak(text, opts) {
     if (!enabled || !text) return;
     _speakAt = Date.now();
+    const prepped = _ttsPrep(text);
     if (!_elKey()) { _elHint(); return; }                                  // sin key → silencio
     if (opts && opts.dynamic && !(await _elQuotaOk())) return;              // dinámica sin cuota → silencio
     try {
-      await speakElevenLabs(text);
+      await speakElevenLabs(prepped);
     } catch (e) {
-      console.warn('JARVIS sin voz premium (ElevenLabs):', e.message);     // sin cuota/error → silencio
+      console.warn('JARVIS sin voz premium (ElevenLabs), usando voz del navegador:', e.message);
+      _elHandleFailure(e);
+      _speakBrowser(prepped);                                              // nunca queda mudo
     }
   }
 
@@ -255,7 +322,7 @@
         });
       }
       tabs.forEach(t => {
-        try { walk(JSON.parse(localStorage.getItem('proyectos_' + t + '_v1') || '[]')); } catch(e){}
+        try { walk(JSON.parse(localStorage.getItem('proyectos_' + t + '_v1') || '[]')); } catch(e){ console.warn('JARVIS checkOverdue: no se pudo parsear proyectos_' + t + '_v1', e); }
       });
       if (count === 0) return;
       const lines = count === 1

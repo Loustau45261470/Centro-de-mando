@@ -28,6 +28,34 @@
       "desc": "El activate del SW borraba TODO cache != shell actual, incluido jarvis-tts-v1 (audio ElevenLabs ya pagado), en CADA bump de version. Ahora los caches jarvis-tts-* estan excluidos de la limpieza y jarvis-voice.js pide navigator.storage.persist() contra el desalojo del navegador. NO quitar el filtro.",
       "file": "sw.js",
       "marker": "!k.startsWith('jarvis-tts')"
+    },
+    {
+      "id": "agent-dangling-tool-use",
+      "fecha": "2026-07-14",
+      "desc": "Si _exec lanzaba a mitad del tool_use loop, apiHist quedaba con tool_use sin tool_result y TODA llamada futura daba 400 (persistido). Ahora cada _exec va en try/catch (tool_result is_error) y _sanitizeApiHist descarta colgantes al restaurar.",
+      "file": "jarvis-agent.js",
+      "marker": "_sanitizeApiHist"
+    },
+    {
+      "id": "agent-projects-real-state",
+      "fecha": "2026-07-14",
+      "desc": "Las tools de proyectos del chat escribian localStorage muerto (proyectos_*_v1) que la app no lee; los datos no persistian y se pisaban. Ahora todo va por window.Proyectos (trees + S.proyectos + saveState).",
+      "file": "jarvis-agent.js",
+      "marker": "_findProjNode"
+    },
+    {
+      "id": "voice-never-silent",
+      "fecha": "2026-07-14",
+      "desc": "Fallo de ElevenLabs (401/429/red) dejaba a JARVIS mudo con solo console.warn. Ahora cae a voz del navegador y avisa por toast (max 1/dia por tipo).",
+      "file": "jarvis-voice.js",
+      "marker": "_speakBrowser(prepped)"
+    },
+    {
+      "id": "ears-honest-wake-state",
+      "fecha": "2026-07-14",
+      "desc": "El boton wake mostraba Esperando Jarvis aunque SpeechRecognition no existiera o nunca arrancara. Ahora _recConfirmed (rec.onstart) gobierna la UI, !SR avisa y sale, y 8 reinicios/30s apagan el wake con toast.",
+      "file": "jarvis-ears.js",
+      "marker": "_recConfirmed"
     }
   ]
 }
