@@ -12,6 +12,35 @@
   let restartTimes = [], restartTimer = null; // anti-tormenta de reinicios
   let _recConfirmed = false; // true solo cuando el motor confirmó (onstart) que el mic está realmente escuchando
 
+  // ── Confirmación por voz para acciones destructivas ──
+  // Cuando JARVIS_BRAIN.execute() devuelve confirm_required, se guarda acá la acción pendiente
+  // y se pregunta en voz alta. La SIGUIENTE frase final en modo comando se intercepta como
+  // respuesta a esa pregunta (sí → reintenta con confirm:true; cualquier otra cosa → cancela),
+  // en vez de mandarse como comando nuevo.
+  let _pendingConfirm = null; // {action, args, ts}
+  const CONFIRM_WINDOW_MS = 45000;
+  const CONFIRM_AFFIRM_RE = /^(s[ií]|yes|dale|confirmo|confirmá?do?|hacelo|adelante|do it|sure|affirmative|yep|ok(ay)?)\b/i;
+
+  // Resuelve la frase como respuesta a una confirmación pendiente, si corresponde.
+  // Devuelve true si la consumió (no debe procesarse como comando nuevo).
+  function _tryConsumePendingConfirm(raw) {
+    if (!_pendingConfirm) return false;
+    const pc = _pendingConfirm; _pendingConfirm = null;
+    if (Date.now() - pc.ts > CONFIRM_WINDOW_MS) return false; // expiró: descartar y seguir como comando normal
+    const trimmed = (raw || '').trim();
+    if (CONFIRM_AFFIRM_RE.test(trimmed)) {
+      let res;
+      try { res = window.JARVIS_BRAIN ? JARVIS_BRAIN.execute(pc.action, Object.assign({}, pc.args, { confirm: true, _source: 'voice' })) : null; }
+      catch (e) { res = { ok: false, msg: "I'm afraid something went wrong, sir." }; }
+      const spoken = (res && res.ok === false) ? (res.msg || "I couldn't do that, sir.") : 'Done, sir.';
+      _convo.push({ role: 'model', text: spoken }); if (_convo.length > 12) _convo = _convo.slice(-12);
+      say(spoken, true);
+    } else {
+      say('Cancelled, sir.', true);
+    }
+    return true;
+  }
+
   // ── Anti-eco: NUNCA escuchar la propia voz de JARVIS ──
   // Mientras habla, se aborta el reconocimiento (descarta el buffer de audio, así su voz jamás
   // se transcribe). Tras terminar, se espera un cooldown antes de reabrir, para tragar la cola
@@ -78,6 +107,7 @@
           const cmd = text.replace(WAKE_RE, '').replace(/^[,.\s]+/, '').trim();
           if (!cmd) continue; // era solo "jarvis" — seguir esperando la orden
           clearTimeout(cmdTimer);                                   // pausar el cierre mientras procesa y responde
+          if (_tryConsumePendingConfirm(cmd)) { followUp(); continue; } // era la respuesta a "¿borro X?", no un comando nuevo
           Promise.resolve(handleCommand(cmd)).finally(followUp);    // tras responder, sigue escuchando (charla continua)
         } else if (mode === 'passive') {
           if (_selfEcho()) continue; // no escucharse a sí mismo (ni su eco reciente)
@@ -420,8 +450,13 @@
     } else {
       const reply = ((parsed.reply || parsed.say || '') + '').trim();
       if (parsed.action && parsed.action !== 'none' && window.JARVIS_BRAIN) {
-        const res = JARVIS_BRAIN.execute(parsed.action, parsed.args || {});
-        spoken = (res && res.ok === false) ? (res.msg || "I couldn't do that, sir.") : (reply || 'Done, sir.');
+        const res = JARVIS_BRAIN.execute(parsed.action, Object.assign({}, parsed.args || {}, { _source: 'voice' }));
+        if (res && res.confirm_required) {
+          _pendingConfirm = { action: parsed.action, args: parsed.args || {}, ts: Date.now() };
+          spoken = res.msg || 'Shall I proceed, sir?';
+        } else {
+          spoken = (res && res.ok === false) ? (res.msg || "I couldn't do that, sir.") : (reply || 'Done, sir.');
+        }
       } else {
         spoken = reply || 'Done, sir.';
       }
@@ -456,6 +491,7 @@
 '2. If the message is a question, a request to list/show/tell, a greeting, ambiguous, fragmented, nonsensical, or it merely repeats or echoes something you just said, you MUST use "action":"none" and only answer or acknowledge — change NOTHING.\n' +
 '3. NEVER mark, complete, toggle or delete anything as a side effect of answering. Listing today\'s tasks must NEVER complete them.\n' +
 '4. When in any doubt, use "action":"none". Acting without an explicit request is a serious error; doing nothing is always safe.\n\n' +
+'NOTE ON DELETIONS: for delete_* actions the system itself asks the user to confirm and waits for their next reply — you do not need to ask for confirmation yourself, add "confirm":true, or retry. Just pick the delete action normally, once, and let the system handle the confirm/cancel.\n\n' +
 'AVAILABLE ACTIONS:\n- ' + actions + '\n\n' +
 'CONTEXT (live state of the command center):\n' + snap;
 

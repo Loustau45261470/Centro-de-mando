@@ -322,15 +322,21 @@
     },
     {
       name: 'delete_project',
-      description: 'Elimina un proyecto (y su contenido) buscándolo por nombre.',
+      description: 'DESTRUCTIVO: primero preguntale al usuario si confirma; llamá esta tool con confirm:true SOLO después de que el usuario confirme en el chat.',
       input_schema: {
         type: 'object',
         properties: {
-          tab:    { type: 'string', enum: ['vida','finanzas','salud','conocimiento','ia'] },
-          search: { type: 'string' },
+          tab:     { type: 'string', enum: ['vida','finanzas','salud','conocimiento','ia'] },
+          search:  { type: 'string' },
+          confirm: { type: 'boolean', description: 'true solo tras confirmación explícita del usuario' },
         },
         required: ['tab','search'],
       },
+    },
+    {
+      name: 'undo_last',
+      description: 'Deshace la última acción registrada (borrado, creación, cambio) — usar cuando el usuario pide deshacer/revertir',
+      input_schema: { type: 'object', properties: {} },
     },
     {
       name: 'set_wellness',
@@ -365,6 +371,24 @@
     return walk(tree);
   }
 
+  // Igual que _findProjNode pero también devuelve el parentId — lo necesita delete_project
+  // para armar el inverse (restore_project) tal como lo hace jarvis-brain.js.
+  function _findProjNodeWithParent(tab, search) {
+    if (!window.Proyectos) return null;
+    const tree = window.Proyectos.get(tab) || [];
+    const s = (search || '').toLowerCase();
+    const walk = (nodes, parentId) => {
+      for (const n of (nodes || [])) {
+        if ((n.label || '').toLowerCase().includes(s)) return { node: n, parentId };
+        const f = walk(n.children, n.id);
+        if (f) return f;
+      }
+      return null;
+    };
+    return walk(tree, null);
+  }
+  function _clone(x) { try { return JSON.parse(JSON.stringify(x)); } catch { return x; } }
+
   /* ── tool execution ── */
   function _exec(name, input) {
     const today = (typeof getActiveDate === 'function') ? getActiveDate() : new Date().toISOString().slice(0,10);
@@ -379,6 +403,7 @@
       S.goals[date].push({ id: uid(), text: input.text, done: false, priority: input.priority || 'medium', time: null });
       saveState();
       if (typeof renderGoals === 'function') renderGoals();
+      window.JARVIS_BRAIN && JARVIS_BRAIN.audit({ ts: Date.now(), source: 'chat', action: 'add_goal', desc: `Agregó meta: ${input.text}`, inverse: null });
       return `Meta "${input.text}" agregada para ${input.when === 'tomorrow' ? 'mañana' : 'hoy'}.`;
     }
 
@@ -391,6 +416,7 @@
       g.done = true;
       saveState();
       if (typeof renderGoals === 'function') renderGoals();
+      window.JARVIS_BRAIN && JARVIS_BRAIN.audit({ ts: Date.now(), source: 'chat', action: 'complete_goal', desc: `Completó meta: ${g.text}`, inverse: null });
       return `"${g.text}" marcada como completada ✅`;
     }
 
@@ -403,6 +429,7 @@
       list.splice(idx, 1);
       saveState();
       if (typeof renderGoals === 'function') renderGoals();
+      window.JARVIS_BRAIN && JARVIS_BRAIN.audit({ ts: Date.now(), source: 'chat', action: 'delete_goal', desc: `Eliminó meta: ${label}`, inverse: null });
       return `Meta "${label}" eliminada.`;
     }
 
@@ -414,6 +441,7 @@
       n.description = input.description || '';
       tree.push(n);
       window.Proyectos.save(input.tab);
+      window.JARVIS_BRAIN && JARVIS_BRAIN.audit({ ts: Date.now(), source: 'chat', action: 'add_project', desc: `Creó proyecto: ${input.label} (${input.tab})`, inverse: null });
       return `Proyecto "${input.label}" creado en ${input.tab}.`;
     }
 
@@ -425,6 +453,7 @@
       parent.children.push(window.Proyectos.newNode(input.task_label, false));
       parent.open = true;
       window.Proyectos.save(input.tab);
+      window.JARVIS_BRAIN && JARVIS_BRAIN.audit({ ts: Date.now(), source: 'chat', action: 'add_project_task', desc: `Agregó tarea: ${input.task_label} a ${parent.label}`, inverse: null });
       return `Tarea "${input.task_label}" agregada a "${parent.label}".`;
     }
 
@@ -437,15 +466,28 @@
       if (input.description !== undefined) node.description = input.description;
       if (input.notes       !== undefined) node.notes       = input.notes;
       window.Proyectos.save(input.tab);
+      window.JARVIS_BRAIN && JARVIS_BRAIN.audit({ ts: Date.now(), source: 'chat', action: 'update_project', desc: `Actualizó proyecto: ${old}`, inverse: null });
       return `Proyecto "${old}" actualizado.`;
     }
 
     if (name === 'delete_project') {
       if (!window.Proyectos) return `Proyectos no disponible en esta vista.`;
-      const node = _findProjNode(input.tab, input.search);
-      if (!node) return `No encontré "${input.search}" en ${input.tab}.`;
-      window.Proyectos.removeById(input.tab, node.id);
-      return `Proyecto "${node.label}" eliminado de ${input.tab}.`;
+      if (!input.confirm) return `Se requiere confirmación del usuario (confirm:true) para borrar.`;
+      const found = _findProjNodeWithParent(input.tab, input.search);
+      if (!found) return `No encontré "${input.search}" en ${input.tab}.`;
+      const clone = _clone(found.node);
+      window.Proyectos.removeById(input.tab, found.node.id);
+      window.JARVIS_BRAIN && JARVIS_BRAIN.audit({
+        ts: Date.now(), source: 'chat', action: 'delete_project',
+        desc: `Borró proyecto: ${found.node.label}`,
+        inverse: { type: 'restore_project', tab: input.tab, parentId: found.parentId, node: clone },
+      });
+      return `Proyecto "${found.node.label}" eliminado de ${input.tab}.`;
+    }
+
+    if (name === 'undo_last') {
+      if (!window.JARVIS_BRAIN) return 'El sistema de deshacer no está disponible en esta vista.';
+      return JSON.stringify(JARVIS_BRAIN.execute('undo_last', {}));
     }
 
     if (name === 'set_wellness') {
@@ -461,6 +503,7 @@
       }
       saveState();
       if (typeof renderSleepTracker === 'function') renderSleepTracker();
+      window.JARVIS_BRAIN && JARVIS_BRAIN.audit({ ts: Date.now(), source: 'chat', action: 'set_wellness', desc: `Actualizó bienestar: ${done.join(', ')}`, inverse: null });
       return `Bienestar actualizado: ${done.join(', ')}.`;
     }
 
@@ -476,6 +519,7 @@ El dashboard tiene: metas diarias, proyectos por sección (vida, finanzas, salud
 Instrucciones:
 - Si necesitás datos actuales, usá get_app_state primero
 - Cuando el usuario pida crear/modificar/eliminar algo, ejecutalo directamente con las tools
+- Los borrados (delete_project) requieren confirmación explícita del usuario antes de llamar la tool con confirm:true; si el usuario quiere deshacer/revertir la última acción, usá undo_last
 - Confirmá brevemente lo que hiciste
 - Si hay un error o no podés hacer algo, explicalo en una frase`;
 
