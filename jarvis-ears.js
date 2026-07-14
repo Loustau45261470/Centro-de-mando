@@ -19,7 +19,10 @@
   // en vez de mandarse como comando nuevo.
   let _pendingConfirm = null; // {action, args, ts}
   const CONFIRM_WINDOW_MS = 45000;
-  const CONFIRM_AFFIRM_RE = /^(s[ií]|yes|dale|confirmo|confirmá?do?|hacelo|adelante|do it|sure|affirmative|yep|ok(ay)?)\b/i;
+  // \b es ASCII-only: falla tras una vocal acentuada ("sí") y no reconoce formas planas
+  // como "confirmado" — se usa un lookahead de espacio/puntuación/fin de cadena en su lugar,
+  // y un lookahead negativo para que "si no..." no se confunda con una afirmación.
+  const CONFIRM_AFFIRM_RE = /^(s[ií](?!\s*,?\s*no\b)|yes|yep|sure|ok(?:ay)?|dale|confirm(?:o|ado)|hacelo|adelante|do it|affirmative)(?=[\s,.!?]|$)/i;
 
   // Resuelve la frase como respuesta a una confirmación pendiente, si corresponde.
   // Devuelve true si la consumió (no debe procesarse como comando nuevo).
