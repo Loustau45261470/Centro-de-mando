@@ -13,6 +13,11 @@
   let enabled     = localStorage.getItem('jarvis_enabled') === '1';
   let currentAudio = null;
 
+  // Storage persistente: pide al navegador NO desalojar Cache Storage bajo presión de
+  // espacio (la 2ª causa de frases TTS perdidas, junto al SW que borraba jarvis-tts-*
+  // en cada activate — ver fixes.json). Silencioso: Chrome decide solo, sin prompt.
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+
   async function speakElevenLabs(text) {
     // Cache de audio: cada frase única se genera una sola vez en la vida (ahorra cuota de ElevenLabs)
     const cacheUrl = 'https://jarvis-tts.cache/' + EL_VOICE + '/' + encodeURIComponent(text);

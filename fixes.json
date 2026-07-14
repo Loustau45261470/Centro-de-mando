@@ -21,6 +21,13 @@
       "desc": "La tarea nueva del planner (vacía y auto-enfocada) se borraba en el primer blur, incluso si era un blur transitorio (tap que reenfocaba la casilla). Ahora el borrado por-vacía es diferido y se re-chequea: sólo elimina si la tarea sigue vacía Y el usuario ya no la tiene enfocada.",
       "file": "app.js",
       "marker": "reenfocada o con texto"
+    },
+    {
+      "id": "tts-cache-survives-sw-bump",
+      "fecha": "2026-07-14",
+      "desc": "El activate del SW borraba TODO cache != shell actual, incluido jarvis-tts-v1 (audio ElevenLabs ya pagado), en CADA bump de version. Ahora los caches jarvis-tts-* estan excluidos de la limpieza y jarvis-voice.js pide navigator.storage.persist() contra el desalojo del navegador. NO quitar el filtro.",
+      "file": "sw.js",
+      "marker": "!k.startsWith('jarvis-tts')"
     }
   ]
 }
