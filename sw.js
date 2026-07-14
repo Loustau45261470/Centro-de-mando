@@ -1,7 +1,7 @@
 // Centro de Mando — Service Worker
 // Maneja Web Push, clicks de notificación, y caché offline del app shell.
 
-const CACHE = 'cdm-shell-v149';
+const CACHE = 'cdm-shell-v150';
 const BASE  = '/Centro-de-mando/';
 const SHELL = [
   BASE,
@@ -74,7 +74,10 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      // El cache de audio TTS de JARVIS (jarvis-tts-*) NUNCA se limpia acá: cada frase
+      // se paga con cuota de ElevenLabs. Borrarlo en cada bump del shell (como pasaba)
+      // regeneraba todas las frases tras cada deploy y fundía la cuota mensual.
+      .then(keys => Promise.all(keys.filter(k => k !== CACHE && !k.startsWith('jarvis-tts')).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
