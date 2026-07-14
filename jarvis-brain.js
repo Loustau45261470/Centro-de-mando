@@ -11,6 +11,7 @@
 
   const _norm = s => (s || '').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
   const _today = () => (typeof getActiveDate === 'function') ? getActiveDate() : new Date().toISOString().slice(0, 10);
+  const _qMatch = (str, q) => !q || _norm(str).includes(_norm(q));
 
   // Busca el item cuyo texto contiene la consulta (prioriza el nombre más corto = match más específico)
   function _find(list, q, key) {
@@ -255,6 +256,11 @@
     const trendLines = _trends();
     if (trendLines.length) L.push('\nTENDENCIAS:\n' + trendLines.map(t => '  ' + t).join('\n'));
 
+    // Memoria persistente de JARVIS
+    if (S.jarvisMemory && S.jarvisMemory.length) {
+      L.push('\nMEMORIA DE JARVIS:\n' + S.jarvisMemory.map(m => `  - [${m.fecha}] ${m.text}`).join('\n'));
+    }
+
     // Últimas acciones (audit log local)
     try {
       const log = auditLog();
@@ -351,6 +357,14 @@
           saveState(); if (typeof renderQuarterlyObjectives === 'function') renderQuarterlyObjectives();
           return { ok: true, msg: `Restored the quarterly objective '${inv.item.text}', sir.` };
         }
+        case 'restore_memory': {
+          if (!S.jarvisMemory) S.jarvisMemory = [];
+          const idx = Math.min(inv.idx == null ? S.jarvisMemory.length : inv.idx, S.jarvisMemory.length);
+          S.jarvisMemory.splice(idx, 0, inv.item);
+          while (S.jarvisMemory.length > 40) S.jarvisMemory.shift();
+          saveState();
+          return { ok: true, msg: `Restored the memory '${inv.item.text}', sir.` };
+        }
         case 'restore_project': {
           if (!window.Proyectos) return { ok: false, msg: 'Projects unavailable, sir.' };
           const arr = window.Proyectos.get(inv.tab);
@@ -370,6 +384,7 @@
             case 'transaction': { if (inv.accountId) { const acc = (S.accounts || []).find(x => x.id === inv.accountId); if (acc) acc.balance -= inv.txnType === 'income' ? inv.amount : -inv.amount; } S.transactions = (S.transactions || []).filter(x => x.id !== inv.id); if (typeof snapshotNW === 'function') snapshotNW(); saveState(); if (typeof renderFinanzasTab === 'function') renderFinanzasTab(); break; }
             case 'wishlist': S.wishlist = (S.wishlist || []).filter(x => x.id !== inv.id); saveState(); if (typeof renderWishlist === 'function') renderWishlist(); break;
             case 'reminder': S.reminders[inv.tab] = (S.reminders[inv.tab] || []).filter(x => x.id !== inv.id); saveState(); if (typeof renderReminders === 'function') renderReminders(inv.tab); break;
+            case 'memory': S.jarvisMemory = (S.jarvisMemory || []).filter(x => x.id !== inv.id); saveState(); break;
             default: return { ok: false, msg: "I couldn't undo that, sir." };
           }
           return { ok: true, msg: 'Removed what I created, sir.' };
@@ -424,6 +439,8 @@
     'delete_habit {search}',
     'delete_project {search}  — borra el proyecto o subtarea (y su contenido)',
     'delete_monthly_goal {search, section?}',
+    'remember {text}  — guarda un hecho para recordar siempre (ej: "acordate que prefiero entrenar a la mañana"). Sincroniza entre dispositivos.',
+    'forget {search}  — borra una memoria guardada, buscando por texto',
     'undo_last {}  — deshace la última acción reversible del log de auditoría'
   ].join('\n- ');
 
@@ -738,6 +755,27 @@
           }
           return { ok: false, msg: "I couldn't find that monthly goal, sir." };
         }
+        case 'remember': {
+          const text = (a.text || '').toString().trim();
+          if (!text) return { ok: false, msg: 'What should I remember, sir?' };
+          if (!S.jarvisMemory) S.jarvisMemory = [];
+          const nm = { id: uid(), text, fecha: _today() };
+          S.jarvisMemory.push(nm);
+          while (S.jarvisMemory.length > 40) S.jarvisMemory.shift();
+          saveState();
+          _logAudit(a, action, `Guardó memoria: ${nm.text}`, { type: 'delete_created', kind: 'memory', id: nm.id });
+          return { ok: true };
+        }
+        case 'forget': {
+          if (!S.jarvisMemory) S.jarvisMemory = [];
+          const f = _find(S.jarvisMemory, a.search, 'text');
+          if (!f) return { ok: false, msg: "I couldn't find that memory, sir." };
+          const clone = _clone(f.item);
+          S.jarvisMemory.splice(f.idx, 1);
+          saveState();
+          _logAudit(a, action, `Olvidó memoria: ${clone.text}`, { type: 'restore_memory', item: clone, idx: f.idx });
+          return { ok: true };
+        }
         case 'undo_last': {
           const log = auditLog();
           let idx = -1;
@@ -759,5 +797,84 @@
     }
   }
 
-  window.JARVIS_BRAIN = { snapshot, execute, ACTIONS_HELP, audit, auditLog };
+  /* ── Motor de consulta de datos: filtros por rango/texto sobre el estado ── */
+  function query(params) {
+    params = params || {};
+    const area = params.area;
+    const from = params.from || null;
+    const to = params.to || null;
+    const q = params.q || '';
+    const limit = params.limit || 50;
+    const st = (typeof S !== 'undefined' && S) ? S : {};
+    const _inRange = d => { if (!d) return false; if (from && d < from) return false; if (to && d > to) return false; return true; };
+    try {
+      switch (area) {
+        case 'transactions': {
+          let total_income = 0, total_expense = 0;
+          const items = [];
+          (st.transactions || []).forEach(t => {
+            if (!_inRange(t.date)) return;
+            if (!_qMatch(t.name, q)) return;
+            if (t.type === 'income') total_income += (+t.amount || 0); else total_expense += (+t.amount || 0);
+            items.push({ date: t.date, name: t.name, type: t.type, amount: t.amount });
+          });
+          return { total_income, total_expense, count: items.length, items: items.slice(0, limit) };
+        }
+        case 'goals': {
+          const days = [];
+          const gobj = st.goals || {};
+          Object.keys(gobj).sort().forEach(date => {
+            if (!_inRange(date)) return;
+            const arr = gobj[date] || [];
+            days.push({ date, done: arr.filter(g => g.done).length, total: arr.length, items: arr.map(g => ({ text: g.text, done: !!g.done })) });
+          });
+          return { days: days.slice(0, limit) };
+        }
+        case 'habits': {
+          const habits = [];
+          TABS.forEach(sec => {
+            ((st.habitTrackers && st.habitTrackers[sec]) || []).forEach(h => {
+              if (!_qMatch(h.name, q)) return;
+              const days = {};
+              Object.keys(h.days || {}).forEach(d => { if (_inRange(d)) days[d] = h.days[d]; });
+              habits.push({ name: h.name, section: sec, days });
+            });
+          });
+          return { habits: habits.slice(0, limit) };
+        }
+        case 'weight': {
+          const items = (st.bodyWeight || []).filter(e => _inRange(e.date)).map(e => ({ date: e.date, value: e.value, unit: e.unit }));
+          return { items: items.slice(0, limit) };
+        }
+        case 'reminders': {
+          const items = [];
+          TABS.forEach(tab => {
+            ((st.reminders && st.reminders[tab]) || []).forEach(r => {
+              if (!_qMatch(r.title, q)) return;
+              items.push({ tab, title: r.title, datetime: r.datetime, priority: r.priority, done: !!r.done });
+            });
+          });
+          return { items: items.slice(0, limit) };
+        }
+        case 'audit': {
+          const log = auditLog();
+          const items = log.slice(-limit).reverse().map(e => {
+            let ts; try { ts = new Date(e.ts).toLocaleString('es-AR'); } catch (err) { ts = String(e.ts); }
+            return { ts, source: e.source, action: e.action, desc: e.desc, undone: !!e.undone };
+          });
+          return { items };
+        }
+        case 'memory': {
+          return { items: st.jarvisMemory || [] };
+        }
+        default:
+          return { error: 'unknown area' };
+      }
+    } catch (e) {
+      console.error('[JARVIS_BRAIN] query', e);
+      return { items: [] };
+    }
+  }
+
+  window.JARVIS_BRAIN = { snapshot, execute, ACTIONS_HELP, audit, auditLog, query };
 })();

@@ -16,7 +16,7 @@
     if (override === 'smart') return MODEL_SMART;
     const text = userText || '';
     if (text.length > 180) return MODEL_SMART;
-    if (/analiz|anális|tendenc|estrateg|resum[ií\b]|compar[aá]|por qué|diagnos|proyect[aá]|evalu[aá]|revis[aá] (el|mi|todo)/i.test(text)) return MODEL_SMART;
+    if (/analiz|anális|tendenc|estrateg|resum|compar[aá]|por qué|diagnos|proyect[aá]|evalu[aá]|revis[aá] (el|mi|todo)/i.test(text)) return MODEL_SMART;
     return MODEL_FAST;
   }
 
