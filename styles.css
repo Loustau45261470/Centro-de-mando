@@ -2179,13 +2179,12 @@ textarea { resize: vertical; min-height: 60px; }
 .proy-node-count { font-size: 11px; color: var(--tt); font-family: var(--mono); margin-right: 4px; flex-shrink: 0; }
 .proy-node-actions {
   display: flex; align-items: center; gap: 1px;
-  opacity: 0; transition: opacity .15s; flex-shrink: 0;
+  /* Siempre visibles (antes opacity:0 revelado al hover, pero el hover fallaba en
+     desktop y no existe en táctil → el botón 'Detalles' con la fecha límite quedaba
+     oculto). Sutil en reposo, full al hover del header. */
+  opacity: .5; transition: opacity .15s; flex-shrink: 0;
 }
-/* Táctil (celular/PWA): sin hover no se revelaban las acciones del nodo
-   (Detalles → fecha límite, agregar, ícono, eliminar). Mostrarlas siempre. */
-@media (hover: none) {
-  .proy-node-actions { opacity: 1; }
-}
+.proy-node-header:hover .proy-node-actions { opacity: 1; }
 .proy-node-action-btn {
   display: flex; align-items: center; justify-content: center;
   width: 26px; height: 26px;
