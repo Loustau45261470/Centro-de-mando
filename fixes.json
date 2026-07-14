@@ -56,6 +56,27 @@
       "desc": "El boton wake mostraba Esperando Jarvis aunque SpeechRecognition no existiera o nunca arrancara. Ahora _recConfirmed (rec.onstart) gobierna la UI, !SR avisa y sale, y 8 reinicios/30s apagan el wake con toast.",
       "file": "jarvis-ears.js",
       "marker": "_recConfirmed"
+    },
+    {
+      "id": "brain-confirm-gate-destructive",
+      "fecha": "2026-07-14",
+      "desc": "Toda accion delete_* de JARVIS_BRAIN.execute requiere confirm:true; sin el, devuelve confirm_required con la pregunta. Protege contra borrados por voz mal reconocida.",
+      "file": "jarvis-brain.js",
+      "marker": "confirm_required"
+    },
+    {
+      "id": "brain-audit-undo",
+      "fecha": "2026-07-14",
+      "desc": "Log de auditoria jarvis_audit_v1 (cap 50) con inverse serializable + accion undo_last que lo aplica. No sincroniza a Firestore a proposito (device-local).",
+      "file": "jarvis-brain.js",
+      "marker": "_applyInverse"
+    },
+    {
+      "id": "ears-voice-confirm-flow",
+      "fecha": "2026-07-14",
+      "desc": "La siguiente frase tras una pregunta de confirmacion se intercepta ANTES de Gemini: afirmativa re-ejecuta con confirm:true, otra cosa cancela, expira a los 45s.",
+      "file": "jarvis-ears.js",
+      "marker": "_tryConsumePendingConfirm"
     }
   ]
 }
