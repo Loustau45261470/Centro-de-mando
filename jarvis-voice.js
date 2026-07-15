@@ -13,6 +13,13 @@
   let enabled     = localStorage.getItem('jarvis_enabled') === '1';
   let currentAudio = null;
 
+  // Modo nocturno: >=23h o <7h (el usuario duerme 00:00-07:00) — voz más baja y respuestas
+  // más cortas (esto último lo aplica ears.js en el prompt de Gemini). Guard: solo la hora local.
+  function _isNightTime() {
+    try { const h = new Date().getHours(); return h >= 23 || h < 7; } catch(e) { return false; }
+  }
+  const NIGHT_VOLUME = 0.55;
+
   // Storage persistente: pide al navegador NO desalojar Cache Storage bajo presión de
   // espacio (la 2ª causa de frases TTS perdidas, junto al SW que borraba jarvis-tts-*
   // en cada activate — ver fixes.json). Silencioso: Chrome decide solo, sin prompt.
@@ -54,6 +61,7 @@
     const url  = URL.createObjectURL(blob);
     if (currentAudio) { try { currentAudio.pause(); URL.revokeObjectURL(currentAudio.src); } catch(e){} }
     const audio = currentAudio = new Audio(url);
+    try { if (_isNightTime()) audio.volume = NIGHT_VOLUME; } catch(e) {}
     // Esperar a que termine de sonar: así isSpeaking() es correcto durante toda la reproducción
     // y se libera el ObjectURL (evita memory leak por cada frase).
     await new Promise((resolve, reject) => {
@@ -103,6 +111,7 @@
       if (!window.speechSynthesis) return;
       const u = new SpeechSynthesisUtterance(text);
       u.lang = 'en-GB';
+      if (_isNightTime()) u.volume = NIGHT_VOLUME;
       speechSynthesis.speak(u);
     } catch(e) {}
   }
@@ -350,5 +359,5 @@
   }
   setTimeout(_updateBtn, 400);
 
-  window.JARVIS = { speak, greeting, onNewProject, onTaskDone, onPrioritySet, onDeleteProject, onThemeChange, checkOverdue, toggle, isSpeaking, recentlySpoke, stopSpeaking, checkVoiceQuota: _elQuotaCheckProactive };
+  window.JARVIS = { speak, greeting, onNewProject, onTaskDone, onPrioritySet, onDeleteProject, onThemeChange, checkOverdue, toggle, isSpeaking, recentlySpoke, stopSpeaking, checkVoiceQuota: _elQuotaCheckProactive, isNight: _isNightTime };
 })();

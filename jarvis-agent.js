@@ -392,12 +392,21 @@
       },
     },
     {
+      name: 'capture',
+      description: 'Captura una idea/nota rápida del usuario para su inbox del segundo cerebro (vault Obsidian)',
+      input_schema: {
+        type: 'object',
+        properties: { text: { type: 'string', description: 'La idea o nota a capturar' } },
+        required: ['text'],
+      },
+    },
+    {
       name: 'query_data',
-      description: 'Consulta datos filtrados por rango de fechas/texto: transacciones, metas, hábitos, peso, recordatorios, auditoría, memoria — usar en vez de get_app_state cuando la pregunta es sobre un período o algo específico',
+      description: 'Consulta datos filtrados por rango de fechas/texto: transacciones, metas, hábitos, peso, recordatorios, auditoría, memoria, cartera de inversión, capturas — usar en vez de get_app_state cuando la pregunta es sobre un período o algo específico',
       input_schema: {
         type: 'object',
         properties: {
-          area:  { type: 'string', enum: ['transactions','goals','habits','weight','reminders','audit','memory'] },
+          area:  { type: 'string', enum: ['transactions','goals','habits','weight','reminders','audit','memory','cartera','capturas'] },
           from:  { type: 'string', description: 'Fecha desde (YYYY-MM-DD)' },
           to:    { type: 'string', description: 'Fecha hasta (YYYY-MM-DD)' },
           q:     { type: 'string', description: 'Texto de búsqueda' },
@@ -573,6 +582,12 @@
       return JSON.stringify(JARVIS_BRAIN.query(input));
     }
 
+    if (name === 'capture') {
+      if (!window.JARVIS_BRAIN) return 'La captura no está disponible en esta vista.';
+      const r = JARVIS_BRAIN.execute('capture', { text: input.text, _source: 'chat' });
+      return r.msg || (r.ok ? 'Captured, sir.' : 'No pude capturar eso, sir.');
+    }
+
     if (name === 'set_wellness') {
       if (!S.sleepLog[today]) S.sleepLog[today] = {};
       if (!S.sleepLog[today].wellness) S.sleepLog[today].wellness = {};
@@ -604,7 +619,8 @@ Instrucciones:
 - Cuando el usuario pida crear/modificar/eliminar algo, ejecutalo directamente con las tools
 - Los borrados (delete_project) requieren confirmación explícita del usuario antes de llamar la tool con confirm:true; si el usuario quiere deshacer/revertir la última acción, usá undo_last
 - Tenés memoria persistente entre conversaciones: si el usuario te pide recordar algo usá remember; si pide olvidar algo usá forget; consultá tu memoria vía get_app_state o query_data antes de asumir que no sabés algo del usuario
-- Para preguntas sobre un período de tiempo o un dato específico (transacciones, metas, hábitos, peso, recordatorios, auditoría, memoria), usá query_data en vez de get_app_state
+- Para preguntas sobre un período de tiempo o un dato específico (transacciones, metas, hábitos, peso, recordatorios, auditoría, memoria, cartera de inversión, capturas), usá query_data en vez de get_app_state
+- Podés consultar la cartera de inversión (CEDEARs) con query_data area 'cartera', y capturar una idea/nota rápida del usuario para su segundo cerebro con la tool capture
 - Confirmá brevemente lo que hiciste
 - Si hay un error o no podés hacer algo, explicalo en una frase`;
 

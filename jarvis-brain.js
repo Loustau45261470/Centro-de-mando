@@ -9,6 +9,18 @@
   const TABS = ['vida', 'finanzas', 'salud', 'conocimiento', 'ia'];
   const THEMES = { '': '', original: '', normal: '', clasico: '', bloomberg: 'bloomberg', ambar: 'amber', amber: 'amber', radar: 'radar', infrarrojo: 'infrared', infrared: 'infrared' };
 
+  // Cartera de inversión (CEDEARs) — cargada una vez desde el JSON publicado por la routine cloud IOL.
+  let _cartera = null;
+  try {
+    fetch('data/cartera/latest.json', { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : null)
+      .then(j => { _cartera = j; })
+      .catch(() => {});
+  } catch (e) {}
+
+  // Timers hablados: viven en memoria del dispositivo — si se cierra la página, mueren (aceptado).
+  const _timers = [];
+
   const _norm = s => (s || '').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
   const _today = () => (typeof getActiveDate === 'function') ? getActiveDate() : new Date().toISOString().slice(0, 10);
   const _qMatch = (str, q) => !q || _norm(str).includes(_norm(q));
@@ -153,6 +165,69 @@
     return T;
   }
 
+  /* ── Anomalías: señales que merecen atención, no solo la foto de hoy ── */
+  function _anomalies() {
+    const out = [];
+    if (typeof S === 'undefined' || !S) return out;
+    const today = _today();
+    const yesterday = _addDays(today, -1);
+    const twoDaysAgo = _addDays(today, -2);
+
+    // (a) rachas de hábitos en riesgo: eran ≥5 hace 2 días y hoy/ayer quedaron sin marcar
+    try {
+      TABS.forEach(sec => {
+        ((S.habitTrackers && S.habitTrackers[sec]) || []).forEach(h => {
+          try {
+            const days = h.days || {};
+            const streak2 = _habitStreak(days, twoDaysAgo);
+            if (streak2 >= 5) {
+              const atRisk = v => v !== 'done' && v !== 'partial' && v !== 'rest';
+              if (atRisk(days[today]) || atRisk(days[yesterday])) {
+                out.push(`⚠ Racha de ${h.name} en riesgo (era ${streak2}d)`);
+              }
+            }
+          } catch (e) {}
+        });
+      });
+    } catch (e) {}
+
+    // (b) gastos del mes ya 30%+ arriba del total del mes anterior completo
+    try {
+      const mk = today.slice(0, 7);
+      let [py, pm] = mk.split('-').map(Number); pm--; if (pm < 1) { pm = 12; py--; }
+      const pmk = py + '-' + String(pm).padStart(2, '0');
+      let exp = 0, pexp = 0;
+      (S.transactions || []).forEach(t => {
+        if (t.type === 'income') return;
+        const tm = (t.date || '').slice(0, 7);
+        if (tm === mk) exp += (+t.amount || 0);
+        else if (tm === pmk) pexp += (+t.amount || 0);
+      });
+      if (pexp > 0 && exp > pexp * 1.3) out.push('⚠ Gastos del mes 30%+ arriba del anterior');
+    } catch (e) {}
+
+    // (c) variación de peso en 7 días > 1.5kg
+    try {
+      const bw = S.bodyWeight || [];
+      if (bw.length) {
+        const last = bw[bw.length - 1];
+        const target = _addDays(today, -7);
+        let best = null, bestDiff = Infinity;
+        bw.forEach(e => {
+          if (e.date === last.date) return;
+          const diff = Math.abs((new Date(e.date) - new Date(target)) / 86400000);
+          if (diff <= 3 && diff < bestDiff) { best = e; bestDiff = diff; }
+        });
+        if (best) {
+          const d = Math.round((last.value - best.value) * 10) / 10;
+          if (Math.abs(d) > 1.5) out.push(`⚠ Peso varió ${d >= 0 ? '+' : ''}${d}${last.unit} en 7 días`);
+        }
+      }
+    } catch (e) {}
+
+    return out;
+  }
+
   /* ── Snapshot legible del estado completo ── */
   function snapshot() {
     if (typeof S === 'undefined' || !S) return 'Estado no disponible.';
@@ -161,6 +236,10 @@
     const _activeTab = (typeof currentTab !== 'undefined' && currentTab)
       || (((document.querySelector('.tab-panel.active') || {}).id) || '').replace('tab-', '');
     if (_activeTab) L.push('TAB ACTIVO: ' + _activeTab);
+
+    // Alertas (anomalías detectadas)
+    const anomalies = _anomalies();
+    if (anomalies.length) L.push('\nALERTAS:\n' + anomalies.map(x => '  ' + x).join('\n'));
 
     // Objetivos del trimestre (período activo) — la falla original
     const qo = S.quarterlyObjectives;
@@ -261,6 +340,24 @@
       L.push('\nMEMORIA DE JARVIS:\n' + S.jarvisMemory.map(m => `  - [${m.fecha}] ${m.text}`).join('\n'));
     }
 
+    // Cartera de inversión (CEDEARs)
+    if (_cartera && Array.isArray(_cartera.cedears) && _cartera.cedears.length) {
+      L.push('\nCARTERA (CEDEARs, mes ' + _cartera.mes + '):');
+      _cartera.cedears.slice(0, 12).forEach(c => {
+        L.push(`  ${c.simbolo}: $${c.precio} (m/m ${c.variacionPct >= 0 ? '+' : ''}${c.variacionPct}% · 12m ${c.rend12m >= 0 ? '+' : ''}${c.rend12m}%)`);
+      });
+    }
+
+    // Capturas pendientes para el vault
+    if (S.capturas && S.capturas.length) {
+      L.push('\nCAPTURAS PARA EL VAULT: ' + S.capturas.length + ' pendientes');
+    }
+
+    // Timers activos
+    if (_timers.length) {
+      L.push('\nTIMERS ACTIVOS:\n' + _timers.map(t => `  ${t.label}: ${Math.max(0, Math.round((t.endsAt - Date.now()) / 60000))} min restantes`).join('\n'));
+    }
+
     // Últimas acciones (audit log local)
     try {
       const log = auditLog();
@@ -312,6 +409,18 @@
     if (!inv || !inv.type) return { ok: false };
     try {
       switch (inv.type) {
+        case 'move_goals_back': {
+          if (!S.goals[inv.toDate]) S.goals[inv.toDate] = [];
+          if (!S.goals[inv.fromDate]) S.goals[inv.fromDate] = [];
+          const moved = [];
+          S.goals[inv.toDate] = S.goals[inv.toDate].filter(g => {
+            if ((inv.ids || []).includes(g.id)) { moved.push(g); return false; }
+            return true;
+          });
+          S.goals[inv.fromDate] = S.goals[inv.fromDate].concat(moved);
+          saveState(); if (typeof renderGoals === 'function') renderGoals();
+          return { ok: true, msg: `Moved ${moved.length} goals back, sir.` };
+        }
         case 'restore_goal': {
           if (!S.goals[inv.date]) S.goals[inv.date] = [];
           S.goals[inv.date].push(inv.item);
@@ -385,6 +494,7 @@
             case 'wishlist': S.wishlist = (S.wishlist || []).filter(x => x.id !== inv.id); saveState(); if (typeof renderWishlist === 'function') renderWishlist(); break;
             case 'reminder': S.reminders[inv.tab] = (S.reminders[inv.tab] || []).filter(x => x.id !== inv.id); saveState(); if (typeof renderReminders === 'function') renderReminders(inv.tab); break;
             case 'memory': S.jarvisMemory = (S.jarvisMemory || []).filter(x => x.id !== inv.id); saveState(); break;
+            case 'capture': S.capturas = (S.capturas || []).filter(x => x.id !== inv.id); saveState(); break;
             default: return { ok: false, msg: "I couldn't undo that, sir." };
           }
           return { ok: true, msg: 'Removed what I created, sir.' };
@@ -441,7 +551,12 @@
     'delete_monthly_goal {search, section?}',
     'remember {text}  — guarda un hecho para recordar siempre (ej: "acordate que prefiero entrenar a la mañana"). Sincroniza entre dispositivos.',
     'forget {search}  — borra una memoria guardada, buscando por texto',
-    'undo_last {}  — deshace la última acción reversible del log de auditoría'
+    'capture {text}  — guarda una idea/nota rápida para el inbox del segundo cerebro',
+    'start_timer {minutes, label?}  — inicia un timer hablado (minutes puede ser fraccionario)',
+    'cancel_timer {search?}  — cancela un timer por label, o el último si no se especifica',
+    'start_pomodoro {}  — inicia el Pomodoro (fases fijas, sin duración custom)',
+    'undo_last {}  — deshace la última acción reversible del log de auditoría',
+    'close_day {}  — cierre del día: resume y ofrece pasar pendientes a mañana'
   ].join('\n- ');
 
   /* ── Ejecutor de acciones ── */
@@ -776,6 +891,53 @@
           _logAudit(a, action, `Olvidó memoria: ${clone.text}`, { type: 'restore_memory', item: clone, idx: f.idx });
           return { ok: true };
         }
+        case 'capture': {
+          const text = (a.text || '').toString().trim();
+          if (!text) return { ok: false, msg: 'What should I capture, sir?' };
+          if (!S.capturas) S.capturas = [];
+          const nc = { id: uid(), text, fecha: _today() };
+          S.capturas.push(nc);
+          while (S.capturas.length > 100) S.capturas.shift();
+          saveState();
+          _logAudit(a, action, `Capturó idea: ${nc.text}`, { type: 'delete_created', kind: 'capture', id: nc.id });
+          return { ok: true, msg: 'Captured, sir.' };
+        }
+        case 'start_timer': {
+          const minutes = parseFloat(a.minutes);
+          if (isNaN(minutes) || minutes <= 0) return { ok: false, msg: 'I need a valid number of minutes, sir.' };
+          const label = (a.label || '').toString().trim() || 'Timer';
+          const id = uid();
+          const endsAt = Date.now() + minutes * 60000;
+          const timer = { id, label, endsAt, handle: null };
+          timer.handle = setTimeout(() => {
+            const idx = _timers.findIndex(t => t.id === id);
+            if (idx !== -1) _timers.splice(idx, 1);
+            if (typeof showToast === 'function') showToast('⏰ ' + label + ' terminado', 10000);
+            if (window.JARVIS && JARVIS.speak) JARVIS.speak('Sir, your ' + label + ' timer is up.', { dynamic: true });
+          }, minutes * 60000);
+          _timers.push(timer);
+          return { ok: true, msg: `Timer set for ${minutes} minutes, sir.` };
+        }
+        case 'cancel_timer': {
+          if (!_timers.length) return { ok: false, msg: 'No timers running, sir.' };
+          let idx = -1;
+          if (a.search) {
+            const f = _find(_timers, a.search, 'label');
+            if (f) idx = f.idx;
+          } else {
+            idx = _timers.length - 1;
+          }
+          if (idx === -1) return { ok: false, msg: "I couldn't find that timer, sir." };
+          const t = _timers[idx];
+          clearTimeout(t.handle);
+          _timers.splice(idx, 1);
+          return { ok: true, msg: `Cancelled the '${t.label}' timer, sir.` };
+        }
+        case 'start_pomodoro': {
+          if (!window.Pomodoro) return { ok: false, msg: 'Pomodoro unavailable, sir.' };
+          window.Pomodoro.start();
+          return { ok: true };
+        }
         case 'undo_last': {
           const log = auditLog();
           let idx = -1;
@@ -787,6 +949,35 @@
           entry.undone = true;
           _auditSave(log);
           return { ok: true, msg: r.msg || 'Undone, sir.' };
+        }
+        case 'close_day': {
+          const today = _today();
+          const tomorrow = (typeof getTomorrow === 'function') ? getTomorrow() : _addDays(today, 1);
+          const dg = (S.goals && S.goals[today]) || [];
+          const doneCount = dg.filter(g => g.done).length;
+          const totalCount = dg.length;
+          const pending = dg.filter(g => !g.done);
+          const unmarkedHabits = [];
+          TABS.forEach(sec => {
+            ((S.habitTrackers && S.habitTrackers[sec]) || []).forEach(h => {
+              if (!(h.days || {})[today]) unmarkedHabits.push(h.name);
+            });
+          });
+          const bits = [`Goals today: ${doneCount}/${totalCount} done.`];
+          if (unmarkedHabits.length) bits.push(`Unmarked habits: ${unmarkedHabits.slice(0, 5).join(', ')}.`);
+          const summaryMsg = bits.join(' ');
+          const N = pending.length;
+          if (N > 0) {
+            if (!a.confirm) return { ok: false, confirm_required: true, summary: 'move ' + N + ' goals', msg: `${summaryMsg} Shall I move the ${N} pending goals to tomorrow, sir?` };
+            if (!S.goals[tomorrow]) S.goals[tomorrow] = [];
+            const movedIds = [];
+            pending.forEach(g => { S.goals[tomorrow].push(g); movedIds.push(g.id); });
+            S.goals[today] = dg.filter(g => g.done);
+            saveState(); if (typeof renderGoals === 'function') renderGoals();
+            _logAudit(a, action, `Cierre del día: movió ${N} metas a mañana`, { type: 'move_goals_back', fromDate: today, toDate: tomorrow, ids: movedIds });
+            return { ok: true, msg: `${summaryMsg} Moved ${N} goals to tomorrow. Good night, sir.` };
+          }
+          return { ok: true, msg: `${summaryMsg} Nothing pending. Good night, sir.` };
         }
         default:
           return { ok: false, msg: 'Unknown action, sir.' };
@@ -866,6 +1057,13 @@
         }
         case 'memory': {
           return { items: st.jarvisMemory || [] };
+        }
+        case 'cartera': {
+          if (!_cartera) return { mes: null, generado: null, items: [] };
+          return { mes: _cartera.mes, generado: _cartera.generado, items: _cartera.cedears || [] };
+        }
+        case 'capturas': {
+          return { items: st.capturas || [] };
         }
         default:
           return { error: 'unknown area' };
