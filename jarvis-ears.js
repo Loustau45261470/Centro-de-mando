@@ -480,7 +480,9 @@
     }
     let snap = '', actions = '';
     try { if (window.JARVIS_BRAIN) { snap = JARVIS_BRAIN.snapshot(); actions = JARVIS_BRAIN.ACTIONS_HELP; } } catch(e) {}
-    const sys =
+    let isNight = false;
+    try { isNight = !!(window.JARVIS && JARVIS.isNight && JARVIS.isNight()); } catch(e) {}
+    let sys =
 'You are JARVIS, the AI butler of this personal command center. The user speaks Spanish (rioplatense); understand him in Spanish but ALWAYS reply in English, addressing him as "sir", precise with a touch of dry wit. Today is ' + new Date().toDateString() + '.\n\n' +
 'IMPORTANT — LANGUAGE: All the command center DATA in CONTEXT (task names, project names, goals, subjects, reminders, notes, etc.) is written in Spanish. Whenever you read, list or report any of it aloud, TRANSLATE it naturally into English — never speak the Spanish text verbatim. For example a task "Comprar leche" must be said as "Buy milk". Your entire reply must be in fluent English, including every item name you mention. (You still match items against the Spanish CONTEXT internally for actions, but you SPEAK English.)\n\n' +
 'You can READ the full state of the command center (CONTEXT below) AND act on it (create, mark/complete, edit, delete). ' +
@@ -497,6 +499,7 @@
 'NOTE ON DELETIONS: for delete_* actions the system itself asks the user to confirm and waits for their next reply — you do not need to ask for confirmation yourself, add "confirm":true, or retry. Just pick the delete action normally, once, and let the system handle the confirm/cancel.\n\n' +
 'AVAILABLE ACTIONS:\n- ' + actions + '\n\n' +
 'CONTEXT (live state of the command center):\n' + snap;
+    if (isNight) sys += '\n\nNIGHT MODE: it is late; keep every reply to one short sentence.';
 
     // Proveedor según el formato de la key — todas se pegan en el mismo campo:
     //   AIza… → Gemini (AI Studio)    AQ.… → Gemini (Vertex express, requiere API + billing)
@@ -629,5 +632,5 @@
   if (wakeOn && SR) { mode = 'passive'; startRec(); }
   _ui();
 
-  window.JARVIS_EARS = { toggleWake, saveKey, handleCommand };
+  window.JARVIS_EARS = { toggleWake, saveKey, handleCommand, sayEN };
 })();
