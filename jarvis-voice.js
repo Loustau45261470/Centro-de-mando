@@ -12,6 +12,10 @@
   }
   let enabled     = localStorage.getItem('jarvis_enabled') === '1';
   let currentAudio = null;
+  // Token de generación de la cola de reproducción: cada speakElevenLabs() nuevo (o stopSpeaking())
+  // lo incrementa. El loop de _playSequence lo chequea antes de pasar a la siguiente oración —
+  // así una interrupción corta TODA la cola pendiente, no solo la oración que suena en ese momento.
+  let _playGen = 0;
 
   // Modo nocturno: >=23h o <7h (el usuario duerme 00:00-07:00) — voz más baja y respuestas
   // más cortas (esto último lo aplica ears.js en el prompt de Gemini). Guard: solo la hora local.
@@ -25,56 +29,137 @@
   // en cada activate — ver fixes.json). Silencioso: Chrome decide solo, sin prompt.
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
 
-  async function speakElevenLabs(text) {
-    // Modelo TTS: Flash v2.5 por defecto (más barato/rápido); override posible vía localStorage.
-    const elModel = localStorage.getItem('jarvis_el_model') || 'eleven_flash_v2_5';
-    // Cache de audio: cada frase única se genera una sola vez en la vida (ahorra cuota de ElevenLabs).
-    // El modelo va en la clave: una frase cacheada con un modelo viejo no debe servirse tras cambiar de modelo.
-    const cacheUrl = 'https://jarvis-tts.cache/' + EL_VOICE + '/' + elModel + '/' + encodeURIComponent(text);
-    let blob = null;
+  // Clave de cache unificada: se usa TANTO para la frase completa como para cada oración suelta
+  // (misma forma exacta 'EL_VOICE/elModel/texto') — así una oración cacheada en un llamado
+  // multi-oración sirve como hit directo si esa misma oración vuelve a pedirse sola después.
+  function _ttsCacheKey(t, elModel) {
+    return 'https://jarvis-tts.cache/' + EL_VOICE + '/' + elModel + '/' + encodeURIComponent(t);
+  }
+  async function _openCache() {
+    try { return await caches.open('jarvis-tts-v1'); } catch(e) { return null; }
+  }
+  async function _cacheGet(c, key) {
+    if (!c) return null;
+    try { const hit = await c.match(key); if (hit) return await hit.blob(); } catch(e) {}
+    return null;
+  }
+  const CHARS_KEY = 'jarvis_el_chars_used_total';
+  // Solo se llama tras una llamada REAL (exitosa) a la API — nunca en un cache hit — para que el
+  // contador refleje el consumo real contra la cuota mensual de ElevenLabs.
+  function _addCharsUsed(n) {
     try {
-      const c = await caches.open('jarvis-tts-v1');
-      const hit = await c.match(cacheUrl);
-      if (hit) blob = await hit.blob();
+      const cur = parseInt(localStorage.getItem(CHARS_KEY) || '0', 10) || 0;
+      localStorage.setItem(CHARS_KEY, String(cur + n));
     } catch(e) {}
-    if (!blob) {
-      const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${EL_VOICE}`, {
-        method: 'POST',
-        headers: {
-          'xi-api-key': _elKey(),
-          'Content-Type': 'application/json',
-          'Accept': 'audio/mpeg'
-        },
-        body: JSON.stringify({
-          text,
-          model_id: elModel,
-          voice_settings: { stability: 0.38, similarity_boost: 0.85, style: 0.12, use_speaker_boost: true }
-        })
-      });
-      if (!res.ok) throw new Error(`EL ${res.status}`);
-      blob = await res.blob();
-      try {
-        const c = await caches.open('jarvis-tts-v1');
-        await c.put(cacheUrl, new Response(blob, { headers: { 'Content-Type': 'audio/mpeg' } }));
-      } catch(e) {}
-    }
-    const url  = URL.createObjectURL(blob);
-    if (currentAudio) { try { currentAudio.pause(); URL.revokeObjectURL(currentAudio.src); } catch(e){} }
-    const audio = currentAudio = new Audio(url);
-    try { if (_isNightTime()) audio.volume = NIGHT_VOLUME; } catch(e) {}
-    // Esperar a que termine de sonar: así isSpeaking() es correcto durante toda la reproducción
-    // y se libera el ObjectURL (evita memory leak por cada frase).
-    await new Promise((resolve, reject) => {
+    _renderUsage();
+  }
+  function _renderUsage() {
+    const el = document.getElementById('jarvis-el-usage');
+    if (!el) return;
+    const total = parseInt(localStorage.getItem(CHARS_KEY) || '0', 10) || 0;
+    el.textContent = `🔊 ${total.toLocaleString('es')} caracteres usados (histórico)`;
+  }
+  setTimeout(_renderUsage, 500);
+
+  async function _synthAndCache(text, key, elModel, c) {
+    const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${EL_VOICE}`, {
+      method: 'POST',
+      headers: {
+        'xi-api-key': _elKey(),
+        'Content-Type': 'application/json',
+        'Accept': 'audio/mpeg'
+      },
+      body: JSON.stringify({
+        text,
+        model_id: elModel,
+        voice_settings: { stability: 0.38, similarity_boost: 0.85, style: 0.12, use_speaker_boost: true }
+      })
+    });
+    if (!res.ok) throw new Error(`EL ${res.status}`);
+    const blob = await res.blob();
+    _addCharsUsed(text.length);
+    if (c) { try { await c.put(key, new Response(blob, { headers: { 'Content-Type': 'audio/mpeg' } })); } catch(e) {} }
+    return blob;
+  }
+
+  // Divide en oraciones sin cortar decimales ("3.14") ni abreviaturas comunes: exige puntuación
+  // de cierre + espacio + mayúscula siguiente (incl. acentuadas) para considerar el corte válido.
+  function _splitSentences(text) {
+    if (!text) return [text];
+    return text.split(/(?<=[.!?])\s+(?=[A-ZÁÉÍÓÚÑ¡¿])/).filter(s => s.length > 0);
+  }
+
+  // Reproduce una cola de blobs EN ORDEN. currentAudio siempre apunta al <audio> que suena en
+  // ese instante; solo se libera (y se marca _lastSpeakEnd) al terminar la ÚLTIMA oración o si
+  // la cola fue cancelada — isSpeaking()/recentlySpoke() dependen de esta semántica exacta
+  // porque el anti-eco de jarvis-ears.js las usa tal cual.
+  function _playOne(blob, myGen, isLast) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(blob);
+      if (currentAudio) { try { currentAudio.pause(); URL.revokeObjectURL(currentAudio.src); } catch(e){} }
+      const audio = currentAudio = new Audio(url);
+      try { if (_isNightTime()) audio.volume = NIGHT_VOLUME; } catch(e) {}
       let settled = false;
-      // Al terminar (o ante cualquier corte) soltar la referencia: isSpeaking() jamás debe quedar
-      // trabado en true por un <audio> huérfano — eso dejaría el micrófono apagado por el anti-eco.
-      const done = () => { if (settled) return; settled = true; _lastSpeakEnd = Date.now(); clearTimeout(to); if (currentAudio === audio) currentAudio = null; try { URL.revokeObjectURL(url); } catch(e){} resolve(); };
+      const done = () => {
+        if (settled) return; settled = true;
+        clearTimeout(to);
+        if (isLast || myGen !== _playGen) { _lastSpeakEnd = Date.now(); if (currentAudio === audio) currentAudio = null; }
+        try { URL.revokeObjectURL(url); } catch(e){}
+        resolve();
+      };
       const to = setTimeout(done, 60000);   // hard cap: jamás colgar isSpeaking() para siempre
       audio.onended = done;
-      audio.onpause = done;   // interrumpido por una nueva frase o por stopSpeaking()
+      audio.onpause = done;   // interrumpido por la siguiente oración, una frase nueva o stopSpeaking()
       audio.onerror = done;
       audio.play().catch(err => { if (settled) return; settled = true; clearTimeout(to); if (currentAudio === audio) currentAudio = null; try { URL.revokeObjectURL(url); } catch(e){} reject(err); });
     });
+  }
+  async function _playSequence(blobs) {
+    const myGen = ++_playGen;
+    for (let i = 0; i < blobs.length; i++) {
+      if (myGen !== _playGen) return;   // cancelado (stopSpeaking o un speak() más nuevo) antes de arrancar
+      await _playOne(blobs[i], myGen, i === blobs.length - 1);
+      if (myGen !== _playGen) return;   // cancelado a mitad de la cola
+    }
+  }
+
+  async function speakElevenLabs(text) {
+    // Modelo TTS: Flash v2.5 por defecto (más barato/rápido); override posible vía localStorage.
+    const elModel = localStorage.getItem('jarvis_el_model') || 'eleven_flash_v2_5';
+    const c = await _openCache();
+    // Fast path: la frase COMPLETA ya sonó antes tal cual → 1 sola lectura de cache, sin split ni
+    // llamadas extra (cubre las líneas fijas/canned que se repiten exactas).
+    const fullKey = _ttsCacheKey(text, elModel);
+    const fullHit = await _cacheGet(c, fullKey);
+    if (fullHit) return _playSequence([fullHit]);
+
+    // Miss de la frase completa: partimos en oraciones para capturar hits PARCIALES — las
+    // respuestas del LLM nunca son idénticas palabra por palabra, pero sí repiten fragmentos
+    // ("Marked complete, sir.", "Understood, sir.") que la cache de frase completa no aprovechaba.
+    const sentences = _splitSentences(text);
+    if (sentences.length <= 1) {
+      // No se pudo partir (o ya es 1 sola oración): mismo camino de siempre, sin overhead extra.
+      const blob = await _synthAndCache(text, fullKey, elModel, c);
+      return _playSequence([blob]);
+    }
+
+    // 2+ oraciones: sintetizar TODAS las que falten ANTES de reproducir nada (loop secuencial,
+    // no Promise.all, para no disparar N requests en paralelo). Si una falla, el error sube
+    // intacto hasta speak(), que hace el fallback a voz del navegador con el texto COMPLETO —
+    // así nunca queda audio a medias sin ese fallback.
+    const blobs = [];
+    for (const s of sentences) {
+      const sKey = _ttsCacheKey(s, elModel);
+      let b = await _cacheGet(c, sKey);
+      if (!b) b = await _synthAndCache(s, sKey, elModel, c);
+      blobs.push(b);
+    }
+    // No se cachea la frase completa acá: concatenar blobs MP3 independientes de ElevenLabs
+    // (cada uno con sus propios headers/frames) es riesgoso — puede sonar con glitches o no
+    // reproducir en algunos navegadores. No hace falta: la próxima vez que aparezca este mismo
+    // texto, las 3 oraciones ya están cacheadas individualmente → 0 llamadas a la API igual,
+    // solo que pasa de nuevo por el camino de 2+ oraciones en vez del fast-path de frase completa.
+    return _playSequence(blobs);
   }
 
   // Preprocesador TTS: los datos de la app vienen en formato es-AR ($1.234.567,89 · 45,5%) pero
@@ -196,7 +281,15 @@
   async function speak(text, opts) {
     if (!enabled || !text) return;
     _speakAt = Date.now();
-    const prepped = _ttsPrep(text);
+    let prepped = _ttsPrep(text);
+    // Tope duro en respuestas dinámicas: el prompt de Gemini ya pide "max 2 sentences" pero un
+    // LLM puede ignorarlo — sin este corte una respuesta larga se comería la cuota de ElevenLabs.
+    // No aplica a texto no-dinámico (líneas fijas, ya son cortas por diseño).
+    if (opts && opts.dynamic && prepped.length > 600) {
+      let cut = -1;
+      for (const ch of ['.', '!', '?']) { const idx = prepped.lastIndexOf(ch, 599); if (idx > cut) cut = idx; }
+      prepped = cut >= 0 ? prepped.slice(0, cut + 1) : prepped.slice(0, 600) + '…';
+    }
     if (!_elKey()) { _elHint(); return; }                                  // sin key → silencio
     if (opts && opts.dynamic && !(await _elQuotaOk())) return;              // dinámica sin cuota → silencio
     try {
@@ -222,6 +315,7 @@
   function recentlySpoke(ms) { return Date.now() - _lastSpeakEnd < (ms || 0); }
 
   function stopSpeaking() {
+    _playGen++;   // invalida la cola de oraciones en curso: el loop de _playSequence corta TODO lo pendiente
     try { speechSynthesis.cancel(); } catch(e) {}
     if (currentAudio) { try { currentAudio.pause(); } catch(e) {} }
     _lastSpeakEnd = Date.now();
@@ -359,5 +453,13 @@
   }
   setTimeout(_updateBtn, 400);
 
-  window.JARVIS = { speak, greeting, onNewProject, onTaskDone, onPrioritySet, onDeleteProject, onThemeChange, checkOverdue, toggle, isSpeaking, recentlySpoke, stopSpeaking, checkVoiceQuota: _elQuotaCheckProactive, isNight: _isNightTime };
+  function getUsageStats() {
+    return {
+      charsUsedTotal: parseInt(localStorage.getItem(CHARS_KEY) || '0', 10) || 0,
+      quotaOk: _elQuota.ok,
+      lastChecked: _elQuota.checked
+    };
+  }
+
+  window.JARVIS = { speak, greeting, onNewProject, onTaskDone, onPrioritySet, onDeleteProject, onThemeChange, checkOverdue, toggle, isSpeaking, recentlySpoke, stopSpeaking, checkVoiceQuota: _elQuotaCheckProactive, isNight: _isNightTime, getUsageStats };
 })();
