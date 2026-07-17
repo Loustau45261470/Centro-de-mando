@@ -96,6 +96,17 @@
     return streak;
   }
 
+  // Parte un string con placeholders {{campo}} en segmentos [{d:false,t:"estático"},{d:true,t:"valor"}].
+  // d=false → texto estático, siempre cacheable en TTS; d=true → valor dinámico, no garantizado cacheable.
+  function _buildSegments(template, values) {
+    values = values || {};
+    return (template || '').split(/(\{\{\w+\}\})/g).filter(s => s !== '').map(s => {
+      const m = s.match(/^\{\{(\w+)\}\}$/);
+      if (m) return { d: true, t: String(values[m[1]] != null ? values[m[1]] : '') };
+      return { d: false, t: s };
+    });
+  }
+
   /* ── Tendencias compactas: contexto temporal más allá de la foto de hoy ── */
   function _trends() {
     if (typeof S === 'undefined' || !S) return [];
@@ -556,7 +567,10 @@
     'cancel_timer {search?}  — cancela un timer por label, o el último si no se especifica',
     'start_pomodoro {}  — inicia el Pomodoro (fases fijas, sin duración custom)',
     'undo_last {}  — deshace la última acción reversible del log de auditoría',
-    'close_day {}  — cierre del día: resume y ofrece pasar pendientes a mañana'
+    'close_day {}  — cierre del día: resume y ofrece pasar pendientes a mañana',
+    'report_balance {}  — informa el saldo de las cuentas (respuesta con plantilla fija, no necesitás redactar el reply)',
+    'report_goals_today {}  — informa cuántas metas de hoy están completadas (respuesta con plantilla fija, no necesitás redactar el reply)',
+    'report_habits {}  — informa cuántos hábitos están marcados hoy (respuesta con plantilla fija, no necesitás redactar el reply)'
   ].join('\n- ');
 
   /* ── Ejecutor de acciones ── */
@@ -978,6 +992,45 @@
             return { ok: true, msg: `${summaryMsg} Moved ${N} goals to tomorrow. Good night, sir.` };
           }
           return { ok: true, msg: `${summaryMsg} Nothing pending. Good night, sir.` };
+        }
+        case 'report_balance': {
+          const accs = S.accounts || [];
+          if (!accs.length) return { ok: false, msg: 'You have no accounts set up, sir.' };
+          const intros = ['You currently have:', "Here's where things stand, sir:", 'Your account balances, sir:'];
+          let segments = [{ d: false, t: intros[Math.floor(Math.random() * intros.length)] + ' ' }];
+          let totalARS = 0;
+          accs.forEach(acc => {
+            const amount = Math.round(acc.balance || 0).toLocaleString('en-US');
+            segments = segments.concat(_buildSegments('{{name}}: {{amount}} {{currency}}. ', { name: acc.name, amount, currency: acc.currency }));
+            if (acc.currency === 'ARS') totalARS += (+acc.balance || 0);
+          });
+          const closers = ['Total: {{total}} ARS, sir.', 'That brings the total to {{total}} ARS, sir.'];
+          const closer = closers[Math.floor(Math.random() * closers.length)];
+          segments = segments.concat(_buildSegments(closer, { total: Math.round(totalARS).toLocaleString('en-US') }));
+          return { ok: true, segments };
+        }
+        case 'report_goals_today': {
+          const dg = (S.goals && S.goals[_today()]) || [];
+          const total = dg.length, done = dg.filter(g => g.done).length;
+          const variants = [
+            "You've completed {{done}} of {{total}} goals today, sir.",
+            '{{done}} out of {{total}} tasks are done today, sir.',
+            "Today's board shows {{done}} of {{total}} completed, sir."
+          ];
+          return { ok: true, segments: _buildSegments(variants[Math.floor(Math.random() * variants.length)], { done, total }) };
+        }
+        case 'report_habits': {
+          const today = _today();
+          let total = 0, done = 0;
+          TABS.forEach(sec => {
+            _getHabits(sec).forEach(h => { total++; if ((h.days || {})[today] === 'done') done++; });
+          });
+          const variants = [
+            '{{done}} of {{total}} habits checked off today, sir.',
+            "You're at {{done}} out of {{total}} habits today, sir.",
+            "Today's habit count: {{done}} of {{total}}, sir."
+          ];
+          return { ok: true, segments: _buildSegments(variants[Math.floor(Math.random() * variants.length)], { done, total }) };
         }
         default:
           return { ok: false, msg: 'Unknown action, sir.' };

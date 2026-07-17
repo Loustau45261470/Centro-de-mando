@@ -301,6 +301,36 @@
     }
   }
 
+  // Reproduce una respuesta armada en código como segmentos [{d:bool,t:texto}] (ver jarvis-brain.js
+  // _buildSegments): cada segmento se cachea/sintetiza por separado con las mismas piezas de
+  // speakElevenLabs (misma _ttsCacheKey, _cacheGet, _synthAndCache) y se reproduce con la cola
+  // secuencial existente (_playSequence) — NUNCA se concatenan blobs MP3 crudos. Así la parte
+  // estática de la plantilla (intro, nombres, cierre) queda cacheada para siempre y solo el
+  // valor dinámico (el número) se sintetiza de nuevo cuando cambia.
+  async function speakSegments(segments) {
+    if (!enabled || !segments || !segments.length) return;
+    if (!_elKey()) { _elHint(); return; }
+    if (!(await _elQuotaOk())) return;   // se trata siempre como dinámica: trae datos en vivo
+    _speakAt = Date.now();
+    const elModel = localStorage.getItem('jarvis_el_model') || 'eleven_flash_v2_5';
+    const joined = segments.map(s => s.t).join('');
+    try {
+      const c = await _openCache();
+      const blobs = [];
+      for (const seg of segments) {
+        const key = _ttsCacheKey(seg.t, elModel);
+        let b = await _cacheGet(c, key);
+        if (!b) b = await _synthAndCache(seg.t, key, elModel, c);
+        blobs.push(b);
+      }
+      return _playSequence(blobs);
+    } catch (e) {
+      console.warn('JARVIS sin voz premium (ElevenLabs) en speakSegments, usando voz del navegador:', e.message);
+      _elHandleFailure(e);
+      _speakBrowser(joined);   // nunca queda mudo
+    }
+  }
+
   let _speakAt = 0, _lastSpeakEnd = 0;
   function isSpeaking() {
     // Tope de 25s también en la rama del <audio>: un elemento trabado (no pausado/no terminado)
@@ -461,5 +491,5 @@
     };
   }
 
-  window.JARVIS = { speak, greeting, onNewProject, onTaskDone, onPrioritySet, onDeleteProject, onThemeChange, checkOverdue, toggle, isSpeaking, recentlySpoke, stopSpeaking, checkVoiceQuota: _elQuotaCheckProactive, isNight: _isNightTime, getUsageStats };
+  window.JARVIS = { speak, speakSegments, greeting, onNewProject, onTaskDone, onPrioritySet, onDeleteProject, onThemeChange, checkOverdue, toggle, isSpeaking, recentlySpoke, stopSpeaking, checkVoiceQuota: _elQuotaCheckProactive, isNight: _isNightTime, getUsageStats };
 })();
