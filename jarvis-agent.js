@@ -646,7 +646,9 @@ Instrucciones:
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error?.message || `HTTP ${res.status}`);
     }
-    return res.json();
+    const data = await res.json();
+    try { window.JARVIS && JARVIS.addApiUsage && JARVIS.addApiUsage(model || MODEL_FAST, data.usage?.input_tokens || 0, data.usage?.output_tokens || 0); } catch (e) {}
+    return data;
   }
 
   /* ── agent loop ── */

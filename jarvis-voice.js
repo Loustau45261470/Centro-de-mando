@@ -61,6 +61,45 @@
   }
   setTimeout(_renderUsage, 500);
 
+  // ── Contador de costo de API (Claude/Gemini/Groq/OpenRouter) — mismo patrón que arriba ──
+  const TOK_IN_KEY  = 'jarvis_tokens_in_total';
+  const TOK_OUT_KEY = 'jarvis_tokens_out_total';
+  const COST_KEY    = 'jarvis_api_cost_total_usd';
+  // Precios APROXIMADOS por millón de tokens (USD). Editables — ajustar si cambian las tarifas.
+  const API_PRICES = {
+    'claude-haiku-4-5-20251001': { in: 1.00, out: 5.00 },
+    'claude-sonnet-5':           { in: 3.00, out: 15.00 },
+    _default:                    { in: 1.00, out: 5.00 }  // groq/openrouter free ≈ 0, gemini free = 0
+  };
+  // Se llama tras CADA respuesta real de la API (Anthropic en jarvis-agent.js, y los 4 providers
+  // de askGemini en jarvis-ears.js). `free=true` (o `model=null`) fuerza costo $0 — usarlo para
+  // providers gratis (Groq, OpenRouter, Gemini free tier) aunque igual se cuenten los tokens.
+  function addApiUsage(model, inTok, outTok, free) {
+    inTok = inTok || 0; outTok = outTok || 0;
+    try {
+      const curIn  = parseInt(localStorage.getItem(TOK_IN_KEY)  || '0', 10) || 0;
+      const curOut = parseInt(localStorage.getItem(TOK_OUT_KEY) || '0', 10) || 0;
+      localStorage.setItem(TOK_IN_KEY,  String(curIn  + inTok));
+      localStorage.setItem(TOK_OUT_KEY, String(curOut + outTok));
+      if (!free && model) {
+        const price = API_PRICES[model] || API_PRICES._default;
+        const cost = (inTok / 1e6) * price.in + (outTok / 1e6) * price.out;
+        const curCost = parseFloat(localStorage.getItem(COST_KEY) || '0') || 0;
+        localStorage.setItem(COST_KEY, String(curCost + cost));
+      }
+    } catch(e) {}
+    _renderCost();
+  }
+  function _renderCost() {
+    const el = document.getElementById('jarvis-api-usage');
+    if (!el) return;
+    const tIn  = parseInt(localStorage.getItem(TOK_IN_KEY)  || '0', 10) || 0;
+    const tOut = parseInt(localStorage.getItem(TOK_OUT_KEY) || '0', 10) || 0;
+    const cost = parseFloat(localStorage.getItem(COST_KEY) || '0') || 0;
+    el.textContent = `💬 ${(tIn + tOut).toLocaleString('es')} tokens · ~$${cost.toFixed(4)} estimado (cliente)`;
+  }
+  setTimeout(_renderCost, 500);
+
   async function _synthAndCache(text, key, elModel, c) {
     const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${EL_VOICE}`, {
       method: 'POST',
@@ -487,9 +526,12 @@
     return {
       charsUsedTotal: parseInt(localStorage.getItem(CHARS_KEY) || '0', 10) || 0,
       quotaOk: _elQuota.ok,
-      lastChecked: _elQuota.checked
+      lastChecked: _elQuota.checked,
+      tokensInTotal: parseInt(localStorage.getItem(TOK_IN_KEY) || '0', 10) || 0,
+      tokensOutTotal: parseInt(localStorage.getItem(TOK_OUT_KEY) || '0', 10) || 0,
+      estCostUSD: parseFloat(localStorage.getItem(COST_KEY) || '0') || 0
     };
   }
 
-  window.JARVIS = { speak, speakSegments, greeting, onNewProject, onTaskDone, onPrioritySet, onDeleteProject, onThemeChange, checkOverdue, toggle, isSpeaking, recentlySpoke, stopSpeaking, checkVoiceQuota: _elQuotaCheckProactive, isNight: _isNightTime, getUsageStats };
+  window.JARVIS = { speak, speakSegments, greeting, onNewProject, onTaskDone, onPrioritySet, onDeleteProject, onThemeChange, checkOverdue, toggle, isSpeaking, recentlySpoke, stopSpeaking, checkVoiceQuota: _elQuotaCheckProactive, isNight: _isNightTime, getUsageStats, addApiUsage };
 })();
