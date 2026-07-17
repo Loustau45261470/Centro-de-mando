@@ -448,6 +448,7 @@
   function _handleBrain(raw) {
     const parsed = _extractJSON(raw);
     let spoken;
+    let segments = null;   // set cuando la acción devuelve una respuesta con plantilla fija (ver jarvis-brain.js _buildSegments)
     if (!parsed) {
       spoken = ('' + raw).trim();   // no vino como JSON → leerlo tal cual
     } else {
@@ -457,6 +458,11 @@
         if (res && res.confirm_required) {
           _pendingConfirm = { action: parsed.action, args: parsed.args || {}, ts: Date.now() };
           spoken = res.msg || 'Shall I proceed, sir?';
+        } else if (res && Array.isArray(res.segments)) {
+          // Plantilla fija ya armada en código (report_balance/report_goals_today/report_habits):
+          // ignoramos reply/res.msg para el habla, spoken solo alimenta la memoria conversacional.
+          segments = res.segments;
+          spoken = segments.map(s => s.t).join('');
         } else {
           spoken = (res && res.ok === false) ? (res.msg || "I couldn't do that, sir.") : (reply || 'Done, sir.');
         }
@@ -467,7 +473,8 @@
     spoken = spoken || 'Done, sir.';
     _convo.push({ role: 'model', text: spoken });
     if (_convo.length > 12) _convo = _convo.slice(-12);
-    say(spoken, true);
+    if (segments && window.JARVIS && typeof JARVIS.speakSegments === 'function') JARVIS.speakSegments(segments);
+    else say(spoken, true);
   }
 
   /* ── Gemini (free tier) — key por dispositivo, nunca en el repo ── */
@@ -497,6 +504,7 @@
 '3. NEVER mark, complete, toggle or delete anything as a side effect of answering. Listing today\'s tasks must NEVER complete them.\n' +
 '4. When in any doubt, use "action":"none". Acting without an explicit request is a serious error; doing nothing is always safe.\n\n' +
 'NOTE ON DELETIONS: for delete_* actions the system itself asks the user to confirm and waits for their next reply — you do not need to ask for confirmation yourself, add "confirm":true, or retry. Just pick the delete action normally, once, and let the system handle the confirm/cancel.\n\n' +
+'NOTE ON BALANCE/GOALS/HABITS REPORTS: if the user asks how much money he has / his account balance, how many goals are left today, or how many habits he has done today, use the action "report_balance", "report_goals_today" or "report_habits" respectively with args:{} — the system builds the spoken answer itself from a fixed template, so you can leave "reply":"" empty.\n\n' +
 'AVAILABLE ACTIONS:\n- ' + actions + '\n\n' +
 'CONTEXT (live state of the command center):\n' + snap;
     if (isNight) sys += '\n\nNIGHT MODE: it is late; keep every reply to one short sentence.';
