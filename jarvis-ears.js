@@ -122,6 +122,9 @@
             const after = text.replace(WAKE_RE, '').replace(/^[,.\s]+/, '').trim();
             enterCommand();
             if (!after && window.JARVIS) JARVIS.speak('Yes, sir?');
+          } else if (mode === 'dictado') {
+            if (_selfEcho()) continue; // no reaccionar a su propia voz
+            if (typeof showToast === 'function') showToast('📝 ' + text + '…'); // feedback en vivo, NO extiende timer ni es comando
           }
           continue;
         }
@@ -143,6 +146,9 @@
           const after = text.slice(text.search(WAKE_RE) + m[0].length).replace(/^[,.\s]+/, '').trim();
           if (after.split(/\s+/).filter(Boolean).length >= 2) { enterCommand(); Promise.resolve(handleCommand(after)).finally(followUp); } // orden directa + abrir la charla
           else { enterCommand(); if (window.JARVIS) JARVIS.speak('Yes, sir?'); }
+        } else if (mode === 'dictado') {
+          if (_selfEcho()) continue; // no procesar la propia voz de JARVIS como dictado
+          _dictadoHandleFinal(text); // NO dispara wake word, NO matchea comandos, NO cae al LLM — solo acumula/cierra/cancela
         }
       }
     };
@@ -279,6 +285,82 @@
     _stopMeter();
     mode = wakeOn ? 'passive' : 'off'; _ui();
     if (mode === 'off') stopRec();
+  }
+
+  /* ── Modo DICTADO — habla libre que se acumula en un buffer y se guarda como captura ──
+     Aditivo: no toca command/passive/off ni sus timers/transiciones existentes. Se entra
+     desde modo command (patrón de voz normal, ver DICTADO_ENTER_RE en _handleCommandInner)
+     y no está sujeto al commandTimeout — solo se sale por cierre, cancelación o el tope de
+     caracteres. */
+  // Cierre/cancelación con lookahead en vez de \b de cierre: \b es ASCII-only (ver CONFIRM_AFFIRM_RE
+  // más arriba) y varias alternativas terminan en vocal acentuada ("terminé", "cancelá", "guardá").
+  const DICTADO_ENTER_RE = /\b(tom[aá] nota|modo dictado|dictado|dictar|anot[aá] esto|quiero dictar)\b/i;
+  const DICTADO_CLOSE_RE = /\b(listo|termin[eé]|termin[aá]|fin del dictado|guard[aá]( eso)?|eso es todo|dej[aá] de dictar)(?=[\s,.!?]|$)/i;
+  const DICTADO_CANCEL_RE = /\b(cancel[aá]|olvidalo|borr[aá] eso|dej[aá]lo)(?=[\s,.!?]|$)/i;
+  const DICTADO_MAX_CHARS = 5000;
+  let dictadoBuffer = '';
+  let dictadoPrevMode = 'off'; // modo antes de entrar (siempre 'command' en uso real); el restore usa wakeOn, igual que exitCommand
+
+  function enterDictado() {
+    dictadoPrevMode = mode;
+    mode = 'dictado';
+    dictadoBuffer = '';
+    clearTimeout(cmdTimer); // el dictado no se corta por el timeout de silencio de modo comando
+    _ui();
+    say("Dictation mode on, sir. Tell me when you're done.", true);
+  }
+
+  function exitDictado() {
+    mode = wakeOn ? 'passive' : 'off'; // mismo criterio que exitCommand
+    _ui();
+    if (mode === 'off') stopRec();
+  }
+
+  // Hook de test/depuración: estado legible del modo dictado.
+  function getDictadoState() { return { active: mode === 'dictado', buffer: dictadoBuffer }; }
+
+  // Procesa un transcript FINAL mientras se está en modo dictado. Factorizado en función nombrada
+  // (en vez de vivir inline en onresult) para poder testearlo sin SpeechRecognition real.
+  function _dictadoHandleFinal(text) {
+    text = (text || '').trim();
+    if (!text) return;
+    const closeM = text.match(DICTADO_CLOSE_RE);
+    if (closeM) {
+      const before = text.slice(0, closeM.index).trim();
+      if (before) dictadoBuffer = (dictadoBuffer ? dictadoBuffer + ' ' : '') + before;
+      const toSave = dictadoBuffer.trim();
+      dictadoBuffer = '';
+      exitDictado();
+      if (toSave) {
+        try { window.JARVIS_BRAIN && JARVIS_BRAIN.execute('capture', { text: toSave, _source: 'voice' }); } catch (e) {}
+        say('Noted, sir.', true);
+      } else {
+        say('Nothing to save, sir.', true);
+      }
+      return;
+    }
+    const cancelM = text.match(DICTADO_CANCEL_RE);
+    if (cancelM) {
+      dictadoBuffer = '';
+      exitDictado();
+      say('Discarded, sir.', true);
+      return;
+    }
+    dictadoBuffer = (dictadoBuffer ? dictadoBuffer + ' ' : '') + text;
+    if (dictadoBuffer.length > DICTADO_MAX_CHARS) {
+      const toSave = dictadoBuffer.trim();
+      dictadoBuffer = '';
+      exitDictado();
+      try { window.JARVIS_BRAIN && JARVIS_BRAIN.execute('capture', { text: toSave, _source: 'voice' }); } catch (e) {}
+      say("That's a lot, sir — saving what we have.", true);
+    }
+  }
+
+  // Hook de test/depuración: simula un resultado FINAL de reconocimiento en modo dictado
+  // (no hace nada si no se está en modo dictado, igual que el handler real de onresult).
+  function feedDictado(text) {
+    if (mode !== 'dictado') return;
+    _dictadoHandleFinal(text);
   }
 
   /* ── Router de comandos (español) ── */
@@ -435,6 +517,12 @@
     if (/\b(briefing|informe|como voy|como vengo|como vamos)\b/.test(t) && window.JARVIS_INTEL) {
       const c = document.querySelector('.intel-card'); if (c) { JARVIS_INTEL.renderCard(); c.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
       sayEN(JARVIS_INTEL.briefing());   // datos en español → hablado en inglés
+      return;
+    }
+
+    // modo dictado: habla libre que se acumula y se guarda como nota al cerrar (ver DICTADO_* arriba)
+    if (DICTADO_ENTER_RE.test(t)) {
+      enterDictado();
       return;
     }
 
@@ -653,6 +741,9 @@
     } else if (mode === 'passive') {
       b.textContent = '👁️ Esperando "Jarvis"…';
       b.style.color = 'rgba(0,200,255,0.75)'; b.style.borderColor = 'rgba(0,200,255,0.25)';
+    } else if (mode === 'dictado') {
+      b.textContent = '📝 Dictando…';
+      b.style.color = 'rgba(255,200,0,0.95)'; b.style.borderColor = 'rgba(255,200,0,0.35)';
     } else {
       b.textContent = '🎙️ "Hey Jarvis" apagado';
       b.style.color = 'rgba(255,255,255,0.28)'; b.style.borderColor = 'rgba(255,255,255,0.08)';
@@ -678,5 +769,9 @@
   if (wakeOn && SR) { mode = 'passive'; startRec(); }
   _ui();
 
-  window.JARVIS_EARS = { toggleWake, saveKey, handleCommand, sayEN, getRecStats };
+  window.JARVIS_EARS = {
+    toggleWake, saveKey, handleCommand, sayEN, getRecStats,
+    // Hooks de test/depuración del modo dictado (ver bloque "Modo DICTADO" arriba) — no usar en producción.
+    getDictadoState, feedDictado
+  };
 })();
