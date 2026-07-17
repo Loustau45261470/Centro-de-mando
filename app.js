@@ -217,7 +217,7 @@ const DEFAULT_STATE = {
   monthlyGoals: {}  // POR SECCIÓN: { <sec>: { 'YYYY-MM': [{ id, text, done }] } } (migración automática desde el formato viejo plano)
 };
 
-let S = {};  // live state
+let S = JSON.parse(JSON.stringify(DEFAULT_STATE));  // live state — precargado con defaults para que un click a una pestaña antes de que loadState() resuelva no crashee (ver fixes.json)
 
 // ── Storage ──────────────────────────────────────────────
 // ── Firebase ──────────────────────────────────────────────────────────────

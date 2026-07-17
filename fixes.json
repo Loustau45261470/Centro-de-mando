@@ -77,6 +77,13 @@
       "desc": "La siguiente frase tras una pregunta de confirmacion se intercepta ANTES de Gemini: afirmativa re-ejecuta con confirm:true, otra cosa cancela, expira a los 45s.",
       "file": "jarvis-ears.js",
       "marker": "_tryConsumePendingConfirm"
+    },
+    {
+      "id": "state-defaults-before-load-resolves",
+      "fecha": "2026-07-17",
+      "desc": "S arrancaba como {} y solo se completaba con DEFAULT_STATE (accounts, nwHistory, etc) DESPUES de que loadState() (async, Firestore) resolvia. Un click a la pestana finanzas en esa ventana crasheaba (S.accounts.filter de undefined en initNWCharts). Ahora S se precarga con un clon de DEFAULT_STATE de entrada, asi todo render antes de que loadState() resuelva ya tiene arrays vacios validos.",
+      "file": "app.js",
+      "marker": "let S = JSON.parse(JSON.stringify(DEFAULT_STATE))"
     }
   ]
 }
