@@ -12,6 +12,29 @@
   let restartTimes = [], restartTimer = null; // anti-tormenta de reinicios
   let _recConfirmed = false; // true solo cuando el motor confirmó (onstart) que el mic está realmente escuchando
 
+  // ── Métricas honestas de reconocimiento (NO es "precisión" — no hay ground truth) ──
+  // Solo cuentan eventos observables: cuántos resultados finales llegaron, cuántos quedaron
+  // vacíos tras sacar la wake word, y cuántos comandos no matchearon ningún patrón hardcodeado
+  // y cayeron al fallback IA. Diagnóstico consultable por consola vía JARVIS_EARS.getRecStats().
+  const REC_KEYS = { total: 'jarvis_rec_total', empty: 'jarvis_rec_empty', toLlm: 'jarvis_rec_to_llm' };
+  function _recMetric(key) {
+    try {
+      const k = REC_KEYS[key];
+      if (!k) return;
+      const cur = parseInt(localStorage.getItem(k) || '0', 10) || 0;
+      localStorage.setItem(k, String(cur + 1));
+    } catch (e) {}
+  }
+  function getRecStats() {
+    let total = 0, empty = 0, toLlm = 0;
+    try {
+      total = parseInt(localStorage.getItem(REC_KEYS.total) || '0', 10) || 0;
+      empty = parseInt(localStorage.getItem(REC_KEYS.empty) || '0', 10) || 0;
+      toLlm = parseInt(localStorage.getItem(REC_KEYS.toLlm) || '0', 10) || 0;
+    } catch (e) {}
+    return { total, empty, toLlm };
+  }
+
   // ── Confirmación por voz para acciones destructivas ──
   // Cuando JARVIS_BRAIN.execute() devuelve confirm_required, se guarda acá la acción pendiente
   // y se pregunta en voz alta. La SIGUIENTE frase final en modo comando se intercepta como
@@ -105,10 +128,11 @@
 
         // Resultado final
         if (mode === 'command') {
+          _recMetric('total'); // resultado final capturado en modo comando (métrica honesta, no "precisión")
           if (_selfEcho()) continue; // descartar el eco de su propia voz (incluye el cooldown posterior)
           // Quitar el wake word si vino pegado a la orden ("jarvis cambiá a finanzas")
           const cmd = text.replace(WAKE_RE, '').replace(/^[,.\s]+/, '').trim();
-          if (!cmd) continue; // era solo "jarvis" — seguir esperando la orden
+          if (!cmd) { _recMetric('empty'); continue; } // era solo "jarvis" — seguir esperando la orden
           clearTimeout(cmdTimer);                                   // pausar el cierre mientras procesa y responde
           if (_tryConsumePendingConfirm(cmd)) { followUp(); continue; } // era la respuesta a "¿borro X?", no un comando nuevo
           Promise.resolve(handleCommand(cmd)).finally(followUp);    // tras responder, sigue escuchando (charla continua)
@@ -415,6 +439,7 @@
     }
 
     // fallback → cerebro IA: responde sobre cualquier dato y ejecuta cualquier acción del centro de mando
+    _recMetric('toLlm');
     if (window.JARVIS_FX) JARVIS_FX.setState('thinking');
     try {
       const ans = await askGemini(raw);
@@ -579,6 +604,19 @@
       throw new Error('AI ' + res.status + ' ' + detail);
     }
     const data = await res.json();
+    try {
+      if (window.JARVIS && JARVIS.addApiUsage) {
+        if (key.startsWith('sk-ant-')) {
+          JARVIS.addApiUsage('claude-haiku-4-5-20251001', data.usage?.input_tokens || 0, data.usage?.output_tokens || 0);
+        } else if (key.startsWith('gsk_') || key.startsWith('sk-or-')) {
+          // Groq/OpenRouter: free/casi-free — se cuentan los tokens pero el costo se fuerza a $0.
+          JARVIS.addApiUsage(body.model, data.usage?.prompt_tokens || 0, data.usage?.completion_tokens || 0, true);
+        } else {
+          // Gemini free tier no trae usage — solo se registra el llamado, sin costo.
+          JARVIS.addApiUsage(null, 0, 0);
+        }
+      }
+    } catch (e) {}
     const out = ((parse(data) || '') + '').trim() || null;
     if (out) { _convo.push({ role: 'user', text: question }); if (_convo.length > 12) _convo = _convo.slice(-12); }
     return out;
@@ -640,5 +678,5 @@
   if (wakeOn && SR) { mode = 'passive'; startRec(); }
   _ui();
 
-  window.JARVIS_EARS = { toggleWake, saveKey, handleCommand, sayEN };
+  window.JARVIS_EARS = { toggleWake, saveKey, handleCommand, sayEN, getRecStats };
 })();
