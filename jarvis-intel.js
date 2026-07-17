@@ -209,13 +209,36 @@
     return out;
   }
 
+  // Recordatorios con fecha-hora de HOY, de todas las secciones, ordenados por hora.
+  function _agendaLine() {
+    try {
+      const rem = S.reminders;
+      if (!rem || typeof rem !== 'object') return '';
+      const today = _today();
+      const items = [];
+      SECTIONS.forEach(sec => {
+        const arr = rem[sec];
+        if (!Array.isArray(arr)) return;
+        arr.forEach(r => {
+          if (r && typeof r.datetime === 'string' && r.datetime.slice(0,10) === today) items.push(r);
+        });
+      });
+      if (!items.length) return '';
+      items.sort((a,b) => a.datetime.slice(11,16).localeCompare(b.datetime.slice(11,16)));
+      const parts = items.slice(0,5).map(r => `${r.title} a las ${r.datetime.slice(11,16)}`);
+      return `Agenda de hoy: ${parts.join(', ')}.`;
+    } catch(e) { return ''; }
+  }
+
   function briefing(){
     const seen = new Set(), lines = [];
     ['vida','finanzas','salud'].forEach(sec => {
       const i = insights(sec)[0];
       if (i){ const t = i.html.replace(/<[^>]+>/g,''); if (!seen.has(t)){ seen.add(t); lines.push(t); } }
     });
-    return lines.slice(0,3).join(' ');
+    const out = lines.slice(0,3).join(' ');
+    const al = _agendaLine();
+    return al ? (out ? out + ' ' + al : al) : out;
   }
 
   const _SEC_HUE = { vida:'#00D4FF', finanzas:'#22C55E', salud:'#F43F5E', conocimiento:'#6B8EFF', ia:'#C4D0E4' };
@@ -356,7 +379,7 @@
     } catch(e) {}
   }
 
-  window.JARVIS_INTEL = { insights, briefing, renderCard, renderKPIs: renderCard };
+  window.JARVIS_INTEL = { insights, briefing, renderCard, renderKPIs: renderCard, _agendaLine };
   setTimeout(_maybeMorningBriefing, 10000);
   setTimeout(() => renderCard(), 1200);
   setInterval(() => {
