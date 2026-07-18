@@ -529,6 +529,19 @@
       return;
     }
 
+    // pedido a Claude Code: "pedile/decile/preguntale a claude que X" o "claude, que X"
+    // encola la tarea en Firestore (jarvis-bridge.js la levanta el poller local) y confirma corto.
+    if (/\b(pedile?|decile?|deci|preguntale?)\s+a\s+claude\b/i.test(raw) || /\bclaude\b[,\s]+que\b/i.test(raw)) {
+      const cm = raw.match(/claude[,\s]+(?:que\s+)?(.+)/i);
+      const tarea = cm && cm[1] ? cm[1].trim() : '';
+      if (window.JARVIS_BRIDGE && tarea) {
+        JARVIS_BRIDGE.enqueue(tarea, 'voz');
+        say("On it, sir. I'll let you know when Claude is done.", true);
+        return;
+      }
+      // sin puente disponible o sin tarea extraída → no interceptar, sigue el flujo normal
+    }
+
     // fallback → cerebro IA: responde sobre cualquier dato y ejecuta cualquier acción del centro de mando
     _recMetric('toLlm');
     if (window.JARVIS_FX) JARVIS_FX.setState('thinking');
