@@ -98,6 +98,62 @@
       "desc": "En cada _initApp() se pisaba S.lawProgress entero con el DEFAULT_STATE si subjects[0].id === 's1_1', pensado como marcador de datos placeholder viejos. Pero 's1_1' es el id PERMANENTE de la primera materia (nunca cambia al marcar done/nota), asi que la condicion era siempre verdadera: cada reload borraba notas y materias finalizadas de Progreso de abogacia y propagaba el borrado a Firestore/otros dispositivos via saveState(). Bloque de migracion eliminado por completo.",
       "file": "app.js",
       "marker": "_migratePhotos();   // migra fotos embebidas viejas a Storage (una vez, cuando Storage esté listo)\nupdateDayProgress();"
+    },
+    {
+      "id": "sync-offline-no-blind-write",
+      "fecha": "2026-07-18",
+      "desc": "Offline o con lectura de nube fallida, _fbDoSave NO escribe (un set encolado evaluo la divergencia contra cache vieja y al reconectar pisaria el doc entero sin merge, borrando cambios de otro dispositivo). Marca _pendingCloudSave y reintenta al evento online + cada 60s. NO quitar el skip.",
+      "file": "app.js",
+      "marker": "_pendingCloudSave"
+    },
+    {
+      "id": "sync-write-timeout-lock-release",
+      "fecha": "2026-07-18",
+      "desc": "El set() de Firestore solo resuelve con ack del servidor: si la red caia entre get y set, _fbSaveInProgress quedaba en true para siempre y bloqueaba todos los saves siguientes (solo la 1ra edicion offline llegaba a la nube). Ahora Promise.race con timeout 15s libera el lock y la contabilidad se aplica cuando el write resuelva (solo si sigue siendo el mas nuevo).",
+      "file": "app.js",
+      "marker": "__fbsave_timeout__"
+    },
+    {
+      "id": "sync-flush-cache-read",
+      "fecha": "2026-07-18",
+      "desc": "El flush al cerrar/ocultar la PWA hacia un GET al servidor antes del SET; en movil el SO congela la pagina antes de que el GET resuelva y el write nunca se emitia (se perdian los ultimos 2s de ediciones). En flush se lee de la cache local (fresca via onSnapshot) para que el set se emita al instante.",
+      "file": "app.js",
+      "marker": "{ source: 'cache' }"
+    },
+    {
+      "id": "sync-pending-merge-on-load",
+      "fecha": "2026-07-18",
+      "desc": "loadState es cloud-first: si habia cambios locales guardados sin conexion (write pendiente), la carga los pisaba con el estado viejo de la nube. Ahora si _pendingCloudSave esta seteado se mergean (3-vias con ancestro persistido en _lastSyncedStateStr + rescate) y se re-suben.",
+      "file": "app.js",
+      "marker": "merge de cambios offline pendientes"
+    },
+    {
+      "id": "sync-errors-visible",
+      "fecha": "2026-07-18",
+      "desc": "Fallo de guardado en la nube (cualquier codigo, no solo permission-denied) y fallo de carga desde la nube ahora muestran toast — antes solo console.warn y el usuario creia que habia guardado / veia un dashboard vacio indistinguible de una instalacion nueva.",
+      "file": "app.js",
+      "marker": "No se pudo guardar en la nube"
+    },
+    {
+      "id": "rescue-coverage-extended",
+      "fecha": "2026-07-18",
+      "desc": "El rescate por-item de _rescueLocal no cubria bodyWeight, exercises, workoutLog, sleepLog, routineLog ni nwHistory: edicion concurrente en esas claves perdia el lado local. Se sumaron al rescate (por id, por fecha o por dia segun estructura).",
+      "file": "app.js",
+      "marker": "'bodyWeight','exercises'"
+    },
+    {
+      "id": "orphan-render-guards",
+      "fecha": "2026-07-18",
+      "desc": "renderBodyWeight (llamada por jarvis-brain al registrar peso) y renderPhotos (llamada por _migratePhotos) referenciaban ids de DOM que ya no existen en index.html y tiraban TypeError. Null-guard con early return; ademas se elimino renderGymSelector (id gymSelector inexistente) de addGym/deleteGym.",
+      "file": "app.js",
+      "marker": "if (!numEl) return;"
+    },
+    {
+      "id": "login-canvas-error-visible",
+      "fecha": "2026-07-18",
+      "desc": "El camino de login por click en ai-viz-canvas tragaba errores del bootstrap-sync con catch vacio y mostraba ACCESO CONCEDIDO igual; ahora muestra SYNC ERROR como tryLogin.",
+      "file": "login.js",
+      "marker": "nunca mostrar ACCESO CONCEDIDO"
     }
   ]
 }
