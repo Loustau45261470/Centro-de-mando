@@ -440,7 +440,10 @@
     // cambiar de pestaña
     if (/\b(anda|abri|cambia|mostra|pone|vamos|lleva|ir|pestana|seccion)\b/.test(t)) {
       for (const [word, tab] of Object.entries(TABS_VOICE)) {
-        if (t.includes(word)) {
+        // Límite de palabra en vez de includes: la clave 'ia' (2 letras) matcheaba dentro de
+        // "cambia"/"guardia"/etc y mandaba a la pestaña Inteligencia por accidente. t está
+        // normalizado (sin acentos, minúsculas) y las claves son ASCII → \b se comporta bien.
+        if (new RegExp('\\b' + word + '\\b').test(t)) {
           const btn = document.querySelector(`.nav-btn[data-tab="${tab}"]`);
           if (btn) { btn.click(); say(`Switching to ${tab}, sir.`, true); return; }
         }
