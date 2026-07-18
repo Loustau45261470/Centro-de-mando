@@ -8428,11 +8428,6 @@ await loadState();
 _startFirestoreSync();
 if (typeof window._reloadProyectosFromState === 'function') window._reloadProyectosFromState();
 _migratePhotos();   // migra fotos embebidas viejas a Storage (una vez, cuando Storage esté listo)
-// Migrate lawProgress if it contains old placeholder subjects
-if (S.lawProgress?.years?.[0]?.subjects?.[0]?.id === 's1_1') {
-  S.lawProgress = JSON.parse(JSON.stringify(DEFAULT_STATE.lawProgress));
-  saveState();
-}
 updateDayProgress();
 setInterval(updateDayProgress, 60000);
 setInterval(buildTickerAlerts, 30000);

@@ -91,6 +91,13 @@
       "desc": "El comando de cambio de pestaña por voz usaba t.includes(word) y la clave 'ia' (2 letras) matcheaba dentro de 'cambia'/'guardia'/etc, mandando a la pestaña Inteligencia por accidente (ej. 'cambiá a tema bloomberg' saltaba a IA en vez de aplicar el tema). Ahora matchea con limite de palabra (new RegExp('\\\\b'+word+'\\\\b')). t esta normalizado y las claves son ASCII → \\b se comporta. NO volver a includes.",
       "file": "jarvis-ears.js",
       "marker": "Límite de palabra en vez de includes"
+    },
+    {
+      "id": "lawprogress-migration-always-firing",
+      "fecha": "2026-07-18",
+      "desc": "En cada _initApp() se pisaba S.lawProgress entero con el DEFAULT_STATE si subjects[0].id === 's1_1', pensado como marcador de datos placeholder viejos. Pero 's1_1' es el id PERMANENTE de la primera materia (nunca cambia al marcar done/nota), asi que la condicion era siempre verdadera: cada reload borraba notas y materias finalizadas de Progreso de abogacia y propagaba el borrado a Firestore/otros dispositivos via saveState(). Bloque de migracion eliminado por completo.",
+      "file": "app.js",
+      "marker": "_migratePhotos();   // migra fotos embebidas viejas a Storage (una vez, cuando Storage esté listo)\nupdateDayProgress();"
     }
   ]
 }
