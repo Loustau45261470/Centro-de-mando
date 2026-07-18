@@ -342,7 +342,8 @@ function _rescueLocal(cloudObj, localObj) {
   const r = { ...cloudObj };
   // Arrays con ID
   ['transactions','accounts','subscriptions','orders','wishlist',
-   'photos','finObjectives','fixedExpenses','lawMilestones','routines','exerciseLibrary'
+   'photos','finObjectives','fixedExpenses','lawMilestones','routines','exerciseLibrary',
+   'bodyWeight','exercises'
   ].forEach(key => {
     const c = Array.isArray(cloudObj[key]) ? cloudObj[key] : [];
     const l = Array.isArray(localObj[key]) ? localObj[key] : [];
@@ -381,6 +382,36 @@ function _rescueLocal(cloudObj, localObj) {
     });
     r.habitTrackers = ht;
   }
+  // Logs por día ({ 'YYYY-MM-DD': ... }): agrega fechas que cloud no tiene, nunca pisa las existentes
+  ['workoutLog','sleepLog'].forEach(key => {
+    const c = (cloudObj[key] && typeof cloudObj[key]==='object') ? cloudObj[key] : {};
+    const l = (localObj[key] && typeof localObj[key]==='object') ? localObj[key] : {};
+    const extra = Object.fromEntries(Object.entries(l).filter(([d]) => c[d] == null));
+    if (Object.keys(extra).length) r[key] = { ...extra, ...c };
+  });
+  // routineLog ({ rtnId: [entradas con id] }): agrega entradas nuevas por id
+  {
+    const c = (cloudObj.routineLog && typeof cloudObj.routineLog==='object') ? cloudObj.routineLog : {};
+    const l = (localObj.routineLog && typeof localObj.routineLog==='object') ? localObj.routineLog : {};
+    const merged = { ...c };
+    let changed = false;
+    Object.keys(l).forEach(rid => {
+      const cArr = Array.isArray(c[rid]) ? c[rid] : [];
+      const ids = new Set(cArr.map(e => e?.id).filter(Boolean));
+      const news = (Array.isArray(l[rid]) ? l[rid] : []).filter(e => e?.id && !ids.has(e.id));
+      if (news.length) { merged[rid] = [...cArr, ...news]; changed = true; }
+      else if (!merged[rid] && Array.isArray(l[rid]) && l[rid].length) { merged[rid] = l[rid]; changed = true; }
+    });
+    if (changed) r.routineLog = merged;
+  }
+  // nwHistory ([{date, value}]): agrega fechas que cloud no tiene
+  {
+    const c = Array.isArray(cloudObj.nwHistory) ? cloudObj.nwHistory : [];
+    const l = Array.isArray(localObj.nwHistory) ? localObj.nwHistory : [];
+    const dates = new Set(c.map(e => e?.date));
+    const news = l.filter(e => e?.date && !dates.has(e.date));
+    if (news.length) r.nwHistory = [...c, ...news].sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  }
   return r;
 }
 
@@ -406,17 +437,34 @@ function _mergeStates(base, local, cloud) {
   return out;
 }
 
-const _fbDoSave = async () => {
+const _fbDoSave = async (opts = {}) => {
     if (_fbSaveInProgress) return;
     _fbSaveInProgress = true;
+    const _isFlush = !!opts.flush;
     const localObj = JSON.parse(JSON.stringify(S));
     const sessionConfirmed = _lastSyncedSavedAt !== null;
     try {
-      let cloudRaw = null, cloudData = null;
+      let cloudRaw = null, cloudData = null, cloudReadFailed = false, cloudFromCache = false;
       try {
-        const snap = await _DOC().get();
+        // En flush (cierre/ocultado de la app) se lee la caché local: resuelve al instante.
+        // Un GET al servidor puede no completar antes de que el SO congele la PWA y el
+        // write nunca llegaría a emitirse. La caché la mantiene fresca el onSnapshot.
+        const snap = _isFlush ? await _DOC().get({ source: 'cache' }) : await _DOC().get();
+        cloudFromCache = !!(snap.metadata && snap.metadata.fromCache);
         if (snap.exists && snap.data()?.state) { cloudRaw = snap.data().state; cloudData = snap.data(); }
-      } catch (e) {}
+      } catch (e) { cloudReadFailed = true; }
+
+      // Sin lectura FRESCA de la nube no se escribe: un set() encolado offline evaluó la
+      // divergencia contra datos viejos y al reconectar pisaría el documento entero sin
+      // merge (cambios de otro dispositivo perdidos). El estado ya está en localStorage;
+      // queda marcado pendiente y se reintenta al reconectar. forzarGuardado() lo saltea.
+      const _offline = _isFlush ? (navigator.onLine === false || cloudReadFailed)
+                                : (cloudReadFailed || cloudFromCache);
+      if (_offline && !_forceSaveOnce) {
+        localStorage.setItem('_pendingCloudSave', '1');
+        _warnCloudSavePending(cloudReadFailed ? 'read-failed' : 'from-cache');
+        return;
+      }
 
       // ── Detección de divergencia con la nube (anti-pisada) ──────────────────
       // Disparador por CONTENIDO (no por _savedAt, que puede faltar en el doc):
@@ -498,19 +546,51 @@ const _fbDoSave = async () => {
       const wid = Math.random().toString(36).slice(2);
       _lastWriteId = wid;
       const savedAt = Date.now();
-      try {
-        await _DOC().set({ state: JSON.stringify(toSave), _wid: wid, _savedAt: savedAt }, { merge: true });
+      const _stateStr = JSON.stringify(toSave);
+      const _onWriteOk = () => {
         _lastSyncedSavedAt = savedAt;
-        _lastSyncedState = JSON.parse(JSON.stringify(toSave));
-        _saveSnap(JSON.stringify(toSave), savedAt);
+        _lastSyncedState = JSON.parse(_stateStr);
+        try { localStorage.setItem('_lastSyncedStateStr', _stateStr); } catch (e) {}
+        localStorage.removeItem('_pendingCloudSave');
+        _saveSnap(_stateStr, savedAt);
+      };
+      try {
+        const _setP = _DOC().set({ state: _stateStr, _wid: wid, _savedAt: savedAt }, { merge: true });
+        // La promesa del set() solo resuelve con el ack del servidor: si la red se cayó
+        // entre el get y el set quedaría pendiente para siempre con el lock tomado,
+        // bloqueando todos los saves siguientes. Timeout → liberar el lock y dejar la
+        // contabilidad para cuando (si) el write llegue.
+        const _res = await Promise.race([_setP, new Promise(r => setTimeout(() => r('__fbsave_timeout__'), 15000))]);
+        if (_res === '__fbsave_timeout__') {
+          localStorage.setItem('_pendingCloudSave', '1');
+          _warnCloudSavePending('write-timeout');
+          _setP.then(() => { if (savedAt > (_lastSyncedSavedAt || 0)) _onWriteOk(); })
+               .catch(e => console.warn('[fbSave-late]', e.code, e.message));
+        } else {
+          _onWriteOk();
+        }
       } catch (e) {
         console.warn('[fbSave]', e.code, e.message);
-        if (e.code === 'permission-denied') showToast('⚠️ Sin permiso para guardar — iniciá sesión');
+        localStorage.setItem('_pendingCloudSave', '1');
+        showToast(e.code === 'permission-denied'
+          ? '⚠️ Sin permiso para guardar en la nube — iniciá sesión'
+          : '⚠️ No se pudo guardar en la nube — reintento pendiente (' + (e.code || 'error') + ')', 7000);
       }
     } finally {
       _fbSaveInProgress = false;
     }
 };
+
+// Aviso (con freno de 1/min) de que hay cambios locales sin subir a la nube.
+let _lastPendingToastAt = 0;
+function _warnCloudSavePending(reason) {
+  console.warn('[fbSave] guardado en la nube pendiente:', reason);
+  const now = Date.now();
+  if (now - _lastPendingToastAt > 60000) {
+    _lastPendingToastAt = now;
+    showToast('📴 Sin conexión con la nube — cambios guardados en este dispositivo; se subirán al reconectar', 6000);
+  }
+}
 
 function _fbSave() {
   clearTimeout(_fbSaveTid);
@@ -522,7 +602,7 @@ function _fbFlush() {
   if (!_fbSaveTid) return;        // no hay cambio pendiente
   clearTimeout(_fbSaveTid);
   _fbSaveTid = null;
-  _fbDoSave();
+  _fbDoSave({ flush: true });
 }
 
 // Guarda un snapshot post-write (fire-and-forget). Mantiene los últimos 20.
@@ -706,7 +786,10 @@ function _applyRemoteState(raw, savedAt) {
   try {
     const incoming = JSON.parse(raw);
     S = incoming;
-    if (savedAt != null) { _lastSyncedSavedAt = savedAt; _lastSyncedState = JSON.parse(raw); }
+    if (savedAt != null) {
+      _lastSyncedSavedAt = savedAt; _lastSyncedState = JSON.parse(raw);
+      try { localStorage.setItem('_lastSyncedStateStr', raw); } catch (e) {}
+    }
     Object.keys(DEFAULT_STATE).forEach(k => {
       if (S[k] === undefined) S[k] = JSON.parse(JSON.stringify(DEFAULT_STATE[k]));
     });
@@ -768,6 +851,28 @@ async function loadState() {
   } catch(e) {
     try { S = JSON.parse(localStorage.getItem('lifedash_v2')) || {}; } catch { S = {}; }
     _loadSrc = 'local-error';
+    // Un fallo de carga NUNCA debe parecer una instalación vacía legítima: avisar siempre.
+    setTimeout(() => showToast('⚠️ No se pudo cargar desde la nube — mostrando datos locales (pueden estar desactualizados). No uses forzarGuardado().', 12000), 1500);
+  }
+  // ── Cambios locales guardados sin conexión (write a la nube pendiente): mergearlos, no descartarlos.
+  // Sin esto, la carga cloud-first pisa el localStorage y se pierden las ediciones offline.
+  if ((_loadSrc === 'cloud' || _loadSrc === 'cloud-cache') && localStorage.getItem('_pendingCloudSave')) {
+    try {
+      const localObj = JSON.parse(localStorage.getItem('lifedash_v2') || 'null');
+      if (localObj && JSON.stringify(localObj) !== JSON.stringify(S)) {
+        let base = null;
+        try { base = JSON.parse(localStorage.getItem('_lastSyncedStateStr') || 'null'); } catch (e) {}
+        S = _rescueLocal(_mergeStates(base, localObj, S), localObj);
+        console.warn('[load] merge de cambios offline pendientes');
+        setTimeout(() => showToast('🔀 Recuperando cambios hechos sin conexión…', 6000), 1500);
+        setTimeout(() => saveState(), 2500);   // subir el merge a la nube (limpia el pendiente al confirmar)
+      } else {
+        localStorage.removeItem('_pendingCloudSave');
+      }
+    } catch (e) { console.warn('[load pending-merge]', e); }
+  }
+  if (_loadSrc === 'cloud') {
+    try { localStorage.setItem('_lastSyncedStateStr', JSON.stringify(_lastSyncedState)); } catch (e) {}
   }
   // ── Diag de carga (de dónde vino el estado inicial). diagLoad() en consola.
   try {
@@ -1631,23 +1736,6 @@ function plannerInitDrag(listEl, date) {
   });
 }
 
-function updatePlannerLabel() {
-  const swiper = document.getElementById('plannerSwiper');
-  const label  = document.getElementById('plannerDateLabel');
-  const dots   = document.getElementById('plannerDots');
-  if (!swiper || !label) return;
-
-  const onTomorrow = swiper.scrollLeft > swiper.offsetWidth * 0.5;
-  const date = onTomorrow ? getTomorrow() : getActiveDate();
-  const d    = new Date(date + 'T00:00:00');
-  const fmt  = d.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' });
-  label.textContent = (onTomorrow ? 'Mañana · ' : 'Hoy · ') + fmt;
-
-  if (dots) dots.innerHTML = [0, 1].map(i =>
-    `<div class="planner-dot" style="background:${i === (onTomorrow ? 1 : 0) ? 'var(--accent)' : 'rgba(255,255,255,.18)'}"></div>`
-  ).join('');
-}
-
 function renderDayPlanner() {
   const today = getActiveDate();
 
@@ -2217,14 +2305,6 @@ function fmtRestTime(secs) {
   if (!secs) return '—';
   const m = Math.floor(secs / 60), s = secs % 60;
   return m ? `${m}m${s ? ` ${s}s` : ''}` : `${s}s`;
-}
-
-function fmtElapsed(secs) {
-  if (secs < 60) return `${secs}s`;
-  const m = Math.floor(secs / 60), s = secs % 60;
-  if (m < 60) return `${m}min${s ? ` ${s}s` : ''}`;
-  const h = Math.floor(m / 60), rm = m % 60;
-  return `${h}h${rm ? ` ${rm}min` : ''}`;
 }
 
 function renderRutinas() {
@@ -3710,10 +3790,14 @@ function finishRtnSession() {
 }
 
 function renderBodyWeight() {
+  // La UI de peso corporal no está en el HTML actual; JARVIS sigue registrando el dato
+  // (jarvis-brain.js llama esta función tras guardar) — sin el guard tiraba TypeError.
+  const numEl = document.getElementById('weightNum');
+  if (!numEl) return;
   const entries = S.bodyWeight.slice().sort((a,b)=>a.date.localeCompare(b.date));
-  if (entries.length === 0) { document.getElementById('weightNum').textContent='—'; return; }
+  if (entries.length === 0) { numEl.textContent='—'; return; }
   const last = entries[entries.length-1];
-  document.getElementById('weightNum').textContent = last.value;
+  numEl.textContent = last.value;
   document.getElementById('weightUnitEl').textContent = last.unit;
   if (entries.length >= 2) {
     const prev = entries[entries.length-2];
@@ -3722,68 +3806,13 @@ function renderBodyWeight() {
     const positive = delta > 0;
     el.innerHTML = `<span class="weight-delta ${positive?'delta-up':'delta-down'}">${positive?'▲':'▼'} ${Math.abs(delta)} ${last.unit}</span>`;
   }
-  if (weightChartInst) updateWeightChart();
-  analyzeBodyComp();
-}
-
-function analyzeBodyComp() {
-  const entries = S.bodyWeight.slice().sort((a,b)=>a.date.localeCompare(b.date));
-  if (entries.length < 4) return;
-  const recent = entries.slice(-4);
-  const weightDelta = recent[3].value - recent[0].value;
-  // Simplified strength trend: count exercises with recent progress
-  const recentDates = Object.keys(S.workoutLog).sort().slice(-8);
-  let strengthGain = 0, count = 0;
-  S.exercises.forEach(ex => {
-    const vals = recentDates.map(d => {
-      const log = S.workoutLog[d];
-      if (!log || !log[ex.id]) return null;
-      const sets = log[ex.id];
-      return Math.max(...sets.map(s=>s.weight||0));
-    }).filter(Boolean);
-    if (vals.length >= 2) { strengthGain += vals[vals.length-1] - vals[0]; count++; }
-  });
-  const avgStrGain = count ? strengthGain/count : 0;
-  const sec = document.getElementById('compSection');
-  sec.classList.remove('hidden');
-  const bar = document.getElementById('compBar');
-  const lbl = document.getElementById('compLabel');
-  if (weightDelta > 0.3 && avgStrGain > 0) {
-    bar.innerHTML = '<div class="comp-muscle" style="width:70%"></div><div class="comp-fat" style="width:30%"></div>';
-    lbl.innerHTML = '<span class="text-ok">↗ Construcción muscular dominante</span>';
-  } else if (weightDelta > 0.3 && avgStrGain <= 0) {
-    bar.innerHTML = '<div class="comp-muscle" style="width:30%"></div><div class="comp-fat" style="width:70%"></div>';
-    lbl.innerHTML = '<span class="text-warn">⚠ Ganancia predominantemente grasa</span>';
-  } else if (weightDelta < -0.3 && avgStrGain >= -2) {
-    bar.innerHTML = '<div class="comp-muscle" style="width:80%"></div><div class="comp-fat" style="width:20%"></div>';
-    lbl.innerHTML = '<span style="color:var(--accent)">↘ Pérdida de grasa — fuerza mantenida</span>';
-  } else if (weightDelta < -0.3 && avgStrGain < -2) {
-    bar.innerHTML = '<div class="comp-fat" style="width:100%"></div>';
-    lbl.innerHTML = '<span class="text-danger">⛔ Déficit demasiado agresivo — perdiendo músculo</span>';
-  } else {
-    bar.innerHTML = '<div class="comp-muscle" style="width:50%"></div><div class="comp-fat" style="width:50%"></div>';
-    lbl.innerHTML = '<span class="text-ter">→ Mantenimiento</span>';
-  }
-}
-
-function logWeight() {
-  const val = parseFloat(document.getElementById('logWeightVal').value);
-  const date = document.getElementById('logWeightDate').value;
-  const unit = document.getElementById('logWeightUnit').value;
-  if (!val||!date) { showToast('Completa todos los campos'); return; }
-  // Remove existing entry for that date
-  S.bodyWeight = S.bodyWeight.filter(e=>e.date!==date);
-  S.bodyWeight.push({ id:uid(), date, value:val, unit });
-  S.bodyWeight.sort((a,b)=>a.date.localeCompare(b.date));
-  // Snapshot net worth history
-  snapshotNW();
-  // [SUPABASE] await supabase.from('body_weight').upsert({ date, value: val, unit, user_id });
-  saveState(); renderBodyWeight(); closeModal('modal-log-weight'); showToast(`${val} ${unit} guardado`);
 }
 
 // ── Progress Photos ──
 function renderPhotos() {
+  // La UI de fotos no está en el HTML actual; _migratePhotos() todavía la llama — guard.
   const grid = document.getElementById('photoGrid');
+  if (!grid) return;
   const empty = document.getElementById('photoEmpty');
   grid.innerHTML = '';
   if (!S.photos.length) { empty.style.display=''; document.getElementById('compareBtn').style.display='none'; return; }
@@ -3796,39 +3825,6 @@ function renderPhotos() {
     div.addEventListener('dblclick', () => { if (confirm('¿Eliminar esta foto?')) _deletePhoto(ph); });
     grid.appendChild(div);
   });
-}
-
-// Sube un archivo a Firebase Storage en photos/{uid}/{id} y devuelve el registro con la URL.
-async function _uploadPhoto(file, date, weight) {
-  if (!_storage || !_auth.currentUser) throw new Error('storage/auth no disponible');
-  const id = uid();
-  const path = `photos/${_auth.currentUser.uid}/${id}`;
-  const ref = _storage.ref(path);
-  await ref.put(file);
-  const src = await ref.getDownloadURL();
-  return { id, date, weight, src, path };
-}
-
-async function savePhoto() {
-  const file = document.getElementById('photoFile').files[0];
-  const date = document.getElementById('photoDate').value;
-  if (!file||!date) { showToast('Selecciona foto y fecha'); return; }
-  const weight = document.getElementById('photoWeight').value;
-  showToast('📤 Subiendo foto…');
-  try {
-    const ph = await _uploadPhoto(file, date, weight);
-    S.photos.push(ph);
-    saveState(); renderPhotos(); closeModal('modal-add-photo'); showToast('Foto guardada');
-  } catch (e) {
-    // Storage no disponible (no habilitado / sin reglas) → guardar como data URL embebida para no perder la foto
-    console.warn('[photos] upload fallo, fallback local:', e.message);
-    const reader = new FileReader();
-    reader.onload = ev => {
-      S.photos.push({ id:uid(), date, weight, src:ev.target.result });
-      saveState(); renderPhotos(); closeModal('modal-add-photo'); showToast('Foto guardada (local)');
-    };
-    reader.readAsDataURL(file);
-  }
 }
 
 function _deletePhoto(ph) {
@@ -3855,23 +3851,6 @@ async function _migratePhotos() {
     } catch (e) { console.warn('[photos] migracion pausada (Storage no listo):', e.message); break; }
   }
   if (changed) { saveState(); if (typeof renderPhotos === 'function') renderPhotos(); }
-}
-
-function populateCompareSelects() {
-  const opts = S.photos.map(p=>`<option value="${p.id}">${fmtDate(p.date)}${p.weight?' ('+p.weight+')':''}</option>`).join('');
-  document.getElementById('compareLeftSel').innerHTML = opts;
-  document.getElementById('compareRightSel').innerHTML = opts;
-  if (S.photos.length >= 2) {
-    document.getElementById('compareRightSel').selectedIndex = 1;
-  }
-  updateCompareSide('left'); updateCompareSide('right');
-}
-
-function updateCompareSide(side) {
-  const id = document.getElementById(`compare${side.charAt(0).toUpperCase()+side.slice(1)}Sel`).value;
-  const ph = S.photos.find(p=>p.id===id);
-  const el = document.getElementById(`compare${side.charAt(0).toUpperCase()+side.slice(1)}`);
-  el.innerHTML = ph ? `<img src="${ph.src}" style="width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:10px">` : '<div class="no-photo">Sin foto</div>';
 }
 
 // ── Gym Config ──
@@ -3901,12 +3880,12 @@ function addGym() {
   if (!name) return;
   S.gyms.push({ id:uid(), name });
   document.getElementById('gymName').value = '';
-  saveState(); renderGymConfigModal(); renderGymSelector();
+  saveState(); renderGymConfigModal();
 }
 function deleteGym(id) {
   S.gyms = S.gyms.filter(g=>g.id!==id);
   if (S.currentGym===id) S.currentGym=null;
-  saveState(); renderGymConfigModal(); renderGymSelector();
+  saveState(); renderGymConfigModal();
 }
 function saveSplit() {
   ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].forEach(d=>{
@@ -3920,13 +3899,6 @@ function renderTodaySplit() {
   const sp = S.split[day] || '—';
   document.getElementById('todaySplit').textContent = sp;
 }
-function renderGymSelector() {
-  const sel = document.getElementById('gymSelector');
-  sel.innerHTML = '<option value="">Sin gimnasio configurado</option>' +
-    S.gyms.map(g=>`<option value="${g.id}" ${S.currentGym===g.id?'selected':''}>${g.name}</option>`).join('');
-}
-function selectGym(id) { S.currentGym = id; saveState(); renderExercises(); }
-
 // ── Exercises & Workout ──
 function renderExercises() {
   const list = document.getElementById('exerciseList');
@@ -4098,29 +4070,6 @@ function drawExerciseChart(exId, dates) {
   });
 }
 
-function finishWorkout() {
-  document.getElementById('finishWorkoutBtn').style.display='none';
-  buildTickerAlerts();
-  showConfetti(4000);
-  // Gym-specific banner
-  const el = document.createElement('div');
-  el.style.cssText = `
-    position:fixed; top:18%; left:50%; transform:translateX(-50%);
-    background:linear-gradient(135deg,rgba(244,63,94,.18),rgba(255,107,107,.12));
-    border:2px solid rgba(244,63,94,.5); border-radius:20px;
-    padding:18px 32px; text-align:center; pointer-events:none; z-index:10000;
-    backdrop-filter:blur(20px); box-shadow:0 0 60px rgba(244,63,94,.3),0 20px 60px rgba(0,0,0,.4);
-    animation:missionBanner 3.8s cubic-bezier(.22,1,.36,1) forwards; white-space:nowrap;
-  `;
-  el.innerHTML = `
-    <div style="font-size:36px;line-height:1;margin-bottom:6px">💪</div>
-    <div style="font-size:22px;font-weight:900;letter-spacing:.06em;color:#F43F5E;text-shadow:0 0 30px rgba(244,63,94,.8)">¡ENTRENO COMPLETADO!</div>
-    <div style="font-size:13px;color:rgba(255,255,255,.7);margin-top:5px;font-weight:600">Sesión registrada — seguí así</div>
-  `;
-  document.body.appendChild(el);
-  setTimeout(() => el.remove(), 4000);
-  showToast('💪 ¡Entrenamiento completado!', 3500);
-}
 
 // ════════════════════════════════════════════════════════
 // FINANCE TAB
@@ -4235,47 +4184,6 @@ function addSubscription() {
   showToast('Suscripción agregada');
 }
 function deleteSub(id) { S.subscriptions=S.subscriptions.filter(s=>s.id!==id); saveState(); renderSubscriptions(); buildTickerAlerts(); }
-
-function renderOrders() {
-  const list=document.getElementById('orderList');
-  const empty=document.getElementById('orderEmpty');
-  if (!S.orders.length) { list.innerHTML=''; empty.classList.remove('hidden'); return; }
-  empty.classList.add('hidden');
-  list.innerHTML = S.orders.map(ord=>{
-    const diff=ord.arrival?Math.ceil((new Date(ord.arrival)-new Date())/86400000):null;
-    return `<div class="order-row">
-      <div class="order-info">
-        <div class="order-name">${ord.name} ${!ord.deducted?`<button class="btn btn-ghost btn-sm" onclick="deductOrder('${ord.id}')" style="font-size:10px">Descontar</button>`:''}</div>
-        <div class="order-detail">${fmtMoney(ord.amount,ord.currency)} ${diff!==null?'· Llega en '+diff+'d':''}</div>
-      </div>
-      <div class="flex gap-8 items-center">
-        ${ord.deducted?'<span class="pill pill-ok">✓ Descontado</span>':''}
-        <button class="icon-btn" onclick="deleteOrder('${ord.id}')"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg></button>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-function addOrder() {
-  const name=document.getElementById('ordName').value.trim();
-  if (!name) { showToast('Escribe la descripción'); return; }
-  S.orders.push({ id:uid(), name, amount:+document.getElementById('ordAmount').value||0, currency:document.getElementById('ordCurrency').value, arrival:document.getElementById('ordArrival').value, accountId:document.getElementById('ordAccount').value, deducted:false });
-  // [SUPABASE] await supabase.from('orders').insert({ ... });
-  saveState(); renderOrders(); buildTickerAlerts(); closeModal('modal-add-order');
-  document.getElementById('ordName').value=''; showToast('Pedido registrado');
-}
-function deductOrder(id) {
-  const ord=S.orders.find(o=>o.id===id);
-  if (!ord||ord.deducted) return;
-  if (ord.accountId) {
-    const acc=S.accounts.find(a=>a.id===ord.accountId);
-    if (acc) { acc.balance-=ord.amount; snapshotNW(); }
-  }
-  ord.deducted=true;
-  S.transactions.unshift({ id:uid(), date:getActiveDate(), name:`Pedido: ${ord.name}`, type:'expense', amount:ord.amount, currency:ord.currency, accountId:ord.accountId });
-  saveState(); renderFinanzasTab(); showToast(`${fmtMoney(ord.amount,ord.currency)} descontado`);
-}
-function deleteOrder(id) { S.orders=S.orders.filter(o=>o.id!==id); saveState(); renderOrders(); }
 
 function renderWishlist() {
   const list=document.getElementById('wishList');
@@ -6613,55 +6521,10 @@ try {
   });
 } catch (e) { console.warn('[charts] tema HUD no aplicado:', e); }
 
-let weightChartInst=null, nwPieInst=null, nwLineInst=null, txnChartInst=null, sleepChartInst=null;
+let nwPieInst=null, nwLineInst=null, txnChartInst=null, sleepChartInst=null;
 
 function initChartsForTab(tab) {
   if (tab==='finanzas') { initNWCharts(); }
-}
-
-function getLast14Days() {
-  const days=[]; const now=new Date();
-  for (let i=13;i>=0;i--) { const d=new Date(now); d.setDate(d.getDate()-i); days.push(localStr(d)); }
-  return days;
-}
-
-function initWeightChart() {
-  const ctx=document.getElementById('weightChart').getContext('2d');
-  const entries=S.bodyWeight.slice().sort((a,b)=>a.date.localeCompare(b.date)).slice(-20);
-  const labels=entries.map(e=>e.date.slice(5));
-  const data=entries.map(e=>e.value);
-  // Simple linear trend
-  const trendData=calcTrend(data);
-  weightChartInst=new Chart(ctx,{
-    type:'line',
-    data:{
-      labels,
-      datasets:[
-        { label:'Peso', data, borderColor:'var(--accent)', backgroundColor:'rgba(124,142,232,.1)', pointRadius:4, tension:.3, fill:true },
-        { label:'Tendencia', data:trendData, borderColor:'rgba(255,255,255,.2)', borderDash:[5,5], pointRadius:0, tension:.3 }
-      ]
-    },
-    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } }, scales:{ x:{ ticks:{ font:{size:9} } }, y:{ ticks:{ font:{size:9} } } } }
-  });
-}
-
-function updateWeightChart() {
-  if (!weightChartInst) return;
-  const entries=S.bodyWeight.slice().sort((a,b)=>a.date.localeCompare(b.date)).slice(-20);
-  weightChartInst.data.labels=entries.map(e=>e.date.slice(5));
-  weightChartInst.data.datasets[0].data=entries.map(e=>e.value);
-  weightChartInst.data.datasets[1].data=calcTrend(entries.map(e=>e.value));
-  weightChartInst.update('none');
-}
-
-function calcTrend(data) {
-  if (data.length < 2) return data;
-  const n=data.length, xi=Array.from({length:n},(_,i)=>i);
-  const mx=xi.reduce((a,b)=>a+b,0)/n, my=data.reduce((a,b)=>a+b,0)/n;
-  const num=xi.reduce((s,x,i)=>s+(x-mx)*(data[i]-my),0);
-  const den=xi.reduce((s,x)=>s+(x-mx)**2,0);
-  const slope=den?num/den:0, int=my-slope*mx;
-  return xi.map(x=>+(slope*x+int).toFixed(2));
 }
 
 function initNWCharts() {
@@ -7007,7 +6870,6 @@ function renderHabitsCard(section) {
 }
 
 // Alias para backward compat
-function renderVidaHabits() { renderHabitsCard('vida'); }
 
 function setHabit(section, id) {
   _habitActiveId[section] = id;
@@ -8442,6 +8304,12 @@ document.addEventListener('visibilitychange', () => {
   else { _fbFlush(); }   // al ocultar: subir cambios pendientes sin esperar el debounce de 2s
 });
 window.addEventListener('pagehide', _fbFlush);
+// Reintento de saves que quedaron pendientes por falta de conexión (ver _fbDoSave):
+// al volver online, y como red de seguridad cada 60s.
+window.addEventListener('online', () => { if (localStorage.getItem('_pendingCloudSave')) _fbSave(); });
+setInterval(() => {
+  if (localStorage.getItem('_pendingCloudSave') && !_fbSaveTid && !_fbSaveInProgress && navigator.onLine !== false) _fbDoSave();
+}, 60000);
 
 renderGoals();
 renderSleepTracker();

@@ -228,7 +228,12 @@
         if (!(snap.exists && snap.data() && snap.data().state)) {
           await _DOC().set({ state: localRaw, _savedAt: Date.now() }, { merge: true });
         }
-      } catch(e) {}
+      } catch(e) {
+        // Mismo manejo de error que tryLogin: nunca mostrar ACCESO CONCEDIDO tragando el fallo
+        errEl.textContent = '[ SYNC ERROR: ' + (e.code || e.message) + ' ]';
+        await new Promise(r => setTimeout(r, 3000));
+        errEl.textContent = '';
+      }
     }
     btnEl.textContent = 'ACCESO CONCEDIDO';
     btnEl.style.color = '#00FF88';
