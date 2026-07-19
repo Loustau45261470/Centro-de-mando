@@ -1,0 +1,27 @@
+# .graphifyignore — sintaxis identica a .gitignore
+tools-local/
+specs/
+.foreman/
+.obsidian/
+data/
+node_modules/
+.git/
+.agents/
+.claude/skills/
+graphify-out/
+assets/
+emblems/
+*.png
+*.jpg
+*.jpeg
+*.mp4
+
+# configs JSON puros (sin valor arquitectonico, generan nodos de ruido - mismo
+# patron que .obsidian/app.json en el vault)
+.claude/settings.json
+.vscode/settings.json
+.security/sentinel-allowlist.json
+manifest.json
+package.json
+skills-lock.json
+fixes.json
