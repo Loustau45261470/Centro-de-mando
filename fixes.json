@@ -145,7 +145,7 @@
       "id": "orphan-render-guards",
       "fecha": "2026-07-18",
       "desc": "renderBodyWeight (llamada por jarvis-brain al registrar peso) y renderPhotos (llamada por _migratePhotos) referenciaban ids de DOM que ya no existen en index.html y tiraban TypeError. Null-guard con early return; ademas se elimino renderGymSelector (id gymSelector inexistente) de addGym/deleteGym.",
-      "file": "app.js",
+      "file": "rutinas.js",
       "marker": "if (!numEl) return;"
     },
     {
