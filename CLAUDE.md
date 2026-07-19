@@ -4,7 +4,8 @@
 El monolito `index.html` se separó en varios archivos para aligerarlo. NO volver a unirlos.
 - `index.html` — solo el HTML (markup de las pestañas, modales, nav). Carga todo lo demás por `<link>`/`<script src>`.
 - `styles.css` — todo el CSS.
-- `app.js` — JS principal (estado `S`, `loadState`/`saveState`, sync Firestore, render de todas las pestañas, finanzas, hábitos, etc.).
+- `app.js` — JS principal (estado `S`, `loadState`/`saveState`, sync Firestore, utils UI, finanzas, planner, recordatorios, dieta, bienestar, logros).
+- `rutinas.js`, `habitos.js`, `abogacia.js`, `workspace.js` — secciones extraídas de `app.js` (2026-07-19, movimiento byte-idéntico verificado): gym/entrenamiento, calendarios+trackers de hábitos, ley/derecho, y Proyectos/Notion/quotes/collapsible-cards. Se cargan inmediatamente después de `app.js` y ANTES de `gamemode.js`/`jarvis-*.js` — no cambiar ese orden.
 - `jarvis-*.js` — módulos de JARVIS: `jarvis-voice.js` (TTS/ElevenLabs), `jarvis-ears.js` (reconocimiento de voz), `jarvis-brain.js`, `jarvis-intel.js`, `jarvis-neural-fx.js`, `jarvis-agent.js`, `jarvis-core-stats.js`.
 - `login.js`, `theme-switcher.js`, `telemetry.js`, `command-palette.js`, `hud-ambient.js` — features sueltas.
 - `sw.js` — service worker (PWA). Su `SHELL` lista todos los archivos; al cambiar cualquier `.js`/`.css` hay que **bumpear `const CACHE`** (cache-first) para que el cambio llegue a los dispositivos.
