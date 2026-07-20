@@ -1,5 +1,12 @@
 # Centro de Mando — Instrucciones del proyecto
 
+## Índice
+**Cómo está armado** → Estructura de archivos · Stack · Datos
+**Reglas de deploy** → Regla obligatoria: push automático · Repositorio · Hosting
+**Cómo trabajar acá** → Lectura de archivos grandes · Disciplina de trabajo
+**Cuidado con datos/sync** → Regla crítica: bugs de sync/datos (DIAGNÓSTICO PRIMERO) · Registro witness de fixes (`fixes.json`)
+**Fuera del repo** → Segundo cerebro (vault Obsidian)
+
 ## Estructura de archivos (reestructurado: ya NO es un solo archivo)
 El monolito `index.html` se separó en varios archivos para aligerarlo. NO volver a unirlos.
 - `index.html` — solo el HTML (markup de las pestañas, modales, nav). Carga todo lo demás por `<link>`/`<script src>`.
