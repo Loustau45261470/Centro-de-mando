@@ -691,6 +691,43 @@ function getAvailableMonths() {
 
 function setTxnMonth(m) { txnActiveMonth = m; renderActivity(); }
 
+// Mes destino del modal "Nuevo movimiento" / edición: mes actual + próximos N meses futuros
+// (a diferencia de getAvailableMonths(), que solo mira meses con transacciones ya cargadas).
+function getTxnMonthOptions(futureCount = 6) {
+  const now = new Date();
+  const months = [];
+  for (let i = 0; i <= futureCount; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    months.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
+  }
+  return months;
+}
+
+// El "Mes destino" (con su semántica de gasto programado) solo aplica a gastos — los ingresos
+// programados a futuro quedan fuera del alcance del spec. Oculta el campo cuando el Tipo es
+// Ingreso, para no dejar que el usuario elija un mes que después se descarta en silencio.
+function toggleTxnMonthField(fieldId, type) {
+  const field = document.getElementById(fieldId);
+  if (field) field.closest('.field').style.display = type === 'income' ? 'none' : '';
+}
+
+// currentMonth: mes ('YYYY-MM') que debe quedar seleccionado por defecto (ej. el mes destino
+// ya guardado de una transacción existente al editar). Si no está entre las opciones futuras
+// (ej. es un mes pasado), se agrega igual para no perder la selección real del movimiento.
+function populateTxnMonthSelect(selId, currentMonth) {
+  const sel = document.getElementById(selId);
+  if (!sel) return;
+  const curMK = getTxnMonthOptions()[0];
+  let months = getTxnMonthOptions();
+  if (currentMonth && !months.includes(currentMonth)) months = [currentMonth, ...months];
+  sel.innerHTML = months.map(m => {
+    const [y,mo] = m.split('-');
+    const lbl = CAL_MONTHS[+mo-1] + ' ' + y;
+    return `<option value="${m}">${lbl}${m===curMK?' (actual)':''}</option>`;
+  }).join('');
+  sel.value = currentMonth || curMK;
+}
+
 let activityListCollapsed = false;
 
 function toggleActivityList() {
@@ -704,6 +741,7 @@ function toggleActivityList() {
 function renderActivity() {
   if (!Array.isArray(S.transactions)) return; // estado aún no cargado (loadState es async; _sfMount puede llamar antes)
   autoDeductSubscriptions();
+  applyPendingScheduledExpenses();
 
   const months = getAvailableMonths();
   const now = new Date();
@@ -757,10 +795,11 @@ function renderActivity() {
       const catBadge = t.category
         ? `<span style="font-size:10px;padding:1px 7px;border-radius:99px;font-weight:700;background:${cat.color};border:1px solid ${cat.border};color:var(--ts);margin-left:4px">${cat.icon} ${cat.label}</span>`
         : '';
+      const pendingBadge = t.pending ? `<span class="txn-pending-badge">⏳ Pendiente</span>` : '';
       return `<div class="activity-row">
         <div class="act-icon" style="background:${t.type==='income'?'rgba(107,227,164,.1)':'rgba(255,107,107,.1)'}">${cat.icon||(t.type==='income'?'💚':'🔴')}</div>
         <div class="act-info">
-          <div class="act-name" style="display:flex;align-items:center;flex-wrap:wrap;gap:2px">${t.name}${catBadge}</div>
+          <div class="act-name" style="display:flex;align-items:center;flex-wrap:wrap;gap:2px">${t.name}${catBadge}${pendingBadge}</div>
           <div class="act-date">${fmtDate(t.date)}${acc?` <span style="color:var(--ts)">· ${acc.icon||'🏦'} ${acc.name}</span>`:''}</div>
         </div>
         <div style="display:flex;align-items:center;gap:6px">
@@ -914,6 +953,8 @@ function openEditTxn(id) {
     S.accounts.filter(a=>a.type==='bank'||a.type==='invest')
       .map(a=>`<option value="${a.id}">${a.icon||'🏦'} ${a.name}</option>`).join('');
   sel.value = txn.accountId || '';
+  populateTxnMonthSelect('editTxnMonth', txn.date ? txn.date.slice(0,7) : null);
+  toggleTxnMonthField('editTxnMonth', txn.type);
   openModal('modal-edit-txn');
 }
 
@@ -921,19 +962,46 @@ function saveEditTxn() {
   const id = document.getElementById('editTxnId').value;
   const txn = S.transactions.find(t=>t.id===id);
   if (!txn) return;
-  // Reverse original account impact
-  if (txn.accountId) {
+
+  // Validar ANTES de mutar nada: si el cambio de "Mes destino" va a dejar el movimiento
+  // "pending" (mismo criterio que el bloque de más abajo), necesita cuenta asociada — igual
+  // que exige addTransaction() para un gasto programado nuevo (specs/gastos-programados.md).
+  const monthEl = document.getElementById('editTxnMonth');
+  const newType = document.getElementById('editTxnType').value;
+  const newAccountId = document.getElementById('editTxnAccount').value;
+  const origMonth = txn.date ? txn.date.slice(0,7) : null;
+  const newMonth = monthEl ? (monthEl.value || origMonth) : origMonth;
+  const willBePending = !!(monthEl && origMonth && newMonth !== origMonth && newType === 'expense');
+  if (willBePending && !newAccountId) {
+    showToast('Un gasto programado necesita una cuenta asociada');
+    return;
+  }
+
+  // Reverse original account impact — solo si ya estaba aplicado (un movimiento "pending"
+  // nunca llegó a debitar la cuenta, así que no hay nada que revertir).
+  if (!txn.pending && txn.accountId) {
     const acc = S.accounts.find(a=>a.id===txn.accountId);
     if (acc) acc.balance -= txn.type==='income' ? txn.amount : -txn.amount;
   }
   txn.name     = document.getElementById('editTxnName').value.trim() || txn.name;
-  txn.type     = document.getElementById('editTxnType').value;
+  txn.type     = newType;
   txn.amount   = +document.getElementById('editTxnAmount').value || txn.amount;
   txn.currency = document.getElementById('editTxnCurrency').value;
   txn.category = document.getElementById('editTxnCategory').value;
-  txn.accountId= document.getElementById('editTxnAccount').value;
-  // Apply new account impact
-  if (txn.accountId) {
+  txn.accountId= newAccountId;
+
+  // Cambio de mes destino: si difiere del mes actual del movimiento Y es un gasto, se refecha
+  // al día 1 del nuevo mes y queda "pending" — el próximo render (applyPendingScheduledExpenses)
+  // se encarga de aplicarlo si ese mes ya llegó (actual/pasado) o de dejarlo diferido (futuro).
+  // Los ingresos programados quedan fuera de alcance (ver addTransaction): para income, el mes
+  // destino solo edita la fecha del movimiento, sin la semántica de "programado".
+  if (monthEl && origMonth && newMonth !== origMonth) {
+    txn.date = `${newMonth}-01`;
+    if (txn.type === 'expense') txn.pending = true;
+  }
+
+  // Apply new account impact — solo si el movimiento no quedó pendiente
+  if (!txn.pending && txn.accountId) {
     const acc = S.accounts.find(a=>a.id===txn.accountId);
     if (acc) acc.balance += txn.type==='income' ? txn.amount : -txn.amount;
   }
@@ -944,7 +1012,7 @@ function saveEditTxn() {
 function deleteTransaction(id) {
   if (!confirm('¿Eliminar este movimiento?')) return;
   const txn = S.transactions.find(t=>t.id===id);
-  if (txn?.accountId) {
+  if (txn && !txn.pending && txn.accountId) {
     const acc = S.accounts.find(a=>a.id===txn.accountId);
     if (acc) acc.balance -= txn.type==='income' ? txn.amount : -txn.amount;
   }
@@ -963,12 +1031,25 @@ function addTransaction() {
   const category=document.getElementById('txnCategory').value;
   const invQtyEl = document.getElementById('txnInvQty');
   const invQty = invQtyEl ? (+invQtyEl.value || 0) : 0;
-  if (accountId) {
+
+  // Mes destino: solo aplica a gastos (los ingresos programados a futuro quedan fuera de
+  // este alcance — ver specs/gastos-programados.md). Si el mes elegido es futuro, el gasto
+  // queda "pending": se ve en Actividad de ese mes pero no impacta cuenta/inventario todavía.
+  const monthEl = document.getElementById('txnMonth');
+  const curMK = getTxnMonthOptions()[0];
+  const targetMonth = monthEl ? (monthEl.value || curMK) : curMK;
+  const pending = type === 'expense' && targetMonth !== curMK;
+  if (pending && !accountId) { showToast('Un gasto programado necesita una cuenta asociada'); return; }
+  const date = pending ? `${targetMonth}-01` : getActiveDate();
+
+  if (!pending && accountId) {
     const acc=S.accounts.find(a=>a.id===accountId);
     if (acc) { acc.balance += type==='income'?amount:-amount; snapshotNW(); }
   }
-  S.transactions.unshift({ id:uid(), date:getActiveDate(), name, type, amount, currency, accountId, category });
-  if (type === 'expense' && invQty > 0) invApplyPurchase(name, invQty);
+  const txn = { id:uid(), date, name, type, amount, currency, accountId, category };
+  if (pending) { txn.pending = true; if (invQty > 0) txn.invQty = invQty; }
+  S.transactions.unshift(txn);
+  if (!pending && type === 'expense' && invQty > 0) invApplyPurchase(name, invQty);
   saveState(); renderFinanzasTab(); closeModal('modal-add-txn');
   document.getElementById('txnName').value='';
   document.getElementById('txnAmount').value='';
@@ -1024,4 +1105,24 @@ function autoDeductSubscriptions() {
     S.transactions.unshift({ id:uid(), date:getActiveDate(), name:`Sub: ${sub.name}`, type:'expense', amount:sub.amount, currency:sub.currency, accountId:sub.accountId });
     saveState();
   });
+}
+
+// Aplica gastos programados a mes futuro (ver specs/gastos-programados.md) cuando la fecha
+// del sistema alcanza (o pasa) su día programado. A diferencia de autoDeductSubscriptions
+// (que exige coincidencia exacta de día), acá el chequeo es "hoy >= fecha programada" para
+// recuperarse aunque el usuario no haya abierto la app justo ese día.
+function applyPendingScheduledExpenses() {
+  const today = getActiveDate();
+  let applied = false;
+  S.transactions.forEach(t => {
+    if (!t.pending || !t.date || t.date > today) return;
+    if (t.accountId) {
+      const acc = S.accounts.find(a=>a.id===t.accountId);
+      if (acc) { acc.balance += t.type==='income' ? t.amount : -t.amount; snapshotNW(); }
+    }
+    if (t.type === 'expense' && t.invQty > 0) invApplyPurchase(t.name, t.invQty);
+    t.pending = false;
+    applied = true;
+  });
+  if (applied) saveState();
 }
