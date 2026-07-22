@@ -686,6 +686,10 @@ function getAvailableMonths() {
   // así Actividad rota al mes en curso el día 1 en vez de quedarse en el último mes con datos.
   const now = new Date();
   months.add(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`);
+  // El mes siguiente también está siempre disponible: es donde se paran para cargar gastos
+  // programados (specs/gastos-programados.md) — sin esto no hay forma de entrar a esa pestaña.
+  const next = new Date(now.getFullYear(), now.getMonth()+1, 1);
+  months.add(`${next.getFullYear()}-${String(next.getMonth()+1).padStart(2,'0')}`);
   return [...months].sort().reverse();
 }
 
@@ -706,9 +710,30 @@ function getTxnMonthOptions(futureCount = 6) {
 // El "Mes destino" (con su semántica de gasto programado) solo aplica a gastos — los ingresos
 // programados a futuro quedan fuera del alcance del spec. Oculta el campo cuando el Tipo es
 // Ingreso, para no dejar que el usuario elija un mes que después se descarta en silencio.
+// Usada hoy solo por el modal de edición (#editTxnMonth es un <select>, sigue existiendo).
 function toggleTxnMonthField(fieldId, type) {
   const field = document.getElementById(fieldId);
   if (field) field.closest('.field').style.display = type === 'income' ? 'none' : '';
+}
+
+// Modal "Nuevo movimiento": sin selector de mes (ver revisión 2026-07-22 del spec) — el mes
+// destino es siempre txnActiveMonth (la pestaña activa de Actividad). Este aviso de texto es
+// el único indicio del mes destino cuando esa pestaña es futura; para income nunca dice
+// "pendiente" porque los ingresos programados se aplican de inmediato (fuera de alcance).
+function updateTxnMonthNotice() {
+  const notice = document.getElementById('txnMonthNotice');
+  if (!notice) return;
+  const now = new Date();
+  const curMK = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const targetMonth = txnActiveMonth || curMK;
+  if (targetMonth === curMK) { notice.style.display = 'none'; return; }
+  const type = document.getElementById('txnType')?.value;
+  const [y, mo] = targetMonth.split('-');
+  const lbl = CAL_MONTHS[+mo-1] + ' ' + y;
+  notice.textContent = type === 'income'
+    ? `Se va a cargar en ${lbl}.`
+    : `Se va a cargar en ${lbl} · quedará pendiente hasta esa fecha.`;
+  notice.style.display = '';
 }
 
 // currentMonth: mes ('YYYY-MM') que debe quedar seleccionado por defecto (ej. el mes destino
@@ -747,7 +772,7 @@ function renderActivity() {
   const now = new Date();
   const curMK = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
 
-  if (!txnActiveMonth || !months.includes(txnActiveMonth)) txnActiveMonth = months[0] || curMK;
+  if (!txnActiveMonth || !months.includes(txnActiveMonth)) txnActiveMonth = curMK;
 
   // Month filter tabs (sección + espejo en el overlay de historial)
   const chipsHtml = months.map(m => {
@@ -1032,15 +1057,18 @@ function addTransaction() {
   const invQtyEl = document.getElementById('txnInvQty');
   const invQty = invQtyEl ? (+invQtyEl.value || 0) : 0;
 
-  // Mes destino: solo aplica a gastos (los ingresos programados a futuro quedan fuera de
-  // este alcance — ver specs/gastos-programados.md). Si el mes elegido es futuro, el gasto
-  // queda "pending": se ve en Actividad de ese mes pero no impacta cuenta/inventario todavía.
-  const monthEl = document.getElementById('txnMonth');
-  const curMK = getTxnMonthOptions()[0];
-  const targetMonth = monthEl ? (monthEl.value || curMK) : curMK;
+  // Mes destino: viene de la pestaña activa de Actividad (txnActiveMonth), no de un selector
+  // dentro del modal (ver revisión 2026-07-22 del spec). "pending" solo aplica a gastos: si el
+  // mes destino es futuro, el gasto queda "pending" (se ve en Actividad de ese mes pero no
+  // impacta cuenta/inventario todavía). Un ingreso a mes futuro también se guarda con date del
+  // mes destino, pero nunca queda pending — impacta balance de inmediato (ver Edge Cases de
+  // specs/gastos-programados.md).
+  const now = new Date();
+  const curMK = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const targetMonth = txnActiveMonth || curMK;
   const pending = type === 'expense' && targetMonth !== curMK;
   if (pending && !accountId) { showToast('Un gasto programado necesita una cuenta asociada'); return; }
-  const date = pending ? `${targetMonth}-01` : getActiveDate();
+  const date = targetMonth !== curMK ? `${targetMonth}-01` : getActiveDate();
 
   if (!pending && accountId) {
     const acc=S.accounts.find(a=>a.id===accountId);

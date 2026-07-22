@@ -1076,7 +1076,7 @@ function showToast(msg, duration = 3000) {
 function openModal(id) {
   document.getElementById(id).classList.add('open');
   if (id === 'modal-add-sub' || id === 'modal-add-txn') populateAccountSelects();
-  if (id === 'modal-add-txn') { populateTxnMonthSelect('txnMonth'); toggleTxnMonthField('txnMonth', document.getElementById('txnType').value); }
+  if (id === 'modal-add-txn') updateTxnMonthNotice();
   if (id === 'modal-cfg-gym') renderGymConfigModal();
 }
 function closeModal(id) {
