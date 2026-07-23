@@ -1639,12 +1639,12 @@ function plannerBlockHTML(date, t, hourPx, compact) {
 
   if (!t.area) {
     // Draft sin área: no se pinta como bloque válido — pide elegir área antes de contar como creado.
-    // Alto fijo (no depende de la duración): necesita lugar para el texto + los 5 swatches + eliminar.
-    const pendingHeight = Math.max(height, 76);
+    // Sin "height" fijo: se deja crecer al alto real de su contenido (hint + texto + 5 swatches),
+    // así nunca corta nada por más que el texto tipeado ocupe más de una línea.
     const swatches = Object.entries(PLANNER_AREAS).map(([key, cfg]) =>
       `<button class="pcal-area-dot" style="--area-c:var(${cfg.cssVar})" title="${cfg.label}" onclick="plannerSetArea('${escHtml(date)}','${t.id}','${key}')"></button>`
     ).join('');
-    return `<div class="pcal-block pcal-pending" data-id="${t.id}" style="top:${top}px;height:${pendingHeight}px" onclick="event.stopPropagation()">
+    return `<div class="pcal-block pcal-pending" data-id="${t.id}" style="top:${top}px;min-height:${height}px" onclick="event.stopPropagation()">
       <div class="pcal-head">
         <span class="pcal-pending-hint">Elegí un área ↓</span>
         <button class="pcal-del" onclick="plannerDeleteTask('${escHtml(date)}','${t.id}')" title="Eliminar" aria-label="Eliminar">✕</button>
