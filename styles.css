@@ -1042,18 +1042,15 @@ textarea { resize: vertical; min-height: 60px; }
   border-radius: 50%; background: var(--danger);
 }
 .pcal-block {
-  position: absolute; left: 5px; right: 5px; z-index: 2; overflow: hidden;
-  display: flex; flex-direction: column; gap: 2px; padding: 6px 9px 5px; border-radius: 9px;
-  background: color-mix(in srgb, var(--area-c, var(--hud)) 70%, #04060c);
-  border: 1px solid color-mix(in srgb, var(--area-c, var(--hud)) 60%, #ffffff 8%);
+  position: absolute; left: 2px; right: 2px; z-index: 2; overflow: hidden;
+  display: flex; flex-direction: column; gap: 2px; padding: 6px 9px 5px; border-radius: 7px;
+  /* Relleno sólido que llena el encuadre — sin sombra/halo (parecía un bloque flotando encima) */
+  background: color-mix(in srgb, var(--area-c, var(--hud)) 72%, #04060c);
+  border: 1px solid color-mix(in srgb, var(--area-c, var(--hud)) 55%, #000);
   border-left: 4px solid var(--pc, var(--area-c, var(--hud)));
-  box-shadow: 0 3px 12px -3px color-mix(in srgb, var(--area-c, var(--hud)) 55%, transparent), 0 1px 4px rgba(0,0,0,.4);
-  color: #fff; cursor: pointer; transition: box-shadow .15s var(--ease-out-quart), transform .15s var(--ease-out-quart);
+  color: #fff; cursor: pointer; transition: filter .15s var(--ease-out-quart);
 }
-.pcal-block:hover {
-  box-shadow: 0 6px 20px -4px color-mix(in srgb, var(--area-c, var(--hud)) 75%, transparent), 0 2px 6px rgba(0,0,0,.45);
-  transform: translateY(-1px);
-}
+.pcal-block:hover { filter: brightness(1.08); }
 .pcal-block.done { opacity: .5; }
 .pcal-block.done .pcal-text { text-decoration: line-through; }
 .pcal-head { display: flex; align-items: center; gap: 5px; }
