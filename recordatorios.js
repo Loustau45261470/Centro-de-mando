@@ -216,21 +216,25 @@ function renderRemindersNotif(tab) {
   const body = document.getElementById('reminders-notif-' + tab); if (!body) return;
   if (!S.reminders) S.reminders = {};
   const now = Date.now();
-  const { proyImminent, proyUpcoming } = remProyItems(tab);
-  const dated = [...(S.reminders[tab] || []), ...proyImminent, ...proyUpcoming]
-    .filter(r => r.datetime && new Date(r.datetime) - now > 0)
-    .sort((a, b) => new Date(a.datetime) - new Date(b.datetime)).slice(0, 4);
+  const { proyImminent, proyUpcoming, proyPast } = remProyItems(tab);
+  const dated = [...(S.reminders[tab] || []), ...proyImminent, ...proyUpcoming, ...proyPast]
+    .filter(r => r.datetime)
+    .sort((a, b) => new Date(a.datetime) - new Date(b.datetime)).slice(0, 5);
   if (!dated.length) {
     body.innerHTML = '<div class="rnotif-empty">Sin recordatorios próximos. Abrí <b>Recordatorios</b> desde el FAB para crear uno.</div>';
     return;
   }
   body.innerHTML = dated.map(r => {
-    const cd = (typeof remCountdown === 'function') ? remCountdown(r.datetime) : '';
+    const diff = new Date(r.datetime) - now;
+    const overdue  = diff <= 0;
+    const imminent = !overdue && diff < 86400000;
+    const cd = overdue ? 'Vencido' : ((typeof remCountdown === 'function') ? remCountdown(r.datetime) : '');
     const d = new Date(r.datetime);
     const when = d.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' }) + ' · ' + d.toTimeString().slice(0, 5);
-    const imminent = new Date(r.datetime) - now < 86400000;
-    return `<div class="rnotif-item${imminent ? ' imminent' : ''}">
-      <span class="rnotif-dot"></span>
+    const prioCfg = REM_CFG[r.priority] || REM_CFG.medium;
+    const dotStyle = (overdue || imminent) ? '' : ` style="background:${prioCfg.dot};box-shadow:0 0 8px ${prioCfg.dot}"`;
+    return `<div class="rnotif-item${overdue ? ' overdue' : imminent ? ' imminent' : ''}" title="${prioCfg.label}">
+      <span class="rnotif-dot"${dotStyle}></span>
       <div class="rnotif-body"><div class="rnotif-title">${escHtml(r.title)}</div><div class="rnotif-when">${when}</div></div>
       ${cd ? `<span class="rnotif-cd">${cd}</span>` : ''}
     </div>`;

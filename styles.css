@@ -4780,14 +4780,17 @@ input:focus, select:focus, textarea:focus {
 .rnotif-empty b { color: var(--ts); }
 .rnotif-item { display: flex; align-items: center; gap: 11px; padding: 10px 11px; border-radius: 11px; background: rgba(10,16,30,.4); border: 1px solid var(--border); margin-bottom: 7px; }
 .rnotif-item.imminent { border-color: color-mix(in oklab, var(--warn) 45%, var(--border)); background: linear-gradient(90deg, rgba(245,166,35,.08), rgba(10,16,30,.4) 40%); }
+.rnotif-item.overdue { border-color: color-mix(in oklab, #ff3c3c 45%, var(--border)); background: linear-gradient(90deg, rgba(255,60,60,.1), rgba(10,16,30,.4) 40%); }
 .rnotif-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--rn-accent); box-shadow: 0 0 8px var(--rn-accent); }
 .rnotif-item.imminent .rnotif-dot { background: var(--warn); box-shadow: 0 0 10px var(--warn); animation: rnotif-pulse 1.6s ease-in-out infinite; }
+.rnotif-item.overdue .rnotif-dot { background: #ff3c3c; box-shadow: 0 0 10px #ff3c3c; }
 @keyframes rnotif-pulse { 50% { opacity: .4; } }
 .rnotif-body { flex: 1; min-width: 0; }
 .rnotif-title { font-size: 14px; font-weight: 600; color: var(--tp); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rnotif-when { font-family: var(--mono); font-size: 10.5px; color: var(--tt); margin-top: 2px; text-transform: capitalize; }
 .rnotif-cd { font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--rn-accent); flex: none; }
 .rnotif-item.imminent .rnotif-cd { color: var(--warn); }
+.rnotif-item.overdue .rnotif-cd { color: #ff3c3c; }
 
 /* ════════════════════ ENTRENAMIENTO · overlay (restyle holográfico) ════════════════════
    Scopeado a #ov-gym: no toca el JS ni el logging, sólo la estética dentro del overlay. */
