@@ -14,7 +14,7 @@ function plannerOverlayOpen() {
   const { overlay, body } = CMOverlay.build({ id: 'ov-planner', accent: '#00D4FF', onClose: _plovRestore });
   if (!overlay._plovBuilt) {
     body.innerHTML = `
-      <div class="cm-ov-head"><div class="cm-ov-eyebrow">VIDA · PLANIFICACIÓN · build v150</div><div class="cm-ov-title">Planificación</div></div>
+      <div class="cm-ov-head"><div class="cm-ov-eyebrow">VIDA · PLANIFICACIÓN · build v151</div><div class="cm-ov-title">Planificación</div></div>
       <div class="plov-tabs">
         <button class="plov-tab" data-d="dia" onclick="plannerOverlayTab('dia')">Día</button>
         <button class="plov-tab" data-d="semana" onclick="plannerOverlayTab('semana')">Semana</button>
