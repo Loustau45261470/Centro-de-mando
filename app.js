@@ -1523,11 +1523,57 @@ function getDayPlan(date) {
 }
 function _timeToMin(time) { const [h, m] = time.split(':').map(Number); return h * 60 + m; }
 function _minToTime(min) { return `${_pad2(Math.floor(min / 60))}:${_pad2(min % 60)}`; }
+function _minToTimeDisp(min) { return min >= 1440 ? '00:00' : _minToTime(min); }
+
+// Ventana visible del calendario: 05:00 → 00:00 (medianoche). Todo el pintado y la matemática de
+// coordenadas se cuelgan de estas dos constantes.
+const PCAL_START_MIN = 300;   // 05:00
+const PCAL_END_MIN   = 1440;  // 00:00 del día siguiente
+const PCAL_SPAN_MIN  = PCAL_END_MIN - PCAL_START_MIN; // 1140 (19 h)
+
+// ── Recurrencia: reglas en S.planRecurring, ocurrencias generadas al vuelo por fecha ──
+function _recStore() { if (!S.planRecurring) S.planRecurring = []; return S.planRecurring; }
+function _recFind(id) { return _recStore().find(r => r.id === id); }
+// ¿La regla r genera una ocurrencia en la fecha 'date' (YYYY-MM-DD)? Intervalo fijo = 1.
+function plannerRecOccursOn(r, date) {
+  if (!r || !r.repeat || date < r.startDate) return false;
+  const d = new Date(date + 'T00:00:00'), s = new Date(r.startDate + 'T00:00:00');
+  switch (r.repeat.freq) {
+    case 'daily':    return true;
+    case 'weekly':   return d.getDay() === s.getDay();
+    case 'weekdays': return (r.repeat.byDays || []).includes(d.getDay());
+    case 'monthly':  return d.getDate() === s.getDate();
+    case 'yearly':   return d.getDate() === s.getDate() && d.getMonth() === s.getMonth();
+    default:         return false;
+  }
+}
+// Tareas concretas de una fecha = puntuales de S.dayPlan + ocurrencias de las reglas recurrentes.
+// Las ocurrencias virtuales llevan id compuesto 'r…@fecha' y campos _rec/_date para rutear acciones.
+function plannerDayTasks(date) {
+  const out = getDayPlan(date).tasks.slice();
+  _recStore().forEach(r => {
+    if (!plannerRecOccursOn(r, date)) return;
+    const ex = (r.exceptions || {})[date] || {};
+    if (ex.deleted) return;
+    out.push({
+      id: r.id + '@' + date, _rec: r.id, _date: date,
+      time:     ex.time     != null ? ex.time     : r.time,
+      duration: ex.duration != null ? ex.duration : r.duration,
+      priority: ex.priority != null ? ex.priority : r.priority,
+      area:     ex.area     != null ? ex.area     : r.area,
+      text:     ex.text     != null ? ex.text     : r.text,
+      done:     !!ex.done,
+      repeat:   r.repeat.freq,
+    });
+  });
+  return out;
+}
+
 // Ventana [start, start+duration) libre para esta fecha, ignorando la propia tarea (excludeId).
 function plannerRangeFree(date, startMin, durationMin, excludeId) {
   const endMin = startMin + durationMin;
-  if (startMin < 0 || endMin > 24 * 60) return false; // no cruza medianoche
-  return getDayPlan(date).tasks.every(t => {
+  if (startMin < PCAL_START_MIN || endMin > PCAL_END_MIN) return false; // fuera de la ventana visible
+  return plannerDayTasks(date).every(t => {
     if (t.id === excludeId) return true;
     const s = _timeToMin(t.time), e = s + (t.duration || 30);
     return endMin <= s || startMin >= e;
@@ -1535,8 +1581,8 @@ function plannerRangeFree(date, startMin, durationMin, excludeId) {
 }
 // Máxima duración (min) que puede tener una tarea que arranca en startMin sin invadir la siguiente ya fijada.
 function plannerMaxDuration(date, startMin, excludeId) {
-  let limit = 24 * 60 - startMin;
-  getDayPlan(date).tasks.forEach(t => {
+  let limit = PCAL_END_MIN - startMin;
+  plannerDayTasks(date).forEach(t => {
     if (t.id === excludeId) return;
     const s = _timeToMin(t.time);
     if (s >= startMin && s - startMin < limit) limit = s - startMin;
@@ -1545,141 +1591,231 @@ function plannerMaxDuration(date, startMin, excludeId) {
 }
 // Tareas de una hora, ordenadas por prioridad desc (sort estable → respeta orden de creación en empate).
 function plannerHourTasks(date, h) {
-  return getDayPlan(date).tasks
+  return plannerDayTasks(date)
     .filter(t => parseInt(t.time.split(':')[0], 10) === h)
     .sort((a, b) => b.priority - a.priority);
 }
 
-function plannerAddTask(date, time) {
-  const p = getDayPlan(date);
-  const startMin = _timeToMin(time);
-  const duration = Math.min(30, plannerMaxDuration(date, startMin, null));
-  if (duration <= 0 || !plannerRangeFree(date, startMin, duration, null)) {
-    showToast('Ese horario ya está ocupado'); return;
+// ── Modal crear/editar actividad (área, importancia, horario, repetición) ──
+let _planEdit = null;      // { mode:'create'|'one'|'rec', date, id?, recId? }
+let _planFinMode = 'dur';  // 'dur' | 'end'
+const PLAN_REPEAT_OPTS = [
+  ['none', 'No repetir'], ['daily', 'Todos los días'], ['weekly', 'Semanal'],
+  ['monthly', 'Mensual'], ['yearly', 'Anual'], ['weekdays', 'Días particulares'],
+];
+const PLAN_WEEKDAYS = [['1', 'L'], ['2', 'M'], ['3', 'X'], ['4', 'J'], ['5', 'V'], ['6', 'S'], ['0', 'D']]; // getDay()
+function _pel(id) { return document.getElementById(id); }
+function _segSet(segId, val) { const s = _pel(segId); if (s) s.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === val)); }
+function planPickArea(k) { _pel('planArea').value = k; _segSet('planAreaSeg', k); }
+function planPickPrio(v) { _pel('planPrio').value = v; _segSet('planPrioSeg', String(v)); }
+function planPickFinMode(m) { _planFinMode = m; _segSet('planFinModeSeg', m); _pel('planDurWrap').hidden = m !== 'dur'; _pel('planEndWrap').hidden = m !== 'end'; }
+function planToggleWeekday(btn) { btn.classList.toggle('on'); }
+function planRepeatChanged() { _pel('planWeekdays').hidden = _pel('planRepeat').value !== 'weekdays'; }
+
+function openPlanModal(date, id, presetTime) {
+  date = date || getActiveDate();
+  let src;
+  if (!id) {
+    const now = new Date();
+    const startMin = presetTime != null ? _timeToMin(presetTime)
+      : Math.max(PCAL_START_MIN, Math.min(PCAL_END_MIN - 30, Math.round((now.getHours() * 60 + now.getMinutes()) / 15) * 15));
+    src = { text: '', area: 'vida', priority: 2, time: _minToTime(startMin), duration: 30, repeat: { freq: 'none', byDays: [] } };
+    _planEdit = { mode: 'create', date };
+  } else if (id.indexOf('@') >= 0) {
+    const r = _recFind(id.split('@')[0]); if (!r) return;
+    const ex = (r.exceptions || {})[date] || {};
+    src = {
+      text: ex.text != null ? ex.text : r.text, area: ex.area != null ? ex.area : r.area,
+      priority: ex.priority != null ? ex.priority : r.priority, time: ex.time != null ? ex.time : r.time,
+      duration: ex.duration != null ? ex.duration : r.duration, repeat: r.repeat,
+    };
+    _planEdit = { mode: 'rec', date, recId: r.id };
+  } else {
+    const t = getDayPlan(date).tasks.find(x => x.id === id); if (!t) return;
+    src = { text: t.text, area: t.area || 'vida', priority: t.priority, time: t.time, duration: t.duration || 30, repeat: { freq: 'none', byDays: [] } };
+    _planEdit = { mode: 'one', date, id };
   }
-  const task = { id: _pid(), time, duration, priority: 2, area: null, text: '', done: false };
-  p.tasks.push(task);
-  saveState(); renderDayPlanner();
-  requestAnimationFrame(() => {
-    const el = document.querySelector(`.pcal-block[data-id="${task.id}"] .pcal-text`);
-    if (el) el.focus();
+  _pel('planModalTitle').textContent = id ? 'Editar actividad' : 'Nueva actividad';
+  _pel('planAreaSeg').innerHTML = Object.entries(PLANNER_AREAS).map(([k, c]) =>
+    `<button type="button" data-v="${k}" style="--area-c:var(${c.cssVar})" onclick="planPickArea('${k}')"><span class="seg-dot"></span>${c.label}</button>`).join('');
+  _pel('planRepeat').innerHTML = PLAN_REPEAT_OPTS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
+  _pel('planWeekdays').innerHTML = PLAN_WEEKDAYS.map(([v, l]) => `<button type="button" data-v="${v}" onclick="planToggleWeekday(this)">${l}</button>`).join('');
+  _pel('planText').value = src.text || '';
+  _pel('planDate').value = date;
+  _pel('planStart').value = src.time;
+  const endMin = _timeToMin(src.time) + (src.duration || 30);
+  _pel('planDur').value = src.duration || 30;
+  _pel('planEnd').value = endMin >= 1440 ? '00:00' : _minToTime(endMin);
+  planPickArea(PLANNER_AREAS[src.area] ? src.area : 'vida');
+  planPickPrio(src.priority || 2);
+  planPickFinMode('dur');
+  _pel('planRepeat').value = src.repeat && src.repeat.freq ? src.repeat.freq : 'none';
+  planRepeatChanged();
+  if (src.repeat && src.repeat.freq === 'weekdays') {
+    const set = new Set((src.repeat.byDays || []).map(String));
+    _pel('planWeekdays').querySelectorAll('button').forEach(b => b.classList.toggle('on', set.has(b.dataset.v)));
+  }
+  _pel('planDeleteBtn').hidden = _planEdit.mode === 'create';
+  openModal('modal-plan-activity');
+}
+
+function _normRepeat(f) { return { freq: f.repeat.freq, byDays: f.repeat.freq === 'weekdays' ? f.repeat.byDays.slice() : [] }; }
+function _planReadForm() {
+  const startMin = _timeToMin(_pel('planStart').value);
+  let endMin;
+  if (_planFinMode === 'end') { endMin = _timeToMin(_pel('planEnd').value); if (endMin === 0) endMin = 1440; }
+  else { endMin = startMin + Math.max(5, Math.round((parseInt(_pel('planDur').value, 10) || 30) / 5) * 5); }
+  const freq = _pel('planRepeat').value;
+  const byDays = freq === 'weekdays'
+    ? Array.from(_pel('planWeekdays').querySelectorAll('button.on')).map(b => parseInt(b.dataset.v, 10)) : [];
+  return {
+    date: _pel('planDate').value, text: _pel('planText').value.trim(), area: _pel('planArea').value,
+    priority: parseInt(_pel('planPrio').value, 10) || 2, startMin, endMin, duration: endMin - startMin,
+    repeat: { freq, byDays },
+  };
+}
+
+function savePlanActivity() {
+  const f = _planReadForm();
+  if (!f.text) { showToast('Escribí la actividad'); return; }
+  if (!f.date) { showToast('Elegí una fecha'); return; }
+  if (f.endMin <= f.startMin) { showToast('El fin debe ser posterior al inicio'); return; }
+  if (f.repeat.freq === 'weekdays' && !f.repeat.byDays.length) { showToast('Elegí al menos un día'); return; }
+  const excludeId = _planEdit.mode === 'one' ? _planEdit.id
+    : _planEdit.mode === 'rec' ? _planEdit.recId + '@' + f.date : null;
+  if (!plannerRangeFree(f.date, f.startMin, f.duration, excludeId)) {
+    showToast('Ese horario se solapa o está fuera de 05:00–00:00'); return;
+  }
+  const base = { text: f.text, area: f.area, priority: f.priority, time: _minToTime(f.startMin), duration: f.duration };
+  const commit = () => { saveState(); renderDayPlanner(); closeModal('modal-plan-activity'); };
+
+  if (_planEdit.mode === 'create') {
+    if (f.repeat.freq === 'none') getDayPlan(f.date).tasks.push({ id: _pid(), ...base, done: false });
+    else _recStore().push({ id: 'r' + _pid(), ...base, startDate: f.date, repeat: _normRepeat(f), exceptions: {} });
+    commit(); return;
+  }
+  if (_planEdit.mode === 'one') {
+    const t = getDayPlan(_planEdit.date).tasks.find(x => x.id === _planEdit.id);
+    if (!t) { closeModal('modal-plan-activity'); return; }
+    if (f.repeat.freq !== 'none') {                       // puntual → recurrente
+      getDayPlan(_planEdit.date).tasks = getDayPlan(_planEdit.date).tasks.filter(x => x.id !== t.id);
+      _recStore().push({ id: 'r' + _pid(), ...base, startDate: f.date, repeat: _normRepeat(f), exceptions: {} });
+    } else if (f.date !== _planEdit.date) {               // cambió de día
+      getDayPlan(_planEdit.date).tasks = getDayPlan(_planEdit.date).tasks.filter(x => x.id !== t.id);
+      getDayPlan(f.date).tasks.push({ ...t, ...base });
+    } else { Object.assign(t, base); }
+    commit(); return;
+  }
+  // mode 'rec' → preguntar alcance
+  const r = _recFind(_planEdit.recId); if (!r) { closeModal('modal-plan-activity'); return; }
+  askRecurScope('Esta actividad se repite. ¿Aplicar el cambio a…?').then(scope => {
+    if (!scope) return;
+    if (scope === 'day') {
+      if (!r.exceptions) r.exceptions = {};
+      r.exceptions[_planEdit.date] = { ...(r.exceptions[_planEdit.date] || {}), ...base };
+    } else if (f.repeat.freq === 'none') {                // serie → dejar de repetir: una puntual
+      S.planRecurring = _recStore().filter(x => x.id !== r.id);
+      getDayPlan(f.date).tasks.push({ id: _pid(), ...base, done: false });
+    } else {
+      Object.assign(r, base, { startDate: f.date || r.startDate, repeat: _normRepeat(f) });
+    }
+    commit();
   });
 }
-function plannerTaskText(date, id, text) {
-  const p = getDayPlan(date);
-  const t = p.tasks.find(x => x.id === id);
-  if (!t) return;
-  if (text.trim()) { t.text = text; saveState(); return; }
-  // Vacía al salir → se elimina, PERO diferido y re-chequeando: un blur transitorio
-  // (tap que reenfoca la casilla, o un re-render) NO debe borrar la tarea que el
-  // usuario recién creó y está por escribir. Sólo se elimina si sigue vacía y el
-  // usuario ya no la tiene enfocada.
-  setTimeout(() => {
-    const live = document.querySelector(`.pcal-block[data-id="${id}"] .pcal-text`);
-    if (live && (document.activeElement === live || live.value.trim())) return; // reenfocada o con texto
-    const pp = getDayPlan(date);
-    const tt = pp.tasks.find(x => x.id === id);
-    if (!tt || (tt.text && tt.text.trim())) return;
-    pp.tasks = pp.tasks.filter(x => x.id !== id);
-    saveState(); renderDayPlanner();
-  }, 200);
+
+function deletePlanActivity() {
+  if (!_planEdit) return;
+  if (_planEdit.mode === 'one') {
+    const d = _planEdit.date;
+    getDayPlan(d).tasks = getDayPlan(d).tasks.filter(x => x.id !== _planEdit.id);
+    saveState(); renderDayPlanner(); closeModal('modal-plan-activity'); return;
+  }
+  if (_planEdit.mode === 'rec') {
+    _recDelete(_planEdit.recId, _planEdit.date).then(ok => { if (ok) { closeModal('modal-plan-activity'); renderDayPlanner(); } });
+    return;
+  }
+  closeModal('modal-plan-activity');
 }
-function plannerSetArea(date, id, area) {
-  if (!PLANNER_AREAS[area]) return;
-  const t = getDayPlan(date).tasks.find(x => x.id === id);
-  if (!t) return;
-  t.area = area;
-  saveState(); renderDayPlanner();
+
+// Alcance de un cambio/borrado sobre una serie recurrente: modal de dos botones → Promise.
+let _recScopeResolve = null;
+function askRecurScope(msg) {
+  return new Promise(resolve => {
+    _recScopeResolve = resolve;
+    const m = _pel('recScopeMsg'); if (m) m.textContent = msg || 'Esta actividad se repite. ¿Aplicar a…?';
+    openModal('modal-recur-scope');
+  });
 }
-function plannerSetDuration(date, id, minutes) {
-  const t = getDayPlan(date).tasks.find(x => x.id === id);
-  if (!t) return;
-  minutes = Math.max(5, Math.round(minutes / 5) * 5);
-  const startMin = _timeToMin(t.time);
-  if (!plannerRangeFree(date, startMin, minutes, id)) { showToast('No entra: se solapa con otra actividad'); renderDayPlanner(); return; }
-  t.duration = minutes;
-  saveState(); renderDayPlanner();
+function _recScopePick(scope) {
+  closeModal('modal-recur-scope');
+  const r = _recScopeResolve; _recScopeResolve = null;
+  if (r) r(scope);
 }
-function plannerCyclePrio(date, id) {
-  const t = getDayPlan(date).tasks.find(x => x.id === id);
-  if (!t) return;
-  t.priority = (t.priority % 3) + 1;              // 1→2→3→1
-  saveState(); renderDayPlanner();
+function _recDelete(recId, date) {
+  const r = _recFind(recId); if (!r) return Promise.resolve(false);
+  return askRecurScope('¿Eliminar solo este día o toda la serie?').then(scope => {
+    if (!scope) return false;
+    if (scope === 'day') { if (!r.exceptions) r.exceptions = {}; r.exceptions[date] = { ...(r.exceptions[date] || {}), deleted: true }; }
+    else S.planRecurring = _recStore().filter(x => x.id !== recId);
+    saveState(); return true;
+  });
 }
+// Marcar "hecho": puntual escribe en la tarea; recurrente escribe la excepción por fecha.
 function plannerToggleTask(date, id) {
+  if (id.indexOf('@') >= 0) {
+    const r = _recFind(id.split('@')[0]); if (!r) return;
+    if (!r.exceptions) r.exceptions = {};
+    const ex = r.exceptions[date] || {};
+    r.exceptions[date] = { ...ex, done: !ex.done };
+    saveState(); renderDayPlanner(); return;
+  }
   const t = getDayPlan(date).tasks.find(x => x.id === id);
   if (!t) return;
   t.done = !t.done;
   saveState(); renderDayPlanner();
 }
+// Borrar desde el bloque: puntual directo; recurrente pregunta alcance (este día vs serie).
 function plannerDeleteTask(date, id) {
+  if (id.indexOf('@') >= 0) { _recDelete(id.split('@')[0], date).then(ok => { if (ok) renderDayPlanner(); }); return; }
   const p = getDayPlan(date);
   p.tasks = p.tasks.filter(x => x.id !== id);
   saveState(); renderDayPlanner();
 }
-function plannerMoveTask(date, id, newTime) {
-  const t = getDayPlan(date).tasks.find(x => x.id === id);
-  if (!t || t.time === newTime) { renderDayPlanner(); return; }
-  const startMin = _timeToMin(newTime);
-  if (!plannerRangeFree(date, startMin, t.duration || 30, id)) { showToast('Ese horario ya está ocupado'); renderDayPlanner(); return; }
-  t.time = newTime;
-  saveState(); renderDayPlanner();
-}
-function plannerAutoResize(el) {
-  el.style.height = 'auto';
-  el.style.height = el.scrollHeight + 'px';
-}
 
-// ── Bloque de calendario (franja pintada por área, alto proporcional a la duración) ──
+// ── Bloque de calendario (relleno sólido por área, alto proporcional a la duración) ──
+// El bloque es de sólo lectura: se toca para abrir el modal de edición. Sólo el check
+// (hecho) y el ✕ (borrar) actúan directo. Las tareas recurrentes llevan id compuesto.
 function plannerBlockHTML(date, t, hourPx, compact) {
   const startMin = _timeToMin(t.time);
-  const top    = (startMin / 60) * hourPx;
-  const height = Math.max(((t.duration || 30) / 60) * hourPx, compact ? 24 : 40);
+  const endMin   = startMin + (t.duration || 30);
+  const top    = ((startMin - PCAL_START_MIN) / 60) * hourPx;
+  const height = Math.max(((t.duration || 30) / 60) * hourPx, compact ? 22 : 34);
+  const area   = PLANNER_AREAS[t.area] ? t.area : 'vida';
+  const areaCfg = PLANNER_AREAS[area];
   const prioCfg = PLANNER_PRIO[t.priority] || PLANNER_PRIO[2];
-
-  if (!t.area) {
-    // Draft sin área: no se pinta como bloque válido — pide elegir área antes de contar como creado.
-    // Sin "height" fijo: se deja crecer al alto real de su contenido (hint + texto + 5 swatches),
-    // así nunca corta nada por más que el texto tipeado ocupe más de una línea.
-    const swatches = Object.entries(PLANNER_AREAS).map(([key, cfg]) =>
-      `<button class="pcal-area-dot" style="--area-c:var(${cfg.cssVar})" title="${cfg.label}" onclick="plannerSetArea('${escHtml(date)}','${t.id}','${key}')"></button>`
-    ).join('');
-    return `<div class="pcal-block pcal-pending" data-id="${t.id}" style="top:${top}px;min-height:${height}px" onclick="event.stopPropagation()">
-      <div class="pcal-head">
-        <span class="pcal-pending-hint">Elegí un área ↓</span>
-        <button class="pcal-del" onclick="plannerDeleteTask('${escHtml(date)}','${t.id}')" title="Eliminar" aria-label="Eliminar">✕</button>
-      </div>
-      <textarea class="pcal-text" rows="1" placeholder="Actividad…"
-        oninput="plannerAutoResize(this)"
-        onblur="plannerTaskText('${escHtml(date)}','${t.id}',this.value)">${escHtml(t.text)}</textarea>
-      <div class="pcal-areas">${swatches}</div>
-    </div>`;
-  }
-
-  const areaCfg = PLANNER_AREAS[t.area];
-  return `<div class="pcal-block${compact ? ' pcal-compact' : ''} prio-${t.priority}${t.done ? ' done' : ''}" data-id="${t.id}"
-    style="top:${top}px;height:${height}px;--area-c:var(${areaCfg.cssVar})" onclick="event.stopPropagation()">
+  const rid = escHtml(t.id);
+  const range = `${t.time}–${_minToTimeDisp(endMin)}`;
+  const recIcon = t.repeat && t.repeat !== 'none' ? '<span class="pcal-rec" title="Se repite">⟳</span>' : '';
+  return `<div class="pcal-block${compact ? ' pcal-compact' : ''} prio-${t.priority}${t.done ? ' done' : ''}" data-id="${rid}"
+    style="top:${top}px;height:${height}px;--area-c:var(${areaCfg.cssVar})"
+    onclick="openPlanModal('${escHtml(date)}','${rid}')" title="${escHtml(t.text)} · ${range}">
     <div class="pcal-head">
-      <label class="pcal-check"><input type="checkbox"${t.done ? ' checked' : ''} onchange="plannerToggleTask('${escHtml(date)}','${t.id}')"></label>
-      <button class="pcal-badge" onclick="plannerCyclePrio('${escHtml(date)}','${t.id}')" title="Postergable: ${prioCfg.label} — clic para cambiar">${prioCfg.label}</button>
-      <input class="pcal-time-input" type="time" step="60" value="${t.time}"
-        onclick="event.stopPropagation()" onchange="plannerMoveTask('${escHtml(date)}','${t.id}',this.value)">
-      <button class="pcal-del" onclick="plannerDeleteTask('${escHtml(date)}','${t.id}')" title="Eliminar" aria-label="Eliminar">✕</button>
+      <label class="pcal-check" onclick="event.stopPropagation()"><input type="checkbox"${t.done ? ' checked' : ''} onchange="plannerToggleTask('${escHtml(date)}','${rid}')"></label>
+      <span class="pcal-time">${range}</span>
+      ${recIcon}
+      <button class="pcal-del" onclick="event.stopPropagation();plannerDeleteTask('${escHtml(date)}','${rid}')" title="Eliminar" aria-label="Eliminar">✕</button>
     </div>
-    <textarea class="pcal-text" rows="1" placeholder="Actividad…"
-      oninput="plannerAutoResize(this)"
-      onblur="plannerTaskText('${escHtml(date)}','${t.id}',this.value)">${escHtml(t.text)}</textarea>
+    <div class="pcal-text">${escHtml(t.text) || '<span class="pcal-empty">Sin título</span>'}</div>
     ${compact ? '' : `<div class="pcal-foot">
       <span class="pcal-area-label">${areaCfg.label}</span>
-      <input class="pcal-dur" type="number" min="5" step="5" value="${t.duration || 30}"
-        onclick="event.stopPropagation()" onchange="plannerSetDuration('${escHtml(date)}','${t.id}',this.value)"> min
+      <span class="pcal-prio-tag">${prioCfg.label}</span>
     </div>`}
   </div>`;
 }
 
 // ── Barra de progreso del día + resumen de pendientes por prioridad ──
 function plannerDaybarHTML(date) {
-  const tasks = getDayPlan(date).tasks;
+  const tasks = plannerDayTasks(date);
   const total = tasks.length;
   const done  = tasks.filter(t => t.done).length;
   const pct   = total ? Math.round(done / total * 100) : 0;
@@ -1697,33 +1833,38 @@ function plannerDaybarHTML(date) {
   </div>`;
 }
 
-// Convierte una coordenada Y (px, relativa al track) en 'HH:MM' redondeado a 15 min.
+// Convierte una coordenada Y (px, relativa al track) en 'HH:MM' redondeado a 15 min, dentro de la ventana visible.
 function _pcalTimeFromY(y, hourPx) {
-  let totalMin = Math.round((y / hourPx) * 60 / 15) * 15;
-  totalMin = Math.max(0, Math.min(23 * 60 + 45, totalMin));
+  let totalMin = PCAL_START_MIN + Math.round((y / hourPx) * 60 / 15) * 15;
+  totalMin = Math.max(PCAL_START_MIN, Math.min(PCAL_END_MIN - 15, totalMin));
   return _minToTime(totalMin);
 }
-// Click en zona vacía de un track de calendario → crea actividad en ese horario.
+// Click en zona vacía de un track de calendario → abre el modal con esa fecha/hora precargadas.
 function plannerTrackClick(e) {
   if (e.target.closest('.pcal-block')) return;
   const track = e.currentTarget;
   const rect = track.getBoundingClientRect();
   const time = _pcalTimeFromY(e.clientY - rect.top, parseFloat(track.dataset.hourpx));
-  plannerAddTask(track.dataset.date, time);
+  openPlanModal(track.dataset.date, null, time);
 }
-// Grilla de 24hs de un solo día: líneas de hora + bloques posicionados por horario/duración.
+// Grilla de un solo día (05:00–00:00): líneas de hora + bloques posicionados por horario/duración.
 function plannerDayTrackHTML(date, hourPx, compact) {
   const hourLines = [];
-  for (let h = 0; h < 24; h++) hourLines.push(`<div class="pcal-hourline" style="top:${h * hourPx}px"></div>`);
+  for (let m = PCAL_START_MIN; m < PCAL_END_MIN; m += 60) hourLines.push(`<div class="pcal-hourline" style="top:${((m - PCAL_START_MIN) / 60) * hourPx}px"></div>`);
   const now = new Date();
-  const nowLine = date === getActiveDate()
-    ? `<div class="pcal-now" style="top:${(now.getHours() * 60 + now.getMinutes()) / 60 * hourPx}px"></div>` : '';
-  const blocks = getDayPlan(date).tasks.map(t => plannerBlockHTML(date, t, hourPx, compact)).join('');
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const nowLine = (date === getActiveDate() && nowMin >= PCAL_START_MIN && nowMin <= PCAL_END_MIN)
+    ? `<div class="pcal-now" style="top:${((nowMin - PCAL_START_MIN) / 60) * hourPx}px"></div>` : '';
+  const blocks = plannerDayTasks(date).map(t => plannerBlockHTML(date, t, hourPx, compact)).join('');
   return `<div class="pcal-track" data-date="${escHtml(date)}" data-hourpx="${hourPx}"
-    style="height:${24 * hourPx}px" onclick="plannerTrackClick(event)">${hourLines.join('')}${nowLine}${blocks}</div>`;
+    style="height:${(PCAL_SPAN_MIN / 60) * hourPx}px" onclick="plannerTrackClick(event)">${hourLines.join('')}${nowLine}${blocks}</div>`;
 }
 function plannerHourTicksHTML(hourPx) {
-  return Array.from({ length: 24 }, (_, h) => `<div class="pcal-hour-tick" style="top:${h * hourPx}px">${_pad2(h)}:00</div>`).join('');
+  const ticks = [];
+  for (let h = PCAL_START_MIN / 60; h <= PCAL_END_MIN / 60; h++) {
+    ticks.push(`<div class="pcal-hour-tick" style="top:${((h * 60 - PCAL_START_MIN) / 60) * hourPx}px">${h >= 24 ? '00:00' : _pad2(h) + ':00'}</div>`);
+  }
+  return ticks.join('');
 }
 
 const PCAL_HOUR_PX = 64;      // pestaña Día / card standalone — grande y legible, estilo Google Calendar
@@ -1733,12 +1874,11 @@ function buildDayCalendar(containerEl, date) {
   if (!containerEl) return;
   containerEl.innerHTML = plannerDaybarHTML(date) + `
     <div class="pcal-day-wrap">
-      <div class="pcal-hours-col" style="height:${24 * PCAL_HOUR_PX}px">${plannerHourTicksHTML(PCAL_HOUR_PX)}</div>
+      <div class="pcal-hours-col" style="height:${(PCAL_SPAN_MIN / 60) * PCAL_HOUR_PX}px">${plannerHourTicksHTML(PCAL_HOUR_PX)}</div>
       <div class="pcal-day-body">${plannerDayTrackHTML(date, PCAL_HOUR_PX, false)}</div>
     </div>`;
-  containerEl.querySelectorAll('.pcal-text').forEach(el => plannerAutoResize(el));
   const now = new Date();
-  const curTop = (now.getHours() * 60 + now.getMinutes()) / 60 * PCAL_HOUR_PX;
+  const curTop = Math.max(0, ((now.getHours() * 60 + now.getMinutes()) - PCAL_START_MIN) / 60 * PCAL_HOUR_PX);
   containerEl.scrollTop = Math.max(0, curTop - containerEl.clientHeight / 2);
 }
 
@@ -1764,14 +1904,13 @@ function buildWeekCalendar(containerEl, anchorDate) {
       <div class="pcal-week-grid">
         <div class="pcal-week-corner"></div>
         ${heads}
-        <div class="pcal-hours-col pcal-hours-col-week" style="height:${24 * PCAL_WEEK_HOUR_PX}px">${plannerHourTicksHTML(PCAL_WEEK_HOUR_PX)}</div>
+        <div class="pcal-hours-col pcal-hours-col-week" style="height:${(PCAL_SPAN_MIN / 60) * PCAL_WEEK_HOUR_PX}px">${plannerHourTicksHTML(PCAL_WEEK_HOUR_PX)}</div>
         ${cols}
       </div>
     </div>`;
-  containerEl.querySelectorAll('.pcal-text').forEach(el => plannerAutoResize(el));
   const now = new Date();
   const scroller = containerEl.querySelector('.pcal-week-scroll');
-  if (scroller) scroller.scrollTop = Math.max(0, (now.getHours() * 60 + now.getMinutes()) / 60 * PCAL_WEEK_HOUR_PX - scroller.clientHeight / 2);
+  if (scroller) scroller.scrollTop = Math.max(0, ((now.getHours() * 60 + now.getMinutes()) - PCAL_START_MIN) / 60 * PCAL_WEEK_HOUR_PX - scroller.clientHeight / 2);
 }
 
 function renderDayPlanner() {

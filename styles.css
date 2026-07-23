@@ -1043,77 +1043,40 @@ textarea { resize: vertical; min-height: 60px; }
 }
 .pcal-block {
   position: absolute; left: 5px; right: 5px; z-index: 2; overflow: hidden;
-  display: flex; flex-direction: column; gap: 2px; padding: 7px 10px 6px; border-radius: 9px;
-  background: linear-gradient(165deg,
-    color-mix(in srgb, var(--area-c, var(--hud)) 40%, var(--card)),
-    color-mix(in srgb, var(--area-c, var(--hud)) 22%, var(--card)));
-  border: 1px solid color-mix(in srgb, var(--area-c, var(--hud)) 55%, transparent);
-  box-shadow: 0 3px 12px -3px color-mix(in srgb, var(--area-c, var(--hud)) 55%, transparent), 0 1px 4px rgba(0,0,0,.35);
-  cursor: default; transition: box-shadow .15s var(--ease-out-quart), transform .15s var(--ease-out-quart);
-}
-.pcal-block::before {
-  content: ''; position: absolute; top: 0; left: 10px; right: 10px; height: 2px; border-radius: 0 0 2px 2px;
-  background: linear-gradient(90deg, transparent, var(--area-c, var(--hud)) 25%, var(--area-c, var(--hud)) 75%, transparent);
-  box-shadow: 0 0 8px var(--area-c, var(--hud));
-  opacity: .9;
+  display: flex; flex-direction: column; gap: 2px; padding: 6px 9px 5px; border-radius: 9px;
+  background: color-mix(in srgb, var(--area-c, var(--hud)) 70%, #04060c);
+  border: 1px solid color-mix(in srgb, var(--area-c, var(--hud)) 60%, #ffffff 8%);
+  border-left: 4px solid var(--pc, var(--area-c, var(--hud)));
+  box-shadow: 0 3px 12px -3px color-mix(in srgb, var(--area-c, var(--hud)) 55%, transparent), 0 1px 4px rgba(0,0,0,.4);
+  color: #fff; cursor: pointer; transition: box-shadow .15s var(--ease-out-quart), transform .15s var(--ease-out-quart);
 }
 .pcal-block:hover {
-  box-shadow: 0 6px 20px -4px color-mix(in srgb, var(--area-c, var(--hud)) 70%, transparent), 0 2px 6px rgba(0,0,0,.4);
+  box-shadow: 0 6px 20px -4px color-mix(in srgb, var(--area-c, var(--hud)) 75%, transparent), 0 2px 6px rgba(0,0,0,.45);
   transform: translateY(-1px);
 }
-.pcal-block.done { opacity: .48; }
+.pcal-block.done { opacity: .5; }
 .pcal-block.done .pcal-text { text-decoration: line-through; }
 .pcal-head { display: flex; align-items: center; gap: 5px; }
-.pcal-badge {
-  flex-shrink: 0; display: flex; align-items: center; gap: 4px;
-  font-family: var(--mono); font-size: 9px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase;
-  padding: 2px 7px 2px 5px; border-radius: 99px; cursor: pointer; border: none;
-  color: #fff; background: rgba(0,0,0,.25);
-}
-.pcal-badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--pc); box-shadow: 0 0 5px var(--pc); flex-shrink: 0; }
-.pcal-badge:hover { background: rgba(0,0,0,.4); }
-.pcal-time-input {
-  flex: 1; min-width: 0; font-family: var(--mono); font-size: 11px; font-weight: 600; color: #fff;
-  background: rgba(0,0,0,.18); border: none; border-radius: 5px; outline: none; cursor: pointer;
-  padding: 1px 5px; opacity: .85; color-scheme: dark;
-}
-.pcal-time-input:hover, .pcal-time-input:focus { opacity: 1; background: rgba(0,0,0,.3); }
+.pcal-check { display: flex; align-items: center; cursor: pointer; flex-shrink: 0; }
+.pcal-check input { width: 15px; height: 15px; accent-color: #fff; cursor: pointer; }
+.pcal-time { flex: 1; min-width: 0; font-family: var(--mono); font-size: 10.5px; font-weight: 700; color: #fff; opacity: .92; text-shadow: 0 1px 2px rgba(0,0,0,.45); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pcal-rec { flex-shrink: 0; font-size: 11px; color: #fff; opacity: .9; }
 .pcal-del {
-  flex-shrink: 0; background: none; border: none; color: rgba(255,255,255,.7);
+  flex-shrink: 0; background: none; border: none; color: rgba(255,255,255,.75);
   font-size: 12px; cursor: pointer; opacity: 0; transition: opacity .15s var(--ease-out-quart), color .15s var(--ease-out-quart);
 }
-.pcal-block:hover .pcal-del, .pcal-block:focus-within .pcal-del { opacity: .7; }
+.pcal-block:hover .pcal-del, .pcal-block:focus-within .pcal-del { opacity: .8; }
 .pcal-del:hover { color: #fff; opacity: 1; }
 .pcal-text {
-  flex: 1; min-width: 0; background: none; border: none; outline: none; resize: none;
-  font-family: var(--sans); font-size: 13.5px; font-weight: 700; line-height: 1.35; color: #fff;
-  text-shadow: 0 1px 3px rgba(0,0,0,.35); padding: 0;
+  flex: 1; min-width: 0; overflow: hidden;
+  font-family: var(--sans); font-size: 13.5px; font-weight: 700; line-height: 1.3; color: #fff;
+  text-shadow: 0 1px 3px rgba(0,0,0,.4);
 }
-.pcal-text::placeholder { color: rgba(255,255,255,.65); opacity: 1; font-weight: 500; }
-.pcal-foot { display: flex; align-items: center; gap: 8px; font-size: 10.5px; color: rgba(255,255,255,.75); margin-top: auto; }
-.pcal-check { display: flex; align-items: center; cursor: pointer; flex-shrink: 0; }
-.pcal-check input { width: 15px; height: 15px; accent-color: var(--pc); cursor: pointer; }
-.pcal-area-label { flex: 1; font-family: var(--mono); text-transform: uppercase; letter-spacing: .04em; color: #fff; font-weight: 700; opacity: .85; }
-.pcal-dur { width: 46px; background: rgba(0,0,0,.22); border: none; border-radius: 5px; color: #fff; font-size: 10.5px; padding: 2px 4px; }
-
-/* ── Bloque en borrador: aún sin área, se pide elegir una antes de contar como creado ── */
-.pcal-block.pcal-pending {
-  background: color-mix(in srgb, var(--hud) 8%, var(--card)); border: 1.5px dashed color-mix(in srgb, var(--hud) 50%, transparent);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--hud) 15%, transparent);
-}
-.pcal-block.pcal-pending::before { background: linear-gradient(90deg, transparent, var(--hud) 25%, var(--hud) 75%, transparent); box-shadow: 0 0 8px var(--hud); }
-.pcal-block.pcal-pending .pcal-text { flex: 0 0 auto; color: var(--tp); text-shadow: none; }
-.pcal-block.pcal-pending .pcal-text::placeholder { color: var(--ts); opacity: .7; }
-.pcal-pending-hint { flex: 1; font-family: var(--mono); font-size: 9.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--hud-bright); font-weight: 700; }
-.pcal-block.pcal-pending .pcal-del { color: var(--tt); }
-.pcal-block.pcal-pending .pcal-del:hover { color: var(--danger); }
-.pcal-areas { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; flex: 0 0 auto; margin-top: auto; padding-top: 3px; }
-.pcal-area-dot {
-  width: 22px; height: 22px; border-radius: 50%; border: 2px solid rgba(255,255,255,.15); cursor: pointer;
-  background: var(--area-c); box-shadow: 0 0 10px color-mix(in srgb, var(--area-c) 65%, transparent);
-  transition: transform .12s var(--ease-out-quart), box-shadow .12s var(--ease-out-quart), border-color .12s var(--ease-out-quart);
-}
-.pcal-area-dot:hover { transform: scale(1.18); box-shadow: 0 0 14px color-mix(in srgb, var(--area-c) 90%, transparent); border-color: rgba(255,255,255,.5); }
+.pcal-empty { opacity: .6; font-weight: 500; font-style: italic; }
+.pcal-foot { display: flex; align-items: center; gap: 8px; font-size: 10px; margin-top: auto; }
+.pcal-area-label { flex: 1; font-family: var(--mono); text-transform: uppercase; letter-spacing: .04em; color: #fff; font-weight: 700; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pcal-prio-tag { flex-shrink: 0; font-family: var(--mono); font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: #fff; background: rgba(0,0,0,.28); padding: 1px 6px; border-radius: 99px; }
+.pcal-prio-tag::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--pc); box-shadow: 0 0 5px var(--pc); margin-right: 4px; vertical-align: middle; }
 
 /* ── Día (card standalone + pestaña Día del overlay) ── */
 .pcal-day-wrap { display: flex; }
@@ -1142,14 +1105,45 @@ textarea { resize: vertical; min-height: 60px; }
 }
 .pcal-hours-col-week { width: auto; padding-top: 0; }
 .pcal-week-col { min-width: 0; }
-.pcal-compact { padding: 4px 7px 3px; gap: 1px; }
+.pcal-compact { padding: 3px 6px; gap: 1px; }
 .pcal-compact .pcal-head { gap: 4px; }
-.pcal-compact .pcal-badge { font-size: 0; padding: 0; background: none; }
-.pcal-compact .pcal-badge::before { width: 7px; height: 7px; margin: 0; }
-.pcal-compact .pcal-time-input { font-size: 9.5px; padding: 0 3px; background: rgba(0,0,0,.15); }
+.pcal-compact .pcal-time { font-size: 9px; }
 .pcal-compact .pcal-check input { width: 12px; height: 12px; }
-.pcal-compact .pcal-text { font-size: 11.5px; }
+.pcal-compact .pcal-text { font-size: 11px; }
 .pcal-compact .pcal-del { font-size: 10px; }
+
+/* ── Botón ＋ Actividad en los subtítulos del overlay de planificación ── */
+.plov-sub-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.plov-add {
+  font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: .03em; white-space: nowrap;
+  color: var(--cm-accent, var(--accent)); background: color-mix(in srgb, var(--cm-accent, var(--accent)) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--cm-accent, var(--accent)) 40%, transparent);
+  border-radius: 99px; padding: 4px 12px; cursor: pointer; transition: background .15s, transform .12s;
+}
+.plov-add:hover { background: color-mix(in srgb, var(--cm-accent, var(--accent)) 26%, transparent); transform: translateY(-1px); }
+
+/* ── Controles segmentados del modal de actividad ── */
+.seg { display: flex; gap: 6px; flex-wrap: wrap; }
+.seg button {
+  flex: 1; min-width: fit-content; font-family: var(--sans); font-size: 12.5px; font-weight: 600;
+  color: var(--ts); background: var(--card); border: 1px solid var(--border); border-radius: 9px;
+  padding: 8px 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
+  transition: border-color .12s, color .12s, background .12s;
+}
+.seg button:hover { color: var(--tp); border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+.seg button.on { color: var(--tp); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.seg-sm button { flex: 0 1 auto; padding: 6px 14px; }
+.seg-area button.on { border-color: var(--area-c); background: color-mix(in srgb, var(--area-c) 16%, transparent); }
+.seg-dot { width: 11px; height: 11px; border-radius: 50%; background: var(--area-c); box-shadow: 0 0 7px color-mix(in srgb, var(--area-c) 70%, transparent); flex-shrink: 0; }
+.seg-wd { margin-top: 8px; }
+.seg-wd button { flex: 1; min-width: 0; padding: 7px 0; font-family: var(--mono); font-weight: 700; }
+.plan-fin-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.seg[hidden], .plan-fin-row[hidden] { display: none; } /* el attr [hidden] no gana solo contra display:flex de la clase */
+#planDeleteBtn[hidden] { display: none; } /* ídem: .btn tiene display propio que tapa [hidden] */
+.plan-fin-row .inp { width: auto; flex: 0 1 120px; }
+.plan-fin-row span { color: var(--ts); font-size: 12px; }
+.recscope-msg { color: var(--ts); font-size: 13px; line-height: 1.4; margin: 2px 2px 14px; }
+.modal-sm { max-width: 360px; }
 
 /* ── Responsive desktop ── */
 @media (min-width: 640px) {
