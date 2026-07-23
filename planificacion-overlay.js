@@ -14,7 +14,7 @@ function plannerOverlayOpen() {
   const { overlay, body } = CMOverlay.build({ id: 'ov-planner', accent: '#00D4FF', onClose: _plovRestore });
   if (!overlay._plovBuilt) {
     body.innerHTML = `
-      <div class="cm-ov-head"><div class="cm-ov-eyebrow">VIDA · PLANIFICACIÓN · build v151</div><div class="cm-ov-title">Planificación</div></div>
+      <div class="cm-ov-head"><div class="cm-ov-eyebrow">VIDA · PLANIFICACIÓN · build v152</div><div class="cm-ov-title">Planificación</div></div>
       <div class="plov-tabs">
         <button class="plov-tab" data-d="dia" onclick="plannerOverlayTab('dia')">Día</button>
         <button class="plov-tab" data-d="semana" onclick="plannerOverlayTab('semana')">Semana</button>
@@ -25,11 +25,15 @@ function plannerOverlayOpen() {
         <div id="plov-metas-host"></div>
         <div class="plov-sub">Plan de mañana</div>
         <div id="plov-tom-host"></div>
-        <div class="plov-sub">Calendario de hoy</div>
+        <div class="plov-sub plov-sub-row">Calendario de hoy
+          <button class="plov-add" onclick="openPlanModal(getActiveDate(), null)">＋ Actividad</button>
+        </div>
         <div class="plov-list" id="plov-list-dia"></div>
       </div>
       <div class="plov-pane" id="plov-pane-semana" hidden>
-        <div class="plov-sub">Calendario semanal</div>
+        <div class="plov-sub plov-sub-row">Calendario semanal
+          <button class="plov-add" onclick="openPlanModal(getActiveDate(), null)">＋ Actividad</button>
+        </div>
         <div class="plov-list" id="plov-list-semana"></div>
       </div>`;
     overlay._plovBuilt = true;

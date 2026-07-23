@@ -20,7 +20,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-<link rel="stylesheet" href="styles.css?v=150">
+<link rel="stylesheet" href="styles.css?v=151">
 <link rel="stylesheet" href="gamemode.css">
 <link rel="stylesheet" href="overlay-core.css">
 <link rel="stylesheet" href="speed-dial.css">
@@ -1148,6 +1148,62 @@
   </div>
 </div>
 
+<!-- Crear / editar actividad del planner (área, importancia, horario, repetición) -->
+<div class="modal-overlay" id="modal-plan-activity" onclick="if(event.target===this)closeModal('modal-plan-activity')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="planModalTitle">Nueva actividad</div>
+    <div class="field"><label>Actividad</label><input class="inp" id="planText" placeholder="¿Qué vas a hacer?"></div>
+    <div class="field"><label>Área</label>
+      <div class="seg seg-area" id="planAreaSeg"></div>
+      <input type="hidden" id="planArea" value="vida">
+    </div>
+    <div class="field"><label>Importancia</label>
+      <div class="seg" id="planPrioSeg">
+        <button type="button" data-v="1" onclick="planPickPrio(1)">Baja</button>
+        <button type="button" data-v="2" onclick="planPickPrio(2)">Media</button>
+        <button type="button" data-v="3" onclick="planPickPrio(3)">Alta</button>
+      </div>
+      <input type="hidden" id="planPrio" value="2">
+    </div>
+    <div style="display:flex;gap:10px">
+      <div class="field" style="flex:1.3"><label>Fecha</label><input class="inp" type="date" id="planDate"></div>
+      <div class="field" style="flex:1"><label>Inicio</label><input class="inp" type="time" step="300" id="planStart"></div>
+    </div>
+    <div class="field"><label>Fin de la actividad</label>
+      <div class="seg seg-sm" id="planFinModeSeg">
+        <button type="button" data-v="dur" onclick="planPickFinMode('dur')">Duración</button>
+        <button type="button" data-v="end" onclick="planPickFinMode('end')">Hora fin</button>
+      </div>
+      <div id="planDurWrap" class="plan-fin-row"><input class="inp" type="number" id="planDur" min="5" step="5" value="30"><span>min</span></div>
+      <div id="planEndWrap" class="plan-fin-row" hidden><input class="inp" type="time" step="300" id="planEnd"></div>
+    </div>
+    <div class="field"><label>Repetición</label>
+      <select class="inp" id="planRepeat" onchange="planRepeatChanged()"></select>
+      <div id="planWeekdays" class="seg seg-wd" hidden></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost btn-danger" id="planDeleteBtn" onclick="deletePlanActivity()" hidden>Eliminar</button>
+      <button class="btn btn-ghost" onclick="closeModal('modal-plan-activity')">Cancelar</button>
+      <button class="btn btn-primary" onclick="savePlanActivity()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Alcance de un cambio/borrado sobre una actividad repetida -->
+<div class="modal-overlay" id="modal-recur-scope" onclick="if(event.target===this)_recScopePick(null)">
+  <div class="modal modal-sm">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Actividad repetida</div>
+    <p id="recScopeMsg" class="recscope-msg">Esta actividad se repite. ¿Aplicar a…?</p>
+    <div class="modal-actions" style="flex-wrap:wrap">
+      <button class="btn btn-ghost" onclick="_recScopePick(null)">Cancelar</button>
+      <button class="btn btn-ghost" onclick="_recScopePick('day')">Solo este día</button>
+      <button class="btn btn-primary" onclick="_recScopePick('series')">Toda la serie</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-law-milestone" onclick="if(event.target===this)closeModal('modal-law-milestone')">
   <div class="modal">
     <div class="modal-handle"></div>
@@ -1583,7 +1639,7 @@
   </div>
 </div>
 
-<script src="app.js?v=151"></script>
+<script src="app.js?v=152"></script>
 <script src="workspace.js"></script>
 <script src="abogacia.js"></script>
 <script src="habitos.js"></script>
