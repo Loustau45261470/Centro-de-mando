@@ -977,44 +977,14 @@ textarea { resize: vertical; min-height: 60px; }
 .planner-slide::-webkit-scrollbar { width: 4px; }
 .planner-slide::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 99px; }
 .planner-dot { width: 6px; height: 6px; border-radius: 50%; transition: background .2s; flex-shrink: 0; }
-.planner-row {
-  display: flex; align-items: flex-start; gap: 10px;
-  padding: 5px 4px; border-bottom: 1px solid rgba(255,255,255,0.04);
-  position: relative; border-radius: 7px; transition: background .12s;
-}
-.planner-row:last-child { border-bottom: none; }
-.planner-row.current-hour { background: rgba(124,142,232,0.06); }
-.planner-row.current-hour .planner-time { color: var(--accent); font-weight: 800; }
-.planner-time {
-  font-family: var(--mono); font-size: 10.5px; color: var(--tt);
-  width: 44px; flex-shrink: 0; padding-top: 9px; text-align: right; line-height: 1;
-}
-.planner-content { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
-.planner-goal-chips { display: flex; flex-wrap: wrap; gap: 5px; margin: 3px 0 5px; }
-.planner-goal-chip {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 4px 9px; border-radius: 99px; font-size: 11.5px; font-weight: 600;
-  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.10);
-  color: var(--ts); cursor: pointer; transition: all .15s;
-  max-width: 100%;
-}
-.planner-goal-chip:hover { background: rgba(255,255,255,0.11); color: var(--tp); }
-.planner-goal-chip.done { opacity: .4; text-decoration: line-through; }
-.planner-goal-chip .chip-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-.planner-goal-chip .chip-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px; }
 .goal-time-badge {
   font-family: var(--mono); font-size: 10px;
   background: color-mix(in srgb, var(--accent) 14%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent);
   color: var(--accent); border-radius: 5px; padding: 1px 6px; flex-shrink: 0;
 }
-.planner-now-line {
-  position: absolute; left: 54px; right: 4px; height: 1.5px;
-  background: var(--accent); opacity: .55;
-  border-radius: 99px; pointer-events: none; z-index: 2;
-}
 
-/* ════════ Planificación del día — tareas por tramo (estética HUD) ════════ */
+/* ════════ Planificación — tareas con prioridad/postergabilidad (estética HUD) ════════ */
 /* Colores de prioridad: semánticos del sistema, gradiente apagado → llamativo */
 .prio-1 { --pc: #8BA5C0; }   /* baja  = --ts   (apagado)  */
 .prio-2 { --pc: #F5A623; }   /* media = --warn            */
@@ -1046,104 +1016,81 @@ textarea { resize: vertical; min-height: 60px; }
   border: 1px solid color-mix(in srgb, var(--pc) 26%, transparent);
 }
 
-/* ── Fila de hora expandible (vista completa / overlay) ── */
-.planner-row.ph-full { flex-direction: column; align-items: stretch; gap: 0; padding: 1px 4px; border-bottom: 1px solid rgba(255,255,255,0.03); }
-.planner-hour-head {
-  display: flex; align-items: center; gap: 11px; width: 100%;
-  background: none; border: none; cursor: pointer; text-align: left;
-  padding: 10px 4px; color: inherit; border-radius: 8px;
-  transition: background .16s var(--ease-out-quart);
+/* ════════ Calendario por área — bloques posicionados por horario/duración ════════ */
+.pcal-day-wrap, .pcal-week-wrap { display: flex; }
+.pcal-hours-col { flex-shrink: 0; width: 44px; position: relative; }
+.pcal-hours-col-week { width: 40px; }
+.pcal-hour-tick {
+  position: absolute; left: 0; right: 4px; transform: translateY(-5px);
+  font-family: var(--mono); font-size: 9.5px; color: var(--tt); text-align: right;
 }
-.planner-hour-head:hover { background: rgba(255,255,255,0.03); }
-.planner-hour-head .planner-time { padding-top: 0; }
-.planner-row.ph-full.open .planner-hour-head { background: rgba(255,255,255,0.02); }
-.planner-row.ph-full.current-hour .planner-time { color: var(--hud-bright); text-shadow: 0 0 12px var(--hud-dim); }
-.ph-summary { flex: 1; font-size: 12px; color: var(--ts); }
-.ph-summary.empty { color: var(--tt); font-style: italic; }
-.ph-caret { font-size: 11px; color: var(--tt); transition: transform .2s var(--ease-out-quart), color .2s var(--ease-out-quart); }
-.planner-row.ph-full.open .ph-caret { transform: rotate(90deg); color: var(--hud); }
-
-.planner-hour-body { overflow: hidden; padding: 2px 0 10px; }
-.planner-grid-sel {
-  display: inline-flex; gap: 3px; margin: 0 0 10px 52px; padding: 3px;
-  border-radius: 9px; background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+.pcal-day-body, .pcal-week-cols { flex: 1; min-width: 0; }
+.pcal-track {
+  position: relative; border-left: 1px solid var(--border); cursor: crosshair;
 }
-.pgs {
-  font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em;
-  padding: 4px 11px; border-radius: 6px; background: none; border: none;
-  color: var(--ts); cursor: pointer; transition: color .15s var(--ease-out-quart), background .15s var(--ease-out-quart);
+.pcal-hourline {
+  position: absolute; left: 0; right: 0; height: 1px; background: rgba(255,255,255,0.05);
 }
-.pgs:hover { color: var(--tp); }
-.pgs.on { background: color-mix(in srgb, var(--hud) 18%, transparent); color: var(--hud-bright); box-shadow: 0 0 12px var(--hud-glow); }
-.planner-slots { display: flex; flex-direction: column; gap: 7px; }
-.planner-slot { display: flex; align-items: flex-start; gap: 8px; }
-.pslot-label {
-  font-family: var(--mono); font-size: 10px; color: var(--tt);
-  width: 44px; flex-shrink: 0; padding-top: 9px; text-align: right; line-height: 1;
+.pcal-hour-label { display: none; }
+.pcal-now {
+  position: absolute; left: 0; right: 0; height: 1.5px; background: var(--accent);
+  opacity: .65; border-radius: 99px; pointer-events: none; z-index: 3;
 }
-.slot-tasks { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; min-height: 8px; }
-.pslot-add {
-  flex-shrink: 0; width: 28px; height: 28px; border-radius: 8px; margin-top: 1px;
-  background: rgba(255,255,255,0.02); border: 1px dashed var(--border);
-  color: var(--ts); font-size: 16px; line-height: 1; cursor: pointer;
-  transition: color .15s var(--ease-out-quart), background .15s var(--ease-out-quart), border-color .15s var(--ease-out-quart);
+.pcal-block {
+  position: absolute; left: 4px; right: 4px; z-index: 2; overflow: hidden;
+  display: flex; flex-direction: column; gap: 2px; padding: 4px 7px; border-radius: 8px;
+  background: color-mix(in srgb, var(--area-c, var(--hud)) 16%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--area-c, var(--hud)) 40%, transparent);
+  border-left: 3px solid var(--pc, var(--area-c, var(--hud)));
+  cursor: default; transition: box-shadow .15s var(--ease-out-quart);
 }
-.pslot-add:hover { background: color-mix(in srgb, var(--hud) 12%, transparent); border-color: var(--hud-dim); border-style: solid; color: var(--hud-bright); }
-
-/* ── Tarea con prioridad ── */
-.ptask {
-  /* --pc lo define la clase .prio-N (siempre presente); no fijar default acá o pisa la cascada */
-  display: flex; align-items: center; gap: 8px;
-  padding: 7px 9px; border-radius: 9px;
-  background: color-mix(in srgb, var(--pc) 7%, var(--card));
-  border: 1px solid color-mix(in srgb, var(--pc) 26%, transparent);
-  transition: border-color .18s var(--ease-out-quart), background .18s var(--ease-out-quart),
-              box-shadow .18s var(--ease-out-quart), opacity .18s var(--ease-out-quart);
+.pcal-block:hover { box-shadow: 0 0 0 1px color-mix(in srgb, var(--area-c, var(--hud)) 55%, transparent); }
+.pcal-block.done { opacity: .45; }
+.pcal-block.done .pcal-text { text-decoration: line-through; }
+.pcal-head { display: flex; align-items: center; gap: 6px; }
+.pcal-badge {
+  flex-shrink: 0; font-family: var(--mono); font-size: 8.5px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; padding: 2px 6px; border-radius: 5px; cursor: pointer;
+  color: var(--pc); background: color-mix(in srgb, var(--pc) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pc) 32%, transparent);
 }
-.ptask:hover { border-color: color-mix(in srgb, var(--pc) 45%, transparent); }
-.ptask.prio-3 { box-shadow: 0 0 0 1px color-mix(in srgb, var(--pc) 22%, transparent) inset, 0 0 16px color-mix(in srgb, var(--pc) 12%, transparent); }
-.ptask-grip {
-  flex-shrink: 0; width: 12px; height: 16px; align-self: center; cursor: grab;
-  color: var(--tt); opacity: .45; transition: opacity .15s var(--ease-out-quart);
-  background-image: radial-gradient(currentColor 1.1px, transparent 1.3px);
-  background-size: 4px 5px; background-position: center;
-}
-.ptask:hover .ptask-grip { opacity: .85; }
-.ptask-grip:active { cursor: grabbing; }
-.ptask-badge {
-  flex-shrink: 0; font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: .08em;
-  text-transform: uppercase; padding: 3px 7px; border-radius: 6px; cursor: pointer;
-  color: var(--pc); background: color-mix(in srgb, var(--pc) 15%, transparent);
-  border: 1px solid color-mix(in srgb, var(--pc) 30%, transparent);
-  transition: background .15s var(--ease-out-quart);
-}
-.ptask-badge:hover { background: color-mix(in srgb, var(--pc) 26%, transparent); }
-.ptask.prio-1 .ptask-text { font-weight: 500; color: var(--ts); }
-.ptask.prio-2 .ptask-text { font-weight: 600; color: var(--tp); }
-.ptask.prio-3 .ptask-text { font-weight: 700; color: var(--tp); }
-.ptask-text {
-  flex: 1; min-width: 0; background: none; border: none; outline: none; resize: none;
-  font-family: var(--sans); font-size: 13.5px; line-height: 1.4;
-  padding: 2px 0; overflow: hidden; color: var(--tp);
-}
-.ptask-text::placeholder { color: var(--ts); opacity: .55; }
-.ptask-del {
+.pcal-time { font-family: var(--mono); font-size: 9.5px; color: var(--ts); flex: 1; }
+.pcal-del {
   flex-shrink: 0; background: none; border: none; color: var(--tt);
-  font-size: 11px; cursor: pointer; opacity: 0; padding: 2px 3px;
-  transition: opacity .15s var(--ease-out-quart), color .15s var(--ease-out-quart);
+  font-size: 10px; cursor: pointer; opacity: 0; transition: opacity .15s var(--ease-out-quart), color .15s var(--ease-out-quart);
 }
-.ptask:hover .ptask-del { opacity: .55; }
-.ptask-del:hover { color: var(--danger); opacity: 1; }
-.ptask-check { flex-shrink: 0; display: flex; align-items: center; cursor: pointer; }
-.ptask-check input { width: 17px; height: 17px; accent-color: var(--pc); cursor: pointer; }
-.ptask.done { opacity: .42; }
-.ptask.done .ptask-text { text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--pc) 60%, transparent); }
-
-/* Animación de expandir — sólo cuando el usuario no pidió movimiento reducido */
-@media (prefers-reduced-motion: no-preference) {
-  .planner-hour-body { animation: phBodyIn .24s var(--ease-out-quart); }
-  @keyframes phBodyIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: none; } }
+.pcal-block:hover .pcal-del { opacity: .6; }
+.pcal-del:hover { color: var(--danger); opacity: 1; }
+.pcal-text {
+  flex: 1; min-width: 0; background: none; border: none; outline: none; resize: none;
+  font-family: var(--sans); font-size: 12.5px; line-height: 1.35; color: var(--tp);
+  padding: 0;
 }
+.pcal-text::placeholder { color: var(--ts); opacity: .6; }
+.pcal-foot { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--ts); margin-top: auto; }
+.pcal-check { display: flex; align-items: center; cursor: pointer; }
+.pcal-check input { width: 14px; height: 14px; accent-color: var(--pc); cursor: pointer; }
+.pcal-area-label { flex: 1; font-family: var(--mono); text-transform: uppercase; letter-spacing: .04em; color: var(--area-c); }
+.pcal-dur { width: 42px; background: rgba(255,255,255,.05); border: 1px solid var(--border); border-radius: 5px; color: var(--tp); font-size: 10px; padding: 1px 3px; }
+.pcal-block.pcal-pending { border-style: dashed; background: rgba(255,255,255,.03); border-left-color: var(--border); }
+.pcal-areas { display: flex; gap: 5px; align-items: center; }
+.pcal-area-dot {
+  width: 16px; height: 16px; border-radius: 50%; border: 1px solid rgba(255,255,255,.2); cursor: pointer;
+  background: var(--area-c);
+}
+.pcal-week-heads { display: flex; margin-bottom: 4px; }
+.pcal-week-cols { display: flex; }
+.pcal-week-col { flex: 1; min-width: 0; }
+.pcal-week-head {
+  flex: 1; text-align: center; font-family: var(--mono); font-size: 10.5px; color: var(--ts);
+  padding: 4px 0; text-transform: uppercase; letter-spacing: .03em;
+}
+.pcal-week-head span { display: block; font-size: 12px; color: var(--tp); font-weight: 700; }
+.pcal-week-head.is-today { color: var(--accent); }
+.pcal-week-head.is-today span { color: var(--accent); text-shadow: 0 0 10px var(--accent); }
+.pcal-week-wrap .pcal-block { left: 2px; right: 2px; padding: 2px 4px; font-size: 10px; }
+.pcal-week-wrap .pcal-text { font-size: 10px; }
+.pcal-week-wrap .pcal-foot, .pcal-week-wrap .pcal-time { display: none; }
 
 /* ── Responsive desktop ── */
 @media (min-width: 640px) {
