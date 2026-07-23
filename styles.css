@@ -1016,81 +1016,113 @@ textarea { resize: vertical; min-height: 60px; }
   border: 1px solid color-mix(in srgb, var(--pc) 26%, transparent);
 }
 
-/* ════════ Calendario por área — bloques posicionados por horario/duración ════════ */
-.pcal-day-wrap, .pcal-week-wrap { display: flex; }
-.pcal-hours-col { flex-shrink: 0; width: 44px; position: relative; }
-.pcal-hours-col-week { width: 40px; }
+/* ════════ Calendario por área — bloques posicionados por horario/duración ════════
+   Estética inspirada en Google Calendar/Notion: grilla clara, bloques grandes y
+   legibles, un solo eje de scroll vertical (día) o grid único con scroll-x (semana). */
+.pcal-hours-col { flex-shrink: 0; width: 52px; position: relative; }
 .pcal-hour-tick {
-  position: absolute; left: 0; right: 4px; transform: translateY(-5px);
-  font-family: var(--mono); font-size: 9.5px; color: var(--tt); text-align: right;
+  position: absolute; left: 0; right: 8px; transform: translateY(-6px);
+  font-family: var(--mono); font-size: 10.5px; color: var(--tt); text-align: right;
 }
-.pcal-day-body, .pcal-week-cols { flex: 1; min-width: 0; }
 .pcal-track {
   position: relative; border-left: 1px solid var(--border); cursor: crosshair;
 }
 .pcal-hourline {
-  position: absolute; left: 0; right: 0; height: 1px; background: rgba(255,255,255,0.05);
+  position: absolute; left: 0; right: 0; height: 1px; background: rgba(255,255,255,0.06);
 }
-.pcal-hour-label { display: none; }
 .pcal-now {
-  position: absolute; left: 0; right: 0; height: 1.5px; background: var(--accent);
-  opacity: .65; border-radius: 99px; pointer-events: none; z-index: 3;
+  position: absolute; left: 0; right: 0; height: 2px; background: var(--danger);
+  opacity: .8; border-radius: 99px; pointer-events: none; z-index: 3;
+  box-shadow: 0 0 8px color-mix(in srgb, var(--danger) 60%, transparent);
+}
+.pcal-now::before {
+  content: ''; position: absolute; left: -4px; top: -3px; width: 8px; height: 8px;
+  border-radius: 50%; background: var(--danger);
 }
 .pcal-block {
-  position: absolute; left: 4px; right: 4px; z-index: 2; overflow: hidden;
-  display: flex; flex-direction: column; gap: 2px; padding: 4px 7px; border-radius: 8px;
-  background: color-mix(in srgb, var(--area-c, var(--hud)) 16%, var(--card));
-  border: 1px solid color-mix(in srgb, var(--area-c, var(--hud)) 40%, transparent);
-  border-left: 3px solid var(--pc, var(--area-c, var(--hud)));
+  position: absolute; left: 6px; right: 6px; z-index: 2; overflow: hidden;
+  display: flex; flex-direction: column; gap: 3px; padding: 6px 9px; border-radius: 10px;
+  background: color-mix(in srgb, var(--area-c, var(--hud)) 20%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--area-c, var(--hud)) 45%, transparent);
+  border-left: 4px solid var(--pc, var(--area-c, var(--hud)));
+  box-shadow: 0 1px 3px rgba(0,0,0,.25);
   cursor: default; transition: box-shadow .15s var(--ease-out-quart);
 }
-.pcal-block:hover { box-shadow: 0 0 0 1px color-mix(in srgb, var(--area-c, var(--hud)) 55%, transparent); }
-.pcal-block.done { opacity: .45; }
+.pcal-block:hover { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--area-c, var(--hud)) 60%, transparent), 0 2px 8px rgba(0,0,0,.3); }
+.pcal-block.done { opacity: .5; }
 .pcal-block.done .pcal-text { text-decoration: line-through; }
 .pcal-head { display: flex; align-items: center; gap: 6px; }
 .pcal-badge {
-  flex-shrink: 0; font-family: var(--mono); font-size: 8.5px; font-weight: 700; letter-spacing: .06em;
-  text-transform: uppercase; padding: 2px 6px; border-radius: 5px; cursor: pointer;
+  flex-shrink: 0; font-family: var(--mono); font-size: 9.5px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; padding: 2px 7px; border-radius: 5px; cursor: pointer;
   color: var(--pc); background: color-mix(in srgb, var(--pc) 18%, transparent);
   border: 1px solid color-mix(in srgb, var(--pc) 32%, transparent);
 }
-.pcal-time { font-family: var(--mono); font-size: 9.5px; color: var(--ts); flex: 1; }
+.pcal-time-input {
+  flex: 1; min-width: 0; font-family: var(--mono); font-size: 11px; color: var(--ts);
+  background: none; border: none; outline: none; cursor: pointer; padding: 0;
+  color-scheme: dark;
+}
 .pcal-del {
   flex-shrink: 0; background: none; border: none; color: var(--tt);
-  font-size: 10px; cursor: pointer; opacity: 0; transition: opacity .15s var(--ease-out-quart), color .15s var(--ease-out-quart);
+  font-size: 12px; cursor: pointer; opacity: 0; transition: opacity .15s var(--ease-out-quart), color .15s var(--ease-out-quart);
 }
-.pcal-block:hover .pcal-del { opacity: .6; }
+.pcal-block:hover .pcal-del, .pcal-block:focus-within .pcal-del { opacity: .65; }
 .pcal-del:hover { color: var(--danger); opacity: 1; }
 .pcal-text {
   flex: 1; min-width: 0; background: none; border: none; outline: none; resize: none;
-  font-family: var(--sans); font-size: 12.5px; line-height: 1.35; color: var(--tp);
+  font-family: var(--sans); font-size: 13.5px; font-weight: 600; line-height: 1.35; color: var(--tp);
   padding: 0;
 }
-.pcal-text::placeholder { color: var(--ts); opacity: .6; }
-.pcal-foot { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--ts); margin-top: auto; }
-.pcal-check { display: flex; align-items: center; cursor: pointer; }
-.pcal-check input { width: 14px; height: 14px; accent-color: var(--pc); cursor: pointer; }
-.pcal-area-label { flex: 1; font-family: var(--mono); text-transform: uppercase; letter-spacing: .04em; color: var(--area-c); }
-.pcal-dur { width: 42px; background: rgba(255,255,255,.05); border: 1px solid var(--border); border-radius: 5px; color: var(--tp); font-size: 10px; padding: 1px 3px; }
+.pcal-text::placeholder { color: var(--ts); opacity: .6; font-weight: 400; }
+.pcal-foot { display: flex; align-items: center; gap: 8px; font-size: 10.5px; color: var(--ts); margin-top: auto; }
+.pcal-check { display: flex; align-items: center; cursor: pointer; flex-shrink: 0; }
+.pcal-check input { width: 15px; height: 15px; accent-color: var(--pc); cursor: pointer; }
+.pcal-area-label { flex: 1; font-family: var(--mono); text-transform: uppercase; letter-spacing: .04em; color: var(--area-c); font-weight: 700; }
+.pcal-dur { width: 46px; background: rgba(255,255,255,.06); border: 1px solid var(--border); border-radius: 5px; color: var(--tp); font-size: 10.5px; padding: 2px 4px; }
 .pcal-block.pcal-pending { border-style: dashed; background: rgba(255,255,255,.03); border-left-color: var(--border); }
-.pcal-areas { display: flex; gap: 5px; align-items: center; }
+.pcal-pending-hint { flex: 1; font-family: var(--mono); font-size: 9.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--ts); }
+.pcal-areas { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .pcal-area-dot {
-  width: 16px; height: 16px; border-radius: 50%; border: 1px solid rgba(255,255,255,.2); cursor: pointer;
-  background: var(--area-c);
+  width: 18px; height: 18px; border-radius: 50%; border: 1px solid rgba(255,255,255,.25); cursor: pointer;
+  background: var(--area-c); transition: transform .12s var(--ease-out-quart);
 }
-.pcal-week-heads { display: flex; margin-bottom: 4px; }
-.pcal-week-cols { display: flex; }
-.pcal-week-col { flex: 1; min-width: 0; }
+.pcal-area-dot:hover { transform: scale(1.15); }
+
+/* ── Día (card standalone + pestaña Día del overlay) ── */
+.pcal-day-wrap { display: flex; }
+.pcal-day-body { flex: 1; min-width: 0; }
+
+/* ── Semana: un único CSS grid (encabezados + gutter de horas + 7 columnas) ── */
+.pcal-week-scroll { overflow-x: auto; overflow-y: auto; max-height: 70vh; -webkit-overflow-scrolling: touch; }
+.pcal-week-grid {
+  display: grid;
+  grid-template-columns: 48px repeat(7, minmax(104px, 1fr));
+  min-width: 780px;
+}
+.pcal-week-corner { position: sticky; top: 0; left: 0; z-index: 5; background: var(--bg); }
 .pcal-week-head {
-  flex: 1; text-align: center; font-family: var(--mono); font-size: 10.5px; color: var(--ts);
-  padding: 4px 0; text-transform: uppercase; letter-spacing: .03em;
+  position: sticky; top: 0; z-index: 4; background: var(--bg);
+  text-align: center; padding: 6px 0 10px; border-bottom: 1px solid var(--border);
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
 }
-.pcal-week-head span { display: block; font-size: 12px; color: var(--tp); font-weight: 700; }
-.pcal-week-head.is-today { color: var(--accent); }
-.pcal-week-head.is-today span { color: var(--accent); text-shadow: 0 0 10px var(--accent); }
-.pcal-week-wrap .pcal-block { left: 2px; right: 2px; padding: 2px 4px; font-size: 10px; }
-.pcal-week-wrap .pcal-text { font-size: 10px; }
-.pcal-week-wrap .pcal-foot, .pcal-week-wrap .pcal-time { display: none; }
+.pcal-wh-dow { font-family: var(--mono); font-size: 10.5px; color: var(--ts); text-transform: uppercase; letter-spacing: .06em; }
+.pcal-wh-num { font-size: 16px; color: var(--tp); font-weight: 800; }
+.pcal-week-head.is-today .pcal-wh-dow { color: var(--accent); }
+.pcal-week-head.is-today .pcal-wh-num {
+  color: var(--bg); background: var(--accent); border-radius: 50%;
+  width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
+  text-shadow: none;
+}
+.pcal-hours-col-week { width: auto; padding-top: 0; }
+.pcal-week-col { min-width: 0; }
+.pcal-week-wrap .pcal-block, .pcal-compact { padding: 3px 6px; gap: 1px; }
+.pcal-compact .pcal-head { gap: 4px; }
+.pcal-compact .pcal-badge { font-size: 8px; padding: 1px 5px; }
+.pcal-compact .pcal-time-input { font-size: 9.5px; }
+.pcal-compact .pcal-check input { width: 12px; height: 12px; }
+.pcal-compact .pcal-text { font-size: 11px; }
+.pcal-compact .pcal-del { font-size: 10px; }
 
 /* ── Responsive desktop ── */
 @media (min-width: 640px) {
