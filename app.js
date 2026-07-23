@@ -1795,21 +1795,17 @@ function plannerBlockHTML(date, t, hourPx, compact) {
   const prioCfg = PLANNER_PRIO[t.priority] || PLANNER_PRIO[2];
   const rid = escHtml(t.id);
   const range = `${t.time}–${_minToTimeDisp(endMin)}`;
-  const recIcon = t.repeat && t.repeat !== 'none' ? '<span class="pcal-rec" title="Se repite">⟳</span>' : '';
+  // Vista previa minimalista: sólo título (hora/área/repetición/prioridad se ven al abrir la tarjeta).
+  // El tooltip conserva el detalle para hover. El color del bloque ya comunica el área.
   return `<div class="pcal-block${compact ? ' pcal-compact' : ''} prio-${t.priority}${t.done ? ' done' : ''}" data-id="${rid}"
     style="top:${top}px;height:${height}px;--area-c:var(${areaCfg.cssVar})"
-    onclick="openPlanModal('${escHtml(date)}','${rid}')" title="${escHtml(t.text)} · ${range}">
+    onclick="openPlanModal('${escHtml(date)}','${rid}')" title="${escHtml(t.text)} · ${range} · ${areaCfg.label} · ${prioCfg.label}">
     <div class="pcal-head">
       <label class="pcal-check" onclick="event.stopPropagation()"><input type="checkbox"${t.done ? ' checked' : ''} onchange="plannerToggleTask('${escHtml(date)}','${rid}')"></label>
-      <span class="pcal-time">${range}</span>
-      ${recIcon}
+      <div class="pcal-text">${escHtml(t.text) || '<span class="pcal-empty">Sin título</span>'}</div>
       <button class="pcal-del" onclick="event.stopPropagation();plannerDeleteTask('${escHtml(date)}','${rid}')" title="Eliminar" aria-label="Eliminar">✕</button>
     </div>
-    <div class="pcal-text">${escHtml(t.text) || '<span class="pcal-empty">Sin título</span>'}</div>
-    ${compact ? '' : `<div class="pcal-foot">
-      <span class="pcal-area-label">${areaCfg.label}</span>
-      <span class="pcal-prio-tag">${prioCfg.label}</span>
-    </div>`}
+    ${compact ? '' : `<div class="pcal-foot"><span class="pcal-prio-tag">${prioCfg.label}</span></div>`}
   </div>`;
 }
 
@@ -1851,13 +1847,9 @@ function plannerTrackClick(e) {
 function plannerDayTrackHTML(date, hourPx, compact) {
   const hourLines = [];
   for (let m = PCAL_START_MIN; m < PCAL_END_MIN; m += 60) hourLines.push(`<div class="pcal-hourline" style="top:${((m - PCAL_START_MIN) / 60) * hourPx}px"></div>`);
-  const now = new Date();
-  const nowMin = now.getHours() * 60 + now.getMinutes();
-  const nowLine = (date === getActiveDate() && nowMin >= PCAL_START_MIN && nowMin <= PCAL_END_MIN)
-    ? `<div class="pcal-now" style="top:${((nowMin - PCAL_START_MIN) / 60) * hourPx}px"></div>` : '';
   const blocks = plannerDayTasks(date).map(t => plannerBlockHTML(date, t, hourPx, compact)).join('');
   return `<div class="pcal-track" data-date="${escHtml(date)}" data-hourpx="${hourPx}"
-    style="height:${(PCAL_SPAN_MIN / 60) * hourPx}px" onclick="plannerTrackClick(event)">${hourLines.join('')}${nowLine}${blocks}</div>`;
+    style="height:${(PCAL_SPAN_MIN / 60) * hourPx}px" onclick="plannerTrackClick(event)">${hourLines.join('')}${blocks}</div>`;
 }
 function plannerHourTicksHTML(hourPx) {
   const ticks = [];

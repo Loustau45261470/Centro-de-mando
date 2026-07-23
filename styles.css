@@ -23,11 +23,11 @@
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   /* ── Tab accent colors ── */
   --c-jarvis:       #5CF6FF;
-  --c-vida:         #00D4FF;
-  --c-finanzas:     #22C55E;
+  --c-vida:         #0FB9D6;
+  --c-finanzas:     #16B364;
   --c-salud:        #F43F5E;
-  --c-conocimiento: #6B8EFF;
-  --c-ia:           #C4D0E4;
+  --c-conocimiento: #3B82F6;
+  --c-ia:           #8B5CF6;
 }
 html, body { height: 100%; }
 body {
@@ -1032,32 +1032,20 @@ textarea { resize: vertical; min-height: 60px; }
 .pcal-hourline {
   position: absolute; left: 0; right: 0; height: 1px; background: rgba(255,255,255,0.06);
 }
-.pcal-now {
-  position: absolute; left: 0; right: 0; height: 2px; background: var(--danger);
-  opacity: .8; border-radius: 99px; pointer-events: none; z-index: 3;
-  box-shadow: 0 0 8px color-mix(in srgb, var(--danger) 60%, transparent);
-}
-.pcal-now::before {
-  content: ''; position: absolute; left: -4px; top: -3px; width: 8px; height: 8px;
-  border-radius: 50%; background: var(--danger);
-}
 .pcal-block {
   position: absolute; left: 2px; right: 2px; z-index: 2; overflow: hidden;
   display: flex; flex-direction: column; gap: 2px; padding: 6px 9px 5px; border-radius: 7px;
-  /* Relleno sólido que llena el encuadre — sin sombra/halo (parecía un bloque flotando encima) */
-  background: color-mix(in srgb, var(--area-c, var(--hud)) 72%, #04060c);
-  border: 1px solid color-mix(in srgb, var(--area-c, var(--hud)) 55%, #000);
-  border-left: 4px solid var(--pc, var(--area-c, var(--hud)));
+  /* Relleno sólido y uniforme que llena el encuadre — sin sombra/halo ni borde de otro color */
+  background: color-mix(in srgb, var(--area-c, var(--hud)) 80%, #0a0f1a);
+  border: 1px solid color-mix(in srgb, var(--area-c, var(--hud)) 62%, #000);
   color: #fff; cursor: pointer; transition: filter .15s var(--ease-out-quart);
 }
 .pcal-block:hover { filter: brightness(1.08); }
 .pcal-block.done { opacity: .5; }
 .pcal-block.done .pcal-text { text-decoration: line-through; }
-.pcal-head { display: flex; align-items: center; gap: 5px; }
+.pcal-head { display: flex; align-items: center; gap: 6px; }
 .pcal-check { display: flex; align-items: center; cursor: pointer; flex-shrink: 0; }
 .pcal-check input { width: 15px; height: 15px; accent-color: #fff; cursor: pointer; }
-.pcal-time { flex: 1; min-width: 0; font-family: var(--mono); font-size: 10.5px; font-weight: 700; color: #fff; opacity: .92; text-shadow: 0 1px 2px rgba(0,0,0,.45); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pcal-rec { flex-shrink: 0; font-size: 11px; color: #fff; opacity: .9; }
 .pcal-del {
   flex-shrink: 0; background: none; border: none; color: rgba(255,255,255,.75);
   font-size: 12px; cursor: pointer; opacity: 0; transition: opacity .15s var(--ease-out-quart), color .15s var(--ease-out-quart);
@@ -1070,8 +1058,7 @@ textarea { resize: vertical; min-height: 60px; }
   text-shadow: 0 1px 3px rgba(0,0,0,.4);
 }
 .pcal-empty { opacity: .6; font-weight: 500; font-style: italic; }
-.pcal-foot { display: flex; align-items: center; gap: 8px; font-size: 10px; margin-top: auto; }
-.pcal-area-label { flex: 1; font-family: var(--mono); text-transform: uppercase; letter-spacing: .04em; color: #fff; font-weight: 700; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pcal-foot { display: flex; align-items: center; justify-content: flex-end; font-size: 10px; margin-top: auto; }
 .pcal-prio-tag { flex-shrink: 0; font-family: var(--mono); font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: #fff; background: rgba(0,0,0,.28); padding: 1px 6px; border-radius: 99px; }
 .pcal-prio-tag::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--pc); box-shadow: 0 0 5px var(--pc); margin-right: 4px; vertical-align: middle; }
 
@@ -1104,7 +1091,6 @@ textarea { resize: vertical; min-height: 60px; }
 .pcal-week-col { min-width: 0; }
 .pcal-compact { padding: 3px 6px; gap: 1px; }
 .pcal-compact .pcal-head { gap: 4px; }
-.pcal-compact .pcal-time { font-size: 9px; }
 .pcal-compact .pcal-check input { width: 12px; height: 12px; }
 .pcal-compact .pcal-text { font-size: 11px; }
 .pcal-compact .pcal-del { font-size: 10px; }
