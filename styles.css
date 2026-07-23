@@ -1026,7 +1026,9 @@ textarea { resize: vertical; min-height: 60px; }
 }
 .pcal-track {
   position: relative; border-left: 1px solid var(--border); cursor: crosshair;
+  transition: background .12s var(--ease-out-quart);
 }
+.pcal-track:hover { background: rgba(255,255,255,0.015); }
 .pcal-hourline {
   position: absolute; left: 0; right: 0; height: 1px; background: rgba(255,255,255,0.06);
 }
@@ -1040,65 +1042,78 @@ textarea { resize: vertical; min-height: 60px; }
   border-radius: 50%; background: var(--danger);
 }
 .pcal-block {
-  position: absolute; left: 6px; right: 6px; z-index: 2; overflow: hidden;
-  display: flex; flex-direction: column; gap: 3px; padding: 6px 9px; border-radius: 10px;
-  background:
-    radial-gradient(140% 100% at 0% 0%, color-mix(in srgb, var(--area-c, var(--hud)) 22%, transparent), transparent 70%),
-    color-mix(in srgb, var(--area-c, var(--hud)) 13%, var(--card));
-  border: 1px solid color-mix(in srgb, var(--area-c, var(--hud)) 42%, transparent);
-  border-left: 4px solid var(--pc, var(--area-c, var(--hud)));
-  box-shadow: 0 2px 10px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.05);
+  position: absolute; left: 5px; right: 5px; z-index: 2; overflow: hidden;
+  display: flex; flex-direction: column; gap: 2px; padding: 7px 10px 6px; border-radius: 9px;
+  background: linear-gradient(165deg,
+    color-mix(in srgb, var(--area-c, var(--hud)) 40%, var(--card)),
+    color-mix(in srgb, var(--area-c, var(--hud)) 22%, var(--card)));
+  border: 1px solid color-mix(in srgb, var(--area-c, var(--hud)) 55%, transparent);
+  box-shadow: 0 3px 12px -3px color-mix(in srgb, var(--area-c, var(--hud)) 55%, transparent), 0 1px 4px rgba(0,0,0,.35);
   cursor: default; transition: box-shadow .15s var(--ease-out-quart), transform .15s var(--ease-out-quart);
 }
+.pcal-block::before {
+  content: ''; position: absolute; top: 0; left: 10px; right: 10px; height: 2px; border-radius: 0 0 2px 2px;
+  background: linear-gradient(90deg, transparent, var(--area-c, var(--hud)) 25%, var(--area-c, var(--hud)) 75%, transparent);
+  box-shadow: 0 0 8px var(--area-c, var(--hud));
+  opacity: .9;
+}
 .pcal-block:hover {
-  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--area-c, var(--hud)) 65%, transparent),
-    0 4px 16px -2px color-mix(in srgb, var(--area-c, var(--hud)) 45%, transparent), 0 2px 8px rgba(0,0,0,.3);
+  box-shadow: 0 6px 20px -4px color-mix(in srgb, var(--area-c, var(--hud)) 70%, transparent), 0 2px 6px rgba(0,0,0,.4);
   transform: translateY(-1px);
 }
-.pcal-block.done { opacity: .5; }
+.pcal-block.done { opacity: .48; }
 .pcal-block.done .pcal-text { text-decoration: line-through; }
-.pcal-head { display: flex; align-items: center; gap: 6px; }
+.pcal-head { display: flex; align-items: center; gap: 5px; }
 .pcal-badge {
-  flex-shrink: 0; font-family: var(--mono); font-size: 9.5px; font-weight: 700; letter-spacing: .06em;
-  text-transform: uppercase; padding: 2px 7px; border-radius: 5px; cursor: pointer;
-  color: var(--pc); background: color-mix(in srgb, var(--pc) 18%, transparent);
-  border: 1px solid color-mix(in srgb, var(--pc) 32%, transparent);
+  flex-shrink: 0; display: flex; align-items: center; gap: 4px;
+  font-family: var(--mono); font-size: 9px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase;
+  padding: 2px 7px 2px 5px; border-radius: 99px; cursor: pointer; border: none;
+  color: #fff; background: rgba(0,0,0,.25);
 }
+.pcal-badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--pc); box-shadow: 0 0 5px var(--pc); flex-shrink: 0; }
+.pcal-badge:hover { background: rgba(0,0,0,.4); }
 .pcal-time-input {
-  flex: 1; min-width: 0; font-family: var(--mono); font-size: 11px; color: var(--ts);
-  background: none; border: none; outline: none; cursor: pointer; padding: 0;
-  color-scheme: dark;
+  flex: 1; min-width: 0; font-family: var(--mono); font-size: 11px; font-weight: 600; color: #fff;
+  background: rgba(0,0,0,.18); border: none; border-radius: 5px; outline: none; cursor: pointer;
+  padding: 1px 5px; opacity: .85; color-scheme: dark;
 }
+.pcal-time-input:hover, .pcal-time-input:focus { opacity: 1; background: rgba(0,0,0,.3); }
 .pcal-del {
-  flex-shrink: 0; background: none; border: none; color: var(--tt);
+  flex-shrink: 0; background: none; border: none; color: rgba(255,255,255,.7);
   font-size: 12px; cursor: pointer; opacity: 0; transition: opacity .15s var(--ease-out-quart), color .15s var(--ease-out-quart);
 }
-.pcal-block:hover .pcal-del, .pcal-block:focus-within .pcal-del { opacity: .65; }
-.pcal-del:hover { color: var(--danger); opacity: 1; }
+.pcal-block:hover .pcal-del, .pcal-block:focus-within .pcal-del { opacity: .7; }
+.pcal-del:hover { color: #fff; opacity: 1; }
 .pcal-text {
   flex: 1; min-width: 0; background: none; border: none; outline: none; resize: none;
-  font-family: var(--sans); font-size: 13.5px; font-weight: 600; line-height: 1.35; color: var(--tp);
-  padding: 0;
+  font-family: var(--sans); font-size: 13.5px; font-weight: 700; line-height: 1.35; color: #fff;
+  text-shadow: 0 1px 3px rgba(0,0,0,.35); padding: 0;
 }
-.pcal-text::placeholder { color: var(--ts); opacity: .6; font-weight: 400; }
-.pcal-foot { display: flex; align-items: center; gap: 8px; font-size: 10.5px; color: var(--ts); margin-top: auto; }
+.pcal-text::placeholder { color: rgba(255,255,255,.65); opacity: 1; font-weight: 500; }
+.pcal-foot { display: flex; align-items: center; gap: 8px; font-size: 10.5px; color: rgba(255,255,255,.75); margin-top: auto; }
 .pcal-check { display: flex; align-items: center; cursor: pointer; flex-shrink: 0; }
 .pcal-check input { width: 15px; height: 15px; accent-color: var(--pc); cursor: pointer; }
-.pcal-area-label { flex: 1; font-family: var(--mono); text-transform: uppercase; letter-spacing: .04em; color: var(--area-c); font-weight: 700; }
-.pcal-dur { width: 46px; background: rgba(255,255,255,.06); border: 1px solid var(--border); border-radius: 5px; color: var(--tp); font-size: 10.5px; padding: 2px 4px; }
+.pcal-area-label { flex: 1; font-family: var(--mono); text-transform: uppercase; letter-spacing: .04em; color: #fff; font-weight: 700; opacity: .85; }
+.pcal-dur { width: 46px; background: rgba(0,0,0,.22); border: none; border-radius: 5px; color: #fff; font-size: 10.5px; padding: 2px 4px; }
+
+/* ── Bloque en borrador: aún sin área, se pide elegir una antes de contar como creado ── */
 .pcal-block.pcal-pending {
-  border-style: dashed; background: rgba(255,255,255,.03); border-left-color: var(--hud-dim, var(--border));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--hud) 20%, transparent);
+  background: color-mix(in srgb, var(--hud) 8%, var(--card)); border: 1.5px dashed color-mix(in srgb, var(--hud) 50%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--hud) 15%, transparent);
 }
-.pcal-block.pcal-pending .pcal-text { flex: 0 0 auto; }
-.pcal-pending-hint { flex: 1; font-family: var(--mono); font-size: 9.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--hud-bright, var(--accent)); }
-.pcal-areas { display: flex; gap: 7px; align-items: center; flex-wrap: wrap; flex: 0 0 auto; margin-top: auto; padding-top: 2px; }
+.pcal-block.pcal-pending::before { background: linear-gradient(90deg, transparent, var(--hud) 25%, var(--hud) 75%, transparent); box-shadow: 0 0 8px var(--hud); }
+.pcal-block.pcal-pending .pcal-text { flex: 0 0 auto; color: var(--tp); text-shadow: none; }
+.pcal-block.pcal-pending .pcal-text::placeholder { color: var(--ts); opacity: .7; }
+.pcal-pending-hint { flex: 1; font-family: var(--mono); font-size: 9.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--hud-bright); font-weight: 700; }
+.pcal-block.pcal-pending .pcal-del { color: var(--tt); }
+.pcal-block.pcal-pending .pcal-del:hover { color: var(--danger); }
+.pcal-areas { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; flex: 0 0 auto; margin-top: auto; padding-top: 3px; }
 .pcal-area-dot {
-  width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,.3); cursor: pointer;
-  background: var(--area-c); box-shadow: 0 0 8px color-mix(in srgb, var(--area-c) 60%, transparent);
-  transition: transform .12s var(--ease-out-quart), box-shadow .12s var(--ease-out-quart);
+  width: 22px; height: 22px; border-radius: 50%; border: 2px solid rgba(255,255,255,.15); cursor: pointer;
+  background: var(--area-c); box-shadow: 0 0 10px color-mix(in srgb, var(--area-c) 65%, transparent);
+  transition: transform .12s var(--ease-out-quart), box-shadow .12s var(--ease-out-quart), border-color .12s var(--ease-out-quart);
 }
-.pcal-area-dot:hover { transform: scale(1.2); box-shadow: 0 0 12px color-mix(in srgb, var(--area-c) 85%, transparent); }
+.pcal-area-dot:hover { transform: scale(1.18); box-shadow: 0 0 14px color-mix(in srgb, var(--area-c) 90%, transparent); border-color: rgba(255,255,255,.5); }
 
 /* ── Día (card standalone + pestaña Día del overlay) ── */
 .pcal-day-wrap { display: flex; }
@@ -1127,12 +1142,13 @@ textarea { resize: vertical; min-height: 60px; }
 }
 .pcal-hours-col-week { width: auto; padding-top: 0; }
 .pcal-week-col { min-width: 0; }
-.pcal-week-wrap .pcal-block, .pcal-compact { padding: 3px 6px; gap: 1px; }
+.pcal-compact { padding: 4px 7px 3px; gap: 1px; }
 .pcal-compact .pcal-head { gap: 4px; }
-.pcal-compact .pcal-badge { font-size: 8px; padding: 1px 5px; }
-.pcal-compact .pcal-time-input { font-size: 9.5px; }
+.pcal-compact .pcal-badge { font-size: 0; padding: 0; background: none; }
+.pcal-compact .pcal-badge::before { width: 7px; height: 7px; margin: 0; }
+.pcal-compact .pcal-time-input { font-size: 9.5px; padding: 0 3px; background: rgba(0,0,0,.15); }
 .pcal-compact .pcal-check input { width: 12px; height: 12px; }
-.pcal-compact .pcal-text { font-size: 11px; }
+.pcal-compact .pcal-text { font-size: 11.5px; }
 .pcal-compact .pcal-del { font-size: 10px; }
 
 /* ── Responsive desktop ── */
