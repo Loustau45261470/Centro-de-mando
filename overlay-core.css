@@ -64,7 +64,7 @@
   .cm-ov-close:hover { transform: none; }
 }
 
-/* ── Planificación: pestañas Hoy/Mañana estilo segmentado ── */
+/* ── Planificación: pestañas Día/Semana estilo segmentado ── */
 .plov-tabs {
   position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
   background: rgba(10,16,30,.55); border: 1px solid var(--border); border-radius: 13px; padding: 4px; margin-bottom: 16px;
@@ -82,7 +82,7 @@
   box-shadow: inset 0 1px 0 rgba(255,255,255,.2), 0 0 18px -6px color-mix(in oklab, var(--cm-accent) 90%, transparent);
   transition: left .28s var(--ease-out-expo);
 }
-.plov-tabs[data-on="manana"] .plov-tab-ink { left: 50%; }
+.plov-tabs[data-on="semana"] .plov-tab-ink { left: 50%; }
 .plov-pane { animation: cm-panel-in .3s var(--ease-out-expo) both; }
 .plov-sub { font-family: var(--mono); font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--ts); margin: 4px 2px 9px; }
 .plov-sub::before { content: '▸'; color: var(--cm-accent); margin-right: 6px; }

@@ -1497,24 +1497,51 @@ function toggleGoalById(date, id) {
 }
 
 // ── Estado de tareas del día ──
-const _plannerOpen = new Set();                 // horas expandidas (solo UI, no persistido): 'date|H'
-function _pkey(date, h) { return date + '|' + h; }
 function _pad2(n) { return String(n).padStart(2, '0'); }
 function _pid() { return 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 
+// Áreas del calendario: mismas 5 categorías/colores ya usados en el resto de Centro de Mando.
+const PLANNER_AREAS = {
+  vida:         { label: 'Vida',         cssVar: '--c-vida' },
+  finanzas:     { label: 'Finanzas',     cssVar: '--c-finanzas' },
+  salud:        { label: 'Salud',        cssVar: '--c-salud' },
+  conocimiento: { label: 'Conocimiento', cssVar: '--c-conocimiento' },
+  ia:           { label: 'IA',           cssVar: '--c-ia' },
+};
+
 function getDayPlan(date) {
   if (!S.dayPlan) S.dayPlan = {};
-  if (!S.dayPlan[date]) S.dayPlan[date] = { grid: {}, tasks: [] };
+  if (!S.dayPlan[date]) S.dayPlan[date] = { tasks: [] };
   const p = S.dayPlan[date];
-  if (!p.grid)  p.grid  = {};
   if (!p.tasks) p.tasks = [];
+  // Migración: tareas creadas antes del calendario por área no tienen duration/area.
+  p.tasks.forEach(t => {
+    if (!t.duration) t.duration = 30;
+    if (!t.area || !PLANNER_AREAS[t.area]) t.area = t.area === null ? t.area : 'vida';
+  });
   return p;
 }
-function plannerHourGrid(date, h) { return getDayPlan(date).grid[h] || 60; }
-function plannerSlotsFor(h, grid) {
-  const slots = [];
-  for (let m = 0; m < 60; m += grid) slots.push(`${_pad2(h)}:${_pad2(m)}`);
-  return slots;
+function _timeToMin(time) { const [h, m] = time.split(':').map(Number); return h * 60 + m; }
+function _minToTime(min) { return `${_pad2(Math.floor(min / 60))}:${_pad2(min % 60)}`; }
+// Ventana [start, start+duration) libre para esta fecha, ignorando la propia tarea (excludeId).
+function plannerRangeFree(date, startMin, durationMin, excludeId) {
+  const endMin = startMin + durationMin;
+  if (startMin < 0 || endMin > 24 * 60) return false; // no cruza medianoche
+  return getDayPlan(date).tasks.every(t => {
+    if (t.id === excludeId) return true;
+    const s = _timeToMin(t.time), e = s + (t.duration || 30);
+    return endMin <= s || startMin >= e;
+  });
+}
+// Máxima duración (min) que puede tener una tarea que arranca en startMin sin invadir la siguiente ya fijada.
+function plannerMaxDuration(date, startMin, excludeId) {
+  let limit = 24 * 60 - startMin;
+  getDayPlan(date).tasks.forEach(t => {
+    if (t.id === excludeId) return;
+    const s = _timeToMin(t.time);
+    if (s >= startMin && s - startMin < limit) limit = s - startMin;
+  });
+  return Math.max(limit, 0);
 }
 // Tareas de una hora, ordenadas por prioridad desc (sort estable → respeta orden de creación en empate).
 function plannerHourTasks(date, h) {
@@ -1523,31 +1550,18 @@ function plannerHourTasks(date, h) {
     .sort((a, b) => b.priority - a.priority);
 }
 
-function togglePlannerHour(date, h) {
-  const k = _pkey(date, h);
-  if (_plannerOpen.has(k)) _plannerOpen.delete(k); else _plannerOpen.add(k);
-  renderDayPlanner();
-}
-function plannerSetGrid(date, h, grid) {
-  const p = getDayPlan(date);
-  p.grid[h] = grid;
-  // Reflow: cada tarea de esta hora se ajusta al inicio de su sub-tramo contenedor (nunca se pierde).
-  p.tasks.forEach(t => {
-    if (parseInt(t.time.split(':')[0], 10) !== h) return;
-    const min = parseInt(t.time.split(':')[1], 10);
-    t.time = `${_pad2(h)}:${_pad2(Math.floor(min / grid) * grid)}`;
-  });
-  _plannerOpen.add(_pkey(date, h));
-  saveState(); renderDayPlanner();
-}
 function plannerAddTask(date, time) {
   const p = getDayPlan(date);
-  const task = { id: _pid(), time, priority: 2, text: '', done: false };
+  const startMin = _timeToMin(time);
+  const duration = Math.min(30, plannerMaxDuration(date, startMin, null));
+  if (duration <= 0 || !plannerRangeFree(date, startMin, duration, null)) {
+    showToast('Ese horario ya está ocupado'); return;
+  }
+  const task = { id: _pid(), time, duration, priority: 2, area: null, text: '', done: false };
   p.tasks.push(task);
-  _plannerOpen.add(_pkey(date, parseInt(time.split(':')[0], 10)));
   saveState(); renderDayPlanner();
   requestAnimationFrame(() => {
-    const el = document.querySelector(`.ptask[data-id="${task.id}"] .ptask-text`);
+    const el = document.querySelector(`.pcal-block[data-id="${task.id}"] .pcal-text`);
     if (el) el.focus();
   });
 }
@@ -1561,7 +1575,7 @@ function plannerTaskText(date, id, text) {
   // usuario recién creó y está por escribir. Sólo se elimina si sigue vacía y el
   // usuario ya no la tiene enfocada.
   setTimeout(() => {
-    const live = document.querySelector(`.ptask[data-id="${id}"] .ptask-text`);
+    const live = document.querySelector(`.pcal-block[data-id="${id}"] .pcal-text`);
     if (live && (document.activeElement === live || live.value.trim())) return; // reenfocada o con texto
     const pp = getDayPlan(date);
     const tt = pp.tasks.find(x => x.id === id);
@@ -1569,6 +1583,22 @@ function plannerTaskText(date, id, text) {
     pp.tasks = pp.tasks.filter(x => x.id !== id);
     saveState(); renderDayPlanner();
   }, 200);
+}
+function plannerSetArea(date, id, area) {
+  if (!PLANNER_AREAS[area]) return;
+  const t = getDayPlan(date).tasks.find(x => x.id === id);
+  if (!t) return;
+  t.area = area;
+  saveState(); renderDayPlanner();
+}
+function plannerSetDuration(date, id, minutes) {
+  const t = getDayPlan(date).tasks.find(x => x.id === id);
+  if (!t) return;
+  minutes = Math.max(5, Math.round(minutes / 5) * 5);
+  const startMin = _timeToMin(t.time);
+  if (!plannerRangeFree(date, startMin, minutes, id)) { showToast('No entra: se solapa con otra actividad'); renderDayPlanner(); return; }
+  t.duration = minutes;
+  saveState(); renderDayPlanner();
 }
 function plannerCyclePrio(date, id) {
   const t = getDayPlan(date).tasks.find(x => x.id === id);
@@ -1590,8 +1620,9 @@ function plannerDeleteTask(date, id) {
 function plannerMoveTask(date, id, newTime) {
   const t = getDayPlan(date).tasks.find(x => x.id === id);
   if (!t || t.time === newTime) { renderDayPlanner(); return; }
+  const startMin = _timeToMin(newTime);
+  if (!plannerRangeFree(date, startMin, t.duration || 30, id)) { showToast('Ese horario ya está ocupado'); renderDayPlanner(); return; }
   t.time = newTime;
-  _plannerOpen.add(_pkey(date, parseInt(newTime.split(':')[0], 10)));
   saveState(); renderDayPlanner();
 }
 function plannerAutoResize(el) {
@@ -1599,17 +1630,45 @@ function plannerAutoResize(el) {
   el.style.height = el.scrollHeight + 'px';
 }
 
-// ── HTML de una tarea (badge de prioridad + texto + eliminar + checkbox a la derecha) ──
-function plannerTaskHTML(date, t, draggable) {
-  const cfg = PLANNER_PRIO[t.priority] || PLANNER_PRIO[2];
-  return `<div class="ptask prio-${t.priority}${t.done ? ' done' : ''}" data-id="${t.id}"${draggable ? ' data-drag="1"' : ''}>
-    ${draggable ? '<span class="ptask-grip" title="Arrastrar" aria-hidden="true"></span>' : ''}
-    <button class="ptask-badge" onclick="plannerCyclePrio('${escHtml(date)}','${t.id}')" title="Prioridad: ${cfg.label} — clic para cambiar">${cfg.label}</button>
-    <textarea class="ptask-text" rows="1" placeholder="Tarea…"
+// ── Bloque de calendario (franja pintada por área, alto proporcional a la duración) ──
+function _pcalEndTime(t) { return _minToTime(_timeToMin(t.time) + (t.duration || 30)); }
+function plannerBlockHTML(date, t, hourPx) {
+  const startMin = _timeToMin(t.time);
+  const top    = (startMin / 60) * hourPx;
+  const height = Math.max(((t.duration || 30) / 60) * hourPx, 18);
+  const prioCfg = PLANNER_PRIO[t.priority] || PLANNER_PRIO[2];
+
+  if (!t.area) {
+    // Draft sin área: no se pinta como bloque válido — pide elegir área antes de contar como creado.
+    const swatches = Object.entries(PLANNER_AREAS).map(([key, cfg]) =>
+      `<button class="pcal-area-dot" style="--area-c:var(${cfg.cssVar})" title="${cfg.label}" onclick="plannerSetArea('${escHtml(date)}','${t.id}','${key}')"></button>`
+    ).join('');
+    return `<div class="pcal-block pcal-pending" data-id="${t.id}" style="top:${top}px;height:${height}px" onclick="event.stopPropagation()">
+      <textarea class="pcal-text" rows="1" placeholder="Actividad…"
+        oninput="plannerAutoResize(this)"
+        onblur="plannerTaskText('${escHtml(date)}','${t.id}',this.value)">${escHtml(t.text)}</textarea>
+      <div class="pcal-areas" title="Elegí un área">${swatches}</div>
+      <button class="pcal-del" onclick="plannerDeleteTask('${escHtml(date)}','${t.id}')" title="Eliminar" aria-label="Eliminar">✕</button>
+    </div>`;
+  }
+
+  const areaCfg = PLANNER_AREAS[t.area];
+  return `<div class="pcal-block prio-${t.priority}${t.done ? ' done' : ''}" data-id="${t.id}"
+    style="top:${top}px;height:${height}px;--area-c:var(${areaCfg.cssVar})" onclick="event.stopPropagation()">
+    <div class="pcal-head">
+      <button class="pcal-badge" onclick="plannerCyclePrio('${escHtml(date)}','${t.id}')" title="Postergable: ${prioCfg.label} — clic para cambiar">${prioCfg.label}</button>
+      <span class="pcal-time">${t.time}–${_pcalEndTime(t)}</span>
+      <button class="pcal-del" onclick="plannerDeleteTask('${escHtml(date)}','${t.id}')" title="Eliminar" aria-label="Eliminar">✕</button>
+    </div>
+    <textarea class="pcal-text" rows="1" placeholder="Actividad…"
       oninput="plannerAutoResize(this)"
       onblur="plannerTaskText('${escHtml(date)}','${t.id}',this.value)">${escHtml(t.text)}</textarea>
-    <button class="ptask-del" onclick="plannerDeleteTask('${escHtml(date)}','${t.id}')" title="Eliminar" aria-label="Eliminar">✕</button>
-    <label class="ptask-check"><input type="checkbox"${t.done ? ' checked' : ''} onchange="plannerToggleTask('${escHtml(date)}','${t.id}')"></label>
+    <div class="pcal-foot">
+      <label class="pcal-check"><input type="checkbox"${t.done ? ' checked' : ''} onchange="plannerToggleTask('${escHtml(date)}','${t.id}')"></label>
+      <span class="pcal-area-label">${areaCfg.label}</span>
+      <input class="pcal-dur" type="number" min="5" step="5" value="${t.duration || 30}"
+        onclick="event.stopPropagation()" onchange="plannerSetDuration('${escHtml(date)}','${t.id}',this.value)"> min
+    </div>
   </div>`;
 }
 
@@ -1633,121 +1692,84 @@ function plannerDaybarHTML(date) {
   </div>`;
 }
 
-function buildPlannerSlide(listEl, date, isToday, reduced) {
-  if (!listEl) return;
-  const goals  = (S.goals[date] || []).filter(g => g.time);
-  const now    = new Date();
-  const curH   = isToday ? now.getHours()   : -1;
-  const curMin = isToday ? now.getMinutes() : 0;
-  const editingId = document.activeElement && document.activeElement.classList.contains('ptask-text')
-    ? (document.activeElement.closest('.ptask') || {}).dataset?.id : null;
-
-  const hasAnyTask = getDayPlan(date).tasks.length > 0;
-  // Vista reducida (dashboard): sin tareas ni metas → vacío para que el caller muestre el mensaje.
-  if (reduced && !hasAnyTask && !goals.length) { listEl.innerHTML = ''; return; }
-
-  const rows = [];
-  for (let h = 6; h <= 23; h++) {
-    const isCurrent = h === curH;
-    const hourGoals = goals.filter(g => parseInt(g.time.split(':')[0], 10) === h);
-    const tasks     = plannerHourTasks(date, h);
-
-    if (reduced && !tasks.length && !hourGoals.length) continue;
-
-    const chipsHtml = hourGoals.map(g =>
-      `<div class="planner-goal-chip${g.done ? ' done' : ''}" onclick="toggleGoalById('${escHtml(date)}','${escHtml(g.id)}')" title="${escHtml(g.text)}">
-        <span class="chip-dot" style="background:${PRIORITY_COLOR[g.priority] || '#666'}"></span>
-        <span class="chip-text">${escHtml(g.text)}</span>
-        ${g.done ? '<span style="font-size:10px;margin-left:2px">✓</span>' : ''}
-      </div>`
-    ).join('');
-    const chipsBlock = chipsHtml ? `<div class="planner-goal-chips">${chipsHtml}</div>` : '';
-    const nowLine = isCurrent
-      ? `<div class="planner-now-line" style="top:${8 + (curMin / 60) * 30}px"></div>` : '';
-
-    if (reduced) {
-      const tHtml = tasks.map(t => plannerTaskHTML(date, t, false)).join('');
-      rows.push(`<div class="planner-row${isCurrent ? ' current-hour' : ''}">
-        ${nowLine}
-        <div class="planner-time">${_pad2(h)}:00</div>
-        <div class="planner-content">${tHtml}${chipsBlock}</div>
-      </div>`);
-      continue;
-    }
-
-    // Vista completa (overlay): hora expandible con selector de tramo (15/30/60) + slots.
-    const grid  = plannerHourGrid(date, h);
-    const open  = _plannerOpen.has(_pkey(date, h));
-    const doneN = tasks.filter(t => t.done).length;
-    const summary = tasks.length
-      ? `${tasks.length} tarea${tasks.length > 1 ? 's' : ''}${doneN ? ` · ${doneN}✓` : ''}` : 'vacío';
-
-    let body = '';
-    if (open) {
-      const gridSel = [60, 30, 15].map(g =>
-        `<button class="pgs${grid === g ? ' on' : ''}" onclick="plannerSetGrid('${escHtml(date)}',${h},${g})">${g}m</button>`
-      ).join('');
-      const slots = plannerSlotsFor(h, grid).map(time => {
-        const slotTasks = tasks.filter(t => t.time === time)
-          .map(t => plannerTaskHTML(date, t, true)).join('');
-        const mm = time.split(':')[1];
-        return `<div class="planner-slot">
-          <div class="pslot-label">:${mm}</div>
-          <div class="slot-tasks" data-time="${time}" data-date="${escHtml(date)}">${slotTasks}</div>
-          <button class="pslot-add" onclick="plannerAddTask('${escHtml(date)}','${time}')" aria-label="Agregar tarea">＋</button>
-        </div>`;
-      }).join('');
-      body = `<div class="planner-hour-body">
-        <div class="planner-grid-sel" role="group" aria-label="Tramo">${gridSel}</div>
-        <div class="planner-slots">${slots}</div>
-      </div>`;
-    }
-
-    rows.push(`<div class="planner-row ph-full${isCurrent ? ' current-hour' : ''}${open ? ' open' : ''}">
-      ${nowLine}
-      <button class="planner-hour-head" onclick="togglePlannerHour('${escHtml(date)}',${h})" aria-expanded="${open}">
-        <span class="planner-time">${_pad2(h)}:00</span>
-        <span class="ph-summary${tasks.length ? '' : ' empty'}">${summary}</span>
-        <span class="ph-caret" aria-hidden="true">▸</span>
-      </button>
-      ${chipsBlock}
-      ${body}
-    </div>`);
+// Convierte una coordenada Y (px, relativa al track) en 'HH:MM' redondeado a 15 min.
+function _pcalTimeFromY(y, hourPx) {
+  let totalMin = Math.round((y / hourPx) * 60 / 15) * 15;
+  totalMin = Math.max(0, Math.min(23 * 60 + 45, totalMin));
+  return _minToTime(totalMin);
+}
+// Click en zona vacía de un track de calendario → crea actividad en ese horario.
+function plannerTrackClick(e) {
+  if (e.target.closest('.pcal-block')) return;
+  const track = e.currentTarget;
+  const rect = track.getBoundingClientRect();
+  const time = _pcalTimeFromY(e.clientY - rect.top, parseFloat(track.dataset.hourpx));
+  plannerAddTask(track.dataset.date, time);
+}
+// Grilla de 24hs de un solo día: líneas de hora + bloques posicionados por horario/duración.
+function plannerDayTrackHTML(date, hourPx, withLabels) {
+  const hourLines = [];
+  for (let h = 0; h < 24; h++) {
+    hourLines.push(`<div class="pcal-hourline" style="top:${h * hourPx}px">${withLabels ? `<span class="pcal-hour-label">${_pad2(h)}:00</span>` : ''}</div>`);
   }
-
-  listEl.innerHTML = plannerDaybarHTML(date) + rows.join('');
-  listEl.querySelectorAll('.ptask-text').forEach(el => plannerAutoResize(el));
-  if (!reduced) plannerInitDrag(listEl, date);
-
-  // Scroll a la hora actual (solo hoy y si no se está editando).
-  if (isToday && !editingId) {
-    const curRow = listEl.querySelector('.current-hour');
-    if (curRow) curRow.scrollIntoView({ block: 'center' });
-  }
+  const now = new Date();
+  const nowLine = date === getActiveDate()
+    ? `<div class="pcal-now" style="top:${(now.getHours() * 60 + now.getMinutes()) / 60 * hourPx}px"></div>` : '';
+  const blocks = getDayPlan(date).tasks.map(t => plannerBlockHTML(date, t, hourPx)).join('');
+  return `<div class="pcal-track" data-date="${escHtml(date)}" data-hourpx="${hourPx}"
+    style="height:${24 * hourPx}px" onclick="plannerTrackClick(event)">${hourLines.join('')}${nowLine}${blocks}</div>`;
 }
 
-// Drag & drop de tareas entre tramos/horas (SortableJS). Grupo por fecha → no cruza días.
-function plannerInitDrag(listEl, date) {
-  if (typeof Sortable === 'undefined') return;
-  listEl.querySelectorAll('.slot-tasks').forEach(cont => {
-    Sortable.create(cont, {
-      group: 'planner-' + date, animation: 150, draggable: '.ptask', handle: '.ptask-grip',
-      onEnd: ev => plannerMoveTask(date, ev.item.dataset.id, ev.to.dataset.time),
-    });
-  });
+const PCAL_HOUR_PX = 46;      // pestaña Día / card standalone
+const PCAL_WEEK_HOUR_PX = 30; // columnas de la vista Semana (más compacta)
+
+function buildDayCalendar(containerEl, date) {
+  if (!containerEl) return;
+  containerEl.innerHTML = plannerDaybarHTML(date) + `
+    <div class="pcal-day-wrap">
+      <div class="pcal-hours-col">${Array.from({ length: 24 }, (_, h) => `<div class="pcal-hour-tick" style="top:${h * PCAL_HOUR_PX}px">${_pad2(h)}:00</div>`).join('')}</div>
+      <div class="pcal-day-body">${plannerDayTrackHTML(date, PCAL_HOUR_PX, false)}</div>
+    </div>`;
+  containerEl.querySelectorAll('.pcal-text').forEach(el => plannerAutoResize(el));
+  const now = new Date();
+  const curTop = (now.getHours() * 60 + now.getMinutes()) / 60 * PCAL_HOUR_PX;
+  containerEl.scrollTop = Math.max(0, curTop - containerEl.clientHeight / 2);
+}
+
+// ── Vista Semana: 7 columnas (lunes a domingo) sobre el mismo S.dayPlan por fecha ──
+function plannerWeekDates(anchorDate) {
+  const d = new Date(anchorDate + 'T00:00:00');
+  const dow = (d.getDay() + 6) % 7; // lunes = 0
+  const monday = new Date(d); monday.setDate(d.getDate() - dow);
+  return Array.from({ length: 7 }, (_, i) => { const x = new Date(monday); x.setDate(monday.getDate() + i); return localStr(x); });
+}
+function buildWeekCalendar(containerEl, anchorDate) {
+  if (!containerEl) return;
+  const dates = plannerWeekDates(anchorDate || getActiveDate());
+  const dayNames = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+  const today = getActiveDate();
+  const heads = dates.map((d, i) => {
+    const dt = new Date(d + 'T00:00:00');
+    return `<div class="pcal-week-head${d === today ? ' is-today' : ''}">${dayNames[i]} <span>${dt.getDate()}/${dt.getMonth() + 1}</span></div>`;
+  }).join('');
+  const cols = dates.map(d => `<div class="pcal-week-col">${plannerDayTrackHTML(d, PCAL_WEEK_HOUR_PX, false)}</div>`).join('');
+  containerEl.innerHTML = `
+    <div class="pcal-week-wrap">
+      <div class="pcal-hours-col pcal-hours-col-week">${Array.from({ length: 24 }, (_, h) => `<div class="pcal-hour-tick" style="top:${h * PCAL_WEEK_HOUR_PX}px">${_pad2(h)}:00</div>`).join('')}</div>
+      <div class="pcal-week-body">
+        <div class="pcal-week-heads">${heads}</div>
+        <div class="pcal-week-cols">${cols}</div>
+      </div>
+    </div>`;
+  containerEl.querySelectorAll('.pcal-text').forEach(el => plannerAutoResize(el));
 }
 
 function renderDayPlanner() {
   const today = getActiveDate();
 
-  // Vista inline = reducida: sólo las horas con texto/metas. La versión completa
-  // (con pestañas Hoy/Mañana) vive en el overlay (FAB 🧍 → Planificación).
+  // Card standalone (pestaña Vida): siempre hoy, estilo calendario.
   const listEl = document.getElementById('dayPlannerList');
-  buildPlannerSlide(listEl, today, true, true);
-  if (listEl && !listEl.innerHTML.trim()) {
-    listEl.innerHTML = '<div class="planner-empty-inline">Sin horas planificadas. Abrí <b>Planificación</b> (🧍 → Planificación) para organizar tu día.</div>';
-  }
-  // En la sección sólo se muestra Hoy: ocultar el slide de Mañana y los puntos del swiper.
+  buildDayCalendar(listEl, today);
   const tom = document.getElementById('dayPlannerListTom'); if (tom) tom.style.display = 'none';
   const dots = document.getElementById('plannerDots'); if (dots) dots.style.display = 'none';
   const label = document.getElementById('plannerDateLabel');
