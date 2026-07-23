@@ -1631,44 +1631,49 @@ function plannerAutoResize(el) {
 }
 
 // ── Bloque de calendario (franja pintada por área, alto proporcional a la duración) ──
-function _pcalEndTime(t) { return _minToTime(_timeToMin(t.time) + (t.duration || 30)); }
-function plannerBlockHTML(date, t, hourPx) {
+function plannerBlockHTML(date, t, hourPx, compact) {
   const startMin = _timeToMin(t.time);
   const top    = (startMin / 60) * hourPx;
-  const height = Math.max(((t.duration || 30) / 60) * hourPx, 18);
+  const height = Math.max(((t.duration || 30) / 60) * hourPx, compact ? 24 : 40);
   const prioCfg = PLANNER_PRIO[t.priority] || PLANNER_PRIO[2];
 
   if (!t.area) {
     // Draft sin área: no se pinta como bloque válido — pide elegir área antes de contar como creado.
+    // Alto fijo (no depende de la duración): necesita lugar para el texto + los 5 swatches + eliminar.
+    const pendingHeight = Math.max(height, 76);
     const swatches = Object.entries(PLANNER_AREAS).map(([key, cfg]) =>
       `<button class="pcal-area-dot" style="--area-c:var(${cfg.cssVar})" title="${cfg.label}" onclick="plannerSetArea('${escHtml(date)}','${t.id}','${key}')"></button>`
     ).join('');
-    return `<div class="pcal-block pcal-pending" data-id="${t.id}" style="top:${top}px;height:${height}px" onclick="event.stopPropagation()">
+    return `<div class="pcal-block pcal-pending" data-id="${t.id}" style="top:${top}px;height:${pendingHeight}px" onclick="event.stopPropagation()">
+      <div class="pcal-head">
+        <span class="pcal-pending-hint">Elegí un área ↓</span>
+        <button class="pcal-del" onclick="plannerDeleteTask('${escHtml(date)}','${t.id}')" title="Eliminar" aria-label="Eliminar">✕</button>
+      </div>
       <textarea class="pcal-text" rows="1" placeholder="Actividad…"
         oninput="plannerAutoResize(this)"
         onblur="plannerTaskText('${escHtml(date)}','${t.id}',this.value)">${escHtml(t.text)}</textarea>
-      <div class="pcal-areas" title="Elegí un área">${swatches}</div>
-      <button class="pcal-del" onclick="plannerDeleteTask('${escHtml(date)}','${t.id}')" title="Eliminar" aria-label="Eliminar">✕</button>
+      <div class="pcal-areas">${swatches}</div>
     </div>`;
   }
 
   const areaCfg = PLANNER_AREAS[t.area];
-  return `<div class="pcal-block prio-${t.priority}${t.done ? ' done' : ''}" data-id="${t.id}"
+  return `<div class="pcal-block${compact ? ' pcal-compact' : ''} prio-${t.priority}${t.done ? ' done' : ''}" data-id="${t.id}"
     style="top:${top}px;height:${height}px;--area-c:var(${areaCfg.cssVar})" onclick="event.stopPropagation()">
     <div class="pcal-head">
+      <label class="pcal-check"><input type="checkbox"${t.done ? ' checked' : ''} onchange="plannerToggleTask('${escHtml(date)}','${t.id}')"></label>
       <button class="pcal-badge" onclick="plannerCyclePrio('${escHtml(date)}','${t.id}')" title="Postergable: ${prioCfg.label} — clic para cambiar">${prioCfg.label}</button>
-      <span class="pcal-time">${t.time}–${_pcalEndTime(t)}</span>
+      <input class="pcal-time-input" type="time" step="60" value="${t.time}"
+        onclick="event.stopPropagation()" onchange="plannerMoveTask('${escHtml(date)}','${t.id}',this.value)">
       <button class="pcal-del" onclick="plannerDeleteTask('${escHtml(date)}','${t.id}')" title="Eliminar" aria-label="Eliminar">✕</button>
     </div>
     <textarea class="pcal-text" rows="1" placeholder="Actividad…"
       oninput="plannerAutoResize(this)"
       onblur="plannerTaskText('${escHtml(date)}','${t.id}',this.value)">${escHtml(t.text)}</textarea>
-    <div class="pcal-foot">
-      <label class="pcal-check"><input type="checkbox"${t.done ? ' checked' : ''} onchange="plannerToggleTask('${escHtml(date)}','${t.id}')"></label>
+    ${compact ? '' : `<div class="pcal-foot">
       <span class="pcal-area-label">${areaCfg.label}</span>
       <input class="pcal-dur" type="number" min="5" step="5" value="${t.duration || 30}"
         onclick="event.stopPropagation()" onchange="plannerSetDuration('${escHtml(date)}','${t.id}',this.value)"> min
-    </div>
+    </div>`}
   </div>`;
 }
 
@@ -1707,27 +1712,28 @@ function plannerTrackClick(e) {
   plannerAddTask(track.dataset.date, time);
 }
 // Grilla de 24hs de un solo día: líneas de hora + bloques posicionados por horario/duración.
-function plannerDayTrackHTML(date, hourPx, withLabels) {
+function plannerDayTrackHTML(date, hourPx, compact) {
   const hourLines = [];
-  for (let h = 0; h < 24; h++) {
-    hourLines.push(`<div class="pcal-hourline" style="top:${h * hourPx}px">${withLabels ? `<span class="pcal-hour-label">${_pad2(h)}:00</span>` : ''}</div>`);
-  }
+  for (let h = 0; h < 24; h++) hourLines.push(`<div class="pcal-hourline" style="top:${h * hourPx}px"></div>`);
   const now = new Date();
   const nowLine = date === getActiveDate()
     ? `<div class="pcal-now" style="top:${(now.getHours() * 60 + now.getMinutes()) / 60 * hourPx}px"></div>` : '';
-  const blocks = getDayPlan(date).tasks.map(t => plannerBlockHTML(date, t, hourPx)).join('');
+  const blocks = getDayPlan(date).tasks.map(t => plannerBlockHTML(date, t, hourPx, compact)).join('');
   return `<div class="pcal-track" data-date="${escHtml(date)}" data-hourpx="${hourPx}"
     style="height:${24 * hourPx}px" onclick="plannerTrackClick(event)">${hourLines.join('')}${nowLine}${blocks}</div>`;
 }
+function plannerHourTicksHTML(hourPx) {
+  return Array.from({ length: 24 }, (_, h) => `<div class="pcal-hour-tick" style="top:${h * hourPx}px">${_pad2(h)}:00</div>`).join('');
+}
 
-const PCAL_HOUR_PX = 46;      // pestaña Día / card standalone
-const PCAL_WEEK_HOUR_PX = 30; // columnas de la vista Semana (más compacta)
+const PCAL_HOUR_PX = 64;      // pestaña Día / card standalone — grande y legible, estilo Google Calendar
+const PCAL_WEEK_HOUR_PX = 48; // columnas de la vista Semana
 
 function buildDayCalendar(containerEl, date) {
   if (!containerEl) return;
   containerEl.innerHTML = plannerDaybarHTML(date) + `
     <div class="pcal-day-wrap">
-      <div class="pcal-hours-col">${Array.from({ length: 24 }, (_, h) => `<div class="pcal-hour-tick" style="top:${h * PCAL_HOUR_PX}px">${_pad2(h)}:00</div>`).join('')}</div>
+      <div class="pcal-hours-col" style="height:${24 * PCAL_HOUR_PX}px">${plannerHourTicksHTML(PCAL_HOUR_PX)}</div>
       <div class="pcal-day-body">${plannerDayTrackHTML(date, PCAL_HOUR_PX, false)}</div>
     </div>`;
   containerEl.querySelectorAll('.pcal-text').forEach(el => plannerAutoResize(el));
@@ -1736,7 +1742,7 @@ function buildDayCalendar(containerEl, date) {
   containerEl.scrollTop = Math.max(0, curTop - containerEl.clientHeight / 2);
 }
 
-// ── Vista Semana: 7 columnas (lunes a domingo) sobre el mismo S.dayPlan por fecha ──
+// ── Vista Semana: 7 columnas (lunes a domingo) sobre el mismo S.dayPlan por fecha, grid CSS único ──
 function plannerWeekDates(anchorDate) {
   const d = new Date(anchorDate + 'T00:00:00');
   const dow = (d.getDay() + 6) % 7; // lunes = 0
@@ -1750,18 +1756,22 @@ function buildWeekCalendar(containerEl, anchorDate) {
   const today = getActiveDate();
   const heads = dates.map((d, i) => {
     const dt = new Date(d + 'T00:00:00');
-    return `<div class="pcal-week-head${d === today ? ' is-today' : ''}">${dayNames[i]} <span>${dt.getDate()}/${dt.getMonth() + 1}</span></div>`;
+    return `<div class="pcal-week-head${d === today ? ' is-today' : ''}"><span class="pcal-wh-dow">${dayNames[i]}</span><span class="pcal-wh-num">${dt.getDate()}</span></div>`;
   }).join('');
-  const cols = dates.map(d => `<div class="pcal-week-col">${plannerDayTrackHTML(d, PCAL_WEEK_HOUR_PX, false)}</div>`).join('');
+  const cols = dates.map(d => `<div class="pcal-week-col">${plannerDayTrackHTML(d, PCAL_WEEK_HOUR_PX, true)}</div>`).join('');
   containerEl.innerHTML = `
-    <div class="pcal-week-wrap">
-      <div class="pcal-hours-col pcal-hours-col-week">${Array.from({ length: 24 }, (_, h) => `<div class="pcal-hour-tick" style="top:${h * PCAL_WEEK_HOUR_PX}px">${_pad2(h)}:00</div>`).join('')}</div>
-      <div class="pcal-week-body">
-        <div class="pcal-week-heads">${heads}</div>
-        <div class="pcal-week-cols">${cols}</div>
+    <div class="pcal-week-scroll">
+      <div class="pcal-week-grid">
+        <div class="pcal-week-corner"></div>
+        ${heads}
+        <div class="pcal-hours-col pcal-hours-col-week" style="height:${24 * PCAL_WEEK_HOUR_PX}px">${plannerHourTicksHTML(PCAL_WEEK_HOUR_PX)}</div>
+        ${cols}
       </div>
     </div>`;
   containerEl.querySelectorAll('.pcal-text').forEach(el => plannerAutoResize(el));
+  const now = new Date();
+  const scroller = containerEl.querySelector('.pcal-week-scroll');
+  if (scroller) scroller.scrollTop = Math.max(0, (now.getHours() * 60 + now.getMinutes()) / 60 * PCAL_WEEK_HOUR_PX - scroller.clientHeight / 2);
 }
 
 function renderDayPlanner() {
