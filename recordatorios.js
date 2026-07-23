@@ -26,6 +26,29 @@ const REM_CFG = {
 };
 const REM_ORDER = { critical:0, high:1, medium:2, low:3, someday:4 };
 
+// ── Nodos de Proyectos con fecha límite, como ítems virtuales de recordatorio (todas las secciones) ──
+function remProyItems(tab) {
+  const now = Date.now();
+  let proyImminent = [], proyUpcoming = [], proyPast = [];
+  if (window.Proyectos && typeof window.Proyectos.get === 'function') {
+    const proyItems = [];
+    const walkProy = nodes => (nodes || []).forEach(n => {
+      if (n && n.dueDate && !n.done) {
+        proyItems.push({ _isProject: true, _tab: tab, _nodeId: n.id, _icon: n.icon || '📁',
+          id: 'proy_' + n.id, title: n.label || '(sin título)',
+          datetime: n.dueDate + 'T23:59:59',
+          priority: n.priority === '1' ? 'high' : n.priority === '3' ? 'low' : 'medium' });
+      }
+      if (n && n.children) walkProy(n.children);
+    });
+    try { walkProy(window.Proyectos.get(tab)); } catch (e) {}
+    proyPast     = proyItems.filter(p => new Date(p.datetime) - now <= 0).sort((a, b) => new Date(b.datetime) - new Date(a.datetime));
+    proyImminent = proyItems.filter(p => { const d = new Date(p.datetime) - now; return d > 0 && d < 86400000; }).sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
+    proyUpcoming = proyItems.filter(p => new Date(p.datetime) - now >= 86400000).sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
+  }
+  return { proyImminent, proyUpcoming, proyPast };
+}
+
 function renderReminders(tab) {
   const wrap = document.getElementById('reminders-wrap-' + tab);
   if (!wrap) return;
@@ -57,23 +80,7 @@ function renderReminders(tab) {
   }
 
   // ── Inyecta nodos de Proyectos con fecha límite como ítems virtuales (todas las secciones) ──
-  let proyImminent = [], proyUpcoming = [], proyPast = [];
-  if (window.Proyectos && typeof window.Proyectos.get === 'function') {
-    const proyItems = [];
-    const walkProy = nodes => (nodes || []).forEach(n => {
-      if (n && n.dueDate && !n.done) {
-        proyItems.push({ _isProject: true, _tab: tab, _nodeId: n.id, _icon: n.icon || '📁',
-          id: 'proy_' + n.id, title: n.label || '(sin título)',
-          datetime: n.dueDate + 'T23:59:59',
-          priority: n.priority === '1' ? 'high' : n.priority === '3' ? 'low' : 'medium' });
-      }
-      if (n && n.children) walkProy(n.children);
-    });
-    try { walkProy(window.Proyectos.get(tab)); } catch (e) {}
-    proyPast     = proyItems.filter(p => new Date(p.datetime) - now <= 0).sort((a, b) => new Date(b.datetime) - new Date(a.datetime));
-    proyImminent = proyItems.filter(p => { const d = new Date(p.datetime) - now; return d > 0 && d < 86400000; }).sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
-    proyUpcoming = proyItems.filter(p => new Date(p.datetime) - now >= 86400000).sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
-  }
+  const { proyImminent, proyUpcoming, proyPast } = remProyItems(tab);
 
   // Categorize regular reminders
   const imminent = all.filter(r => r.datetime && (new Date(r.datetime) - now) > 0 && (new Date(r.datetime) - now) < 86400000);
@@ -209,7 +216,9 @@ function renderRemindersNotif(tab) {
   const body = document.getElementById('reminders-notif-' + tab); if (!body) return;
   if (!S.reminders) S.reminders = {};
   const now = Date.now();
-  const dated = (S.reminders[tab] || []).filter(r => r.datetime && new Date(r.datetime) - now > 0)
+  const { proyImminent, proyUpcoming } = remProyItems(tab);
+  const dated = [...(S.reminders[tab] || []), ...proyImminent, ...proyUpcoming]
+    .filter(r => r.datetime && new Date(r.datetime) - now > 0)
     .sort((a, b) => new Date(a.datetime) - new Date(b.datetime)).slice(0, 4);
   if (!dated.length) {
     body.innerHTML = '<div class="rnotif-empty">Sin recordatorios próximos. Abrí <b>Recordatorios</b> desde el FAB para crear uno.</div>';
