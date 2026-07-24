@@ -1427,7 +1427,12 @@ function renderGoalsHeader(date) {
 
 function toggleGoal(date, idx) {
   if (!S.goals[date]) return;
-  S.goals[date][idx].done = !S.goals[date][idx].done;
+  const g = S.goals[date][idx];
+  g.done = !g.done;
+  // Meta vinculada a una tarea de Proyectos: completarla también completa la tarea de origen.
+  if (g.fromTask && g.done && window.Proyectos && typeof window.Proyectos.setDone === 'function') {
+    try { window.Proyectos.setDone(g.fromTab, g.fromTask, true); } catch (e) {}
+  }
   saveState(); renderGoals();
   // Sync reminders urgent block (timed goals appear there — today and tomorrow)
   if (S.goals[date][idx].time) renderReminders('vida');
