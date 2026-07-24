@@ -1203,7 +1203,47 @@ const PLANNER_PRIO = {
   3: { label: 'Alta',  color: '#FF3358' },   // --danger (llamativo)
 };
 
+// Vuelca a "Metas de hoy" las tareas de Proyectos (todas las secciones) cuyo vencimiento es hoy.
+// Vínculo por g.fromTask: si la tarea se completa/borra/cambia de fecha, la meta se actualiza o se retira.
+function syncDueProjectsToGoals() {
+  if (!window.Proyectos || typeof window.Proyectos.get !== 'function') return false;
+  const today = getActiveDate();
+  if (!S.goals[today]) S.goals[today] = [];
+  const todayGoals = S.goals[today];
+  const PRIO_MAP = { '1': 'high', '2': 'mid', '3': 'low' };
+  const dismissed = (S.goalsDismissed && S.goalsDismissed[today]) || [];
+  const seenTaskIds = new Set();
+  let changed = false;
+
+  ['vida', 'finanzas', 'salud', 'conocimiento', 'ia'].forEach(tab => {
+    const walk = nodes => (nodes || []).forEach(n => {
+      if (!_poIsFolder(n) && n.dueDate === today && !dismissed.includes(n.id)) {
+        seenTaskIds.add(n.id);
+        const existing = todayGoals.find(g => g.fromTask === n.id);
+        if (!existing) {
+          todayGoals.push({ id: uid(), text: n.label || '(sin título)', done: !!n.done,
+            priority: PRIO_MAP[n.priority] || 'mid', time: '', period: '', fromTask: n.id, fromTab: tab });
+          changed = true;
+        } else if (n.done && !existing.done) {
+          // Solo empuja completada tarea→meta; no desmarca una meta que el usuario ya tildó a mano.
+          existing.done = true; changed = true;
+        }
+      }
+      if (n.children) walk(n.children);
+    });
+    walk(window.Proyectos.get(tab));
+  });
+
+  const before = todayGoals.length;
+  S.goals[today] = todayGoals.filter(g => !g.fromTask || seenTaskIds.has(g.fromTask));
+  if (S.goals[today].length !== before) changed = true;
+
+  if (changed) saveState();
+  return changed;
+}
+
 function renderGoals() {
+  syncDueProjectsToGoals();
   const today = getActiveDate(), tom = getTomorrow();
   renderGoalList(today, 'goalList', 'goalsEmpty', false);
   renderGoalList(tom, 'tomorrowList', 'tomorrowEmpty', false);
@@ -1410,6 +1450,13 @@ function toggleGoal(date, idx) {
 }
 
 function deleteGoal(date, idx) {
+  const g = S.goals[date][idx];
+  if (g && g.fromTask) {
+    // Descarte definitivo: si no se registra, syncDueProjectsToGoals la vuelve a crear en el próximo render.
+    if (!S.goalsDismissed) S.goalsDismissed = {};
+    if (!S.goalsDismissed[date]) S.goalsDismissed[date] = [];
+    S.goalsDismissed[date].push(g.fromTask);
+  }
   S.goals[date].splice(idx, 1);
   saveState(); renderGoals();
 }
@@ -3547,6 +3594,13 @@ _migratePhotos();   // migra fotos embebidas viejas a Storage (una vez, cuando S
 updateDayProgress();
 setInterval(updateDayProgress, 60000);
 setInterval(buildTickerAlerts, 30000);
+// Si la app queda abierta pasada la medianoche, al cambiar el día vuelve a correr renderGoals()
+// (que llama syncDueProjectsToGoals) para cargar las tareas que vencen hoy sin recargar la página.
+let _lastGoalSyncDay = getActiveDate();
+setInterval(() => {
+  const d = getActiveDate();
+  if (d !== _lastGoalSyncDay) { _lastGoalSyncDay = d; renderGoals(); }
+}, 60000);
 setInterval(() => {
   const p = document.querySelector('.tab-panel.active');
   if (p) renderReminders(p.id.replace('tab-', ''));

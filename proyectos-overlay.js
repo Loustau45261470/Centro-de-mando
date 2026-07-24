@@ -177,6 +177,7 @@ function poToggleDone(id) {
   const n = children.find(c => c.id === id); if (!n) return;
   n.done = !n.done; if (n.done) n.progress = 100;
   _poSave(); _poRender();
+  if (typeof renderGoals === 'function') try { renderGoals(); } catch (e) {}
 }
 function poSaveTitle(val) {
   const { node } = _poResolve(); if (!node) return;
@@ -195,6 +196,7 @@ function poSaveDue(val) {
   const { node } = _poResolve(); if (!node) return;
   node.dueDate = val || ''; _poSave();
   if (typeof renderReminders === 'function') try { renderReminders(_poTab); } catch (e) {}
+  if (typeof renderGoals === 'function') try { renderGoals(); } catch (e) {}
 }
 function poDelCurrent() {
   const { node } = _poResolve(); if (!node) return;
