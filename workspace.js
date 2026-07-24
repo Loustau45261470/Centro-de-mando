@@ -406,6 +406,7 @@
       if (n.done) { n.advances = n.advances || []; n.advances.push(getActiveDate()); }
       saveTree(tab, trees[tab]); renderProyectos(tab);
       if (typeof renderReminders === 'function') renderReminders(tab);
+      if (typeof renderGoals === 'function') try { renderGoals(); } catch (e) {}
       if (n.done && window.JARVIS) try { JARVIS.onTaskDone(); } catch (e) {}
     },
     // Abre el modal de detalle del nodo (para editar fecha/prioridad desde el board).
