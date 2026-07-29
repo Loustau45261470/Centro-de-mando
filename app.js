@@ -934,9 +934,9 @@ async function loadState() {
   if (_proyMigrated) saveState();
   if (_migrateQToT()) saveState();
   if (_migrateMonthlyGoals()) saveState();
-  // ── Presupuesto: init + auto-copia del mes actual ──
+  // ── Presupuesto: init + auto-copia en cascada de los meses futuros del año real actual ──
   if (!S.budgets) S.budgets = {};
-  if (ensureBudgetMonth(_curMonthKey())) saveState();
+  ensureBudgetYear(new Date().getFullYear());
 }
 function _migrateQToT() {
   if (!S.quarterlyObjectives) return false;

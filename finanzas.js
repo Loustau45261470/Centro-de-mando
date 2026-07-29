@@ -343,10 +343,16 @@ const _EDIT_SVG = '<svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2
 const _DEL_SVG  = '<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>';
 
 let budgetActiveMonth = null;
+let budgetActiveYear = null;
 
 function _curMonthKey() {
   const n = new Date();
   return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`;
+}
+
+// Año siguiente al dado, derivado con rollover nativo de Date (mes 12 = enero del año próximo).
+function _nextYear(year) {
+  return new Date(year, 12, 1).getFullYear();
 }
 
 function _emptyBudget() { return { fixed: [], reserved: [] }; }
@@ -371,25 +377,68 @@ function ensureBudgetMonth(mk) {
   return true;
 }
 
+// Precrea en cascada los meses FUTUROS de `year` (idempotente por mes vía ensureBudgetMonth).
+// Año calendario real actual: arranca en el mes real actual (nunca retro-crea meses pasados).
+// Años futuros (>= año real actual): arrancan en enero (todos sus meses son futuros).
+// Años pasados: no crea nada. Un solo saveState() al final si se creó algo, nunca uno por mes.
+function ensureBudgetYear(year) {
+  if (!S.budgets) S.budgets = {};
+  const realCurYear = new Date().getFullYear();
+  if (year < realCurYear) return false;
+  const startMonth = (year === realCurYear) ? (new Date().getMonth() + 1) : 1;
+  let changed = false;
+  for (let m = startMonth; m <= 12; m++) {
+    const mk = `${year}-${String(m).padStart(2,'0')}`;
+    if (ensureBudgetMonth(mk)) changed = true;
+  }
+  if (changed) saveState();
+  return changed;
+}
+
 function getBudgetMonths() {
-  const set = new Set(Object.keys(S.budgets || {}));
-  set.add(_curMonthKey());
-  return [...set].sort().reverse();
+  const year = budgetActiveYear || new Date().getFullYear();
+  const months = [];
+  for (let m = 1; m <= 12; m++) months.push(`${year}-${String(m).padStart(2,'0')}`);
+  return months.reverse();
 }
 
 function setBudgetMonth(m) { budgetActiveMonth = m; renderBudget(); }
+
+function setBudgetYear(y) {
+  const year = +y;
+  if (year === budgetActiveYear) return;
+  budgetActiveYear = year;
+  budgetActiveMonth = null;
+  ensureBudgetYear(year);
+  renderBudget();
+}
 
 function renderBudget() {
   const body = document.getElementById('budgetBody');
   if (!body) return;
   if (!S.budgets) S.budgets = {};
-  // Auto-copia del mes actual (una sola vez)
-  if (ensureBudgetMonth(_curMonthKey())) saveState();
+  const realCurYear = new Date().getFullYear();
+  if (!budgetActiveYear) budgetActiveYear = realCurYear;
+  // renderBudget es de solo lectura: la precreación en cascada corre en setBudgetYear()
+  // (cambio explícito de año) y en el init de app.js (año calendario real al arrancar).
 
   const months = getBudgetMonths();
-  if (!budgetActiveMonth || !months.includes(budgetActiveMonth)) budgetActiveMonth = months[0];
-  ensureBudgetMonth(budgetActiveMonth);
+  if (!budgetActiveMonth || !months.includes(budgetActiveMonth)) {
+    const curMk = _curMonthKey();
+    budgetActiveMonth = (budgetActiveYear === realCurYear && months.includes(curMk)) ? curMk : `${budgetActiveYear}-01`;
+  }
   const b = S.budgets[budgetActiveMonth] || _emptyBudget();
+
+  // Selector de año: año actual + siguiente + cualquier año con datos ya guardados en S.budgets
+  const yearSel = document.getElementById('budgetYearSel');
+  if (yearSel) {
+    const nextY = _nextYear(realCurYear);
+    const savedYears = Object.keys(S.budgets).map(k => +k.split('-')[0]);
+    const years = Array.from(new Set([...savedYears, realCurYear, nextY])).sort((a, b) => a - b);
+    yearSel.innerHTML = years.map(y =>
+      `<option value="${y}" ${y === budgetActiveYear ? 'selected' : ''}>${y}</option>`
+    ).join('');
+  }
 
   // Selector de mes
   const sel = document.getElementById('budgetMonthSel');
