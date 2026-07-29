@@ -590,6 +590,7 @@
         <div class="card" id="budget-card">
           <div class="card-title">
             🧮 Presupuesto del mes
+            <select class="inp budget-year-sel" id="budgetYearSel" onchange="setBudgetYear(this.value)"></select>
             <select class="inp budget-month-sel" id="budgetMonthSel" onchange="setBudgetMonth(this.value)"></select>
           </div>
           <div id="budgetBody"></div>

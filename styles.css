@@ -4225,6 +4225,11 @@ input:focus, select:focus, textarea:focus {
   width: auto; margin-left: auto;
   font-size: 12px; padding: 4px 10px;
 }
+.budget-year-sel {
+  width: auto; margin-left: auto;
+  font-size: 12px; padding: 4px 10px;
+}
+.budget-year-sel + .budget-month-sel { margin-left: 6px; }
 .budget-totals {
   display: flex; flex-direction: column; gap: 6px;
   padding: 14px 16px; border-radius: 14px; margin-bottom: 14px;
