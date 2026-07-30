@@ -12,6 +12,22 @@ function snapshotNW() {
   if (existing) existing.value = val;
   else S.nwHistory.push({ date:today, value:val });
   S.nwHistory.sort((a,b)=>a.date.localeCompare(b.date));
+
+  // Snapshot por cuenta (S.accountHistory): sin reconstrucción retroactiva, arranca
+  // a registrarse desde la primera vez que se llame snapshotNW() con esta feature activa.
+  if (!Array.isArray(S.accountHistory)) S.accountHistory = [];
+  S.accounts.forEach(a => {
+    const existingAcc = S.accountHistory.find(h=>h.date===today && h.accountId===a.id);
+    if (existingAcc) existingAcc.balance = a.balance;
+    else S.accountHistory.push({ date:today, accountId:a.id, balance:a.balance });
+  });
+  S.accountHistory.sort((a,b)=>a.date.localeCompare(b.date));
+
+  // Poda: solo se grafican los últimos 30 días, no hace falta acumular más de ~180
+  // días de historial por cuenta (evita inflar el documento único de Firestore).
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 180);
+  const cutoffStr = cutoff.toISOString().slice(0,10);
+  S.accountHistory = S.accountHistory.filter(h => h.date >= cutoffStr);
 }
 
 function renderFinanzasTab() {
@@ -45,6 +61,7 @@ function renderAccounts() {
       <button class="icon-btn" onclick="openEditAccount('${a.id}')"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
       <button class="icon-btn" onclick="deleteAccount('${a.id}')"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg></button>
     </div>`).join('') : '<p class="empty-state">Sin cuentas registradas</p>';
+  if (typeof renderAccountChartToggles === 'function') renderAccountChartToggles();
   if (nwPieInst) updateNWCharts();
 }
 
@@ -72,6 +89,8 @@ function addAccount() {
 function deleteAccount(id) {
   if (!confirm('¿Eliminar esta cuenta?')) return;
   S.accounts=S.accounts.filter(a=>a.id!==id);
+  if (typeof nwSelectedAccounts !== 'undefined') nwSelectedAccounts = nwSelectedAccounts.filter(aid=>aid!==id);
+  S.accountHistory = (S.accountHistory || []).filter(h => h.accountId !== id);
   snapshotNW(); saveState(); renderFinanzasTab();
 }
 
@@ -727,6 +746,11 @@ function deleteBudgetReserved(id) {
 }
 
 let txnActiveMonth = null;
+// Filtro de categoría exclusivo del overlay de historial completo (secciones-fab.js).
+// Por defecto vacío ("todas") — así la lista del mes activo en la pestaña principal de
+// Finanzas nunca se ve afectada; se resetea a '' al cerrar el overlay.
+let txnHistCatFilter = '';
+function setTxnHistCat(cat) { txnHistCatFilter = cat; renderActivity(); }
 
 function getAvailableMonths() {
   const months = new Set();
@@ -850,20 +874,24 @@ function renderActivity() {
   balEl.textContent = (bal>=0?'+':'')+fmtMoney(Math.abs(bal), filtered[0]?.currency||'ARS');
   balEl.className = 'fin-summary-num '+(bal>=0?'text-ok':'text-danger');
 
-  // Transaction list
+  // Transaction list — el filtro de categoría solo aplica acá (overlay de historial);
+  // summary y chart de arriba siguen usando `filtered` (mes) sin categoría, ya que
+  // esa porción también se ve desde la pestaña principal de Finanzas.
   const list = document.getElementById('activityList');
   const empty = document.getElementById('activityEmpty');
   const accMap = {};
   S.accounts.forEach(a => accMap[a.id] = a);
 
+  const filteredForList = txnHistCatFilter ? filtered.filter(t => t.category === txnHistCatFilter) : filtered;
+
   const colHdr = document.getElementById('activityColHdr');
-  if (!filtered.length) {
+  if (!filteredForList.length) {
     list.innerHTML=''; empty.classList.remove('hidden');
     if (colHdr) colHdr.style.display = 'none';
   } else {
     empty.classList.add('hidden');
     if (colHdr) colHdr.style.display = '';
-    list.innerHTML = filtered.map(t => {
+    list.innerHTML = filteredForList.map(t => {
       const cat = getCatInfo(t.category, t.type);
       const acc = t.accountId ? accMap[t.accountId] : null;
       const catBadge = t.category

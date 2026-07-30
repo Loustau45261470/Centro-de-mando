@@ -879,6 +879,15 @@ textarea { resize: vertical; min-height: 60px; }
 /* Chip de mes activo dentro del overlay de historial (vive fuera de #tab-finanzas) */
 #ov-historial .txn-month-btn.active { color: var(--cm-accent, #22C55E); border-bottom-color: var(--cm-accent, #22C55E); }
 
+/* Filtro de categoría del overlay de historial completo, al lado del filtro de mes */
+.txn-hist-filters { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.txn-hist-filters .txn-month-filter { flex: 1 1 auto; margin-bottom: 0; }
+.txn-hist-cat-filter {
+  flex: 0 0 auto; margin-bottom: 14px; padding: 6px 10px; font-size: 12px; font-weight: 600;
+  background: rgba(255,255,255,.04); color: var(--ts); border: 1px solid var(--border);
+  border-radius: 8px; cursor: pointer;
+}
+
 .month-balance-row { display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.05); }
 .month-balance-row:last-child { border-bottom:none; }
 .month-balance-label { font-size:14px;color:var(--ts);font-weight:600; }
@@ -1791,6 +1800,17 @@ textarea { resize: vertical; min-height: 60px; }
 }
 #tab-finanzas .chart-wrap-tall { padding: 0 14px 12px; margin-top: 0; height: 185px; }
 #tab-finanzas .chart-wrap      { padding: 0 14px 12px; margin-top: 0; height: 148px; }
+
+/* ══ SELECTOR DE CUENTAS SUPERPUESTAS AL GRÁFICO DE PATRIMONIO ══ */
+.nw-acc-toggles { display: flex; flex-wrap: wrap; gap: 6px 10px; padding: 0 14px 10px; }
+.nw-acc-toggle {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 600; color: var(--fin-t2, var(--ts));
+  cursor: pointer; user-select: none;
+}
+.nw-acc-toggle input[type="checkbox"] { width: 13px; height: 13px; accent-color: var(--fin-green, #6BE3A4); cursor: pointer; }
+.nw-acc-toggle.disabled { opacity: .4; cursor: not-allowed; }
+.nw-acc-toggle.disabled input { cursor: not-allowed; }
 
 /* ══ ACCOUNT TABLE ════════════════════════════════════════════ */
 #tab-finanzas #accountList { padding: 0; margin-top: 0; }
