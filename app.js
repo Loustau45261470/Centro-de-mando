@@ -27,6 +27,7 @@ const DEFAULT_STATE = {
   orders: [],       // [{ id, name, amount, currency, arrival, accountId, deducted }]
   wishlist: [],     // [{ id, name, amount, currency }]
   nwHistory: [],       // [{ date, value }]
+  accountHistory: [],  // [{ date, accountId, balance }] — poblado desde snapshotNW() en adelante, sin reconstrucción retroactiva
   fixedExpenses: [],   // [{ id, name, amount, currency, dayOfMonth }]
   fixedExpenseLog: {}, // { 'YYYY-MM': { [expId]: true } }
   budgets: {},         // { 'YYYY-MM': { fixed:[{id,name,category,unit,v1,v2,v3}], reserved:[{id,name,category,amount}] } }
@@ -411,6 +412,14 @@ function _rescueLocal(cloudObj, localObj) {
     const dates = new Set(c.map(e => e?.date));
     const news = l.filter(e => e?.date && !dates.has(e.date));
     if (news.length) r.nwHistory = [...c, ...news].sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  }
+  // accountHistory ([{date, accountId, balance}]): clave compuesta date+accountId
+  {
+    const c = Array.isArray(cloudObj.accountHistory) ? cloudObj.accountHistory : [];
+    const l = Array.isArray(localObj.accountHistory) ? localObj.accountHistory : [];
+    const keys = new Set(c.map(e => e?.date+'|'+e?.accountId));
+    const news = l.filter(e => e?.date && e?.accountId && !keys.has(e.date+'|'+e.accountId));
+    if (news.length) r.accountHistory = [...c, ...news].sort((a,b)=>String(a.date).localeCompare(String(b.date)));
   }
   return r;
 }
@@ -2832,6 +2841,54 @@ function initChartsForTab(tab) {
   if (tab==='finanzas') { initNWCharts(); }
 }
 
+// ── Líneas de cuentas individuales superpuestas al patrimonio total ──
+let nwSelectedAccounts = []; // ids de hasta 3 cuentas, no persistido (nice-to-have fuera de alcance)
+const _NW_ACC_COLORS = [
+  { border:'rgba(124,142,232,.85)', bg:'rgba(124,142,232,.08)' },
+  { border:'rgba(242,192,99,.85)',  bg:'rgba(242,192,99,.08)' },
+  { border:'rgba(255,107,107,.85)', bg:'rgba(255,107,107,.08)' },
+];
+
+function renderAccountChartToggles() {
+  const host = document.getElementById('nwAccountToggles');
+  nwSelectedAccounts = nwSelectedAccounts.filter(id => S.accounts.some(a => a.id === id));
+  if (!host) return;
+  const atMax = nwSelectedAccounts.length >= 3;
+  host.innerHTML = S.accounts.length ? S.accounts.map(a => {
+    const checked = nwSelectedAccounts.includes(a.id);
+    const disabled = !checked && atMax;
+    return `<label class="nw-acc-toggle${disabled?' disabled':''}">
+      <input type="checkbox" ${checked?'checked':''} ${disabled?'disabled':''} onchange="toggleNWAccountChart('${a.id}', this.checked)">
+      <span>${a.icon||'🏦'} ${a.name}</span>
+    </label>`;
+  }).join('') : '';
+}
+
+function toggleNWAccountChart(accountId, checked) {
+  if (checked) {
+    if (nwSelectedAccounts.length >= 3 || nwSelectedAccounts.includes(accountId)) return;
+    nwSelectedAccounts.push(accountId);
+  } else {
+    nwSelectedAccounts = nwSelectedAccounts.filter(id => id !== accountId);
+  }
+  renderAccountChartToggles();
+  updateNWCharts();
+}
+
+// Datasets de cuentas seleccionadas: se mapean sobre el mismo array `hist` (y por lo
+// tanto el mismo eje de fechas) que usa el dataset de patrimonio total, para que no
+// haya desalineación entre labels MM-DD repetidas entre años.
+function _nwAccountDatasets(hist) {
+  return nwSelectedAccounts.map((accId, i) => {
+    const acc = S.accounts.find(a => a.id === accId);
+    const by = {};
+    (S.accountHistory || []).filter(h => h.accountId === accId).forEach(h => { by[h.date] = h.balance; });
+    const data = hist.map(h => by[h.date] ?? null);
+    const c = _NW_ACC_COLORS[i % _NW_ACC_COLORS.length];
+    return { label: acc ? acc.name : 'Cuenta', data, borderColor: c.border, backgroundColor: c.bg, tension:.3, pointRadius:3, fill:false, spanGaps:true };
+  });
+}
+
 function initNWCharts() {
   // Pie
   const pieCtx=document.getElementById('nwPieChart').getContext('2d');
@@ -2847,11 +2904,13 @@ function initNWCharts() {
   // Line
   const lineCtx=document.getElementById('nwLineChart').getContext('2d');
   const hist=S.nwHistory.slice(-30);
+  const accDatasets = _nwAccountDatasets(hist);
   nwLineInst=new Chart(lineCtx,{
     type:'line',
-    data:{ labels:hist.map(h=>h.date.slice(5)), datasets:[{ label:'Patrimonio', data:hist.map(h=>h.value), borderColor:'rgba(107,227,164,.8)', backgroundColor:'rgba(107,227,164,.06)', tension:.3, pointRadius:3, fill:true }] },
-    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } }, scales:{ x:{ ticks:{ font:{size:9} } }, y:{ ticks:{ font:{size:9}, callback:v=>fmtMoney(v,'USD') } } } }
+    data:{ labels:hist.map(h=>h.date.slice(5)), datasets:[{ label:'Patrimonio total', data:hist.map(h=>h.value), borderColor:'rgba(107,227,164,.8)', backgroundColor:'rgba(107,227,164,.06)', tension:.3, pointRadius:3, fill:true }, ...accDatasets] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display: accDatasets.length>0, position:'bottom', labels:{ font:{size:9}, boxWidth:10, color:'#C8D5E8' } } }, scales:{ x:{ type:'category', ticks:{ font:{size:9} } }, y:{ ticks:{ font:{size:9}, callback:v=>fmtMoney(v,'USD') } } } }
   });
+  renderAccountChartToggles();
 }
 
 function updateNWCharts() {
@@ -2860,8 +2919,10 @@ function updateNWCharts() {
   nwPieInst.data.datasets[0].data=types.map(t=>S.accounts.filter(a=>a.type===t).reduce((s,a)=>s+a.balance,0));
   nwPieInst.update('none');
   const hist=S.nwHistory.slice(-30);
+  const accDatasets = _nwAccountDatasets(hist);
   nwLineInst.data.labels=hist.map(h=>h.date.slice(5));
-  nwLineInst.data.datasets[0].data=hist.map(h=>h.value);
+  nwLineInst.data.datasets=[{ label:'Patrimonio total', data:hist.map(h=>h.value), borderColor:'rgba(107,227,164,.8)', backgroundColor:'rgba(107,227,164,.06)', tension:.3, pointRadius:3, fill:true }, ...accDatasets];
+  nwLineInst.options.plugins.legend.display = accDatasets.length>0;
   nwLineInst.update('none');
 }
 

@@ -57,14 +57,25 @@ window.openBudgetOverlay = _sfOpenBudget;
 // dentro del overlay, de modo que ya no ocupa espacio en la sección. Abrir/cerrar
 // solo muestra/oculta el overlay. renderActivity() sigue renderizando por id.
 let _sfHistMoved = false;
+function _sfPopulateHistCatFilter() {
+  const sel = document.getElementById('txnHistCatFilter');
+  if (!sel || typeof TXN_CATEGORIES === 'undefined') return;
+  const opts = Object.entries(TXN_CATEGORIES).map(([key, c]) => `<option value="${key}">${c.icon} ${c.label}</option>`).join('');
+  sel.innerHTML = `<option value="">Todas las categorías</option>${opts}`;
+  sel.value = typeof txnHistCatFilter !== 'undefined' ? txnHistCatFilter : '';
+}
 function _sfEnsureHistorial() {
   if (typeof CMOverlay === 'undefined') return null;
-  const { overlay, body } = CMOverlay.build({ id: 'ov-historial', accent: '#22C55E' });
+  const { overlay, body } = CMOverlay.build({ id: 'ov-historial', accent: '#22C55E', onClose: () => { if (typeof txnHistCatFilter !== 'undefined') { txnHistCatFilter = ''; _sfPopulateHistCatFilter(); if (typeof renderActivity === 'function') renderActivity(); } } });
   if (!overlay._sfBuilt) {
     body.innerHTML = `<div class="cm-ov-head"><div class="cm-ov-eyebrow">FINANZAS · HISTORIAL</div><div class="cm-ov-title">Historial de movimientos</div></div>
-      <div class="txn-month-filter" id="txnHistMonthFilter"></div>
+      <div class="txn-hist-filters">
+        <div class="txn-month-filter" id="txnHistMonthFilter"></div>
+        <select class="txn-hist-cat-filter" id="txnHistCatFilter" aria-label="Filtrar por categoría" onchange="setTxnHistCat(this.value)"></select>
+      </div>
       <div class="cm-ov-host" id="ov-historial-host"></div>`;
     overlay._sfBuilt = true;
+    _sfPopulateHistCatFilter();
   }
   if (!_sfHistMoved) {
     const host = document.getElementById('ov-historial-host');
