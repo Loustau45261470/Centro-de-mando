@@ -170,6 +170,21 @@ function _lawTargetTag(target) {
   return `<span class="law-tag law-tag-date">${target}</span>`;
 }
 
+const _LAW_MONTHS = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+
+// Convierte el `target` de texto libre a un timestamp comparable. null = sin fecha (va al final).
+function _lawTargetDate(target) {
+  const t = (target || '').toLowerCase();
+  const y = t.match(/\b(?:19|20)\d{2}\b/);
+  if (!y) return null;
+  const year = +y[0];
+  const mi = _LAW_MONTHS.findIndex(m => t.includes(m));
+  if (mi >= 0) return new Date(year, mi, 1).getTime();
+  const sem = t.match(/([12])\s*\S*\s*sem/);
+  if (sem) return new Date(year, sem[1] === '1' ? 5 : 10, 1).getTime();
+  return new Date(year, 11, 1).getTime();
+}
+
 function renderLawMilestones() {
   const wrap = document.getElementById('law-milestones-wrap');
   if (!wrap) return;
@@ -326,10 +341,30 @@ function deleteMilestone(id) {
 }
 
 // ── Law Plan ──
-function renderLawPlan() {
+// 0 = orden del plan, 1 = fecha ascendente (más cercano primero), 2 = descendente. No se persiste.
+let _lawPlanSort = 0;
+
+function cycleLawPlanSort() {
+  _lawPlanSort = (_lawPlanSort + 1) % 3;
+  renderLawPlan(true);
+}
+
+function _lawPlanRows(plan) {
+  if (!_lawPlanSort) return plan;
+  const dir = _lawPlanSort === 1 ? 1 : -1;
+  return plan.map((e, i) => ({ e, i, d: _lawTargetDate(e.target) }))
+    .sort((a, b) => {
+      if (a.d === null || b.d === null) return a.d === b.d ? a.i - b.i : (a.d === null ? 1 : -1);
+      return (a.d - b.d) * dir || a.i - b.i;
+    })
+    .map(x => x.e);
+}
+
+function renderLawPlan(keepSort) {
   const wrap = document.getElementById('law-plan-wrap');
   if (!wrap) return;
-  const plan = S.lawPlan;
+  if (!keepSort) _lawPlanSort = 0;
+  const plan = _lawPlanRows(S.lawPlan);
   const PENCIL = `<svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
   const TRASH  = `<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>`;
 
@@ -339,7 +374,7 @@ function renderLawPlan() {
       <button class="btn btn-ghost btn-sm" onclick="openAddLawPlan()">+ Materia</button>
     </div>
     <table class="law-tbl">
-      <thead><tr><th>Materia</th><th>Fecha / Modalidad</th><th></th></tr></thead>
+      <thead><tr><th>Materia</th><th class="law-sort" onclick="cycleLawPlanSort()" title="Ordenar por fecha">Fecha / Modalidad <span class="law-sort-ind${_lawPlanSort ? ' on' : ''}">${_lawPlanSort === 1 ? '▲' : _lawPlanSort === 2 ? '▼' : '↕'}</span></th><th></th></tr></thead>
       <tbody>
         ${plan.map(e => `<tr>
           <td class="law-plan-name">${e.subject}</td>
@@ -385,10 +420,10 @@ function saveLawPlanEntry() {
   } else {
     S.lawPlan.push({ id: uid(), subject, target: target || 'Sin fecha' });
   }
-  saveState(); renderLawPlan(); closeModal('modal-law-plan');
+  saveState(); renderLawPlan(true); closeModal('modal-law-plan');
 }
 
 function deleteLawPlan(id) {
   S.lawPlan = S.lawPlan.filter(e => e.id !== id);
-  saveState(); renderLawPlan();
+  saveState(); renderLawPlan(true);
 }
