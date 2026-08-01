@@ -1325,6 +1325,9 @@ textarea { resize: vertical; min-height: 60px; }
 .law-tbl { width:100%; border-collapse:collapse; }
 .law-tbl th { background:rgba(107,227,164,.13); color:var(--ok); font-weight:700; text-align:left;
   padding:9px 12px; font-size:11px; letter-spacing:.08em; text-transform:uppercase; }
+.law-tbl th.law-sort { cursor:pointer; user-select:none; }
+.law-sort-ind { font-size:10px; opacity:.4; }
+.law-sort-ind.on { opacity:1; }
 .law-tbl td { padding:9px 12px; border-bottom:1px solid var(--border); font-size:13px; vertical-align:middle; }
 .law-tbl tr:last-child td { border-bottom:none; }
 .law-tbl td.num { font-family:var(--mono); font-size:14px; font-weight:700; text-align:center; }
