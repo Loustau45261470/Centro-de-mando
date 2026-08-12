@@ -375,8 +375,9 @@ function _defaultTxnCategories() {
 // Siembra S.txnCategories la primera vez (idempotente). Se llama al inicio de cualquier
 // función que lea/muestre categorías, sin tocar loadState().
 function ensureTxnCategories() {
-  if (S.txnCategories) return false;
+  if (S.txnCategoriesSeeded) return false;
   S.txnCategories = _defaultTxnCategories();
+  S.txnCategoriesSeeded = true;
   return true;
 }
 

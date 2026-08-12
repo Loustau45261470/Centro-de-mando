@@ -154,6 +154,13 @@
       "desc": "El camino de login por click en ai-viz-canvas tragaba errores del bootstrap-sync con catch vacio y mostraba ACCESO CONCEDIDO igual; ahora muestra SYNC ERROR como tryLogin.",
       "file": "login.js",
       "marker": "nunca mostrar ACCESO CONCEDIDO"
+    },
+    {
+      "id": "txncat-seeded-flag-not-truthy-object",
+      "fecha": "2026-08-12",
+      "desc": "DEFAULT_STATE.txnCategories:{} hacia que loadState() precargara S.txnCategories como objeto vacio ANTES de ensureTxnCategories(); un {} es truthy, asi que 'if (S.txnCategories) return false' pensaba que ya estaba sembrado y nunca cargaba las 19 categorias por defecto en ningun dispositivo/sesion nueva. Se agrego S.txnCategoriesSeeded (booleano explicito) que distingue 'nunca sembrado' de 'usuario borro todo a proposito'.",
+      "file": "app.js",
+      "marker": "txnCategoriesSeeded"
     }
   ]
 }
