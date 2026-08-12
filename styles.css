@@ -3636,6 +3636,29 @@ body.font-jakarta  { --sans: "Plus Jakarta Sans", sans-serif; --mono: "JetBrains
   width: 200px; height: 200px;
 }
 .login-form { width: 100%; display: flex; flex-direction: column; gap: 14px; }
+.login-input-wrap { position: relative; }
+.login-input-label {
+  position: absolute; top: -9px; left: 12px;
+  font-size: 9px; letter-spacing: 0.3em;
+  color: rgba(0,212,255,0.7); background: #000;
+  padding: 0 5px; text-transform: uppercase;
+}
+.login-input {
+  width: 100%;
+  background: rgba(0,212,255,0.03);
+  border: 1px solid rgba(0,212,255,0.28);
+  border-radius: 3px; color: #e0f7ff;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 13px; letter-spacing: 0.18em;
+  padding: 13px 15px; outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.login-input:focus {
+  border-color: rgba(0,212,255,0.75);
+  box-shadow: 0 0 0 2px rgba(0,212,255,0.12), inset 0 0 12px rgba(0,212,255,0.04);
+}
+.login-input::placeholder { color: rgba(255,255,255,0.18); }
+.login-input.error { border-color: rgba(255,50,50,0.75) !important; }
 #login-btn {
   margin-top: 2px; padding: 14px;
   background: transparent;
