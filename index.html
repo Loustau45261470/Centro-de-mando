@@ -20,7 +20,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-<link rel="stylesheet" href="styles.css?v=154">
+<link rel="stylesheet" href="styles.css?v=155">
 <link rel="stylesheet" href="gamemode.css">
 <link rel="stylesheet" href="overlay-core.css">
 <link rel="stylesheet" href="speed-dial.css">
@@ -524,6 +524,23 @@
           <div id="wishTop5Body"></div>
         </div>
 
+        <!-- Fondos de compra · gasto fijo acumulable sujeto a condición (specs/fondos-de-compra.md) -->
+        <div class="card" id="fondos-card">
+          <div class="card-title">
+            🪙 Fondos
+            <button class="btn btn-ghost btn-sm" onclick="openFundModal()">+ Fondo</button>
+          </div>
+          <div class="fin-col-hdr sub-hdr">
+            <span>Fondo</span><span class="col-r">Acumulado</span><span></span><span></span>
+          </div>
+          <div id="fundsList"></div>
+          <div id="fundsEmpty" class="empty-state hidden">Sin fondos creados</div>
+          <div class="flex items-center justify-between mt-8 text-sm text-ter">
+            <span>Acumulado total:</span>
+            <span class="mono bold" id="fundsTotal">$0</span>
+          </div>
+        </div>
+
         <!-- Wishlist · Objetivos de adquisición (completo vive en el overlay del FAB) -->
         <div class="card" id="wishlist-card">
           <div class="card-title">
@@ -987,6 +1004,75 @@
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('modal-add-fixed-expense')">Cancelar</button>
       <button class="btn btn-primary" onclick="addFixedExpense()">Agregar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Fondo de compra: alta / edición (specs/fondos-de-compra.md) -->
+<div class="modal-overlay" id="modal-fund">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="fund-modal-title">Nuevo fondo</div>
+    <div class="input-row">
+      <div class="field" style="flex:1"><label>Nombre</label><input class="inp" id="fundName" placeholder="Ej: Musculosa del gym, Libros…"></div>
+      <div class="field" style="width:80px"><label>Emoji</label><input class="inp" id="fundEmoji" placeholder="🪙"></div>
+    </div>
+    <div class="field"><label>Monto mensual (ARS)</label><input class="inp" type="number" step="0.01" id="fundAmount" placeholder="0.00"></div>
+    <div class="field"><label>Descontar de cuenta</label><select class="inp" id="fundAccount"><option value="">— Ninguna —</option></select></div>
+    <div class="field"><label>Condición</label>
+      <select class="inp" id="fundCondType" onchange="pfToggleCondFields()">
+        <option value="ninguna">Sin condición (acredita siempre)</option>
+        <option value="habito">Hábito cumplido ≥ X% del mes</option>
+        <option value="objetivo">Objetivo / logro cumplido</option>
+      </select>
+    </div>
+    <div id="fundCondHabit" style="display:none">
+      <div class="field"><label>Hábito</label><select class="inp" id="fundHabitSel"></select></div>
+      <div class="field"><label>Umbral (%)</label><input class="inp" type="number" min="1" max="100" id="fundThreshold" value="75"></div>
+    </div>
+    <div id="fundCondObj" style="display:none">
+      <div class="field"><label>Tipo de objetivo</label>
+        <select class="inp" id="fundObjScope" onchange="pfObjScopeChanged()">
+          <option value="mensual">Mensual</option>
+          <option value="trimestral">Trimestral (acredita ×3 al cierre del trimestre)</option>
+        </select>
+      </div>
+      <div class="field"><label>Objetivo</label><select class="inp" id="fundObjSel"></select></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-fund')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveFund()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Fondo de compra: detalle (acumulado + historial) -->
+<div class="modal-overlay" id="modal-fund-detail">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Detalle del fondo</div>
+    <div id="fundDetailBody"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-fund-detail')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Fondo de compra: registrar/editar compra.
+     Va DESPUÉS del detalle a propósito: se abre desde él y debe quedar por encima. -->
+<div class="modal-overlay" id="modal-fund-spend">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="fund-spend-title">Compra del fondo</div>
+    <p class="text-sm text-ter" id="fundSpendAvail"></p>
+    <div class="field"><label>Descripción</label><input class="inp" id="fundSpendDesc" placeholder="Ej: Musculosa Nike"></div>
+    <div class="input-row">
+      <div class="field" style="flex:1"><label>Monto</label><input class="inp" type="number" step="0.01" id="fundSpendAmount" placeholder="0.00"></div>
+      <div class="field" style="flex:1"><label>Fecha</label><input class="inp" type="date" id="fundSpendDate"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-fund-spend')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveFundSpend()">Guardar</button>
     </div>
   </div>
 </div>
@@ -1673,7 +1759,7 @@
   </div>
 </div>
 
-<script src="app.js?v=155"></script>
+<script src="app.js?v=156"></script>
 <script src="workspace.js?v=195"></script>
 <script src="abogacia.js"></script>
 <script src="habitos.js"></script>

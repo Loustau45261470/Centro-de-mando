@@ -32,12 +32,14 @@ function snapshotNW() {
 
 function renderFinanzasTab() {
   ensureTxnCategories();
+  pfCatchUp();   // antes de renderActivity: las acreditaciones de meses cerrados son transacciones
   fillTxnCategorySelect('txnCategory', document.getElementById('txnCategory')?.value);
   renderTabHeader('finanzasHeaderMeta');
   renderAccounts();
   renderSubscriptions();
   renderWishlist();
   renderWishTop5();
+  renderPurchaseFunds();
   renderActivity();
   renderFinObjectives();
   renderBudget();
@@ -334,6 +336,480 @@ function markFixedExpensePaid(id) {
 }
 
 // ════════════════════════════════════════════════════════
+// FONDOS DE COMPRA — gasto fijo mensual acumulable sujeto a condición
+// Ver specs/fondos-de-compra.md
+//   S.purchaseFunds       [{ id, name, emoji, monthlyAmount, accountId, condition, createdMonth }]
+//   S.purchaseFundLog     { [fundId]: { 'YYYY-MM': { credited, met, txnId?, manual? } } }
+//   S.purchaseFundSpends  [{ id, fundId, date, desc, amount }]
+// La presencia de la clave del mes en el log = "mes ya evaluado" (idempotencia entre dispositivos).
+// ════════════════════════════════════════════════════════
+const _PF_SECTIONS = ['vida', 'finanzas', 'salud', 'conocimiento', 'ia'];
+const _PF_SEC_LBL  = { vida:'Vida', finanzas:'Finanzas', salud:'Salud', conocimiento:'Conocimiento', ia:'IA' };
+
+function _pfEnsure() {
+  if (!Array.isArray(S.purchaseFunds)) S.purchaseFunds = [];
+  if (!S.purchaseFundLog || typeof S.purchaseFundLog !== 'object') S.purchaseFundLog = {};
+  if (!Array.isArray(S.purchaseFundSpends)) S.purchaseFundSpends = [];
+}
+function _pfMonthKey(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
+function _pfMonthLabel(mk) { const [y,m] = mk.split('-'); return `${CAL_MONTHS[+m-1]} ${y}`; }
+function _pfDaysInMonth(mk) { const [y,m] = mk.split('-').map(Number); return new Date(y, m, 0).getDate(); }
+function _pfLastDay(mk) { return `${mk}-${String(_pfDaysInMonth(mk)).padStart(2,'0')}`; }
+function _pfNextMonth(mk) {
+  const [y,m] = mk.split('-').map(Number);
+  return m === 12 ? `${y+1}-01` : `${y}-${String(m+1).padStart(2,'0')}`;
+}
+function _pfLog(fundId) { _pfEnsure(); if (!S.purchaseFundLog[fundId]) S.purchaseFundLog[fundId] = {}; return S.purchaseFundLog[fundId]; }
+function _pfSpendsOf(fundId) { _pfEnsure(); return S.purchaseFundSpends.filter(s => s.fundId === fundId); }
+function _pfFund(id) { _pfEnsure(); return S.purchaseFunds.find(f => f.id === id) || null; }
+
+// acumulado = Σ acreditado − Σ compras (nunca menor a 0)
+function pfAccumulated(fundId) {
+  const credited = Object.values(_pfLog(fundId)).reduce((s,e) => s + (+e.credited || 0), 0);
+  const spent = _pfSpendsOf(fundId).reduce((s,x) => s + (+x.amount || 0), 0);
+  return Math.max(0, credited - spent);
+}
+
+// ── Resolución de la condición ──
+function _pfFindHabit(cond) {
+  if (!cond || cond.type !== 'habito') return null;
+  const arr = (S.habitTrackers && S.habitTrackers[cond.section]) || [];
+  return arr.find(h => h.id === cond.habitId) || null;
+}
+function _pfFindGoal(cond) {
+  if (!cond || cond.type !== 'objetivo') return null;
+  if (cond.scope === 'trimestral') {
+    const p = ((S.quarterlyObjectives && S.quarterlyObjectives.periods) || []).find(x => x.id === cond.periodKey);
+    return p ? (p.objectives || []).find(o => String(o.id) === String(cond.goalId)) || null : null;
+  }
+  const arr = ((S.monthlyGoals || {})[cond.section] || {})[cond.periodKey] || [];
+  return arr.find(g => String(g.id) === String(cond.goalId)) || null;
+}
+function pfConditionBroken(fund) {
+  const c = fund.condition;
+  if (!c) return false;
+  if (c.type === 'habito')   return !_pfFindHabit(c);
+  if (c.type === 'objetivo') return !_pfFindGoal(c);
+  return false;
+}
+function pfConditionLabel(fund) {
+  const c = fund.condition;
+  if (!c) return 'Sin condición';
+  if (c.type === 'habito') {
+    const h = _pfFindHabit(c);
+    return h ? `${h.emoji || '📅'} ${h.name} ≥ ${+c.threshold || 0}%` : 'Hábito eliminado';
+  }
+  const g = _pfFindGoal(c);
+  const scope = c.scope === 'trimestral' ? 'Objetivo trimestral' : 'Objetivo mensual';
+  return g ? `${scope}: ${g.text}` : `${scope} eliminado`;
+}
+
+// % del mes: done = 1, partial = 0,5; los días 'rest' se excluyen del total.
+// Devuelve null si el denominador es 0 (mes entero en descanso / sin días computables).
+function _pfHabitPct(habit, mk, upToToday) {
+  const total = _pfDaysInMonth(mk);
+  const today = getActiveDate();
+  let num = 0, den = 0;
+  for (let d = 1; d <= total; d++) {
+    const ds = `${mk}-${String(d).padStart(2,'0')}`;
+    if (upToToday && ds > today) break;
+    const st = habit.days ? habit.days[ds] : null;
+    if (st === 'rest') continue;
+    den++;
+    if (st === 'done' || st === 'studied') num += 1;
+    else if (st === 'partial') num += 0.5;
+  }
+  return den > 0 ? (num / den) * 100 : null;
+}
+
+// Fondos atados a un objetivo trimestral: solo acreditan en el mes de cierre del trimestre,
+// y ahí acreditan los 3 meses juntos (monto × 3).
+function _pfIsQuarterly(fund) {
+  return !!(fund.condition && fund.condition.type === 'objetivo' && fund.condition.scope === 'trimestral');
+}
+function _pfAppliesToMonth(fund, mk) {
+  if (!_pfIsQuarterly(fund)) return true;
+  return [3,6,9,12].includes(+mk.split('-')[1]);
+}
+function _pfAmountFor(fund) {
+  const base = +fund.monthlyAmount || 0;
+  return _pfIsQuarterly(fund) ? base * 3 : base;
+}
+
+// Evalúa la condición del fondo para un mes. upToToday=true → proyección del mes en curso.
+function pfEvalMonth(fund, mk, upToToday) {
+  if (pfConditionBroken(fund)) return { met:false, broken:true, pct:null };
+  const c = fund.condition;
+  if (!c) return { met:true, pct:null };
+  if (c.type === 'habito') {
+    const pct = _pfHabitPct(_pfFindHabit(c), mk, !!upToToday);
+    return { met: pct !== null && pct >= (+c.threshold || 0), pct };
+  }
+  const g = _pfFindGoal(c);
+  return { met: !!(g && g.done), pct:null };
+}
+
+// ── Acreditación ──
+// Acreditar registra el gasto fijo del mes (transacción con fecha del último día del mes)
+// y debita la cuenta asociada: por eso la compra posterior contra el fondo ya no es un gasto.
+function _pfCredit(fund, mk, manual) {
+  const amount = _pfAmountFor(fund);
+  const txn = { id:uid(), date:_pfLastDay(mk), name:`Fondo: ${fund.name}`, type:'expense', amount, currency:'ARS', accountId: fund.accountId || '' };
+  if (fund.accountId) {
+    const acc = S.accounts.find(a => a.id === fund.accountId);
+    if (acc) { acc.balance -= amount; snapshotNW(); }
+  }
+  S.transactions.unshift(txn);
+  _pfLog(fund.id)[mk] = { credited:amount, met:true, txnId:txn.id, manual: !!manual };
+}
+function _pfMarkNotMet(fund, mk) { _pfLog(fund.id)[mk] = { credited:0, met:false }; }
+
+// Catch-up: evalúa y acredita todos los meses YA CERRADOS que no tengan registro.
+// Un mes con registro nunca se vuelve a evaluar (no hay doble acreditación).
+function pfCatchUp() {
+  _pfEnsure();
+  if (!Array.isArray(S.transactions)) return;
+  const curMK = _pfMonthKey(new Date());
+  let changed = false;
+  S.purchaseFunds.forEach(fund => {
+    const log = _pfLog(fund.id);
+    let mk = fund.createdMonth || curMK, guard = 0;
+    while (mk < curMK && guard++ < 600) {
+      if (log[mk] === undefined && _pfAppliesToMonth(fund, mk)) {
+        const r = pfEvalMonth(fund, mk, false);
+        if (!r.broken) {                      // condición rota → no acredita ni marca el mes
+          if (r.met) _pfCredit(fund, mk, false); else _pfMarkNotMet(fund, mk);
+          changed = true;
+        }
+      }
+      mk = _pfNextMonth(mk);
+    }
+  });
+  if (changed) saveState();
+}
+
+function pfForceCredit(fundId, mk) {
+  const fund = _pfFund(fundId); if (!fund) return;
+  const e = _pfLog(fundId)[mk];
+  if (e && +e.credited > 0) { showToast('Ese mes ya está acreditado'); return; }
+  _pfCredit(fund, mk, true);
+  saveState(); renderFinanzasTab(); renderFundDetail();
+  showToast('Acreditación forzada');
+}
+function pfCancelCredit(fundId, mk) {
+  const log = _pfLog(fundId), e = log[mk];
+  if (!e || !(+e.credited > 0)) return;
+  if (pfAccumulated(fundId) - (+e.credited) < 0) {
+    showToast('No se puede anular: esa plata ya se gastó del fondo', 3500); return;
+  }
+  if (e.txnId) {
+    const i = S.transactions.findIndex(t => t.id === e.txnId);
+    if (i >= 0) {
+      const t = S.transactions[i];
+      if (t.accountId) { const acc = S.accounts.find(a => a.id === t.accountId); if (acc) { acc.balance += (+t.amount || 0); snapshotNW(); } }
+      S.transactions.splice(i, 1);
+    }
+  }
+  log[mk] = { credited:0, met:false, manual:true };
+  saveState(); renderFinanzasTab(); renderFundDetail();
+  showToast('Acreditación anulada');
+}
+
+// ── Render de la tarjeta de la sección ──
+function _pfStatusPill(fund) {
+  if (pfConditionBroken(fund)) return '<span class="pill pill-danger" style="font-size:10px">Condición rota</span>';
+  const curMK = _pfMonthKey(new Date());
+  if (!fund.condition) return '<span class="pill pill-ghost" style="font-size:10px">Sin condición</span>';
+  const r = pfEvalMonth(fund, curMK, true);
+  const pct = r.pct === null || r.pct === undefined ? '' : ` ${Math.round(r.pct)}%`;
+  return r.met
+    ? `<span class="pill pill-ok" style="font-size:10px">Cumpliendo${pct}</span>`
+    : `<span class="pill pill-warn" style="font-size:10px">No cumple${pct}</span>`;
+}
+
+function renderPurchaseFunds() {
+  const list = document.getElementById('fundsList');
+  if (!list) return;
+  _pfEnsure();
+  const empty = document.getElementById('fundsEmpty');
+  const totalEl = document.getElementById('fundsTotal');
+  if (!S.purchaseFunds.length) {
+    list.innerHTML = '';
+    if (empty) empty.classList.remove('hidden');
+    if (totalEl) totalEl.textContent = '$0';
+    return;
+  }
+  if (empty) empty.classList.add('hidden');
+  let total = 0;
+  list.innerHTML = S.purchaseFunds.map(f => {
+    const acc = pfAccumulated(f.id);
+    total += acc;
+    const per = _pfIsQuarterly(f) ? `${fmtMoney(+f.monthlyAmount || 0, 'ARS')}/mes · ×3 al cierre del trimestre` : `${fmtMoney(+f.monthlyAmount || 0, 'ARS')}/mes`;
+    return `<div class="sub-row">
+      <div class="sub-info">
+        <div class="sub-name">${escHtml(f.emoji || '🪙')} ${escHtml(f.name)} ${_pfStatusPill(f)}</div>
+        <div class="sub-detail">${per} · ${escHtml(pfConditionLabel(f))}</div>
+      </div>
+      <div class="flex gap-8 items-center">
+        <span class="mono bold">${fmtMoney(acc, 'ARS')}</span>
+        <button class="btn btn-ghost btn-sm" onclick="openFundDetail('${f.id}')" style="font-size:10px">Detalle</button>
+        <button class="icon-btn" onclick="openFundModal('${f.id}')">${_EDIT_SVG}</button>
+        <button class="icon-btn" onclick="deleteFund('${f.id}')">${_DEL_SVG}</button>
+      </div>
+    </div>`;
+  }).join('');
+  if (totalEl) totalEl.textContent = fmtMoney(total, 'ARS');
+}
+
+// ── Alta / edición de fondo ──
+let _pfEditId = null;
+
+function _pfFillHabitSel(sel, cond) {
+  const el = document.getElementById(sel); if (!el) return;
+  const opts = _PF_SECTIONS.map(sec => {
+    const arr = (S.habitTrackers && S.habitTrackers[sec]) || [];
+    if (!arr.length) return '';
+    return `<optgroup label="${_PF_SEC_LBL[sec]}">` + arr.map(h =>
+      `<option value="${sec}|${h.id}">${escHtml(h.emoji || '📅')} ${escHtml(h.name)}</option>`).join('') + '</optgroup>';
+  }).join('');
+  el.innerHTML = opts || '<option value="">— Sin hábitos —</option>';
+  if (cond && cond.type === 'habito') el.value = `${cond.section}|${cond.habitId}`;
+}
+function _pfFillObjSel(cond) {
+  const scope = document.getElementById('fundObjScope').value;
+  const el = document.getElementById('fundObjSel'); if (!el) return;
+  let opts = '';
+  if (scope === 'trimestral') {
+    opts = ((S.quarterlyObjectives && S.quarterlyObjectives.periods) || []).map(p => {
+      if (!(p.objectives || []).length) return '';
+      return `<optgroup label="${escHtml(p.label)}">` + p.objectives.map(o =>
+        `<option value="${p.id}|${o.id}">${escHtml(o.text)}</option>`).join('') + '</optgroup>';
+    }).join('');
+  } else {
+    const mg = S.monthlyGoals || {};
+    opts = _PF_SECTIONS.map(sec => {
+      const byMonth = mg[sec] || {};
+      return Object.keys(byMonth).sort().reverse().map(mk => {
+        const arr = byMonth[mk] || [];
+        if (!arr.length) return '';
+        return `<optgroup label="${_PF_SEC_LBL[sec]} · ${_pfMonthLabel(mk)}">` + arr.map(g =>
+          `<option value="${sec}|${mk}|${g.id}">${escHtml(g.text)}</option>`).join('') + '</optgroup>';
+      }).join('');
+    }).join('');
+  }
+  el.innerHTML = opts || '<option value="">— Sin objetivos cargados —</option>';
+  if (cond && cond.type === 'objetivo' && cond.scope === scope) {
+    el.value = scope === 'trimestral' ? `${cond.periodKey}|${cond.goalId}` : `${cond.section}|${cond.periodKey}|${cond.goalId}`;
+  }
+}
+function pfToggleCondFields() {
+  const t = document.getElementById('fundCondType').value;
+  document.getElementById('fundCondHabit').style.display = t === 'habito' ? '' : 'none';
+  document.getElementById('fundCondObj').style.display   = t === 'objetivo' ? '' : 'none';
+}
+function pfObjScopeChanged() { _pfFillObjSel(null); }
+
+function openFundModal(id) {
+  _pfEnsure();
+  _pfEditId = id || null;
+  const f = id ? _pfFund(id) : null;
+  populateAccountSelects();
+  document.getElementById('fund-modal-title').textContent = f ? 'Editar fondo' : 'Nuevo fondo';
+  document.getElementById('fundName').value = f ? f.name : '';
+  document.getElementById('fundEmoji').value = f ? (f.emoji || '') : '';
+  document.getElementById('fundAmount').value = f ? (+f.monthlyAmount || '') : '';
+  document.getElementById('fundAccount').value = f ? (f.accountId || '') : '';
+  const c = f ? f.condition : null;
+  document.getElementById('fundCondType').value = c ? c.type : 'ninguna';
+  document.getElementById('fundThreshold').value = c && c.type === 'habito' ? (+c.threshold || 75) : 75;
+  document.getElementById('fundObjScope').value = c && c.type === 'objetivo' ? c.scope : 'mensual';
+  _pfFillHabitSel('fundHabitSel', c);
+  _pfFillObjSel(c);
+  pfToggleCondFields();
+  openModal('modal-fund');
+}
+
+function saveFund() {
+  _pfEnsure();
+  const name = document.getElementById('fundName').value.trim();
+  if (!name) { showToast('Escribe el nombre'); return; }
+  const monthlyAmount = +document.getElementById('fundAmount').value || 0;
+  if (monthlyAmount <= 0) { showToast('El monto mensual tiene que ser mayor a 0'); return; }
+  const emoji = document.getElementById('fundEmoji').value.trim();
+  const accountId = document.getElementById('fundAccount').value;
+  const type = document.getElementById('fundCondType').value;
+
+  let condition = null;
+  if (type === 'habito') {
+    const v = document.getElementById('fundHabitSel').value;
+    if (!v) { showToast('Elegí un hábito para la condición'); return; }
+    const [section, habitId] = v.split('|');
+    condition = { type:'habito', section, habitId, threshold: +document.getElementById('fundThreshold').value || 0 };
+  } else if (type === 'objetivo') {
+    const scope = document.getElementById('fundObjScope').value;
+    const v = document.getElementById('fundObjSel').value;
+    if (!v) { showToast('Elegí un objetivo para la condición'); return; }
+    const parts = v.split('|');
+    condition = scope === 'trimestral'
+      ? { type:'objetivo', scope, periodKey: parts[0], goalId: parts[1] }
+      : { type:'objetivo', scope, section: parts[0], periodKey: parts[1], goalId: parts[2] };
+  }
+
+  if (_pfEditId) {
+    const f = _pfFund(_pfEditId);
+    if (f) Object.assign(f, { name, emoji, monthlyAmount, accountId, condition });
+  } else {
+    S.purchaseFunds.push({ id:uid(), name, emoji, monthlyAmount, accountId, condition, createdMonth: _pfMonthKey(new Date()) });
+  }
+  saveState(); closeModal('modal-fund'); renderFinanzasTab();
+  showToast(_pfEditId ? 'Fondo actualizado' : 'Fondo creado');
+  _pfEditId = null;
+}
+
+function deleteFund(id) {
+  const f = _pfFund(id); if (!f) return;
+  const acc = pfAccumulated(id);
+  if (!confirm(`¿Eliminar el fondo "${f.name}"? Se pierde el acumulado de ${fmtMoney(acc, 'ARS')} y su historial de compras.`)) return;
+  S.purchaseFunds = S.purchaseFunds.filter(x => x.id !== id);
+  delete S.purchaseFundLog[id];
+  S.purchaseFundSpends = S.purchaseFundSpends.filter(s => s.fundId !== id);
+  saveState(); closeModal('modal-fund-detail'); renderFinanzasTab();
+  showToast('Fondo eliminado');
+}
+
+// ── Compras contra el fondo (no computan como gasto: el gasto ya se registró al acreditar) ──
+let _pfSpendFundId = null, _pfSpendId = null;
+
+function openFundSpend(fundId, spendId) {
+  _pfEnsure();
+  const f = _pfFund(fundId); if (!f) return;
+  _pfSpendFundId = fundId; _pfSpendId = spendId || null;
+  const sp = spendId ? S.purchaseFundSpends.find(s => s.id === spendId) : null;
+  const avail = pfAccumulated(fundId) + (sp ? (+sp.amount || 0) : 0);
+  document.getElementById('fund-spend-title').textContent = sp ? 'Editar compra' : `Compra de ${f.name}`;
+  document.getElementById('fundSpendAvail').textContent = `Disponible en el fondo: ${fmtMoney(avail, 'ARS')}`;
+  document.getElementById('fundSpendDesc').value = sp ? sp.desc : '';
+  document.getElementById('fundSpendAmount').value = sp ? (+sp.amount || '') : '';
+  document.getElementById('fundSpendDate').value = sp ? sp.date : getActiveDate();
+  openModal('modal-fund-spend');
+}
+
+function saveFundSpend() {
+  _pfEnsure();
+  const fundId = _pfSpendFundId;
+  const f = _pfFund(fundId); if (!f) return;
+  const desc = document.getElementById('fundSpendDesc').value.trim();
+  if (!desc) { showToast('Escribe la descripción'); return; }
+  const amount = +document.getElementById('fundSpendAmount').value || 0;
+  if (amount <= 0) { showToast('El monto tiene que ser mayor a 0'); return; }
+  const date = document.getElementById('fundSpendDate').value || getActiveDate();
+  const prev = _pfSpendId ? (+(S.purchaseFundSpends.find(s => s.id === _pfSpendId) || {}).amount || 0) : 0;
+  const avail = pfAccumulated(fundId) + prev;
+  if (amount > avail) { showToast(`No alcanza: el fondo tiene ${fmtMoney(avail, 'ARS')}`, 3500); return; }
+
+  if (_pfSpendId) {
+    const sp = S.purchaseFundSpends.find(s => s.id === _pfSpendId);
+    if (sp) Object.assign(sp, { date, desc, amount });
+  } else {
+    S.purchaseFundSpends.push({ id:uid(), fundId, date, desc, amount });
+  }
+  saveState(); closeModal('modal-fund-spend'); renderFinanzasTab(); renderFundDetail();
+  showToast('Compra registrada');
+  _pfSpendId = null;
+}
+
+function deleteFundSpend(id) {
+  _pfEnsure();
+  if (!confirm('¿Borrar esta compra? El monto vuelve al acumulado del fondo.')) return;
+  S.purchaseFundSpends = S.purchaseFundSpends.filter(s => s.id !== id);
+  saveState(); renderFinanzasTab(); renderFundDetail();
+  showToast('Compra borrada');
+}
+
+// ── Detalle del fondo ──
+let _pfDetailId = null;
+
+function openFundDetail(id) { _pfDetailId = id; renderFundDetail(); openModal('modal-fund-detail'); }
+
+function renderFundDetail() {
+  const body = document.getElementById('fundDetailBody');
+  if (!body || !_pfDetailId) return;
+  const f = _pfFund(_pfDetailId);
+  if (!f) { body.innerHTML = '<p class="empty-state">Fondo eliminado</p>'; return; }
+  const log = _pfLog(f.id);
+  const months = Object.keys(log).sort().reverse();
+  const rows = months.length ? months.map(mk => {
+    const e = log[mk];
+    const ok = +e.credited > 0;
+    return `<div class="sub-row">
+      <div class="sub-info">
+        <div class="sub-name">${_pfMonthLabel(mk)} ${e.manual ? '<span class="pill pill-ghost" style="font-size:10px">manual</span>' : ''}</div>
+        <div class="sub-detail">${ok ? 'Cumplido' : 'No cumplido'}</div>
+      </div>
+      <div class="flex gap-8 items-center">
+        <span class="mono bold ${ok ? 'text-ok' : 'text-ter'}">${fmtMoney(+e.credited || 0, 'ARS')}</span>
+        ${ok
+          ? `<button class="btn btn-ghost btn-sm" onclick="pfCancelCredit('${f.id}','${mk}')" style="font-size:10px">Anular</button>`
+          : `<button class="btn btn-ghost btn-sm" onclick="pfForceCredit('${f.id}','${mk}')" style="font-size:10px">Forzar</button>`}
+      </div>
+    </div>`;
+  }).join('') : '<p class="empty-state">Sin meses evaluados todavía</p>';
+
+  const spends = _pfSpendsOf(f.id).slice().sort((a,b) => (b.date || '').localeCompare(a.date || ''));
+  const spendRows = spends.length ? spends.map(s => `<div class="sub-row">
+      <div class="sub-info">
+        <div class="sub-name">${escHtml(s.desc)}</div>
+        <div class="sub-detail">${escHtml(s.date || '')}</div>
+      </div>
+      <div class="flex gap-8 items-center">
+        <span class="mono bold text-danger">−${fmtMoney(+s.amount || 0, 'ARS')}</span>
+        <button class="icon-btn" onclick="openFundSpend('${f.id}','${s.id}')">${_EDIT_SVG}</button>
+        <button class="icon-btn" onclick="deleteFundSpend('${s.id}')">${_DEL_SVG}</button>
+      </div>
+    </div>`).join('') : '<p class="empty-state">Sin compras registradas</p>';
+
+  body.innerHTML = `
+    <div class="budget-totals">
+      <div class="budget-total-main">
+        <span class="budget-total-lbl">${escHtml(f.emoji || '🪙')} ${escHtml(f.name)} · acumulado</span>
+        <span class="budget-total-num">${fmtMoney(pfAccumulated(f.id), 'ARS')}</span>
+      </div>
+      <div class="budget-total-sub">
+        <span>${fmtMoney(+f.monthlyAmount || 0, 'ARS')} / mes</span>
+        <span>${escHtml(pfConditionLabel(f))}</span>
+      </div>
+    </div>
+    <div class="budget-block-hdr">
+      <span>Compras del fondo</span>
+      <button class="btn btn-ghost btn-sm" onclick="openFundSpend('${f.id}')">+ Compra</button>
+    </div>
+    ${spendRows}
+    <div class="budget-block-hdr"><span>Acreditaciones</span></div>
+    ${rows}`;
+}
+
+// Los fondos vigentes en el mes suman al mínimo fijo del presupuesto de ese mes.
+function _pfFundsOfMonth(mk) {
+  _pfEnsure();
+  return S.purchaseFunds.filter(f => !f.createdMonth || f.createdMonth <= mk);
+}
+function _pfBudgetTotal(mk) {
+  return _pfFundsOfMonth(mk).reduce((s,f) => s + (+f.monthlyAmount || 0), 0);
+}
+function _pfBudgetRows(mk) {
+  return _pfFundsOfMonth(mk).map(f => `<div class="sub-row">
+      <div class="sub-info">
+        <div class="sub-name">${escHtml(f.emoji || '🪙')} ${escHtml(f.name)} <span class="pill pill-ghost" style="font-size:10px">fondo</span></div>
+        <div class="sub-detail">${escHtml(pfConditionLabel(f))}</div>
+      </div>
+      <div class="flex gap-8 items-center">
+        <span class="mono bold">${fmtMoney(+f.monthlyAmount || 0, 'ARS')}</span>
+        <button class="btn btn-ghost btn-sm" onclick="openFundDetail('${f.id}')" style="font-size:10px">Detalle</button>
+      </div>
+    </div>`).join('');
+}
+
+// ════════════════════════════════════════════════════════
 // CATEGORÍAS DE TRANSACCIÓN — datos gestionables por el usuario (S.txnCategories)
 // Ver specs/finanzas-categorias-personalizables.md
 // ════════════════════════════════════════════════════════
@@ -539,9 +1015,10 @@ function renderBudget() {
   const [my, mmo] = budgetActiveMonth.split('-');
   const monthLabel = `${CAL_MONTHS[+mmo-1]} ${my}`;
 
-  // Ítems fijos
-  let totalFijo = 0;
-  const fixedRows = b.fixed.length ? b.fixed.map(it => {
+  // Ítems fijos (incluye los fondos de compra: su monto mensual es gasto fijo del presupuesto)
+  let totalFijo = _pfBudgetTotal(budgetActiveMonth);
+  const fundRows = _pfBudgetRows(budgetActiveMonth);
+  const fixedRows = fundRows + (b.fixed.length ? b.fixed.map(it => {
     const ci = getCatInfo(it.category, 'expense');
     const tot = _budgetItemTotal(it);
     totalFijo += tot;
@@ -556,7 +1033,7 @@ function renderBudget() {
         <button class="icon-btn" onclick="deleteBudgetFixed('${it.id}')">${_DEL_SVG}</button>
       </div>
     </div>`;
-  }).join('') : '<p class="empty-state">Sin ítems fijos</p>';
+  }).join('') : (fundRows ? '' : '<p class="empty-state">Sin ítems fijos</p>'));
 
   // Gastos reservados
   let totalRes = 0;
@@ -631,8 +1108,8 @@ function renderBudget() {
 
 // ── Resumen comparativo de presupuesto (vista de sección; el detalle vive en el overlay) ──
 function _budgetMonthTotal(mk) {
-  const b = S.budgets && S.budgets[mk]; if (!b) return 0;
-  let t = 0;
+  const b = S.budgets && S.budgets[mk]; if (!b) return _pfBudgetTotal(mk);
+  let t = _pfBudgetTotal(mk);
   (b.fixed || []).forEach(it => t += _budgetItemTotal(it));
   (b.reserved || []).forEach(it => t += (+it.amount || 0));
   return t;
