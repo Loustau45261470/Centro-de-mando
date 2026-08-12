@@ -555,7 +555,10 @@
         <div class="card" id="activity-card">
           <div class="card-title">
             💳 Actividad
-            <button class="btn btn-ghost btn-sm" onclick="openModal('modal-add-txn')">+ Movimiento</button>
+            <span class="flex gap-8">
+              <button class="btn btn-ghost btn-sm" onclick="openCatManager()">🎨 Categorías</button>
+              <button class="btn btn-ghost btn-sm" onclick="openModal('modal-add-txn')">+ Movimiento</button>
+            </span>
           </div>
           <div class="txn-month-filter" id="txnMonthFilter" style="display:none"></div>
           <div class="fin-summary-row" id="txnSummaryRow" style="display:none">
@@ -1366,21 +1369,6 @@
     <div class="field"><label>Categoría</label>
       <select class="inp" id="txnCategory">
         <option value="">— Sin categoría —</option>
-        <option value="clean_food">🥩 Alimentación Sana</option>
-        <option value="hydration">💧 Hidratación Limpia</option>
-        <option value="sports">🏋️ Deporte / Gym</option>
-        <option value="productivity">⚡ Productividad / Fijos</option>
-        <option value="girlfriend">💑 Novia</option>
-        <option value="pet">🐱 Mascota</option>
-        <option value="junk_food">🍟 Comida Chatarra</option>
-        <option value="home">🏠 Hogar / Insumos</option>
-        <option value="mama">👩 Mamá</option>
-        <option value="papa">👨 Papá</option>
-        <option value="business">💼 Negocio</option>
-        <option value="study">📚 Estudio</option>
-        <option value="salary">💰 Ingreso</option>
-        <option value="invest">📈 Inversión</option>
-        <option value="other">💸 Otro</option>
       </select>
     </div>
     <div class="input-row">
@@ -1414,21 +1402,6 @@
     <div class="field"><label>Categoría</label>
       <select class="inp" id="editTxnCategory">
         <option value="">— Sin categoría —</option>
-        <option value="clean_food">🥩 Alimentación Sana</option>
-        <option value="hydration">💧 Hidratación Limpia</option>
-        <option value="sports">🏋️ Deporte / Gym</option>
-        <option value="productivity">⚡ Productividad / Fijos</option>
-        <option value="girlfriend">💑 Novia</option>
-        <option value="pet">🐱 Mascota</option>
-        <option value="junk_food">🍟 Comida Chatarra</option>
-        <option value="home">🏠 Hogar / Insumos</option>
-        <option value="mama">👩 Mamá</option>
-        <option value="papa">👨 Papá</option>
-        <option value="business">💼 Negocio</option>
-        <option value="study">📚 Estudio</option>
-        <option value="salary">💰 Ingreso</option>
-        <option value="invest">📈 Inversión</option>
-        <option value="other">💸 Otro</option>
       </select>
     </div>
     <div class="input-row">
@@ -1444,6 +1417,52 @@
       <div style="flex:1;display:flex;gap:8px;justify-content:flex-end">
         <button class="btn btn-ghost" onclick="closeModal('modal-edit-txn')">Cancelar</button>
         <button class="btn btn-primary" onclick="saveEditTxn()">Guardar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Gestionar categorías -->
+<div class="modal-overlay" id="modal-cat-manager" onclick="if(event.target===this)closeModal('modal-cat-manager')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="card-title" style="margin-bottom:14px">
+      🎨 Gestionar categorías
+      <button class="btn btn-ghost btn-sm" onclick="openCatEdit()">+ Categoría</button>
+    </div>
+    <div id="catMgrList" class="catmgr-list"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" style="flex:1" onclick="closeModal('modal-cat-manager')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Categoría: crear/editar -->
+<div class="modal-overlay" id="modal-cat-edit" onclick="if(event.target===this)closeModal('modal-cat-edit')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="catEditTitle">Nueva categoría</div>
+    <input type="hidden" id="catEditId">
+    <div class="field"><label>Nombre</label><input class="inp" id="catEditName" placeholder="Ej: Regalos"></div>
+    <div class="input-row">
+      <div class="field" style="width:80px"><label>Ícono</label><input class="inp" id="catEditIcon" placeholder="💸" maxlength="4"></div>
+      <div class="field" style="width:70px"><label>Color</label><input class="inp catmgr-color-inp" type="color" id="catEditColor" value="#8B5CF6"></div>
+      <div class="field" style="flex:1"><label>Sección</label>
+        <select class="inp" id="catEditSection">
+          <option value="">— Sin sección —</option>
+          <option value="vida">Vida</option>
+          <option value="salud">Salud</option>
+          <option value="conocimiento">Conocimiento</option>
+          <option value="finanzas">Finanzas</option>
+          <option value="ia">IA</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-actions" style="display:flex;gap:8px">
+      <button class="btn btn-danger btn-sm" id="catEditDel" style="display:none" onclick="deleteTxnCategory(document.getElementById('catEditId').value)">Eliminar</button>
+      <div style="flex:1;display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="closeModal('modal-cat-edit');openModal('modal-cat-manager')">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveTxnCategory()">Guardar</button>
       </div>
     </div>
   </div>
