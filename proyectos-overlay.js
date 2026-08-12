@@ -60,7 +60,8 @@ function _poRender() {
   const ov = document.getElementById('proy-overlay'); if (!ov) return;
   const body = ov.querySelector('.cm-ov-body'); if (!body) return;
   const { node, children } = _poResolve();
-  body.innerHTML = node ? _poRenderNode(node, children) : _poRenderRoot(children);
+  const ordered = (window.Proyectos && window.Proyectos.sort) ? window.Proyectos.sort(children) : children;
+  body.innerHTML = node ? _poRenderNode(node, ordered) : _poRenderRoot(ordered);
 }
 
 function _poBreadcrumb() {

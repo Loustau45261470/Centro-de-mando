@@ -2627,6 +2627,47 @@ body.font-jakarta  { --sans: "Plus Jakarta Sans", sans-serif; --mono: "JetBrains
 .proy-node[data-depth="3"] > .proy-node-header { padding-left: 66px; }
 
 /* ── Detail panel (description + notes) ── */
+/* ── Modal "Mover a…" ── */
+.proy-move-secs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.proy-move-sec {
+  flex: 1 1 auto;
+  padding: 7px 10px;
+  background: var(--card); border: 1px solid var(--border); border-radius: 999px;
+  color: var(--ts); font-family: var(--sans); font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+.proy-move-sec:hover { background: var(--card-h); border-color: var(--border-h); color: var(--tp); }
+.proy-move-sec.active { background: var(--hud-glow); border-color: var(--hud); color: var(--hud-bright); }
+.proy-move-crumb { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-bottom: 8px; }
+.proy-move-crumb-item {
+  background: none; border: none; padding: 2px 4px;
+  color: var(--ts); font-family: var(--sans); font-size: 12px; font-weight: 600;
+  cursor: pointer; border-radius: 6px;
+}
+.proy-move-crumb-item:hover { color: var(--tp); background: var(--card); }
+.proy-move-crumb-item:last-child { color: var(--hud-bright); }
+.proy-move-crumb-sep { color: var(--tt); font-size: 12px; }
+.proy-move-list {
+  max-height: 46vh; overflow-y: auto;
+  border: 1px solid var(--border); border-radius: var(--r);
+  background: rgba(255,255,255,.02);
+}
+.proy-move-item {
+  width: 100%; display: flex; align-items: center; gap: 9px;
+  padding: 11px 12px; background: none; border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--tp); font-family: var(--sans); font-size: 13.5px; text-align: left;
+  cursor: pointer; transition: background .12s ease;
+}
+.proy-move-item:last-child { border-bottom: none; }
+.proy-move-item:hover:not(.disabled) { background: var(--card-h); }
+.proy-move-item.disabled { opacity: .38; cursor: not-allowed; }
+.proy-move-item-icon { font-size: 15px; flex-shrink: 0; }
+.proy-move-item-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.proy-move-item-chev { color: var(--tt); font-size: 12px; flex-shrink: 0; }
+.proy-move-empty { padding: 18px 12px; text-align: center; color: var(--tt); font-size: 12.5px; }
+.proy-move-hint { margin-top: 10px; font-size: 12px; color: var(--ts); line-height: 1.5; }
+
 .proy-detail-panel {
   overflow: hidden;
   transition: max-height .22s ease, opacity .18s ease;
