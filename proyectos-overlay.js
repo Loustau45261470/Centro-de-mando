@@ -131,7 +131,10 @@ function _poRenderNode(node, children) {
         <div class="po-tasks">${tasks.map(_poTaskRow).join('') || _poEmpty('Sin tareas')}</div>
       </div>
 
-      <button class="po-del" onclick="poDelCurrent()">Eliminar ${isFolder ? 'carpeta' : 'tarea'}</button>
+      <div class="po-actions">
+        <button class="po-move" onclick="poMoveCurrent()">${PO_ICONS.folder} Mover a otra carpeta</button>
+        <button class="po-del" onclick="poDelCurrent()">Eliminar ${isFolder ? 'carpeta' : 'tarea'}</button>
+      </div>
     </div>`;
 }
 
@@ -198,6 +201,13 @@ function poSaveDue(val) {
   node.dueDate = val || ''; _poSave();
   if (typeof renderReminders === 'function') try { renderReminders(_poTab); } catch (e) {}
   if (typeof renderGoals === 'function') try { renderGoals(); } catch (e) {}
+}
+// Mueve la carpeta/tarea abierta a otro lugar del árbol (mismo modal que el listado
+// de la pestaña). Al terminar se vuelve un nivel: la ruta actual ya no existe acá.
+function poMoveCurrent() {
+  const { node } = _poResolve(); if (!node) return;
+  if (!window.Proyectos || !window.Proyectos.openMove) { if (typeof showToast === 'function') showToast('Mover no disponible'); return; }
+  window.Proyectos.openMove(_poTab, node.id, () => poBack());
 }
 function poDelCurrent() {
   const { node } = _poResolve(); if (!node) return;
