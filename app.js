@@ -31,6 +31,7 @@ const DEFAULT_STATE = {
   fixedExpenses: [],   // [{ id, name, amount, currency, dayOfMonth }]
   fixedExpenseLog: {}, // { 'YYYY-MM': { [expId]: true } }
   budgets: {},         // { 'YYYY-MM': { fixed:[{id,name,category,unit,v1,v2,v3}], reserved:[{id,name,category,amount}] } }
+  txnCategories: {},   // { catId: { label, icon, color, section } } — categorías de transacción gestionables por el usuario
   sleepLog:        {}, // { 'YYYY-MM-DD': { hours: number, feeling: number } }
   ideas:     { vida: [], finanzas: [], salud: [], conocimiento: [], ia: [] }, // [{ id, title, description, notes }]
   reminders: { vida: [], finanzas: [], salud: [], conocimiento: [], ia: [] }, // [{ id, title, datetime, priority:'high'|'medium'|'low' }]
@@ -341,6 +342,8 @@ async function _maybeBackup(cloudStateRaw) {
 // Nunca borra nada de cloud. Solo suma lo que local creó mientras estaba sin sync.
 function _rescueLocal(cloudObj, localObj) {
   const r = { ...cloudObj };
+  // txnCategories: combina local + nube (no pierde categorías creadas offline)
+  r.txnCategories = { ...(localObj.txnCategories||{}), ...(cloudObj.txnCategories||{}) };
   // Arrays con ID
   ['transactions','accounts','subscriptions','orders','wishlist',
    'photos','finObjectives','fixedExpenses','lawMilestones','routines','exerciseLibrary',
@@ -813,6 +816,7 @@ function _applyRemoteState(raw, savedAt) {
     localStorage.setItem('lifedash_v2', JSON.stringify(S));
     _reRenderAll();
     if (typeof window._reloadProyectosFromState === 'function') window._reloadProyectosFromState();
+    if (typeof window._invalidateCatCache === 'function') window._invalidateCatCache();
     try {
       const _ad = JSON.parse(localStorage.getItem('_applyDiag') || '[]');
       _ad.unshift({ t: new Date().toLocaleString('es-AR'), items: _dataMetric(S), savedAt: savedAt || null });

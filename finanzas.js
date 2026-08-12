@@ -375,7 +375,7 @@ function _defaultTxnCategories() {
 // Siembra S.txnCategories la primera vez (idempotente). Se llama al inicio de cualquier
 // función que lea/muestre categorías, sin tocar loadState().
 function ensureTxnCategories() {
-  if (S.txnCategories && Object.keys(S.txnCategories).length) return false;
+  if (S.txnCategories) return false;
   S.txnCategories = _defaultTxnCategories();
   return true;
 }
@@ -391,10 +391,14 @@ function _hexToRgba(hex, alpha) {
 }
 
 // Devuelve el mapa vivo de categorías con color/border/chartColor derivados del hex
-// guardado en S.txnCategories — se recalcula en cada llamada, así que editar el color
-// de una categoría se refleja de inmediato en transacciones pasadas (no se "congela").
+// guardado en S.txnCategories — memoizado (se invalida en saveTxnCategory/deleteTxnCategory/
+// ensureTxnCategories y al llegar estado remoto, ver _invalidateCatCache).
+let _catMapCache = null;
+function _invalidateCatCache() { _catMapCache = null; }
+window._invalidateCatCache = _invalidateCatCache;
 function _liveCatMap() {
-  ensureTxnCategories();
+  if (ensureTxnCategories()) _catMapCache = null;
+  if (_catMapCache) return _catMapCache;
   const out = {};
   Object.entries(S.txnCategories).forEach(([id, c]) => {
     out[id] = {
@@ -402,6 +406,7 @@ function _liveCatMap() {
       color: _hexToRgba(c.color, .15), border: _hexToRgba(c.color, .4), chartColor: _hexToRgba(c.color, .85),
     };
   });
+  _catMapCache = out;
   return out;
 }
 
@@ -542,7 +547,7 @@ function renderBudget() {
     return `<div class="sub-row">
       <div class="sub-info">
         <div class="sub-name">${it.name}</div>
-        <div class="sub-detail">${ci.icon} ${ci.label || '—'} · ${(+it.v1||0)} × ${(+it.v2||0)} × ${(+it.v3||0)} ${it.unit || ''}</div>
+        <div class="sub-detail">${escHtml(ci.icon)} ${escHtml(ci.label) || '—'} · ${(+it.v1||0)} × ${(+it.v2||0)} × ${(+it.v3||0)} ${it.unit || ''}</div>
       </div>
       <div class="flex gap-8 items-center">
         <span class="mono bold">${fmtMoney(tot, 'ARS')}</span>
@@ -560,7 +565,7 @@ function renderBudget() {
     return `<div class="sub-row">
       <div class="sub-info">
         <div class="sub-name">${it.name}</div>
-        <div class="sub-detail">${ci.icon} ${ci.label || '—'}</div>
+        <div class="sub-detail">${escHtml(ci.icon)} ${escHtml(ci.label) || '—'}</div>
       </div>
       <div class="flex gap-8 items-center">
         <span class="mono bold">${fmtMoney(+it.amount || 0, 'ARS')}</span>
@@ -587,7 +592,7 @@ function renderBudget() {
     const ci = getCatInfo(c, 'expense');
     const plan = budByCat[c] || 0, real = realByCat[c] || 0, saldo = plan - real;
     return `<div class="budget-cmp-row">
-      <span class="budget-cmp-cat">${ci.icon} ${ci.label || c}</span>
+      <span class="budget-cmp-cat">${escHtml(ci.icon)} ${escHtml(ci.label) || escHtml(c)}</span>
       <span class="budget-cmp-num">${fmtMoney(plan, 'ARS')}</span>
       <span class="budget-cmp-num">${fmtMoney(real, 'ARS')}</span>
       <span class="budget-cmp-num ${saldo < 0 ? 'text-danger' : 'text-ok'}">${fmtMoney(saldo, 'ARS')}</span>
@@ -720,7 +725,7 @@ function fillTxnCategorySelect(elId, selected) {
   const map = _liveCatMap();
   const opts = ['<option value="">— Sin categoría —</option>'];
   Object.entries(map).forEach(([id, c]) => {
-    opts.push(`<option value="${id}" ${id === selected ? 'selected' : ''}>${c.icon} ${c.label}</option>`);
+    opts.push(`<option value="${id}" ${id === selected ? 'selected' : ''}>${escHtml(c.icon)} ${escHtml(c.label)}</option>`);
   });
   if (selected && !map[selected]) {
     opts.push(`<option value="${selected}" selected>💸 (categoría eliminada)</option>`);
@@ -746,9 +751,9 @@ function renderCatManagerList() {
     if (!cats.length) return '';
     const rows = cats.map(([id, c]) => `
       <div class="sub-row catmgr-row">
-        <div class="catmgr-swatch" style="background:${c.color || '#fff'}"></div>
+        <div class="catmgr-swatch" style="background:${_hexToRgba(c.color || '#fff', 1)}"></div>
         <div class="sub-info">
-          <div class="sub-name">${c.icon || '💸'} ${c.label}</div>
+          <div class="sub-name">${escHtml(c.icon || '💸')} ${escHtml(c.label)}</div>
         </div>
         <button class="icon-btn" onclick="openCatEdit('${id}')" title="Editar">${_EDIT_SVG}</button>
       </div>`).join('');
@@ -780,6 +785,7 @@ function saveTxnCategory() {
   const color = document.getElementById('catEditColor').value || 'rgba(255,255,255,.06)';
   const section = document.getElementById('catEditSection').value || null;
   S.txnCategories[id] = { label: name, icon, color, section };
+  _invalidateCatCache();
   saveState();
   closeModal('modal-cat-edit');
   openModal('modal-cat-manager');
@@ -792,6 +798,7 @@ function deleteTxnCategory(id) {
   if (!id) return;
   if (!confirm('¿Borrar esta categoría? Las transacciones y renglones de presupuesto que ya la usan no se modifican, solo deja de estar disponible para cargas nuevas.')) return;
   delete S.txnCategories[id];
+  _invalidateCatCache();
   saveState();
   closeModal('modal-cat-edit');
   openModal('modal-cat-manager');
@@ -805,7 +812,7 @@ function fillBudgetCatSelect(elId, selected) {
   if (!el) return;
   el.innerHTML = BUDGET_EXPENSE_CATS.map(c => {
     const ci = getCatInfo(c, 'expense');
-    return `<option value="${c}" ${c === selected ? 'selected' : ''}>${ci.icon} ${ci.label}</option>`;
+    return `<option value="${c}" ${c === selected ? 'selected' : ''}>${escHtml(ci.icon)} ${escHtml(ci.label)}</option>`;
   }).join('');
 }
 
@@ -1047,7 +1054,7 @@ function renderActivity() {
       const cat = getCatInfo(t.category, t.type);
       const acc = t.accountId ? accMap[t.accountId] : null;
       const catBadge = t.category
-        ? `<span style="font-size:10px;padding:1px 7px;border-radius:99px;font-weight:700;background:${cat.color};border:1px solid ${cat.border};color:var(--ts);margin-left:4px">${cat.icon} ${cat.label}</span>`
+        ? `<span style="font-size:10px;padding:1px 7px;border-radius:99px;font-weight:700;background:${cat.color};border:1px solid ${cat.border};color:var(--ts);margin-left:4px">${escHtml(cat.icon)} ${escHtml(cat.label)}</span>`
         : '';
       const pendingBadge = t.pending ? `<span class="txn-pending-badge">⏳ Pendiente</span>` : '';
       return `<div class="activity-row">
