@@ -431,8 +431,8 @@
   const TAB_LABELS = { vida: 'Vida', finanzas: 'Finanzas', salud: 'Salud', conocimiento: 'Conocimiento', ia: 'IA' };
   let _move = null; // { srcTab, srcId, srcLabel, destTab, destPath:[ids] }
 
-  function openMoveModal(tab, node) {
-    _move = { srcTab: tab, srcId: node.id, srcLabel: node.label, destTab: tab, destPath: [] };
+  function openMoveModal(tab, node, onMoved) {
+    _move = { srcTab: tab, srcId: node.id, srcLabel: node.label, destTab: tab, destPath: [], onMoved: onMoved || null };
     renderMoveModal();
     openModal('modal-proy-move');
   }
@@ -533,7 +533,9 @@
       if (destTab !== srcTab) renderReminders(destTab);
     }
     showToast('Movido a ' + (destNode ? destNode.label : TAB_LABELS[destTab]));
+    const cb = _move.onMoved;
     _move = null;
+    if (cb) try { cb(); } catch (e) {}
   };
 
   window.renderProyectos = renderProyectos;
@@ -543,6 +545,8 @@
     save: (tab) => { saveTree(tab, trees[tab]); renderProyectos(tab); },
     findById: (tab, id) => findById(trees[tab] || [], id),
     sort: nodes => sortNodes(nodes),
+    // Abre el modal "Mover a…" desde afuera (lo usa el overlay inmersivo de Proyectos).
+    openMove: (tab, id, onMoved) => { const n = findById(trees[tab] || [], id); if (n) openMoveModal(tab, n, onMoved); },
     newNode: (label, isFolder) => ({ id: uid(), label: label || (isFolder ? 'Nueva carpeta' : 'Nueva tarea'), icon: isFolder ? '📁' : '📄', tipo: isFolder ? 'carpeta' : 'tarea', open: false, description: '', notes: '', detailOpen: false, done: false, priority: '', dueDate: '', progress: 0, children: [] }),
     removeById: (tab, id) => { trees[tab] = removeById(trees[tab], id); saveTree(tab, trees[tab]); renderProyectos(tab); },
     // Marca done desde el board de recordatorios (y refresca el board para que salga de ahí).
