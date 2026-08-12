@@ -31,6 +31,8 @@ function snapshotNW() {
 }
 
 function renderFinanzasTab() {
+  ensureTxnCategories();
+  fillTxnCategorySelect('txnCategory', document.getElementById('txnCategory')?.value);
   renderTabHeader('finanzasHeaderMeta');
   renderAccounts();
   renderSubscriptions();
@@ -331,32 +333,93 @@ function markFixedExpensePaid(id) {
   saveState(); renderFixedExpenses(); showToast('Marcado como pagado');
 }
 
-const TXN_CATEGORIES = {
-  clean_food:   { label:'Alimentación Sana',     icon:'🥩', color:'rgba(107,227,164,.15)', border:'rgba(107,227,164,.4)',  chartColor:'rgba(107,227,164,.85)' },
-  hydration:    { label:'Hidratación Limpia',     icon:'💧', color:'rgba(0,212,255,.12)',   border:'rgba(0,212,255,.35)',   chartColor:'rgba(0,212,255,.8)'    },
-  sports:       { label:'Deporte / Gym',          icon:'🏋️', color:'rgba(124,142,232,.15)', border:'rgba(124,142,232,.4)',  chartColor:'rgba(124,142,232,.85)' },
-  productivity: { label:'Productividad / Fijos',  icon:'⚡', color:'rgba(242,192,99,.15)',  border:'rgba(242,192,99,.4)',   chartColor:'rgba(242,192,99,.85)'  },
-  girlfriend:   { label:'Novia',                  icon:'💑', color:'rgba(244,63,94,.12)',   border:'rgba(244,63,94,.35)',   chartColor:'rgba(244,63,94,.85)'   },
-  pet:          { label:'Mascota',                icon:'🐱', color:'rgba(75,123,236,.15)',  border:'rgba(75,123,236,.4)',   chartColor:'rgba(75,123,236,.85)'  },
-  junk_food:    { label:'Comida Chatarra',        icon:'🍟', color:'rgba(255,107,107,.15)', border:'rgba(255,107,107,.4)',  chartColor:'rgba(255,107,107,.85)' },
-  home:         { label:'Hogar / Insumos',        icon:'🏠', color:'rgba(212,220,232,.1)',  border:'rgba(212,220,232,.3)',  chartColor:'rgba(212,220,232,.7)'  },
-  mama:         { label:'Mamá',                   icon:'👩', color:'rgba(244,114,182,.15)', border:'rgba(244,114,182,.4)',  chartColor:'rgba(244,114,182,.85)' },
-  papa:         { label:'Papá',                   icon:'👨', color:'rgba(56,189,248,.15)',  border:'rgba(56,189,248,.4)',   chartColor:'rgba(56,189,248,.85)'  },
-  business:     { label:'Negocio',                icon:'💼', color:'rgba(251,191,36,.15)',  border:'rgba(251,191,36,.4)',   chartColor:'rgba(251,191,36,.85)'  },
-  study:        { label:'Estudio',                icon:'📚', color:'rgba(167,139,250,.15)', border:'rgba(167,139,250,.4)',  chartColor:'rgba(167,139,250,.85)' },
-  salary:       { label:'Ingreso',                icon:'💰', color:'rgba(107,227,164,.2)',  border:'rgba(107,227,164,.5)',  chartColor:'rgba(107,227,164,.9)'  },
-  invest:       { label:'Inversión',              icon:'📈', color:'rgba(124,142,232,.18)', border:'rgba(124,142,232,.45)', chartColor:'rgba(124,142,232,.9)'  },
-  other:        { label:'Otro',                   icon:'💸', color:'rgba(255,255,255,.06)', border:'rgba(255,255,255,.2)',  chartColor:'rgba(255,255,255,.5)'  },
-};
+// ════════════════════════════════════════════════════════
+// CATEGORÍAS DE TRANSACCIÓN — datos gestionables por el usuario (S.txnCategories)
+// Ver specs/finanzas-categorias-personalizables.md
+// ════════════════════════════════════════════════════════
+const CAT_SECTIONS = [
+  { id:'salud',         label:'Salud',         color:'#F43F5E' },
+  { id:'vida',          label:'Vida',          color:'#0FB9D6' },
+  { id:'conocimiento',  label:'Conocimiento',  color:'#3B82F6' },
+  { id:'finanzas',      label:'Finanzas',      color:'#16B364' },
+  { id:'ia',            label:'IA',            color:'#8B5CF6' },
+];
+// Categorías cuyo tipo natural es ingreso: excluidas de los selectores de presupuesto
+// (el presupuesto solo planifica gastos). No configurable desde la pantalla de gestión.
+const _BUDGET_EXCLUDED_CATS = ['salary','invest'];
+
+function _defaultTxnCategories() {
+  return {
+    sports:       { label:'Deporte / Gym',         icon:'🏋️', color:'#F43F5E', section:'salud' },
+    clean_food:   { label:'Alimentación Sana',      icon:'🥩', color:'#F43F5E', section:'salud' },
+    hydration:    { label:'Hidratación Limpia',     icon:'💧', color:'#F43F5E', section:'salud' },
+    junk_food:    { label:'Comida Chatarra',        icon:'🍟', color:'#F43F5E', section:'salud' },
+    health:       { label:'Salud',                  icon:'⚕️', color:'#F43F5E', section:'salud' },
+    girlfriend:   { label:'Novia',                  icon:'💑', color:'#0FB9D6', section:'vida' },
+    pet:          { label:'Mascota',                icon:'🐱', color:'#0FB9D6', section:'vida' },
+    mama:         { label:'Mamá',                   icon:'👩', color:'#0FB9D6', section:'vida' },
+    papa:         { label:'Papá',                   icon:'👨', color:'#0FB9D6', section:'vida' },
+    friends:      { label:'Amigos',                 icon:'🎉', color:'#0FB9D6', section:'vida' },
+    study:        { label:'Estudio',                icon:'📚', color:'#3B82F6', section:'conocimiento' },
+    books:        { label:'Libros',                 icon:'📖', color:'#3B82F6', section:'conocimiento' },
+    business:     { label:'Negocio',                icon:'💼', color:'#16B364', section:'finanzas' },
+    productivity: { label:'Productividad / Fijos',  icon:'⚡', color:'#16B364', section:'finanzas' },
+    salary:       { label:'Ingreso',                icon:'💰', color:'#16B364', section:'finanzas' },
+    invest:       { label:'Inversión',               icon:'📈', color:'#16B364', section:'finanzas' },
+    ai:           { label:'IA',                     icon:'🤖', color:'#8B5CF6', section:'ia' },
+    home:         { label:'Hogar / Insumos',        icon:'🏠', color:'#D4DCE8', section:null },
+    other:        { label:'Otro',                   icon:'💸', color:'#FFFFFF', section:null },
+  };
+}
+
+// Siembra S.txnCategories la primera vez (idempotente). Se llama al inicio de cualquier
+// función que lea/muestre categorías, sin tocar loadState().
+function ensureTxnCategories() {
+  if (S.txnCategories && Object.keys(S.txnCategories).length) return false;
+  S.txnCategories = _defaultTxnCategories();
+  return true;
+}
+
+function _hexToRgba(hex, alpha) {
+  const h = (hex || '#FFFFFF').replace('#', '');
+  const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+  const parsed = n => { const v = parseInt(n, 16); return isNaN(v) ? 255 : v; };
+  const r = parsed(full.slice(0,2));
+  const g = parsed(full.slice(2,4));
+  const b = parsed(full.slice(4,6));
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+// Devuelve el mapa vivo de categorías con color/border/chartColor derivados del hex
+// guardado en S.txnCategories — se recalcula en cada llamada, así que editar el color
+// de una categoría se refleja de inmediato en transacciones pasadas (no se "congela").
+function _liveCatMap() {
+  ensureTxnCategories();
+  const out = {};
+  Object.entries(S.txnCategories).forEach(([id, c]) => {
+    out[id] = {
+      label: c.label, icon: c.icon, section: c.section || null, hex: c.color,
+      color: _hexToRgba(c.color, .15), border: _hexToRgba(c.color, .4), chartColor: _hexToRgba(c.color, .85),
+    };
+  });
+  return out;
+}
+
+// Compat: código existente sigue leyendo TXN_CATEGORIES[k] / BUDGET_EXPENSE_CATS como si
+// fueran constantes — ahora son getters que derivan del set dinámico en S.txnCategories.
+Object.defineProperty(window, 'TXN_CATEGORIES', { configurable: true, get: _liveCatMap });
+Object.defineProperty(window, 'BUDGET_EXPENSE_CATS', {
+  configurable: true,
+  get() { return Object.keys(_liveCatMap()).filter(id => !_BUDGET_EXCLUDED_CATS.includes(id)); }
+});
 
 function getCatInfo(cat, type) {
-  return TXN_CATEGORIES[cat] || { label:'', icon: type==='income'?'💚':'🔴', color:'rgba(255,255,255,.06)', border:'rgba(255,255,255,.1)' };
+  return _liveCatMap()[cat] || { label:'', icon: type==='income'?'💚':'🔴', color:'rgba(255,255,255,.06)', border:'rgba(255,255,255,.1)' };
 }
 
 // ════════════════════════════════════════════════════════
 // PRESUPUESTO MENSUAL
 // ════════════════════════════════════════════════════════
-const BUDGET_EXPENSE_CATS = ['clean_food','hydration','sports','productivity','girlfriend','pet','junk_food','home','mama','papa','business','study','other'];
 
 const _EDIT_SVG = '<svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
 const _DEL_SVG  = '<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>';
@@ -646,6 +709,95 @@ function renderBudgetSummary() {
     <div class="bsum-sec">Gastado · últimos 6 meses</div>
     <div class="bsum-trend">${trendCols}</div>
     <button class="bsum-full" onclick="if(window.openBudgetOverlay)openBudgetOverlay()">Ver presupuesto completo →</button>`;
+}
+
+// Llena un <select> de categoría de transacción (#txnCategory / #editTxnCategory) desde
+// el set dinámico. Si `selected` referencia una categoría borrada, la agrega igual como
+// opción huérfana (fallback) para no perder de vista qué tenía cargado el movimiento.
+function fillTxnCategorySelect(elId, selected) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const map = _liveCatMap();
+  const opts = ['<option value="">— Sin categoría —</option>'];
+  Object.entries(map).forEach(([id, c]) => {
+    opts.push(`<option value="${id}" ${id === selected ? 'selected' : ''}>${c.icon} ${c.label}</option>`);
+  });
+  if (selected && !map[selected]) {
+    opts.push(`<option value="${selected}" selected>💸 (categoría eliminada)</option>`);
+  }
+  el.innerHTML = opts.join('');
+}
+
+// ════════════════════════════════════════════════════════
+// GESTIONAR CATEGORÍAS
+// ════════════════════════════════════════════════════════
+function openCatManager() {
+  ensureTxnCategories();
+  renderCatManagerList();
+  openModal('modal-cat-manager');
+}
+
+function renderCatManagerList() {
+  const el = document.getElementById('catMgrList');
+  if (!el) return;
+  const groups = [...CAT_SECTIONS, { id: null, label: 'Sin sección', color: 'rgba(255,255,255,.3)' }];
+  const html = groups.map(sec => {
+    const cats = Object.entries(S.txnCategories).filter(([, c]) => (c.section || null) === sec.id);
+    if (!cats.length) return '';
+    const rows = cats.map(([id, c]) => `
+      <div class="sub-row catmgr-row">
+        <div class="catmgr-swatch" style="background:${c.color || '#fff'}"></div>
+        <div class="sub-info">
+          <div class="sub-name">${c.icon || '💸'} ${c.label}</div>
+        </div>
+        <button class="icon-btn" onclick="openCatEdit('${id}')" title="Editar">${_EDIT_SVG}</button>
+      </div>`).join('');
+    return `<div class="catmgr-sec-hdr" style="color:${sec.color}">${sec.label}</div>${rows}`;
+  }).join('');
+  el.innerHTML = html || '<p class="empty-state">Sin categorías</p>';
+}
+
+function openCatEdit(id) {
+  ensureTxnCategories();
+  const c = id ? S.txnCategories[id] : null;
+  document.getElementById('catEditTitle').textContent = c ? 'Editar categoría' : 'Nueva categoría';
+  document.getElementById('catEditId').value = id || '';
+  document.getElementById('catEditName').value = c ? c.label : '';
+  document.getElementById('catEditIcon').value = c ? c.icon : '';
+  document.getElementById('catEditColor').value = (c && c.color) || '#8B5CF6';
+  document.getElementById('catEditSection').value = c ? (c.section || '') : '';
+  document.getElementById('catEditDel').style.display = c ? '' : 'none';
+  closeModal('modal-cat-manager');
+  openModal('modal-cat-edit');
+}
+
+function saveTxnCategory() {
+  const name = document.getElementById('catEditName').value.trim();
+  if (!name) { showToast('Escribe el nombre de la categoría'); return; }
+  ensureTxnCategories();
+  const id = document.getElementById('catEditId').value || uid();
+  const icon = document.getElementById('catEditIcon').value.trim() || '💸';
+  const color = document.getElementById('catEditColor').value || 'rgba(255,255,255,.06)';
+  const section = document.getElementById('catEditSection').value || null;
+  S.txnCategories[id] = { label: name, icon, color, section };
+  saveState();
+  closeModal('modal-cat-edit');
+  openModal('modal-cat-manager');
+  renderCatManagerList();
+  renderFinanzasTab();
+  showToast('Categoría guardada');
+}
+
+function deleteTxnCategory(id) {
+  if (!id) return;
+  if (!confirm('¿Borrar esta categoría? Las transacciones y renglones de presupuesto que ya la usan no se modifican, solo deja de estar disponible para cargas nuevas.')) return;
+  delete S.txnCategories[id];
+  saveState();
+  closeModal('modal-cat-edit');
+  openModal('modal-cat-manager');
+  renderCatManagerList();
+  renderFinanzasTab();
+  showToast('Categoría eliminada');
 }
 
 function fillBudgetCatSelect(elId, selected) {
@@ -1049,7 +1201,7 @@ function openEditTxn(id) {
   document.getElementById('editTxnType').value = txn.type;
   document.getElementById('editTxnAmount').value = txn.amount;
   document.getElementById('editTxnCurrency').value = txn.currency;
-  document.getElementById('editTxnCategory').value = txn.category || '';
+  fillTxnCategorySelect('editTxnCategory', txn.category);
   const sel = document.getElementById('editTxnAccount');
   sel.innerHTML = '<option value="">— Ninguna —</option>' +
     S.accounts.filter(a=>a.type==='bank'||a.type==='invest')
