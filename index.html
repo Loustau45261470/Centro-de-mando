@@ -1310,6 +1310,19 @@
   </div>
 </div>
 
+<!-- Mover proyecto / carpeta / tarea -->
+<div class="modal-overlay" id="modal-proy-move" onclick="if(event.target===this)closeModal('modal-proy-move')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="proyMoveTitle">Mover</div>
+    <div id="proyMoveBody"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-proy-move')">Cancelar</button>
+      <button class="btn btn-primary" onclick="proyMoveConfirm()">Mover acá</button>
+    </div>
+  </div>
+</div>
+
 <!-- Edit Wish -->
 <div class="modal-overlay" id="modal-edit-wish" onclick="if(event.target===this)closeModal('modal-edit-wish')">
   <div class="modal">

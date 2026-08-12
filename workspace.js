@@ -82,6 +82,38 @@
   const trees = {};
   TABS.forEach(t => { trees[t] = loadTree(t); });
 
+  // ── Orden automático (capa de vista: ordena una copia, no reescribe lo guardado) ──
+  // Grupos, de arriba hacia abajo: 0) pendientes vencidas o que vencen hoy,
+  // 1) pendientes con fecha futura, 2) pendientes sin fecha pero con prioridad,
+  // 3) pendientes sin fecha ni prioridad, 4) completadas.
+  // Dentro de 0 y 1: fecha ascendente, empate → prioridad. Dentro de 2: prioridad.
+  // El resto conserva el orden de creación (sort nativo estable).
+  const PRIORITIES = ['1', '2', '3'];
+  function nodeDue(n) { return /^\d{4}-\d{2}-\d{2}$/.test(n.dueDate || '') ? n.dueDate : ''; }
+  function nodePrio(n) { return PRIORITIES.includes(n.priority) ? +n.priority : 9; }
+  function nodeRank(n, today) {
+    if (n.done) return 4;
+    const due = nodeDue(n);
+    if (due) return due <= today ? 0 : 1;
+    return nodePrio(n) < 9 ? 2 : 3;
+  }
+  function sortNodes(nodes) {
+    const today = getActiveDate();
+    return (nodes || []).slice().sort((a, b) => {
+      const ra = nodeRank(a, today), rb = nodeRank(b, today);
+      if (ra !== rb) return ra - rb;
+      if (ra === 0 || ra === 1) {
+        const da = nodeDue(a), db = nodeDue(b);
+        if (da !== db) return da < db ? -1 : 1;
+      }
+      if (ra <= 2) {
+        const pa = nodePrio(a), pb = nodePrio(b);
+        if (pa !== pb) return pa - pb;
+      }
+      return 0;
+    });
+  }
+
   function renderProyectos(tab) {
     const wrap = document.getElementById('proyectos-wrap-' + tab);
     if (!wrap) return;
@@ -113,7 +145,7 @@
 
     const treeEl = document.createElement('div');
     treeEl.className = 'proy-tree';
-    trees[tab].forEach(node => treeEl.appendChild(buildNodeEl(tab, node, 0)));
+    sortNodes(trees[tab]).forEach(node => treeEl.appendChild(buildNodeEl(tab, node, 0)));
 
     // Restore collapsed state
     if (localStorage.getItem(proyCKey) === '1') {
@@ -166,6 +198,7 @@
       labelEl.classList.toggle('done', node.done);
       if (node.done && window.JARVIS) JARVIS.onTaskDone();
       saveTree(tab, trees[tab]);
+      renderProyectos(tab); // reubica el nodo según el orden automático
       if (typeof renderReminders === 'function') renderReminders(tab);
     };
 
@@ -223,7 +256,10 @@
     delBtn.className += ' danger';
     delBtn.onclick = e => { e.stopPropagation(); deleteNode(tab, node.id); };
 
-    actionsEl.append(detailBtn, addFolderBtn, addItemBtn, iconBtn, delBtn);
+    const moveBtn = makeBtn(`<svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/><polyline points="11 11 14 14 11 17"/></svg>`, 'Mover a…');
+    moveBtn.onclick = e => { e.stopPropagation(); openMoveModal(tab, node); };
+
+    actionsEl.append(detailBtn, addFolderBtn, addItemBtn, moveBtn, iconBtn, delBtn);
     const metaEls = [countEl];
     if (priorityEl) metaEls.push(priorityEl);
     if (dueEl) metaEls.push(dueEl);
@@ -246,7 +282,7 @@
     const childrenEl = document.createElement('div');
     childrenEl.className = 'proy-children' + (node.open ? '' : ' collapsed');
     childrenEl.dataset.childrenFor = node.id;
-    (node.children || []).forEach(child => childrenEl.appendChild(buildNodeEl(tab, child, depth + 1)));
+    sortNodes(node.children || []).forEach(child => childrenEl.appendChild(buildNodeEl(tab, child, depth + 1)));
     childrenEl.appendChild(buildAddRow(tab, node));
 
     const _prog = node.done ? 100 : (+node.progress || 0);
@@ -391,12 +427,122 @@
     if (typeof renderReminders === 'function') renderReminders(tab);
   };
 
+  // ── Modal "Mover a…" ──────────────────────────────────────
+  const TAB_LABELS = { vida: 'Vida', finanzas: 'Finanzas', salud: 'Salud', conocimiento: 'Conocimiento', ia: 'IA' };
+  let _move = null; // { srcTab, srcId, srcLabel, destTab, destPath:[ids] }
+
+  function openMoveModal(tab, node) {
+    _move = { srcTab: tab, srcId: node.id, srcLabel: node.label, destTab: tab, destPath: [] };
+    renderMoveModal();
+    openModal('modal-proy-move');
+  }
+
+  function moveDestNode() {
+    if (!_move || !_move.destPath.length) return null;
+    return findById(trees[_move.destTab] || [], _move.destPath[_move.destPath.length - 1]);
+  }
+
+  function renderMoveModal() {
+    const body = document.getElementById('proyMoveBody');
+    if (!body || !_move) return;
+    document.getElementById('proyMoveTitle').textContent = 'Mover — ' + _move.srcLabel;
+    body.innerHTML = '';
+
+    const secs = document.createElement('div');
+    secs.className = 'proy-move-secs';
+    TABS.forEach(t => {
+      const b = document.createElement('button');
+      b.className = 'proy-move-sec' + (t === _move.destTab ? ' active' : '');
+      b.textContent = TAB_LABELS[t];
+      b.onclick = () => { _move.destTab = t; _move.destPath = []; renderMoveModal(); };
+      secs.appendChild(b);
+    });
+
+    const crumb = document.createElement('div');
+    crumb.className = 'proy-move-crumb';
+    const rootCrumb = document.createElement('button');
+    rootCrumb.className = 'proy-move-crumb-item';
+    rootCrumb.textContent = TAB_LABELS[_move.destTab];
+    rootCrumb.onclick = () => { _move.destPath = []; renderMoveModal(); };
+    crumb.appendChild(rootCrumb);
+    let chain = trees[_move.destTab] || [];
+    _move.destPath.forEach((id, i) => {
+      const n = chain.find(x => x.id === id);
+      chain = n ? (n.children || []) : [];
+      const sep = document.createElement('span');
+      sep.className = 'proy-move-crumb-sep'; sep.textContent = '›';
+      const b = document.createElement('button');
+      b.className = 'proy-move-crumb-item';
+      b.textContent = n ? n.label : '?';
+      b.onclick = () => { _move.destPath = _move.destPath.slice(0, i + 1); renderMoveModal(); };
+      crumb.append(sep, b);
+    });
+
+    const destNode = moveDestNode();
+    const entries = sortNodes(destNode ? (destNode.children || []) : (trees[_move.destTab] || []));
+    const list = document.createElement('div');
+    list.className = 'proy-move-list';
+    if (!entries.length) {
+      const empty = document.createElement('div');
+      empty.className = 'proy-move-empty';
+      empty.textContent = 'Sin elementos acá adentro.';
+      list.appendChild(empty);
+    }
+    entries.forEach(n => {
+      const isSrc = n.id === _move.srcId; // bloquea el propio nodo y con él todo su subárbol
+      const row = document.createElement('button');
+      row.className = 'proy-move-item' + (isSrc ? ' disabled' : '');
+      row.disabled = isSrc;
+      row.innerHTML = `<span class="proy-move-item-icon">${n.icon || '📁'}</span><span class="proy-move-item-label"></span><span class="proy-move-item-chev">${isSrc ? 'este ítem' : '›'}</span>`;
+      row.querySelector('.proy-move-item-label').textContent = n.label;
+      if (!isSrc) row.onclick = () => { _move.destPath.push(n.id); renderMoveModal(); };
+      list.appendChild(row);
+    });
+
+    const hint = document.createElement('div');
+    hint.className = 'proy-move-hint';
+    hint.textContent = destNode
+      ? 'Se moverá dentro de «' + destNode.label + '»'
+      : 'Se moverá a la raíz de ' + TAB_LABELS[_move.destTab] + ' (queda como proyecto)';
+
+    body.append(secs, crumb, list, hint);
+  }
+
+  window.proyMoveConfirm = function() {
+    if (!_move) return;
+    const srcTab = _move.srcTab, destTab = _move.destTab;
+    const moved = findById(trees[srcTab] || [], _move.srcId);
+    if (!moved) { closeModal('modal-proy-move'); _move = null; return; }
+    const destId = _move.destPath.length ? _move.destPath[_move.destPath.length - 1] : null;
+    if (destId && findById([moved], destId)) { showToast('No se puede mover un ítem dentro de sí mismo'); return; }
+    if (destId && !findById(trees[destTab] || [], destId)) { showToast('El destino ya no existe'); return; }
+
+    trees[srcTab] = removeById(trees[srcTab], _move.srcId);
+    const destNode = destId ? findById(trees[destTab] || [], destId) : null;
+    moved.detailOpen = false;
+    if (destNode) { destNode.children = destNode.children || []; destNode.children.push(moved); destNode.open = true; }
+    else { trees[destTab].push(moved); }
+
+    saveTree(srcTab, trees[srcTab]);
+    if (destTab !== srcTab) saveTree(destTab, trees[destTab]);
+    closeModal('modal-proy-move');
+    renderProyectos(srcTab);
+    if (destTab !== srcTab) renderProyectos(destTab);
+    if (typeof renderReminders === 'function') {
+      renderReminders(srcTab);
+      if (destTab !== srcTab) renderReminders(destTab);
+    }
+    showToast('Movido a ' + (destNode ? destNode.label : TAB_LABELS[destTab]));
+    _move = null;
+  };
+
   window.renderProyectos = renderProyectos;
   // API compartida para el navegador inmersivo (proyectos-overlay.js): mismos datos, persistencia y re-render del árbol inline.
   window.Proyectos = {
     get: tab => (trees[tab] || (trees[tab] = loadTree(tab))),
     save: (tab) => { saveTree(tab, trees[tab]); renderProyectos(tab); },
     findById: (tab, id) => findById(trees[tab] || [], id),
+    sort: nodes => sortNodes(nodes),
     newNode: (label, isFolder) => ({ id: uid(), label: label || (isFolder ? 'Nueva carpeta' : 'Nueva tarea'), icon: isFolder ? '📁' : '📄', tipo: isFolder ? 'carpeta' : 'tarea', open: false, description: '', notes: '', detailOpen: false, done: false, priority: '', dueDate: '', progress: 0, children: [] }),
     removeById: (tab, id) => { trees[tab] = removeById(trees[tab], id); saveTree(tab, trees[tab]); renderProyectos(tab); },
     // Marca done desde el board de recordatorios (y refresca el board para que salga de ahí).
