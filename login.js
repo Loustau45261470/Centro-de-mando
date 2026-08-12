@@ -161,52 +161,88 @@
   }
   tick();
 
-  /* ── entrada ──
-     Esta pantalla es solo la bienvenida: NO autentica. La autenticación real es el
-     login con Google de app.js y las reglas de Firestore, que solo permiten leer y
-     escribir al uid del dueño. Antes había un usuario/contraseña acá, pero no
-     protegía nada (el click en el orbe ya lo salteaba) y quedaba escrito en un repo
-     público, así que se sacó. */
-  const btnEl = document.getElementById('login-btn');
-  const errEl = document.getElementById('login-error');
+  /* ── login logic ── */
+  const btnEl   = document.getElementById('login-btn');
+  const userEl  = document.getElementById('login-user');
+  const passEl  = document.getElementById('login-pass');
+  const errEl   = document.getElementById('login-error');
 
-  async function enter() {
-    if (btnEl.disabled) return;
+  async function tryLogin() {
+    if (userEl.value.trim() === 'Loustau11' && passEl.value === 'Loustau88') {
+      errEl.textContent = '';
+      btnEl.textContent = 'SINCRONIZANDO...';
+      btnEl.style.color = 'rgba(0,212,255,0.9)';
+      btnEl.disabled = true;
+
+      // Si hay datos en localStorage, subirlos a Firestore ahora
+      const localRaw = localStorage.getItem('lifedash_v2');
+      if (localRaw) {
+        try {
+          // Subir local SOLO si la nube está vacía (bootstrap). Si ya tiene datos NO
+          // pisar — loadState() y el sync con merge se encargan; así un device recién
+          // abierto no borra los cambios del otro. Siempre con _savedAt + merge.
+          const snap = await _DOC().get();
+          if (!(snap.exists && snap.data() && snap.data().state)) {
+            await _DOC().set({ state: localRaw, _savedAt: Date.now() }, { merge: true });
+          }
+        } catch(e) {
+          errEl.textContent = '[ SYNC ERROR: ' + (e.code || e.message) + ' ]';
+          await new Promise(r => setTimeout(r, 3000));
+          errEl.textContent = '';
+        }
+      }
+
+      btnEl.textContent  = 'ACCESO CONCEDIDO';
+      btnEl.style.color  = '#00FF88';
+      btnEl.style.borderColor = '#00FF88';
+      btnEl.style.boxShadow   = '0 0 24px rgba(0,255,136,0.45)';
+      if (window.JARVIS) { JARVIS.greeting(); JARVIS.checkOverdue(); setTimeout(() => JARVIS.checkVoiceQuota && JARVIS.checkVoiceQuota(), 4000); }
+      setTimeout(() => {
+        screen.classList.add('exit');
+        setTimeout(() => { screen.remove(); running = false; }, 1700);
+      }, 900);
+    } else {
+      errEl.textContent = '[ ACCESO DENEGADO — CREDENCIALES INVÁLIDAS ]';
+      userEl.classList.add('error'); passEl.classList.add('error');
+      passEl.value = '';
+      setTimeout(() => {
+        userEl.classList.remove('error'); passEl.classList.remove('error');
+      }, 1600);
+    }
+  }
+
+  btnEl.addEventListener('click', tryLogin);
+  passEl.addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); });
+  userEl.addEventListener('keydown', e => { if (e.key === 'Enter') passEl.focus(); });
+
+  document.getElementById('ai-viz-canvas').addEventListener('click', async () => {
     errEl.textContent = '';
     btnEl.textContent = 'SINCRONIZANDO...';
     btnEl.style.color = 'rgba(0,212,255,0.9)';
     btnEl.disabled = true;
-
-    // Si hay datos en localStorage, subirlos a Firestore ahora
     const localRaw = localStorage.getItem('lifedash_v2');
     if (localRaw) {
+      // Mismo guard que el login normal: bootstrap solo si la nube está vacía.
       try {
-        // Subir local SOLO si la nube está vacía (bootstrap). Si ya tiene datos NO
-        // pisar — loadState() y el sync con merge se encargan; así un device recién
-        // abierto no borra los cambios del otro. Siempre con _savedAt + merge.
         const snap = await _DOC().get();
         if (!(snap.exists && snap.data() && snap.data().state)) {
           await _DOC().set({ state: localRaw, _savedAt: Date.now() }, { merge: true });
         }
       } catch(e) {
-        // Nunca mostrar ACCESO CONCEDIDO tragando el fallo
+        // Mismo manejo de error que tryLogin: nunca mostrar ACCESO CONCEDIDO tragando el fallo
         errEl.textContent = '[ SYNC ERROR: ' + (e.code || e.message) + ' ]';
         await new Promise(r => setTimeout(r, 3000));
         errEl.textContent = '';
       }
     }
-
-    btnEl.textContent  = 'ACCESO CONCEDIDO';
-    btnEl.style.color  = '#00FF88';
+    btnEl.textContent = 'ACCESO CONCEDIDO';
+    btnEl.style.color = '#00FF88';
     btnEl.style.borderColor = '#00FF88';
-    btnEl.style.boxShadow   = '0 0 24px rgba(0,255,136,0.45)';
-    if (window.JARVIS) { JARVIS.greeting(); JARVIS.checkOverdue(); setTimeout(() => JARVIS.checkVoiceQuota && JARVIS.checkVoiceQuota(), 4000); }
+    btnEl.style.boxShadow = '0 0 24px rgba(0,255,136,0.45)';
+    if (window.JARVIS) JARVIS.greeting();
     setTimeout(() => {
       screen.classList.add('exit');
       setTimeout(() => { screen.remove(); running = false; }, 1700);
     }, 900);
-  }
-
-  btnEl.addEventListener('click', enter);
-  document.getElementById('ai-viz-canvas').addEventListener('click', enter);
+  });
 })();
