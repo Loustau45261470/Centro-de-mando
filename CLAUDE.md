@@ -28,6 +28,8 @@ Después de CADA cambio en el código, sin excepción y sin que el usuario lo pi
 Esto dispara el deploy automático en GitHub Pages. No preguntar, no esperar confirmación — hacerlo siempre al terminar.
 Si tocaste un `.js` o `.css`, **bumpear también `const CACHE` en `sw.js`** y commitearlo.
 
+**Y bumpear el `?v=` de ese archivo en `index.html`.** Varios assets se piden versionados (`styles.css?v=`, `workspace.js?v=`, `proyectos-overlay.js?v=`, `proyectos-overlay.css?v=`, `app.js?v=`). Mientras ese número no cambia, la URL no cambia y **ningún navegador vuelve a bajar el archivo**, por más que se bumpee `CACHE` en `sw.js` — el SW cachea `styles.css` (sin query) y la página pide `styles.css?v=153`, que son claves distintas. Editar uno de esos archivos sin tocar su `?v=` deja a los dispositivos con la copia vieja (pasó el 2026-08-12: HTML nuevo + CSS viejo → la pantalla de login sin estilos). Chequeo: `grep -n '?v=' index.html` antes de commitear.
+
 **Verificación obligatoria post-push:** el `git push` exitoso NO significa que el sitio esté actualizado — el deploy de GitHub Pages es un workflow separado (Actions) que puede fallar (ha pasado más de una vez, ej. "Deployment failed, try again later" transitorio de infra de GitHub). Antes de confirmarle al usuario que el cambio está listo/en producción:
 1. `gh run list --limit 3` para ver el run de "pages build and deployment" disparado por el push.
 2. Esperar a que termine (`gh run view <id> --json status,conclusion`) y confirmar `conclusion: success`.
