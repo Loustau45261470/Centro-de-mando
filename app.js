@@ -32,6 +32,7 @@ const DEFAULT_STATE = {
   fixedExpenseLog: {}, // { 'YYYY-MM': { [expId]: true } }
   budgets: {},         // { 'YYYY-MM': { fixed:[{id,name,category,unit,v1,v2,v3}], reserved:[{id,name,category,amount}] } }
   txnCategories: {},   // { catId: { label, icon, color, section } } — categorías de transacción gestionables por el usuario
+  txnCategoriesSeeded: false, // true una vez que ensureTxnCategories() sembró los defaults — distingue "nunca sembrado" de "usuario borró todo" (un {} vacío es truthy y no alcanza, ver fixes.json)
   sleepLog:        {}, // { 'YYYY-MM-DD': { hours: number, feeling: number } }
   ideas:     { vida: [], finanzas: [], salud: [], conocimiento: [], ia: [] }, // [{ id, title, description, notes }]
   reminders: { vida: [], finanzas: [], salud: [], conocimiento: [], ia: [] }, // [{ id, title, datetime, priority:'high'|'medium'|'low' }]
