@@ -17,7 +17,7 @@ Tobías quiere reservar plata todos los meses para compras futuras concretas (un
 - [ ] Hay un **sector de configuración de condiciones** dentro del fondo (crear / editar / cambiar / quitar la condición), sin necesidad de tocar código.
 - [ ] Tipo 1 — **Hábito**: se elige un hábito existente de `S.habitTrackers` (cualquiera de las secciones vida/finanzas/salud/conocimiento/ia) y un umbral porcentual configurable (default 75%). Se cumple si el porcentaje del mes ≥ umbral.
 - [ ] Cálculo del porcentaje de hábito del mes: numerador = (días `done` × 1) + (días `partial` × 0,5); denominador = días del mes **excluyendo** los marcados `rest`. Porcentaje = numerador / denominador × 100. Si el denominador es 0, la condición se considera **no cumplida**.
-- [ ] Tipo 2 — **Objetivo/logro**: se elige un objetivo mensual (`S.monthlyGoals`) o un objetivo trimestral (`S.quarterlyObjectives`). Se cumple si ese objetivo está `done`.
+- [ ] Tipo 2 — **Objetivo/logro**: se elige un objetivo mensual (`S.monthlyGoals`) o un objetivo trimestral (`S.quarterlyObjectives`). Se cumple si ese objetivo está `done`. Un fondo atado a un objetivo **mensual** acredita **solo en el mes de ese objetivo**, no en los meses siguientes.
 - [ ] Tipo 3 — **Sin condición**: el fondo acredita todos los meses automáticamente.
 
 **Acreditación mensual**
