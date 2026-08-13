@@ -40,7 +40,8 @@ function _poResolve() {
 }
 function _poCount(n) {
   const ch = n.children || [];
-  return { sub: ch.filter(_poIsFolder).length, task: ch.filter(c => !_poIsFolder(c)).length };
+  // Las tareas se cuentan solo si están pendientes (las hechas no suman)
+  return { sub: ch.filter(_poIsFolder).length, task: ch.filter(c => !_poIsFolder(c) && !c.done).length };
 }
 
 // ── Apertura ───────────────────────────────────────────────────────────────
@@ -152,7 +153,7 @@ function _poFolderCard(n, i) {
 }
 
 function _poTaskRow(n) {
-  const has = (n.children || []).length;
+  const has = (n.children || []).filter(c => !c.done).length;
   return `<div class="po-task${n.done ? ' done' : ''}">
     <button class="po-check" onclick="poToggleDone('${n.id}')" aria-label="Completar">${n.done ? PO_ICONS.task : ''}</button>
     <button class="po-task-main" onclick="poDrill('${n.id}')">

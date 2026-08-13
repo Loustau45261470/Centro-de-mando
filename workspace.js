@@ -217,7 +217,8 @@
 
     const countEl = document.createElement('span');
     countEl.className = 'proy-node-count';
-    if ((node.children || []).length) countEl.textContent = node.children.length;
+    const pend = (node.children || []).filter(c => !c.done).length; // solo pendientes
+    if (pend) countEl.textContent = pend;
 
     const priorityEl = node.priority ? document.createElement('span') : null;
     if (priorityEl) {
