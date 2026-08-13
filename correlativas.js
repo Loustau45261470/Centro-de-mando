@@ -132,6 +132,15 @@ const Correlativas = (() => {
     if (y4 && !y4.subjects.some(s => _norm(s.name) === 'derecho procesal penal i')) {
       y4.subjects.push({ id: 's4_10', name: 'Derecho procesal penal I', done: false });
     }
+    // "Derecho público" (s5_5) no existe en el plan 2019 — es un duplicado degenerado de
+    // "Derecho público provincial y municipal". Con esa fila de más el total da 47 y el logro
+    // "Abogado" (completar TODAS) queda inalcanzable. Se saca solo si está vacía, nunca con datos.
+    const y5 = S.lawProgress && S.lawProgress.years && S.lawProgress.years.find(y => y.id === 'y5');
+    if (y5) {
+      const i = y5.subjects.findIndex(s => s.id === 's5_5' && _norm(s.name) === 'derecho publico'
+        && !s.done && (s.grade == null || s.grade === ''));
+      if (i >= 0) y5.subjects.splice(i, 1);
+    }
   }
 
   function _row(code) {
@@ -254,11 +263,13 @@ const Correlativas = (() => {
     if (!overlay._crBuilt) {
       body.innerHTML = `<div class="cm-ov-head"><div class="cm-ov-eyebrow">CONOCIMIENTO · CARRERA</div><div class="cm-ov-title">Plan de carrera</div></div>
         <div class="cm-ov-host">
-          <div class="corr-counters" id="corr-counters"></div>
-          <div class="corr-filters">
-            <div class="corr-chips" id="corr-chips-anio"></div>
-            <div class="corr-chips" id="corr-chips-estado"></div>
-            <input id="corr-search" class="corr-search" placeholder="Buscar materia o código…" oninput="Correlativas.setSearch(this.value)">
+          <div class="corr-sticky">
+            <div class="corr-counters" id="corr-counters"></div>
+            <div class="corr-filters">
+              <div class="corr-chips" id="corr-chips-anio"></div>
+              <div class="corr-chips" id="corr-chips-estado"></div>
+              <input id="corr-search" class="corr-search" type="search" aria-label="Buscar materia o código" placeholder="Buscar materia o código…" oninput="Correlativas.setSearch(this.value)">
+            </div>
           </div>
           <div id="corr-list"></div>
         </div>`;
@@ -294,35 +305,42 @@ const Correlativas = (() => {
     return `<div class="corr-req-block"><div class="corr-req-title">${title}</div>${rows}</div>`;
   }
 
-  function _reqBlockRendir(title, reqRendir) {
-    if (!reqRendir || !reqRendir.length) return `<div class="corr-req-block"><div class="corr-req-title">${title}</div><div class="corr-req-empty">Sin correlativas</div></div>`;
-    const rows = reqRendir.map(code => {
-      const ok = estado(code) === 'aprobada';
-      return `<div class="corr-req-row ${ok ? 'ok' : 'no'}">${ok ? '✓' : '✗'} ${esc(nombrePorCodigo(code))} <span class="corr-req-tipo">(aprobada)</span></div>`;
-    }).join('');
-    return `<div class="corr-req-block"><div class="corr-req-title">${title}</div>${rows}</div>`;
+  // `propia` agrega el requisito de tener la materia regularizada: es lo único que
+  // distingue "rendir el final" de "rendir libre" (si no, los dos bloques son idénticos).
+  function _reqBlockRendir(title, reqRendir, code, propia) {
+    const rows = [];
+    if (propia) {
+      const ok = estado(code) === 'regular' || estado(code) === 'aprobada';
+      rows.push(`<div class="corr-req-row ${ok ? 'ok' : 'no'}">${ok ? '✓' : '✗'} Tener esta materia regularizada</div>`);
+    }
+    (reqRendir || []).forEach(c => {
+      const ok = estado(c) === 'aprobada';
+      rows.push(`<div class="corr-req-row ${ok ? 'ok' : 'no'}">${ok ? '✓' : '✗'} ${esc(nombrePorCodigo(c))} <span class="corr-req-tipo">(aprobada)</span></div>`);
+    });
+    const body = rows.length ? rows.join('') : '<div class="corr-req-empty">Sin correlativas</div>';
+    return `<div class="corr-req-block"><div class="corr-req-title">${title}</div>${body}</div>`;
   }
 
   function _cardHTML(subj, status, idx) {
     const meta = STATUS_META[status];
     const own = estado(subj.code);
-    return `<div class="corr-card" style="animation-delay:${idx * 25}ms">
+    // El stagger se corta a los 12 ítems: con 49 materias, si no, la última entra un segundo tarde.
+    const btn = (val, lbl) => `<button class="corr-btn ${own === val ? 'on' : ''}" aria-pressed="${own === val}" onclick="Correlativas.setEstado('${subj.code}','${val}')">${lbl}</button>`;
+    return `<div class="corr-card st-${status}" style="--cb:${meta.color};animation-delay:${Math.min(idx, 12) * 25}ms">
       <div class="corr-card-top">
         <div class="corr-card-name">${esc(dispName(subj))}</div>
-        <span class="corr-badge" style="--cb:${meta.color}">${meta.badge}</span>
+        <span class="corr-badge">${meta.badge}</span>
       </div>
       <div class="corr-card-meta"><span class="corr-code">${esc(subj.code)}</span> · ${subj.anio}° año · ${esc(subj.regimen)}</div>
       ${subj.optativa ? `<div class="corr-optativa">${esc(subj.optativa)}</div>` : ''}
-      <div class="corr-btns">
-        <button class="corr-btn ${own === 'ninguna' ? 'on' : ''}" onclick="Correlativas.setEstado('${subj.code}','ninguna')">No cursada</button>
-        <button class="corr-btn ${own === 'regular' ? 'on' : ''}" onclick="Correlativas.setEstado('${subj.code}','regular')">Regularizada</button>
-        <button class="corr-btn ${own === 'aprobada' ? 'on' : ''}" onclick="Correlativas.setEstado('${subj.code}','aprobada')">Aprobada</button>
+      <div class="corr-btns" role="group" aria-label="Estado de ${esc(dispName(subj))}">
+        ${btn('ninguna', 'No cursada')}${btn('regular', 'Regularizada')}${btn('aprobada', 'Aprobada')}
       </div>
       <details class="corr-details">
         <summary>Ver correlativas</summary>
         ${_reqBlockCursar('Para cursar', subj.reqCursar)}
-        ${_reqBlockRendir('Para rendir el final', subj.reqRendir)}
-        ${_reqBlockRendir('Para rendir libre', subj.reqRendir)}
+        ${_reqBlockRendir('Para rendir el final', subj.reqRendir, subj.code, true)}
+        ${_reqBlockRendir('Para rendir libre (sin cursarla)', subj.reqRendir, subj.code, false)}
       </details>
     </div>`;
   }
@@ -351,8 +369,8 @@ const Correlativas = (() => {
       <div class="corr-ctr" style="--cc:var(--c-conocimiento)"><b>${stats.cursar}</b><span>Podés cursar</span></div>
       <div class="corr-ctr" style="--cc:var(--tt)"><b>${stats.bloqueadas}</b><span>Bloqueadas</span></div>`;
 
-    if (chipsA) chipsA.innerHTML = ANIOS.map(a => `<button class="corr-chip ${_filtAnio === a.v ? 'on' : ''}" onclick="Correlativas.setFiltroAnio('${a.v}')">${a.l}</button>`).join('');
-    if (chipsE) chipsE.innerHTML = ESTADOS.map(e => `<button class="corr-chip ${_filtEstado === e.v ? 'on' : ''}" onclick="Correlativas.setFiltroEstado('${e.v}')">${e.l}</button>`).join('');
+    if (chipsA) chipsA.innerHTML = ANIOS.map(a => `<button class="corr-chip ${_filtAnio === a.v ? 'on' : ''}" aria-pressed="${_filtAnio === a.v}" onclick="Correlativas.setFiltroAnio('${a.v}')">${a.l}</button>`).join('');
+    if (chipsE) chipsE.innerHTML = ESTADOS.map(e => `<button class="corr-chip ${_filtEstado === e.v ? 'on' : ''}" aria-pressed="${_filtEstado === e.v}" onclick="Correlativas.setFiltroEstado('${e.v}')">${e.l}</button>`).join('');
 
     const q = _search.trim().toLowerCase();
     const filtered = all.filter(({ subj, status }) => {

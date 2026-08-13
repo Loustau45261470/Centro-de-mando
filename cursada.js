@@ -124,13 +124,13 @@ const Cursada = (() => {
   function renderFiltros() {
     const el = document.getElementById('ov-cursada-filters'); if (!el) return;
     const opts = [['todos', 'Todos'], ['clase', 'Clases'], ['tp', 'TPs'], ['foro', 'Foros']];
-    el.innerHTML = opts.map(([v, l]) => `<button class="curs-chip ${_filtTipo === v ? 'on' : ''}" onclick="Cursada.setFiltro('${v}')">${l}</button>`).join('');
+    el.innerHTML = opts.map(([v, l]) => `<button class="curs-chip ${_filtTipo === v ? 'on' : ''}" aria-pressed="${_filtTipo === v}" onclick="Cursada.setFiltro('${v}')">${l}</button>`).join('');
   }
   function setFiltro(v) { _filtTipo = v; renderFiltros(); renderList(); }
 
   function filaEdit(it) {
     const inp = 'background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:6px 8px;font-size:11px;color:inherit';
-    return `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:8px;border:1px solid var(--accent,#3B82F6);border-radius:8px;margin-bottom:6px">
+    return `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:8px;border:1px solid var(--c-conocimiento);border-radius:8px;margin-bottom:6px">
       <select id="curs-e-tipo" style="${inp}">${Object.keys(TIPOS).map(k => `<option value="${k}" ${k === it.tipo ? 'selected' : ''}>${TIPOS[k].icon} ${TIPOS[k].label}</option>`).join('')}</select>
       <input id="curs-e-materia" value="${esc(it.materia)}" style="${inp};flex:1;min-width:100px">
       <input id="curs-e-titulo" value="${esc(it.titulo || '')}" placeholder="Título / consigna" style="${inp};flex:1;min-width:120px">
