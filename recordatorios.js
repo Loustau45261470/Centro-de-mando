@@ -221,7 +221,8 @@ function renderRemindersNotif(tab) {
     .filter(r => r.datetime)
     .sort((a, b) => new Date(a.datetime) - new Date(b.datetime)).slice(0, 5);
   if (!dated.length) {
-    body.innerHTML = '<div class="rnotif-empty">Sin recordatorios próximos. Abrí <b>Recordatorios</b> desde el FAB para crear uno.</div>';
+    body.innerHTML = `<div class="rnotif-empty">Sin recordatorios próximos.</div>
+      <button class="rnotif-all" onclick="if(window.openRemindersOverlay)openRemindersOverlay('${tab}')">Crear un recordatorio →</button>`;
     return;
   }
   body.innerHTML = dated.map(r => {
@@ -238,7 +239,8 @@ function renderRemindersNotif(tab) {
       <div class="rnotif-body"><div class="rnotif-title">${escHtml(r.title)}</div><div class="rnotif-when">${when}</div></div>
       ${cd ? `<span class="rnotif-cd">${cd}</span>` : ''}
     </div>`;
-  }).join('');
+  }).join('') +
+    `<button class="rnotif-all" onclick="if(window.openRemindersOverlay)openRemindersOverlay('${tab}')">Ver todos los recordatorios →</button>`;
 }
 
 function openAddReminder(tab) {

@@ -2035,7 +2035,7 @@ function renderFinObjectives() {
   const PENCIL = `<svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
   const TRASH  = `<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>`;
 
-  const rowsHTML = objs.map(o => {
+  const _objRow = o => {
     const isPast  = _parseFinObjDate(o.date) <= today;
     const diff    = (o.real !== null && o.expected !== null) ? o.real - o.expected : null;
     let diffClass = 'diff-neu', diffDisp = '—';
@@ -2058,7 +2058,31 @@ function renderFinObjectives() {
         </div>
       </td>
     </tr>`;
-  }).join('');
+  };
+
+  // La sección muestra solo la ventana relevante (los 2 últimos puntos ya vencidos
+  // y los 2 próximos). El listado completo se acumula en el overlay de historial:
+  // así la card no crece indefinidamente con los años.
+  const pastIdx  = objs.reduce((last, o, i) => _parseFinObjDate(o.date) <= today ? i : last, -1);
+  const from     = Math.max(0, pastIdx - 1);
+  const recent   = objs.slice(from, pastIdx + 3);
+  const rowsHTML = recent.map(_objRow).join('');
+  const hiddenN  = objs.length - recent.length;
+
+  const histBody = document.getElementById('finObjHistBody');
+  if (histBody) {
+    histBody.innerHTML = objs.length ? `
+      <table class="law-tbl">
+        <thead><tr>
+          <th>Fecha</th>
+          <th style="text-align:center">Esperado</th>
+          <th style="text-align:center">Obtenido</th>
+          <th style="text-align:center">Dif.</th>
+          <th></th>
+        </tr></thead>
+        <tbody>${objs.map(_objRow).join('')}</tbody>
+      </table>` : '<p class="empty-state">Sin puntos registrados</p>';
+  }
 
   wrap.innerHTML = `<div class="card">
     <div class="card-title">
@@ -2090,6 +2114,9 @@ function renderFinObjectives() {
       </tr></thead>
       <tbody>${rowsHTML}</tbody>
     </table>
+    <button class="bsum-full" onclick="if(window.openFinObjHistorial)openFinObjHistorial()">
+      Ver historial completo${hiddenN > 0 ? ` (${hiddenN} punto${hiddenN > 1 ? 's' : ''} más)` : ''} →
+    </button>
   </div>`;
 
   // Chart
@@ -2406,37 +2433,16 @@ function renderInventory() {
     ${rows}`;
 }
 
-// ── Resumen de inventario (sección) · la edición completa vive en el overlay de Presupuesto ──
-function renderInventarioResumen() {
-  const body = document.getElementById('inventarioResumenBody'); if (!body) return;
-  ensureInventoryState();
-  const items = S.inventory.items;
-  const alerts = items.filter(it => it.stock < 0);
-  const rows = items.slice(0, 4).map(it => `
-    <div class="sub-row">
-      <div class="sub-info">
-        <div class="sub-name">${it.name}${it.stock < 0 ? ' <span class="inv-alert-badge">⚠</span>' : ''}</div>
-        <div class="sub-detail">Stock: <b class="${it.stock < 0 ? 'text-danger' : ''}">${it.stock} ${it.unit}</b></div>
-      </div>
-    </div>`).join('') || '<p class="empty-state">Sin ítems en el inventario</p>';
-  const more = items.length > 4 ? `<div class="sub-detail" style="margin-top:6px">+ ${items.length - 4} ítem(s) más</div>` : '';
-
-  body.innerHTML = `
-    ${rows}${more}
-    ${alerts.length ? `<div class="sub-detail text-danger" style="margin-top:6px">⚠ ${alerts.length} ítem(s) con stock negativo</div>` : ''}
-    <button class="bsum-full" onclick="if(window.openBudgetOverlay)openBudgetOverlay()">Ver inventario completo →</button>`;
-}
-
 function setInvExpected(id, field, val) {
   const it = _invItem(id); if (!it) return;
   it[field] = +val || 0;
-  saveState(); renderInventory(); renderInventarioResumen(); renderDieta(); renderDietaResumen();
+  saveState(); renderInventory(); renderDieta(); renderDietaResumen();
 }
 
 function setInvStock(id, val) {
   const it = _invItem(id); if (!it) return;
   it.stock = +val || 0;
-  saveState(); renderInventory(); renderInventarioResumen(); renderDieta(); renderDietaResumen();
+  saveState(); renderInventory(); renderDieta(); renderDietaResumen();
 }
 
 function openInvItemModal() {
@@ -2458,14 +2464,14 @@ function saveInvItem() {
   S.inventory.items.push(it);
   const mk = _invMonthKey();
   if (S.inventory.history[mk]) S.inventory.history[mk][it.id] = { expectedDaily: daily, expectedMonthly: monthly, real: 0 };
-  saveState(); renderInventory(); renderInventarioResumen(); renderDieta(); renderDietaResumen(); closeModal('modal-inv-item');
+  saveState(); renderInventory(); renderDieta(); renderDietaResumen(); closeModal('modal-inv-item');
   showToast('Ítem agregado al inventario');
 }
 
 function deleteInvItem(id) {
   if (!confirm('¿Eliminar este ítem del inventario?')) return;
   S.inventory.items = S.inventory.items.filter(i => i.id !== id);
-  saveState(); renderInventory(); renderInventarioResumen(); renderDieta(); renderDietaResumen();
+  saveState(); renderInventory(); renderDieta(); renderDietaResumen();
 }
 
 // Match por nombre (case-insensitive) contra la descripción de un movimiento de Actividad.
@@ -2697,7 +2703,7 @@ function toggleDietItem(id) {
     it.stock -= qty;
     log[id] = qty;
   }
-  saveState(); renderDieta(); renderDietaResumen(); renderInventory(); renderInventarioResumen();
+  saveState(); renderDieta(); renderDietaResumen(); renderInventory();
 }
 
 // ════════════════════════════════════════════════════════
@@ -2894,8 +2900,34 @@ function _nwAccountDatasets(hist) {
     (S.accountHistory || []).filter(h => h.accountId === accId).forEach(h => { by[h.date] = h.balance; });
     const data = hist.map(h => by[h.date] ?? null);
     const c = _NW_ACC_COLORS[i % _NW_ACC_COLORS.length];
-    return { label: acc ? acc.name : 'Cuenta', data, borderColor: c.border, backgroundColor: c.bg, tension:.3, pointRadius:3, fill:false, spanGaps:true };
+    // Eje propio por cuenta: una cuenta de $100k tiene que verse igual de bien que
+    // el patrimonio total en millones. Los ejes van ocultos (si no, tres escalas
+    // numéricas comen todo el ancho); el tooltip sigue mostrando el monto real.
+    return { label: acc ? acc.name : 'Cuenta', data, borderColor: c.border, backgroundColor: c.bg, tension:.3, pointRadius:3, fill:false, spanGaps:true, yAxisID: 'yAcc' + i };
   });
+}
+
+// Escalas del gráfico de líneas: la del patrimonio total + una oculta por cuenta.
+function _nwLineScales() {
+  const scales = {
+    x: { type: 'category', ticks: { font: { size: 9 } } },
+    y: { ticks: { font: { size: 9 }, callback: v => fmtMoney(v, 'USD') } },
+  };
+  nwSelectedAccounts.forEach((_, i) => {
+    scales['yAcc' + i] = { display: false, position: 'right', grid: { drawOnChartArea: false } };
+  });
+  return scales;
+}
+
+// Aviso de que cada cuenta tiene su propia escala (si no, el gráfico miente:
+// dos líneas a la misma altura no significan el mismo monto).
+function _renderNWScaleNote() {
+  const el = document.getElementById('nwScaleNote');
+  if (!el) return;
+  el.textContent = nwSelectedAccounts.length
+    ? 'Cada cuenta usa su propia escala · comparar la forma, no la altura'
+    : '';
+  el.style.display = nwSelectedAccounts.length ? '' : 'none';
 }
 
 function initNWCharts() {
@@ -2917,9 +2949,10 @@ function initNWCharts() {
   nwLineInst=new Chart(lineCtx,{
     type:'line',
     data:{ labels:hist.map(h=>h.date.slice(5)), datasets:[{ label:'Patrimonio total', data:hist.map(h=>h.value), borderColor:'rgba(107,227,164,.8)', backgroundColor:'rgba(107,227,164,.06)', tension:.3, pointRadius:3, fill:true }, ...accDatasets] },
-    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display: accDatasets.length>0, position:'bottom', labels:{ font:{size:9}, boxWidth:10, color:'#C8D5E8' } } }, scales:{ x:{ type:'category', ticks:{ font:{size:9} } }, y:{ ticks:{ font:{size:9}, callback:v=>fmtMoney(v,'USD') } } } }
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display: accDatasets.length>0, position:'bottom', labels:{ font:{size:9}, boxWidth:10, color:'#C8D5E8' } } }, scales:_nwLineScales() }
   });
   renderAccountChartToggles();
+  _renderNWScaleNote();
 }
 
 function updateNWCharts() {
@@ -2932,7 +2965,9 @@ function updateNWCharts() {
   nwLineInst.data.labels=hist.map(h=>h.date.slice(5));
   nwLineInst.data.datasets=[{ label:'Patrimonio total', data:hist.map(h=>h.value), borderColor:'rgba(107,227,164,.8)', backgroundColor:'rgba(107,227,164,.06)', tension:.3, pointRadius:3, fill:true }, ...accDatasets];
   nwLineInst.options.plugins.legend.display = accDatasets.length>0;
+  nwLineInst.options.scales = _nwLineScales();
   nwLineInst.update('none');
+  _renderNWScaleNote();
 }
 
 // ════════════════════════════════════════════════════════
