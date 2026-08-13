@@ -1,7 +1,7 @@
 // Centro de Mando — Service Worker
 // Maneja Web Push, clicks de notificación, y caché offline del app shell.
 
-const CACHE = 'cdm-shell-v203';
+const CACHE = 'cdm-shell-v206';
 const BASE  = '/Centro-de-mando/';
 const SHELL = [
   BASE,
@@ -14,11 +14,13 @@ const SHELL = [
   BASE + 'app.js',
   BASE + 'workspace.js',
   BASE + 'abogacia.js',
+  BASE + 'correlativas.js',
   BASE + 'habitos.js',
   BASE + 'rutinas.js',
   BASE + 'finanzas.js',
   BASE + 'recordatorios.js',
   BASE + 'objetivos.js',
+  BASE + 'cursada.js',
   BASE + 'overlay-core.js',
   BASE + 'speed-dial.js',
   BASE + 'proyectos-overlay.js',

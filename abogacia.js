@@ -49,7 +49,10 @@ function renderLawProgress() {
   ).join('');
 
   wrap.innerHTML = `<div class="card">
-    <div class="card-title">⚖ Abogacía — Progreso</div>
+    <div class="card-title">
+      ⚖ Abogacía — Progreso
+      <button class="btn btn-ghost btn-sm" onclick="if(window.Correlativas) Correlativas.open()">Correlatividades →</button>
+    </div>
     <div class="law-total-row">
       <div>
         <div class="law-total-pct">${totalPct}%</div>
@@ -205,7 +208,7 @@ function renderLawMilestones() {
   const TRASH  = `<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>`;
 
   // Table rows
-  const rowsHTML = ms.map(m => {
+  const _msRow = m => {
     const isPast   = _parseMilestoneDate(m.date) <= today;
     const realVal  = m.real !== null ? m.real : (isPast ? currentDone : null);
     const realDisp = realVal !== null ? realVal : '—';
@@ -227,7 +230,25 @@ function renderLawMilestones() {
         </div>
       </td>
     </tr>`;
-  }).join('');
+  };
+
+  // La sección muestra solo la ventana relevante (último punto ya vencido y su
+  // entorno). El listado completo se acumula en el overlay de historial: así la
+  // card no crece indefinidamente con los años.
+  const pastIdx  = ms.reduce((last, m, i) => _parseMilestoneDate(m.date) <= today ? i : last, -1);
+  const from     = Math.max(0, pastIdx - 1);
+  const recent   = ms.slice(from, pastIdx + 3);
+  const rowsHTML = recent.map(_msRow).join('');
+  const hiddenN  = ms.length - recent.length;
+
+  const histBody = document.getElementById('lawMsHistBody');
+  if (histBody) {
+    histBody.innerHTML = ms.length ? `
+      <table class="law-tbl">
+        <thead><tr><th>Fecha</th><th style="text-align:center">Real</th><th style="text-align:center">Esperado</th><th style="text-align:center">Dif.</th><th></th></tr></thead>
+        <tbody>${ms.map(_msRow).join('')}</tbody>
+      </table>` : '<p class="empty-state">Sin puntos registrados</p>';
+  }
 
   wrap.innerHTML = `<div class="card">
     <div class="card-title">
@@ -254,6 +275,9 @@ function renderLawMilestones() {
       <tbody>${rowsHTML}</tbody>
     </table>
     <div style="font-size:11px;color:var(--tt);margin-top:8px">* Valor actual del progreso registrado</div>
+    <button class="bsum-full" onclick="if(window.openLawMsHistorial)openLawMsHistorial()">
+      Ver historial completo${hiddenN > 0 ? ` (${hiddenN} punto${hiddenN > 1 ? 's' : ''} más)` : ''} →
+    </button>
   </div>`;
 
   // Chart
