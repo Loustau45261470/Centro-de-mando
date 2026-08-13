@@ -519,6 +519,9 @@ function pfCancelCredit(fundId, mk) {
 function _pfStatusPill(fund) {
   if (pfConditionBroken(fund)) return '<span class="pill pill-danger" style="font-size:10px">Condición rota</span>';
   const curMK = _pfMonthKey(new Date());
+  const cur = _pfLog(fund.id)[curMK];
+  if (cur && +cur.credited > 0) return '<span class="pill pill-ok" style="font-size:10px">Acreditado</span>';
+  if (!_pfAppliesToMonth(fund, curMK)) return '<span class="pill pill-ghost" style="font-size:10px">Acredita al cierre del trimestre</span>';
   if (!fund.condition) return '<span class="pill pill-ghost" style="font-size:10px">Sin condición</span>';
   const r = pfEvalMonth(fund, curMK, true);
   const pct = r.pct === null || r.pct === undefined ? '' : ` ${Math.round(r.pct)}%`;
@@ -737,17 +740,24 @@ function renderFundDetail() {
   const f = _pfFund(_pfDetailId);
   if (!f) { body.innerHTML = '<p class="empty-state">Fondo eliminado</p>'; return; }
   const log = _pfLog(f.id);
-  const months = Object.keys(log).sort().reverse();
+  // Meses cerrados desde la creación del fondo: los que no tienen entrada en el log
+  // (p. ej. quedaron sin evaluar por condición rota) también se listan, para poder forzarlos.
+  const curMK = _pfMonthKey(new Date());
+  const closed = [];
+  for (let mk = f.createdMonth || curMK, g = 0; mk < curMK && g++ < 600; mk = _pfNextMonth(mk)) {
+    if (_pfAppliesToMonth(f, mk)) closed.push(mk);
+  }
+  const months = [...new Set([...Object.keys(log), ...closed])].sort().reverse();
   const rows = months.length ? months.map(mk => {
     const e = log[mk];
-    const ok = +e.credited > 0;
+    const ok = !!e && +e.credited > 0;
     return `<div class="sub-row">
       <div class="sub-info">
-        <div class="sub-name">${_pfMonthLabel(mk)} ${e.manual ? '<span class="pill pill-ghost" style="font-size:10px">manual</span>' : ''}</div>
-        <div class="sub-detail">${ok ? 'Cumplido' : 'No cumplido'}</div>
+        <div class="sub-name">${_pfMonthLabel(mk)} ${e && e.manual ? '<span class="pill pill-ghost" style="font-size:10px">manual</span>' : ''}</div>
+        <div class="sub-detail">${ok ? 'Cumplido' : (e ? 'No cumplido' : 'Sin evaluar')}</div>
       </div>
       <div class="flex gap-8 items-center">
-        <span class="mono bold ${ok ? 'text-ok' : 'text-ter'}">${fmtMoney(+e.credited || 0, 'ARS')}</span>
+        <span class="mono bold ${ok ? 'text-ok' : 'text-ter'}">${fmtMoney(e ? (+e.credited || 0) : 0, 'ARS')}</span>
         ${ok
           ? `<button class="btn btn-ghost btn-sm" onclick="pfCancelCredit('${f.id}','${mk}')" style="font-size:10px">Anular</button>`
           : `<button class="btn btn-ghost btn-sm" onclick="pfForceCredit('${f.id}','${mk}')" style="font-size:10px">Forzar</button>`}
