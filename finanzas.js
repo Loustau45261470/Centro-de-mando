@@ -172,16 +172,21 @@ function renderWishlist() {
   const DEL_SVG    = `<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>`;
 
   const catId = cat => 'wcat_' + cat.replace(/[^a-zA-Z0-9]/g, '_');
+  // Color por categoría: identidad visual estable (mismo orden alfabético → mismo color).
+  const CAT_COLORS = ['#38BDF8','#10E07C','#F5A623','#818CF8','#F472B6','#22D3EE','#FB923C','#A3E635'];
+  const _rgba = (hex, a) => `rgba(${parseInt(hex.slice(1,3),16)},${parseInt(hex.slice(3,5),16)},${parseInt(hex.slice(5,7),16)},${a})`;
 
   let html = '';
   for (const cat of groupOrder) {
     const cid = catId(cat);
     const collapsed = localStorage.getItem('wish_cat_' + cid) === '1';
-    html += `<div class="wish-category-hdr" onclick="toggleWishCat('${cid}')">
-      <span>${_esc(cat)} <span style="opacity:.45">(${groups[cat].length})</span></span>
+    const col = CAT_COLORS[groupOrder.indexOf(cat) % CAT_COLORS.length];
+    const catVars = `--wcat:${col};--wcat-soft:${_rgba(col,.11)};--wcat-line:${_rgba(col,.32)}`;
+    html += `<div class="wish-category-hdr" style="${catVars}" onclick="toggleWishCat('${cid}')">
+      <span class="wish-cat-name"><span class="wish-cat-dot"></span>${_esc(cat)}<span class="wish-cat-count">${groups[cat].length}</span></span>
       <span class="wish-cat-chevron${collapsed?' collapsed':''}">▾</span>
     </div>`;
-    html += `<div class="wish-cat-body${collapsed?' collapsed':''}" id="${cid}">`;
+    html += `<div class="wish-cat-body${collapsed?' collapsed':''}" style="${catVars}" id="${cid}">`;
     for (const w of groups[cat]) {
       const pctOfNW = nw > 0 ? (w.amount / nw * 100).toFixed(1) : '∞';
       const saved   = nw > 0 ? Math.min(100, nw / w.amount * 100) : 0;
