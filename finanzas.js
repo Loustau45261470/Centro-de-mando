@@ -143,13 +143,16 @@ function renderWishlist() {
   empty.classList.add('hidden');
 
   const _esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+  const _attr = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const PRIO_ORDER = ['urgente','importante','normal','poco_importante','irrelevante'];
   const PRIO_INFO  = {
     urgente:         { label:'Urgente',        color:'var(--danger)' },
     importante:      { label:'Importante',     color:'var(--warn)'   },
+    // Los tres niveles bajos comparten color legible (WCAG AA): la jerarquía la
+    // dice la etiqueta y el puntaje, no un gris que no se lee.
     normal:          { label:'Normal',         color:'var(--ts)'     },
-    poco_importante: { label:'Poco importante',color:'var(--tt)'     },
-    irrelevante:     { label:'Irrelevante',    color:'rgba(255,255,255,.25)' },
+    poco_importante: { label:'Poco importante',color:'var(--ts)'     },
+    irrelevante:     { label:'Irrelevante',    color:'var(--ts)'     },
   };
 
   // Sort: by category (alpha, "Sin categoría" last), then by priority rank
@@ -172,19 +175,22 @@ function renderWishlist() {
   const DEL_SVG    = `<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>`;
 
   const catId = cat => 'wcat_' + cat.replace(/[^a-zA-Z0-9]/g, '_');
-  // Color por categoría: identidad visual estable (mismo orden alfabético → mismo color).
-  const CAT_COLORS = ['#38BDF8','#10E07C','#F5A623','#818CF8','#F472B6','#22D3EE','#FB923C','#A3E635'];
-  const _rgba = (hex, a) => `rgba(${parseInt(hex.slice(1,3),16)},${parseInt(hex.slice(3,5),16)},${parseInt(hex.slice(5,7),16)},${a})`;
+  // Color por categoría: token del tema (--wcat-1..8), estable por orden alfabético.
+  const CAT_SLOTS = 8;
 
   let html = '';
   for (const cat of groupOrder) {
     const cid = catId(cat);
     const collapsed = localStorage.getItem('wish_cat_' + cid) === '1';
-    const col = CAT_COLORS[groupOrder.indexOf(cat) % CAT_COLORS.length];
-    const catVars = `--wcat:${col};--wcat-soft:${_rgba(col,.11)};--wcat-line:${_rgba(col,.32)}`;
-    html += `<div class="wish-category-hdr" style="${catVars}" onclick="toggleWishCat('${cid}')">
+    // "Sin categoría" queda neutra: no compite con las categorías reales.
+    const catVars = cat === 'Sin categoría'
+      ? '--wcat:var(--ts)'
+      : `--wcat:var(--wcat-${(groupOrder.indexOf(cat) % CAT_SLOTS) + 1})`;
+    html += `<div class="wish-category-hdr${collapsed?' collapsed':''}" style="${catVars}" role="button" tabindex="0"
+      aria-expanded="${collapsed?'false':'true'}" aria-controls="${cid}"
+      onclick="toggleWishCat('${cid}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleWishCat('${cid}');}">
       <span class="wish-cat-name"><span class="wish-cat-dot"></span>${_esc(cat)}<span class="wish-cat-count">${groups[cat].length}</span></span>
-      <span class="wish-cat-chevron${collapsed?' collapsed':''}">▾</span>
+      <span class="wish-cat-chevron${collapsed?' collapsed':''}" aria-hidden="true">▾</span>
     </div>`;
     html += `<div class="wish-cat-body${collapsed?' collapsed':''}" style="${catVars}" id="${cid}">`;
     for (const w of groups[cat]) {
@@ -199,9 +205,9 @@ function renderWishlist() {
           <div class="flex gap-8 items-center">
             <span class="wish-priority-badge" style="color:${pi.color}">${pi.label}</span>
             <span class="mono text-sm">${fmtMoney(w.amount,w.currency)}</span>
-            ${hasNotes?`<button class="icon-btn" onclick="toggleWishDetail('${w.id}')" title="Detalles">${DETAIL_SVG}</button>`:''}
-            <button class="icon-btn" onclick="openEditWish('${w.id}')">${EDIT_SVG}</button>
-            <button class="icon-btn" onclick="deleteWish('${w.id}')">${DEL_SVG}</button>
+            ${hasNotes?`<button class="icon-btn" onclick="toggleWishDetail('${w.id}')" title="Detalles" aria-label="Detalles de ${_attr(w.name)}">${DETAIL_SVG}</button>`:''}
+            <button class="icon-btn" onclick="openEditWish('${w.id}')" aria-label="Editar ${_attr(w.name)}">${EDIT_SVG}</button>
+            <button class="icon-btn" onclick="deleteWish('${w.id}')" aria-label="Eliminar ${_attr(w.name)}">${DEL_SVG}</button>
           </div>
         </div>
         <div class="wish-pct">Representa el <strong>${pctOfNW}%</strong> de tu patrimonio · Ahorrado: ${saved.toFixed(0)}%</div>
@@ -248,10 +254,12 @@ function renderWishTop5() {
 
 function toggleWishCat(cid) {
   const body    = document.getElementById(cid);
-  const chevron = body?.previousElementSibling?.querySelector('.wish-cat-chevron');
+  const hdr     = body?.previousElementSibling;
+  const chevron = hdr?.querySelector('.wish-cat-chevron');
   if (!body) return;
   const nowCollapsed = body.classList.toggle('collapsed');
   if (chevron) chevron.classList.toggle('collapsed', nowCollapsed);
+  if (hdr) { hdr.classList.toggle('collapsed', nowCollapsed); hdr.setAttribute('aria-expanded', nowCollapsed ? 'false' : 'true'); }
   localStorage.setItem('wish_cat_' + cid, nowCollapsed ? '1' : '');
 }
 

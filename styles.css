@@ -2059,54 +2059,76 @@ textarea { resize: vertical; min-height: 60px; }
 #tab-finanzas .wish-bar { margin-top: 7px; }
 #tab-finanzas .wish-bar .prog-bar { height: 1px !important; border-radius: 0 !important; background: rgba(255,255,255,0.06) !important; }
 #tab-finanzas .wish-bar .prog-fill { height: 1px !important; border-radius: 0 !important; }
-#tab-finanzas .wish-row .icon-btn { opacity: 0; padding: 3px; }
+#tab-finanzas .wish-row .icon-btn { opacity: 0; padding: 6px; }
 #tab-finanzas .wish-row:hover .icon-btn { opacity: 0.4; }
+/* Teclado: el botón oculto por hover tiene que aparecer al recibir foco. */
+#tab-finanzas .wish-row .icon-btn:focus-visible { opacity: 1 !important; }
 #tab-finanzas .wish-row .icon-btn:hover { opacity: 1 !important; }
 #tab-finanzas .wish-row .icon-btn svg { width: 13px; height: 13px; }
 
+/* ── Wish: paleta de categorías ──
+   Tokens en body (no :root) para que hereden el acento del tema activo:
+   los themes redefinen --accent/--ok/--warn sobre body, y var() se resuelve ahí. */
+body {
+  --wcat-1: var(--accent); --wcat-2: var(--ok);     --wcat-3: var(--warn);   --wcat-4: var(--indigo);
+  --wcat-5: var(--danger); --wcat-6: #22D3EE;       --wcat-7: #F472B6;       --wcat-8: #A3E635;
+}
+
 /* ── Wish category header ── */
+/* Banda de categoría: separa los grupos por tono + aire, sin cajas anidadas
+   ni barras laterales de color. El color identifica; el texto manda. */
 .wish-category-hdr {
-  padding: 10px 14px;
-  margin-top: 16px;
+  padding: 9px 12px;
+  margin: 24px 0 2px;
   font-size: 14px; font-weight: 700; letter-spacing: 0.01em;
   color: var(--tp);
   font-family: var(--sans);
-  background: var(--wcat-soft, rgba(255,255,255,0.05));
-  border: 1px solid var(--wcat-line, var(--border));
-  border-left: 4px solid var(--wcat, var(--accent));
-  border-radius: 10px 10px 0 0;
-  display: flex; align-items: center; justify-content: space-between;
+  background: rgba(255,255,255,0.05); /* fallback sin color-mix */
+  background: color-mix(in srgb, var(--wcat) 14%, transparent);
+  border: 1px solid var(--border);
+  border-color: color-mix(in srgb, var(--wcat) 32%, transparent);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
   cursor: pointer; user-select: none;
+  transition: filter .18s var(--ease-out-quart);
 }
 .wish-category-hdr:first-child { margin-top: 0; }
-.wish-category-hdr:hover { filter: brightness(1.25); }
+.wish-category-hdr:hover { filter: brightness(1.22); }
+.wish-category-hdr:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--wcat), 0 0 16px color-mix(in srgb, var(--wcat) 32%, transparent);
+}
 .wish-cat-name { display: flex; align-items: center; gap: 9px; min-width: 0; }
 .wish-cat-dot {
-  width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
-  background: var(--wcat, var(--accent)); box-shadow: 0 0 10px var(--wcat, var(--accent));
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  background: var(--wcat); box-shadow: 0 0 10px var(--wcat);
 }
 .wish-cat-count {
   font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 0;
-  color: var(--wcat, var(--accent));
-  border: 1px solid var(--wcat-line, var(--border));
-  border-radius: 999px; padding: 1px 8px; flex-shrink: 0;
+  color: var(--wcat);
+  border: 1px solid var(--border);
+  border-color: color-mix(in srgb, var(--wcat) 40%, transparent);
+  border-radius: 999px; padding: 1px 8px; flex-shrink: 0; line-height: 1.5;
 }
 .wish-cat-chevron {
-  font-size: 13px; color: var(--wcat, var(--ts));
-  transition: transform 0.22s ease; line-height: 1;
+  font-size: 13px; color: var(--wcat);
+  transition: transform 0.2s var(--ease-out-quart); line-height: 1;
 }
 .wish-cat-chevron.collapsed { transform: rotate(-90deg); }
 .wish-cat-body {
   overflow: hidden;
   max-height: 4000px; opacity: 1;
-  border: 1px solid var(--wcat-line, var(--border));
-  border-top: none;
-  border-left: 4px solid var(--wcat, var(--accent));
-  border-radius: 0 0 10px 10px;
-  padding: 0 10px 4px;
-  transition: max-height 0.28s ease, opacity 0.22s ease;
+  padding: 0 4px;
+  transition: max-height 0.24s var(--ease-out-quart), opacity 0.18s ease;
 }
-.wish-cat-body.collapsed { max-height: 0; opacity: 0; border-bottom-width: 0; }
+.wish-cat-body.collapsed { max-height: 0; opacity: 0; }
+
+/* Fila: en pantalla angosta el bloque de la derecha baja en vez de desbordar. */
+.wish-row > .flex:first-child { flex-wrap: wrap; row-gap: 4px; }
+.wish-row .wish-name { min-width: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .wish-cat-body, .wish-cat-chevron, .wish-category-hdr { transition: none; }
+}
 
 /* ── Wish priority badge ── */
 .wish-priority-badge {
@@ -4809,9 +4831,9 @@ input:focus, select:focus, textarea:focus {
 
 /* ════════════════════ ADQUISICIÓN · puntaje + Top 5 ════════════════════ */
 /* Control de puntaje en cada fila del overlay */
-.wish-score { display: flex; align-items: center; gap: 5px; margin-top: 9px; }
-.wish-score-lbl { font-family: var(--mono); font-size: 9px; letter-spacing: .6px; text-transform: uppercase; color: var(--tt); margin-right: 4px; }
-.ws-dot { width: 17px; height: 17px; border-radius: 5px; border: 1px solid var(--border-h); background: rgba(10,16,30,.5); cursor: pointer; padding: 0; transition: background .15s, border-color .15s, box-shadow .15s, transform .1s; }
+.wish-score { display: flex; align-items: center; gap: 9px; margin-top: 9px; }
+.wish-score-lbl { font-family: var(--mono); font-size: 9px; letter-spacing: .6px; text-transform: uppercase; color: var(--ts); margin-right: 4px; }
+.ws-dot { width: 20px; height: 20px; border-radius: 5px; border: 1px solid var(--border-h); background: rgba(10,16,30,.5); cursor: pointer; padding: 0; transition: background .15s, border-color .15s, box-shadow .15s, transform .1s; }
 .ws-dot:hover { border-color: #F5A623; transform: translateY(-1px); }
 .ws-dot.on { background: linear-gradient(150deg, #F5A623, #d98a10); border-color: #F5A623; box-shadow: 0 0 10px -3px #F5A623, inset 0 1px 0 rgba(255,255,255,.3); }
 /* Top 5 en sección */
