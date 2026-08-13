@@ -149,9 +149,11 @@ function _sfMount() {
     ariaLabel: 'Acciones de Conocimiento',
     mainIcon: _SF_ICONS.brain,
     items: [
+      { icon: _SF_ICONS.planner, label: 'Cursada', accent: '#3B82F6', onClick: () => { if (window.Cursada) Cursada.open(); } },
       { icon: _SF_ICONS.notas, label: 'Notas', accent: '#6B8EFF', onClick: () => { if (typeof notasOpen === 'function') notasOpen(); } },
       { icon: _SF_ICONS.timer, label: 'Sesión de estudio', accent: '#6B8EFF', onClick: _sfOpenSesionEstudio },
       { icon: _SF_ICONS.grad, label: 'Finales', accent: '#6B8EFF', onClick: () => { if (window.Finales) Finales.open(); } },
+      { icon: _SF_ICONS.grad, label: 'Plan de carrera', accent: '#3B82F6', onClick: () => { if (window.Correlativas) Correlativas.open(); } },
       { icon: _SF_ICONS.proy, label: 'Proyectos', accent: '#38BDF8', onClick: () => { if (window.ProyectosOverlay) ProyectosOverlay.open('conocimiento'); } },
       remItem('conocimiento'),
     ],
@@ -168,6 +170,8 @@ function _sfMount() {
   const openBudget = _sfOpenBudget;
   // Historial de objetivos financieros: se abre desde el botón de la card, no del abanico.
   window.openFinObjHistorial = R({ id: 'ov-finobj', accent: '#22C55E', eyebrow: 'FINANZAS · OBJETIVOS', title: 'Historial de objetivos', sourceId: 'finobj-hist-card' });
+  // Historial de Seguimiento de Avance (Conocimiento): se abre desde el botón de la card.
+  window.openLawMsHistorial = R({ id: 'ov-lawms', accent: '#3B82F6', eyebrow: 'CONOCIMIENTO · CARRERA', title: 'Seguimiento de avance', sourceId: 'lawms-hist-card' });
   const proyItem = tab => ({ icon: _SF_ICONS.proy, label: 'Proyectos', accent: '#38BDF8', onClick: () => { if (window.ProyectosOverlay) ProyectosOverlay.open(tab); } });
 
   const sections = [

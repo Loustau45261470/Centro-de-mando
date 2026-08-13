@@ -793,7 +793,7 @@ function _reRenderAll() {
   if (tab === 'vida')         { renderTabHeader('vidaHeaderMeta'); }
   if (tab === 'salud')        { renderSaludTab(); renderSleepTracker(); renderTabHeader('saludHeaderMeta'); }
   if (tab === 'finanzas')     { renderFinanzasTab(); }
-  if (tab === 'conocimiento') { renderLawProgress(); renderLawMilestones(); renderLawPlan(); renderTabHeader('conocimientoHeaderMeta'); if (window.Finales) Finales.renderPrincipal(); }
+  if (tab === 'conocimiento') { renderLawProgress(); renderLawMilestones(); renderLawPlan(); renderTabHeader('conocimientoHeaderMeta'); if (window.Finales) Finales.renderPrincipal(); if (window.Cursada) Cursada.renderPrincipal(); }
   if (window.JARVIS_INTEL) JARVIS_INTEL.renderCard(tab);
   if (typeof renderProyectos === 'function') renderProyectos(tab);
 }
@@ -1030,7 +1030,7 @@ function switchTab(tab, btn) {
   if (tab === 'vida')         { renderTabHeader('vidaHeaderMeta'); }
   if (tab === 'salud')        { renderSaludTab(); renderSleepTracker(); renderTabHeader('saludHeaderMeta'); }
   if (tab === 'finanzas')     { renderFinanzasTab(); }
-  if (tab === 'conocimiento') { renderLawProgress(); renderLawMilestones(); renderLawPlan(); renderTabHeader('conocimientoHeaderMeta'); if (window.Finales) Finales.renderPrincipal(); }
+  if (tab === 'conocimiento') { renderLawProgress(); renderLawMilestones(); renderLawPlan(); renderTabHeader('conocimientoHeaderMeta'); if (window.Finales) Finales.renderPrincipal(); if (window.Cursada) Cursada.renderPrincipal(); }
   if (tab === 'ia')           { renderTabHeader('iaHeaderMeta'); }
   const _ks = document.getElementById('kpi-' + tab); if (_ks) delete _ks.dataset.kpiInit; // re-dispara count-up al entrar
   if (window.JARVIS_INTEL) JARVIS_INTEL.renderCard(tab);
@@ -3737,6 +3737,7 @@ renderQuarterlyObjectives();
 renderLawProgress();
 renderLawMilestones();
 renderLawPlan();
+if (window.Cursada) Cursada.renderPrincipal();
 renderFinObjectives();
 ['vida','finanzas','salud','conocimiento','ia'].forEach(renderHabitsCard);
 

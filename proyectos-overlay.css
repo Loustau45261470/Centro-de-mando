@@ -32,6 +32,9 @@
 /* Finanzas: el historial completo de objetivos vive en su overlay; la sección muestra los próximos puntos. */
 #finobj-hist-card { display: none; }
 #ov-finobj #finobj-hist-card { display: block; }
+/* Conocimiento: el historial completo de Seguimiento de Avance vive en su overlay. */
+#lawms-hist-card { display: none; }
+#ov-lawms #lawms-hist-card { display: block; }
 /* Recordatorios: la card completa (crear/editar) vive en el overlay; la sección muestra solo notificaciones. */
 [id^="reminders-wrap-"] { display: none; }
 .cm-ov-host [id^="reminders-wrap-"] { display: block; }
