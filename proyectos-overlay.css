@@ -29,6 +29,9 @@
 /* Finanzas: wishlist completa vive en el overlay de Adquisición; la sección muestra el Top 5. */
 #wishlist-card { display: none; }
 #ov-goals #wishlist-card { display: block; }
+/* Finanzas: el historial completo de objetivos vive en su overlay; la sección muestra los próximos puntos. */
+#finobj-hist-card { display: none; }
+#ov-finobj #finobj-hist-card { display: block; }
 /* Recordatorios: la card completa (crear/editar) vive en el overlay; la sección muestra solo notificaciones. */
 [id^="reminders-wrap-"] { display: none; }
 .cm-ov-host [id^="reminders-wrap-"] { display: block; }

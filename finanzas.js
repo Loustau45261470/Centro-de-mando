@@ -45,7 +45,6 @@ function renderFinanzasTab() {
   renderBudget();
   renderBudgetSummary();
   renderInventory();
-  renderInventarioResumen();
   if (nwPieInst) updateNWCharts();
 }
 
@@ -567,16 +566,19 @@ function renderPurchaseFunds() {
     const acc = pfAccumulated(f.id);
     total += acc;
     const per = _pfIsQuarterly(f) ? `${fmtMoney(+f.monthlyAmount || 0, 'ARS')}/mes · ×3 al cierre del trimestre` : `${fmtMoney(+f.monthlyAmount || 0, 'ARS')}/mes`;
-    return `<div class="sub-row">
-      <div class="sub-info">
-        <div class="sub-name">${escHtml(f.emoji || '🪙')} ${escHtml(f.name)} ${_pfStatusPill(f)}</div>
-        <div class="sub-detail">${per} · ${escHtml(pfConditionLabel(f))}</div>
+    return `<div class="fund-row">
+      <span class="fund-tile" aria-hidden="true">${escHtml(f.emoji || '🪙')}</span>
+      <div class="fund-main">
+        <div class="fund-name">${escHtml(f.name)} ${_pfStatusPill(f)}</div>
+        <div class="fund-meta">${per} · ${escHtml(pfConditionLabel(f))}</div>
       </div>
-      <div class="flex gap-8 items-center">
-        <span class="mono bold">${fmtMoney(acc, 'ARS')}</span>
-        <button class="btn btn-ghost btn-sm" onclick="openFundDetail('${f.id}')" style="font-size:10px">Detalle</button>
-        <button class="icon-btn" onclick="openFundModal('${f.id}')">${_EDIT_SVG}</button>
-        <button class="icon-btn" onclick="deleteFund('${f.id}')">${_DEL_SVG}</button>
+      <div class="fund-right">
+        <span class="fund-acc">${fmtMoney(acc, 'ARS')}</span>
+        <div class="fund-actions">
+          <button class="btn btn-ghost btn-sm fund-detail-btn" onclick="openFundDetail('${f.id}')">Detalle</button>
+          <button class="icon-btn" onclick="openFundModal('${f.id}')" aria-label="Editar ${escHtml(f.name)}">${_EDIT_SVG}</button>
+          <button class="icon-btn" onclick="deleteFund('${f.id}')" aria-label="Eliminar ${escHtml(f.name)}">${_DEL_SVG}</button>
+        </div>
       </div>
     </div>`;
   }).join('');
@@ -1006,6 +1008,12 @@ function setBudgetYear(y) {
   renderBudget();
 }
 
+// Controles de vista del presupuesto (no se persisten: son de lectura del mes).
+let budgetSort = 'manual';   // 'manual' | 'amount' (mayor a menor)
+let budgetCatFilter = '';    // '' = todas
+function setBudgetSort(v) { budgetSort = v; renderBudget(); }
+function setBudgetCatFilter(v) { budgetCatFilter = v; renderBudget(); }
+
 function renderBudget() {
   const body = document.getElementById('budgetBody');
   if (!body) return;
@@ -1044,13 +1052,23 @@ function renderBudget() {
   const [my, mmo] = budgetActiveMonth.split('-');
   const monthLabel = `${CAL_MONTHS[+mmo-1]} ${my}`;
 
+  // Vista: el filtro y el orden afectan SOLO qué filas se listan.
+  // Los totales siguen siendo los del mes completo (si no, "Presupuesto total" mentiría).
+  const _viewRows = (items, amountOf) => {
+    let out = budgetCatFilter ? items.filter(it => (it.category || '') === budgetCatFilter) : [...items];
+    if (budgetSort === 'amount') out.sort((a, b2) => amountOf(b2) - amountOf(a));
+    return out;
+  };
+
   // Ítems fijos (incluye los fondos de compra: su monto mensual es gasto fijo del presupuesto)
   let totalFijo = _pfBudgetTotal(budgetActiveMonth);
-  const fundRows = _pfBudgetRows(budgetActiveMonth);
-  const fixedRows = fundRows + (b.fixed.length ? b.fixed.map(it => {
+  b.fixed.forEach(it => { totalFijo += _budgetItemTotal(it); });
+  // Los fondos no tienen categoría: se ocultan si hay un filtro de categoría activo.
+  const fundRows = budgetCatFilter ? '' : _pfBudgetRows(budgetActiveMonth);
+  const fixedView = _viewRows(b.fixed, _budgetItemTotal);
+  const fixedRows = fundRows + (fixedView.length ? fixedView.map(it => {
     const ci = getCatInfo(it.category, 'expense');
     const tot = _budgetItemTotal(it);
-    totalFijo += tot;
     return `<div class="sub-row">
       <div class="sub-info">
         <div class="sub-name">${it.name}</div>
@@ -1062,13 +1080,14 @@ function renderBudget() {
         <button class="icon-btn" onclick="deleteBudgetFixed('${it.id}')">${_DEL_SVG}</button>
       </div>
     </div>`;
-  }).join('') : (fundRows ? '' : '<p class="empty-state">Sin ítems fijos</p>'));
+  }).join('') : (fundRows ? '' : `<p class="empty-state">${budgetCatFilter ? 'Sin ítems fijos en esta categoría' : 'Sin ítems fijos'}</p>`));
 
   // Gastos reservados
   let totalRes = 0;
-  const resRows = b.reserved.length ? b.reserved.map(it => {
+  b.reserved.forEach(it => { totalRes += (+it.amount || 0); });
+  const resView = _viewRows(b.reserved, it => (+it.amount || 0));
+  const resRows = resView.length ? resView.map(it => {
     const ci = getCatInfo(it.category, 'expense');
-    totalRes += (+it.amount || 0);
     return `<div class="sub-row">
       <div class="sub-info">
         <div class="sub-name">${it.name}</div>
@@ -1080,7 +1099,7 @@ function renderBudget() {
         <button class="icon-btn" onclick="deleteBudgetReserved('${it.id}')">${_DEL_SVG}</button>
       </div>
     </div>`;
-  }).join('') : '<p class="empty-state">Sin gastos reservados</p>';
+  }).join('') : `<p class="empty-state">${budgetCatFilter ? 'Sin reservados en esta categoría' : 'Sin gastos reservados'}</p>`;
 
   // Comparación plan vs real (solo ARS, mes activo)
   const realByCat = {};
@@ -1094,6 +1113,7 @@ function renderBudget() {
   b.fixed.forEach(it => { if (it.category) budByCat[it.category] = (budByCat[it.category] || 0) + _budgetItemTotal(it); });
   b.reserved.forEach(it => { if (it.category) budByCat[it.category] = (budByCat[it.category] || 0) + (+it.amount || 0); });
   const allCats = [...new Set([...Object.keys(budByCat), ...Object.keys(realByCat)])]
+    .filter(c => !budgetCatFilter || c === budgetCatFilter)
     .sort((a, c) => ((budByCat[c]||0)+(realByCat[c]||0)) - ((budByCat[a]||0)+(realByCat[a]||0)));
   const compRows = allCats.map(c => {
     const ci = getCatInfo(c, 'expense');
@@ -1109,6 +1129,23 @@ function renderBudget() {
     <div class="budget-cmp-hdr"><span>Categoría</span><span>Plan</span><span>Real</span><span>Saldo</span></div>
     ${compRows}` : '<p class="empty-state">Sin datos para comparar</p>';
 
+  // Controles de vista (orden + categoría). Las categorías ofrecidas son las que
+  // realmente aparecen en este mes: un desplegable con opciones vacías no sirve.
+  const usedCats = [...new Set([...b.fixed, ...b.reserved].map(it => it.category).filter(Boolean))];
+  const catOpts = usedCats.map(c => {
+    const ci = getCatInfo(c, 'expense');
+    return `<option value="${escHtml(c)}" ${c === budgetCatFilter ? 'selected' : ''}>${escHtml(ci.icon)} ${escHtml(ci.label) || escHtml(c)}</option>`;
+  }).join('');
+  const controls = `<div class="budget-view-controls">
+    <select class="inp budget-view-sel" id="budgetSortSel" aria-label="Ordenar ítems del presupuesto" onchange="setBudgetSort(this.value)">
+      <option value="manual" ${budgetSort === 'manual' ? 'selected' : ''}>Orden de carga</option>
+      <option value="amount" ${budgetSort === 'amount' ? 'selected' : ''}>Monto: mayor a menor</option>
+    </select>
+    <select class="inp budget-view-sel" id="budgetCatSel" aria-label="Filtrar por categoría" onchange="setBudgetCatFilter(this.value)">
+      <option value="">Todas las categorías</option>${catOpts}
+    </select>
+  </div>`;
+
   body.innerHTML = `
     <div class="budget-totals">
       <div class="budget-total-main">
@@ -1120,6 +1157,7 @@ function renderBudget() {
         <span>Reservados: <b>${fmtMoney(totalRes, 'ARS')}</b></span>
       </div>
     </div>
+    ${controls}
     <div class="budget-block-hdr">
       <span>Mínimo fijo</span>
       <button class="btn btn-ghost btn-sm" onclick="openBudgetFixed()">+ Ítem fijo</button>
@@ -1417,6 +1455,9 @@ let txnActiveMonth = null;
 // Finanzas nunca se ve afectada; se resetea a '' al cerrar el overlay.
 let txnHistCatFilter = '';
 function setTxnHistCat(cat) { txnHistCatFilter = cat; renderActivity(); }
+// Orden de la lista del historial: 'date' (default, como se cargó) o 'amount' (mayor a menor).
+let txnHistSort = 'date';
+function setTxnHistSort(mode) { txnHistSort = mode; renderActivity(); }
 
 function getAvailableMonths() {
   const months = new Set();
@@ -1548,7 +1589,8 @@ function renderActivity() {
   const accMap = {};
   S.accounts.forEach(a => accMap[a.id] = a);
 
-  const filteredForList = txnHistCatFilter ? filtered.filter(t => t.category === txnHistCatFilter) : filtered;
+  let filteredForList = txnHistCatFilter ? filtered.filter(t => t.category === txnHistCatFilter) : filtered;
+  if (txnHistSort === 'amount') filteredForList = [...filteredForList].sort((a, b) => (+b.amount || 0) - (+a.amount || 0));
 
   const colHdr = document.getElementById('activityColHdr');
   if (!filteredForList.length) {

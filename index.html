@@ -20,11 +20,11 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-<link rel="stylesheet" href="styles.css?v=157">
+<link rel="stylesheet" href="styles.css?v=158">
 <link rel="stylesheet" href="gamemode.css">
 <link rel="stylesheet" href="overlay-core.css">
 <link rel="stylesheet" href="speed-dial.css">
-<link rel="stylesheet" href="proyectos-overlay.css?v=150">
+<link rel="stylesheet" href="proyectos-overlay.css?v=151">
 </head>
 <body>
 
@@ -515,8 +515,13 @@
             <span class="mono bold" id="subTotal">$0</span>
           </div>
         </div>
-        <!-- Financial objectives tracking -->
+        <!-- Financial objectives tracking · la sección muestra banner + gráfico + próximos puntos -->
         <div id="fin-objectives-wrap"></div>
+        <!-- Historial completo de puntos: vive en el overlay (botón "Ver historial" de la card) -->
+        <div class="card" id="finobj-hist-card">
+          <div class="card-title">💰 Objetivos · historial</div>
+          <div id="finObjHistBody"></div>
+        </div>
         <div id="proyectos-wrap-finanzas"></div>
         <!-- Top 5 adquisiciones (sección) · gestión completa + puntaje en el overlay -->
         <div class="card" id="wish-top5-card">
@@ -562,6 +567,7 @@
           <div class="nw-1pct" id="nw1pct">1% = $0</div>
           <div class="chart-wrap-tall"><canvas id="nwPieChart"></canvas></div>
           <div class="chart-wrap"><canvas id="nwLineChart"></canvas></div>
+          <div class="nw-scale-note" id="nwScaleNote" style="display:none"></div>
           <div class="nw-acc-toggles" id="nwAccountToggles"></div>
           <div class="fin-col-hdr accounts-hdr">
             <span></span><span>Cuenta</span><span class="col-r">Saldo</span><span></span><span></span>
@@ -592,7 +598,7 @@
               <div class="fin-summary-lbl">Balance</div>
             </div>
           </div>
-          <div class="chart-wrap" id="txnChartWrap" style="height:160px;display:none"><canvas id="txnExpenseChart"></canvas></div>
+          <div class="chart-wrap" id="txnChartWrap" style="height:230px;display:none"><canvas id="txnExpenseChart"></canvas></div>
           <button class="bsum-full" id="verHistorialBtn" onclick="if(window.openHistorialOverlay)openHistorialOverlay()" style="display:none">Ver historial →</button>
           <div class="fin-col-hdr activity-hdr" id="activityColHdr" style="display:none" onclick="toggleActivityList()" title="Plegar / desplegar">
             <span class="txn-collapse-icon" id="activityCollapseIcon">▾</span><span>Descripción</span><span class="col-r">Monto</span>
@@ -615,11 +621,6 @@
             <select class="inp budget-month-sel" id="budgetMonthSel" onchange="setBudgetMonth(this.value)"></select>
           </div>
           <div id="budgetBody"></div>
-        </div>
-        <!-- ── Inventario de alimentos: resumen (sección) · edición completa en el overlay (FAB → Presupuesto) ── -->
-        <div class="card" id="inventario-resumen-card">
-          <div class="card-title">🍱 Inventario</div>
-          <div id="inventarioResumenBody"></div>
         </div>
         <!-- Inventario completo: vive en el overlay de Presupuesto -->
         <div class="card" id="inventario-card">
@@ -1759,7 +1760,7 @@
   </div>
 </div>
 
-<script src="app.js?v=156"></script>
+<script src="app.js?v=157"></script>
 <script src="workspace.js?v=195"></script>
 <script src="abogacia.js"></script>
 <script src="habitos.js"></script>
