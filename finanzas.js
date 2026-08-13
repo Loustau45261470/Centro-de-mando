@@ -428,8 +428,11 @@ function _pfIsQuarterly(fund) {
   return !!(fund.condition && fund.condition.type === 'objetivo' && fund.condition.scope === 'trimestral');
 }
 function _pfAppliesToMonth(fund, mk) {
-  if (!_pfIsQuarterly(fund)) return true;
-  return [3,6,9,12].includes(+mk.split('-')[1]);
+  const c = fund.condition;
+  if (_pfIsQuarterly(fund)) return [3,6,9,12].includes(+mk.split('-')[1]);
+  // Objetivo mensual: acredita SOLO en el mes de ese objetivo, no en los siguientes.
+  if (c && c.type === 'objetivo') return mk === c.periodKey;
+  return true;
 }
 function _pfAmountFor(fund) {
   const base = +fund.monthlyAmount || 0;
@@ -521,7 +524,10 @@ function _pfStatusPill(fund) {
   const curMK = _pfMonthKey(new Date());
   const cur = _pfLog(fund.id)[curMK];
   if (cur && +cur.credited > 0) return '<span class="pill pill-ok" style="font-size:10px">Acreditado</span>';
-  if (!_pfAppliesToMonth(fund, curMK)) return '<span class="pill pill-ghost" style="font-size:10px">Acredita al cierre del trimestre</span>';
+  if (!_pfAppliesToMonth(fund, curMK)) {
+    const txt = _pfIsQuarterly(fund) ? 'Acredita al cierre del trimestre' : `Acredita en ${_pfMonthLabel(fund.condition.periodKey)}`;
+    return `<span class="pill pill-ghost" style="font-size:10px">${txt}</span>`;
+  }
   if (!fund.condition) return '<span class="pill pill-ghost" style="font-size:10px">Sin condición</span>';
   const r = pfEvalMonth(fund, curMK, true);
   const pct = r.pct === null || r.pct === undefined ? '' : ` ${Math.round(r.pct)}%`;
