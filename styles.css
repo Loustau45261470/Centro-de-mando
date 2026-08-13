@@ -2047,15 +2047,15 @@ textarea { resize: vertical; min-height: 60px; }
 #tab-finanzas .wish-row { padding: 11px 14px; border-bottom: 1px solid var(--fin-border-s); }
 #tab-finanzas .wish-row:last-child { border-bottom: none; }
 #tab-finanzas .wish-row:hover { background: rgba(255,255,255,0.018); }
-#tab-finanzas .wish-name { font-size: 12px; font-weight: 400; color: var(--fin-t1); }
+#tab-finanzas .wish-name { font-size: 14px; font-weight: 500; color: var(--fin-t1); }
 #tab-finanzas .wish-name .pill-ok {
-  font-size: 7px !important; background: rgba(0,158,106,0.1) !important;
+  font-size: 9px !important; background: rgba(0,158,106,0.1) !important;
   color: var(--fin-green) !important; border-color: rgba(0,158,106,0.2) !important;
   border-radius: 2px !important; padding: 1px 5px !important; letter-spacing: 0.08em;
 }
-#tab-finanzas .wish-pct { font-size: 9px; color: var(--fin-t3); font-family: var(--mono); margin-top: 2px; letter-spacing: 0.04em; }
+#tab-finanzas .wish-pct { font-size: 11px; color: var(--fin-t3); font-family: var(--mono); margin-top: 2px; letter-spacing: 0.04em; }
 #tab-finanzas .wish-pct strong { color: var(--fin-t2); font-weight: 600; }
-#tab-finanzas .wish-row .mono.text-sm { font-size: 12px; font-weight: 500; font-family: var(--mono); color: var(--fin-t2); letter-spacing: -0.02em; }
+#tab-finanzas .wish-row .mono.text-sm { font-size: 13px; font-weight: 500; font-family: var(--mono); color: var(--fin-t2); letter-spacing: -0.02em; }
 #tab-finanzas .wish-bar { margin-top: 7px; }
 #tab-finanzas .wish-bar .prog-bar { height: 1px !important; border-radius: 0 !important; background: rgba(255,255,255,0.06) !important; }
 #tab-finanzas .wish-bar .prog-fill { height: 1px !important; border-radius: 0 !important; }
@@ -2066,33 +2066,51 @@ textarea { resize: vertical; min-height: 60px; }
 
 /* ── Wish category header ── */
 .wish-category-hdr {
-  padding: 5px 14px;
-  font-size: 7px; font-weight: 700; letter-spacing: 0.22em;
-  text-transform: uppercase; color: var(--fin-t3);
-  font-family: var(--mono);
-  background: rgba(255,255,255,0.014);
-  border-bottom: 1px solid var(--fin-border-s);
-  border-top: 1px solid var(--fin-border-s);
+  padding: 10px 14px;
+  margin-top: 16px;
+  font-size: 14px; font-weight: 700; letter-spacing: 0.01em;
+  color: var(--tp);
+  font-family: var(--sans);
+  background: var(--wcat-soft, rgba(255,255,255,0.05));
+  border: 1px solid var(--wcat-line, var(--border));
+  border-left: 4px solid var(--wcat, var(--accent));
+  border-radius: 10px 10px 0 0;
   display: flex; align-items: center; justify-content: space-between;
   cursor: pointer; user-select: none;
 }
-.wish-category-hdr:first-child { border-top: none; }
-.wish-category-hdr:hover { background: rgba(255,255,255,0.028); }
+.wish-category-hdr:first-child { margin-top: 0; }
+.wish-category-hdr:hover { filter: brightness(1.25); }
+.wish-cat-name { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.wish-cat-dot {
+  width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+  background: var(--wcat, var(--accent)); box-shadow: 0 0 10px var(--wcat, var(--accent));
+}
+.wish-cat-count {
+  font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 0;
+  color: var(--wcat, var(--accent));
+  border: 1px solid var(--wcat-line, var(--border));
+  border-radius: 999px; padding: 1px 8px; flex-shrink: 0;
+}
 .wish-cat-chevron {
-  font-size: 10px; color: var(--fin-t3);
+  font-size: 13px; color: var(--wcat, var(--ts));
   transition: transform 0.22s ease; line-height: 1;
 }
 .wish-cat-chevron.collapsed { transform: rotate(-90deg); }
 .wish-cat-body {
   overflow: hidden;
   max-height: 4000px; opacity: 1;
+  border: 1px solid var(--wcat-line, var(--border));
+  border-top: none;
+  border-left: 4px solid var(--wcat, var(--accent));
+  border-radius: 0 0 10px 10px;
+  padding: 0 10px 4px;
   transition: max-height 0.28s ease, opacity 0.22s ease;
 }
-.wish-cat-body.collapsed { max-height: 0; opacity: 0; }
+.wish-cat-body.collapsed { max-height: 0; opacity: 0; border-bottom-width: 0; }
 
 /* ── Wish priority badge ── */
 .wish-priority-badge {
-  font-size: 7px; font-weight: 800; letter-spacing: 0.14em;
+  font-size: 10px; font-weight: 800; letter-spacing: 0.08em;
   text-transform: uppercase; font-family: var(--mono);
 }
 
