@@ -124,7 +124,7 @@ function renderReminders(tab) {
         return `<div class="rem-urgent-item priority-${r.priority}">
           <div class="rem-urgent-row">
             <div>
-              <div class="rem-urgent-title">${r.title}</div>
+              <div class="rem-urgent-title">${escHtml(r.title)}</div>
               ${hasDate ? `<div class="rem-urgent-countdown">${remCountdown(r.datetime)}</div>
               <div class="rem-urgent-when">${remFormatDate(r.datetime)}</div>` : `<div class="rem-urgent-countdown">Sin fecha — hacer ahora</div>`}
             </div>
@@ -157,7 +157,7 @@ function renderReminders(tab) {
     return `<div class="rem-item${isPast ? ' rem-past' : ''}">
       <div class="rem-priority-dot" style="background:${cfg.dot}"></div>
       <div class="rem-info">
-        <div class="rem-title">${r.title}</div>
+        <div class="rem-title">${escHtml(r.title)}</div>
         <div class="rem-meta">${dateStr}</div>
       </div>
       <span class="rem-badge rem-badge-${r.priority}">${cfg.label}</span>

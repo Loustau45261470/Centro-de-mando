@@ -60,18 +60,20 @@ async function main() {
   const newNotif = {};
   const sends = [];
 
+  // Qué disparar: lo decide deadlines.js, igual que en el navegador. Acá solo se
+  // pasan ventanas de rescate más anchas, porque el cron corre cada 5 minutos y
+  // GitHub Actions suele atrasarlo.
+  for (const a of CMDeadlines.dueAlerts(state, { now, tz: TZ, seen: notified, windowMs: WINDOW_TIMED, windowLeadMs: WINDOW_LEAD })) {
+    newNotif[a.key] = true;
+    sends.push(send(pushSub, a.title, a.body, a.key, a.lead));
+  }
+
+  // Un aviso sigue "vivo" mientras pueda volver a corresponder: así el mapa de
+  // notificados no crece para siempre pero tampoco olvida uno recién mandado.
   const items = CMDeadlines.collect(state, { now, tz: TZ });
   for (const it of items) {
     for (const a of (it.alerts || [])) {
-      const isLead = a.lead;
-      const win = isLead ? WINDOW_LEAD : WINDOW_TIMED;
-      // Sigue "vivo" mientras el aviso pueda volver a corresponder: así el mapa de
-      // notificados no crece para siempre pero tampoco olvida uno recién mandado.
-      if (a.at > now - 7 * 24 * 3600000) newNotif[a.key] = notified[a.key] || false;
-      if (a.at <= now && now - a.at < win && !notified[a.key]) {
-        newNotif[a.key] = true;
-        sends.push(send(pushSub, a.title, a.body, a.key, isLead));
-      }
+      if (a.at > now - 7 * 24 * 3600000 && notified[a.key]) newNotif[a.key] = true;
     }
   }
 
@@ -79,9 +81,7 @@ async function main() {
   else console.log(`[push] nada por enviar (${items.length} vencimientos en agenda)`);
 
   // Persistir solo los que ya se mandaron y siguen vigentes.
-  const cleaned = {};
-  for (const k of Object.keys(newNotif)) if (newNotif[k]) cleaned[k] = true;
-  await ref.set({ notifiedReminders: cleaned }, { merge: true });
+  await ref.set({ notifiedReminders: newNotif }, { merge: true });
 }
 
 main().catch(e => { console.error(e); }).finally(() => process.exit(0));
