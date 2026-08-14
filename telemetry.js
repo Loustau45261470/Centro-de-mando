@@ -8,7 +8,7 @@
   const style = document.createElement('style');
   style.textContent = `
     #ticker-left,#ticker-right{position:absolute;top:0;height:var(--ticker);display:flex;align-items:center;gap:7px;
-      z-index:3;padding:0 12px;font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.06em;color:var(--ts);pointer-events:none}
+      z-index:3;padding:0 12px;font-family:var(--mono);font-size:11.5px;font-weight:600;letter-spacing:.06em;color:var(--ts);pointer-events:none}
     #ticker-left{left:0;background:linear-gradient(90deg, rgba(5,9,15,0.96) 72%, rgba(5,9,15,0))}
     #ticker-right{right:0;flex-direction:row-reverse;background:linear-gradient(270deg, rgba(5,9,15,0.96) 72%, rgba(5,9,15,0))}
     #ticker-left .tk-dim,#ticker-right .tk-dim{color:var(--tt)}

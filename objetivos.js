@@ -148,7 +148,7 @@ function renderQObjForTab(tabName) {
 
     let listHTML;
     if (period.flat && !isVida) {
-      listHTML = `<div class="empty-state" style="font-size:11px;padding:16px 0">Sin categorías en este período</div>`;
+      listHTML = `<div class="empty-state" style="font-size:12px;padding:16px 0">Sin categorías en este período</div>`;
     } else if (period.flat) {
       listHTML = objs.map(o => qobjItemHTML(period.id, o)).join('');
     } else {
@@ -197,7 +197,7 @@ function renderQObjForTab(tabName) {
           <span class="mg-text">${g.text}</span>
           <button class="mg-del" onclick="deleteMonthlyGoal('${tabName}','${monthKey}',${i})">✕</button>
         </div>`).join('')
-      : `<div class="empty-state" style="font-size:12px;padding:14px 0;text-align:center">Sin metas para ${_MONTH_SHORT[mn]} ${yr}</div>`;
+      : `<div class="empty-state" style="font-size:12.5px;padding:14px 0;text-align:center">Sin metas para ${_MONTH_SHORT[mn]} ${yr}</div>`;
 
     contentHTML = `${progressHTML}
     <div>${goalsHTML}</div>

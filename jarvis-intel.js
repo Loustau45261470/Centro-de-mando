@@ -10,18 +10,18 @@
   style.textContent = `
     .intel-body{display:flex;flex-direction:column;gap:12px}
     .intel-insights{display:flex;flex-direction:column;gap:7px}
-    .intel-row{display:flex;align-items:flex-start;gap:9px;font-size:12.5px;line-height:1.42;color:var(--ts)}
+    .intel-row{display:flex;align-items:flex-start;gap:9px;font-size:13px;line-height:1.42;color:var(--ts)}
     .intel-row .ii-ic{flex-shrink:0;font-size:13px;width:16px;text-align:center;line-height:1.4}
     .intel-row.ok .ii-ic{color:var(--ok)} .intel-row.warn .ii-ic{color:var(--warn)} .intel-row.bad .ii-ic{color:var(--danger)} .intel-row.info .ii-ic{color:var(--hud)}
     .intel-row b{color:var(--tp);font-weight:700}
     .intel-var{display:flex;flex-direction:column;gap:5px;margin-top:2px}
-    .intel-var-h{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--tt);margin-top:6px}
+    .intel-var-h{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--tt);margin-top:6px}
     .intel-var-h::after{content:'';flex:1;height:1px;background:var(--border)}
-    .intel-var-row{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12.5px;line-height:1.3}
+    .intel-var-row{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;line-height:1.3}
     .intel-var-row .vr-lbl{color:var(--ts);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .intel-var-row .vr-r{display:flex;align-items:center;gap:9px;flex-shrink:0;font-family:var(--mono)}
     .intel-var-row .vr-val{color:var(--tp);font-weight:700}
-    .intel-var-row .vr-d{font-size:11px;font-weight:700;min-width:48px;text-align:right}
+    .intel-var-row .vr-d{font-size:12px;font-weight:700;min-width:48px;text-align:right}
     .intel-var-row .vr-d.good{color:var(--ok)} .intel-var-row .vr-d.bad{color:var(--danger)} .intel-var-row .vr-d.flat{color:var(--tt)}`;
   document.head.appendChild(style);
 

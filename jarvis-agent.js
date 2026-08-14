@@ -108,7 +108,7 @@
     let html = _fmt(text);
     if (role === 'assistant' && model) {
       const label = model === MODEL_SMART ? '🧠 sonnet' : '⚡ haiku';
-      html += ` <span style="opacity:.45;font-size:9px">${label}</span>`;
+      html += ` <span style="opacity:.45;font-size:11px">${label}</span>`;
     }
     el.innerHTML = html;
     document.getElementById('agent-messages').appendChild(el);

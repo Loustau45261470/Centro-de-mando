@@ -53,7 +53,7 @@
 
 /* Cabecera estándar reutilizable dentro de un cm-overlay */
 .cm-ov-head { margin: 6px 4px 16px; }
-.cm-ov-eyebrow { font-family: var(--mono); font-size: 10px; letter-spacing: 3px; color: var(--cm-accent); opacity: .7; }
+.cm-ov-eyebrow { font-family: var(--mono); font-size: 11.5px; letter-spacing: 3px; color: var(--cm-accent); opacity: .7; }
 .cm-ov-title {
   font-size: 28px; font-weight: 800; letter-spacing: -.02em; line-height: 1; margin-top: 5px; color: var(--tp);
   text-shadow: 0 0 26px color-mix(in oklab, var(--cm-accent) 35%, transparent);
@@ -84,7 +84,7 @@
 }
 .plov-tabs[data-on="semana"] .plov-tab-ink { left: 50%; }
 .plov-pane { animation: cm-panel-in .3s var(--ease-out-expo) both; }
-.plov-sub { font-family: var(--mono); font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--ts); margin: 4px 2px 9px; }
+.plov-sub { font-family: var(--mono); font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--ts); margin: 4px 2px 9px; }
 .plov-sub::before { content: '▸'; color: var(--cm-accent); margin-right: 6px; }
 .plov-list { display: block; }
 
@@ -98,14 +98,14 @@
 .mrd-prog-num { font-size: 24px; font-weight: 800; letter-spacing: -.02em; color: var(--tp); }
 .mrd-prog-sep { color: var(--tt); }
 .mrd-prog-tot { font-family: var(--mono); color: var(--ts); font-size: 16px; }
-.mrd-prog-lbl { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .6px; color: var(--tt); margin-left: 4px; }
+.mrd-prog-lbl { font-family: var(--mono); font-size: 11.5px; text-transform: uppercase; letter-spacing: .6px; color: var(--tt); margin-left: 4px; }
 .mrd-item { display: flex; align-items: center; gap: 10px; padding: 10px 11px; border-radius: 11px; background: linear-gradient(180deg, color-mix(in oklab, var(--mrd-accent) 8%, transparent), rgba(10,16,30,.4)); border: 1px solid var(--border); margin-bottom: 7px; transition: border-color .18s, transform .12s; }
 .mrd-item:hover { border-color: color-mix(in oklab, var(--mrd-accent) 35%, var(--border)); }
 .mrd-item.done { opacity: .55; }
 .mrd-check { width: 25px; height: 25px; flex: none; border-radius: 8px; border: 1.5px solid var(--border-h); background: rgba(10,16,30,.6); color: transparent; cursor: pointer; display: grid; place-items: center; transition: background .18s, border-color .18s, color .18s; }
 .mrd-check svg { width: 14px; height: 14px; }
 .mrd-item.done .mrd-check { background: var(--mrd-accent); border-color: var(--mrd-accent); color: #001018; box-shadow: 0 0 14px -3px var(--mrd-accent); }
-.mrd-time { font-family: var(--mono); font-size: 10.5px; color: var(--mrd-accent); flex: none; }
+.mrd-time { font-family: var(--mono); font-size: 12px; color: var(--mrd-accent); flex: none; }
 .mrd-prio { width: 7px; height: 7px; border-radius: 50%; flex: none; box-shadow: 0 0 6px currentColor; }
 .mrd-text { flex: 1; min-width: 0; font-size: 14px; color: var(--tp); }
 .mrd-item.done .mrd-text { text-decoration: line-through; text-decoration-color: color-mix(in oklab, var(--mrd-accent) 55%, transparent); color: var(--ts); }
