@@ -1142,6 +1142,22 @@ function buildTickerAlerts() {
     });
   });
 
+  // Vencimientos de hoy y atrasados (misma fuente que las notificaciones).
+  // Se excluyen las actividades del planner: son agenda, no deuda.
+  if (typeof CMDeadlines !== 'undefined') {
+    const nowMs = now.getTime();
+    const endToday = new Date(now); endToday.setHours(23, 59, 59, 999);
+    // Suscripciones y pedidos ya tienen su propio bloque de ticker más abajo.
+    const DEADLINE_KINDS = ['proy', 'final', 'cursada', 'proyeccion'];
+    CMDeadlines.collect(S, { now: nowMs, pastDays: 14 })
+      .filter(d => DEADLINE_KINDS.includes(d.kind) && d.at <= endToday.getTime())
+      .slice(0, 6)
+      .forEach(d => alerts.push({
+        text: `${d.icon} ${d.title} · ${d.at <= nowMs ? 'ATRASADO' : d.allDay ? 'vence hoy' : d.time}`,
+        cls: d.at <= nowMs ? 'alert' : 'warn',
+      }));
+  }
+
   // Subscription alerts (3-5 days)
   S.subscriptions.forEach(sub => {
     const days = daysUntil(sub.billingDay);
@@ -3767,7 +3783,7 @@ setInterval(() => {
   const p = document.querySelector('.tab-panel.active');
   if (p) renderReminders(p.id.replace('tab-', ''));
 }, 60000);
-setInterval(checkReminderNotifications, 60000);
+setInterval(() => { checkReminderNotifications(); refreshRemindersView(); }, 60000);
 setInterval(() => { if (!Object.keys(_rtnTimers).length) _msHub.showReminders(); }, 60000);
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) { checkReminderNotifications(); _syncOnFocus(); _msHub.showReminders(); }

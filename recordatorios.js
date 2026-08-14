@@ -26,27 +26,24 @@ const REM_CFG = {
 };
 const REM_ORDER = { critical:0, high:1, medium:2, low:3, someday:4 };
 
-// ── Nodos de Proyectos con fecha límite, como ítems virtuales de recordatorio (todas las secciones) ──
-function remProyItems(tab) {
+// ── Todo lo que vence fuera de S.reminders (proyectos, finales, cursada, metas,
+//    actividades del planner, proyecciones, suscripciones, pedidos) entra acá como
+//    ítem virtual de recordatorio. Fuente única: CMDeadlines (deadlines.js).
+function remVirtualItems(tab) {
   const now = Date.now();
-  let proyImminent = [], proyUpcoming = [], proyPast = [];
-  if (window.Proyectos && typeof window.Proyectos.get === 'function') {
-    const proyItems = [];
-    const walkProy = nodes => (nodes || []).forEach(n => {
-      if (n && n.dueDate && !n.done) {
-        proyItems.push({ _isProject: true, _tab: tab, _nodeId: n.id, _icon: n.icon || '📁',
-          id: 'proy_' + n.id, title: n.label || '(sin título)',
-          datetime: n.dueDate + 'T23:59:59',
-          priority: n.priority === '1' ? 'high' : n.priority === '3' ? 'low' : 'medium' });
-      }
-      if (n && n.children) walkProy(n.children);
-    });
-    try { walkProy(window.Proyectos.get(tab)); } catch (e) {}
-    proyPast     = proyItems.filter(p => new Date(p.datetime) - now <= 0).sort((a, b) => new Date(b.datetime) - new Date(a.datetime));
-    proyImminent = proyItems.filter(p => { const d = new Date(p.datetime) - now; return d > 0 && d < 86400000; }).sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
-    proyUpcoming = proyItems.filter(p => new Date(p.datetime) - now >= 86400000).sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
-  }
-  return { proyImminent, proyUpcoming, proyPast };
+  if (typeof CMDeadlines === 'undefined') return { virtImminent: [], virtUpcoming: [], virtPast: [] };
+  const hoy = new Date(now).toDateString();
+  // Las actividades del planner solo cuentan acá si son de HOY y todavía no pasaron:
+  // las cumplidas no son deuda y las recurrentes de mañana/pasado llenarían la lista.
+  const vale = d => d.kind !== 'actividad' || (d.at > now && new Date(d.at).toDateString() === hoy);
+  const items = CMDeadlines.collect(S, { now, pastDays: 7 })
+    .filter(d => d.kind !== 'rec' && d.tab === tab && vale(d))
+    .map(d => Object.assign({ _virtual: true }, d));
+  return {
+    virtPast:     items.filter(d => d.at - now <= 0).sort((a, b) => b.at - a.at),
+    virtImminent: items.filter(d => d.at - now > 0 && d.at - now < 86400000),
+    virtUpcoming: items.filter(d => d.at - now >= 86400000),
+  };
 }
 
 function renderReminders(tab) {
@@ -59,28 +56,8 @@ function renderReminders(tab) {
   const PENCIL = `<svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
   const TRASH  = `<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>`;
 
-  // ── Inject timed goals as virtual urgent items (vida only) ──
-  let goalUrgent = [];
-  if (tab === 'vida') {
-    const today    = getActiveDate();
-    const tomorrow = getTomorrow();
-
-    const pushGoals = (date, isTomorrow) => {
-      (S.goals[date] || []).forEach(g => {
-        if (!g.time || g.done) return;
-        const remPrio = g.priority === 'high' ? 'high' : g.priority === 'mid' ? 'medium' : 'low';
-        goalUrgent.push({ _isGoal: true, _isTomorrow: isTomorrow,
-          _date: date, _id: g.id, id: 'goal_' + g.id,
-          title: g.text, datetime: date + 'T' + g.time, priority: remPrio });
-      });
-    };
-    pushGoals(today,    false);
-    pushGoals(tomorrow, true);
-    goalUrgent.sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
-  }
-
-  // ── Inyecta nodos de Proyectos con fecha límite como ítems virtuales (todas las secciones) ──
-  const { proyImminent, proyUpcoming, proyPast } = remProyItems(tab);
+  // ── Inyecta todo lo que vence (proyectos, finales, cursada, metas, actividades…) ──
+  const { virtImminent, virtUpcoming, virtPast } = remVirtualItems(tab);
 
   // Categorize regular reminders
   const imminent = all.filter(r => r.datetime && (new Date(r.datetime) - now) > 0 && (new Date(r.datetime) - now) < 86400000);
@@ -95,48 +72,31 @@ function renderReminders(tab) {
       <button class="icon-btn" onclick="deleteReminder('${tab}','${r.id}')">${TRASH}</button>
     </div>`;
 
-  // Urgent block (critical no-date + imminent dated + timed goals)
-  const urgentAll = [...critical, ...goalUrgent, ...proyPast, ...proyImminent, ...imminent.sort((a,b)=>new Date(a.datetime)-new Date(b.datetime))];
+  // Urgent block (critical no-date + imminent dated + todo lo que vence ya)
+  const urgentAll = [...critical, ...virtPast, ...virtImminent, ...imminent.sort((a,b)=>new Date(a.datetime)-new Date(b.datetime))];
   const urgentHTML = urgentAll.length ? `
     <div class="rem-urgent-section">
       <div class="rem-urgent-label">⚠ Atención inmediata</div>
       ${urgentAll.map(r => {
-        if (r._isProject) {
-          const isPast = new Date(r.datetime) - now <= 0;
+        if (r._virtual) {
+          const isPast = r.at - now <= 0;
           const cd = remCountdown(r.datetime);
-          const txt = isPast ? '¡Atrasada!' : (cd || 'Vence hoy');
+          const txt = isPast ? '¡Atrasada!' : (cd || (r.allDay ? 'Vence hoy' : '¡Ahora!'));
           const style = isPast ? 'color:#FF6B6B;text-shadow:0 0 10px rgba(255,107,107,.7)' : '';
-          const dstr = new Date(r.datetime).toLocaleDateString('es-AR', { weekday:'short', day:'numeric', month:'short' });
+          const when = r.allDay
+            ? new Date(r.at).toLocaleDateString('es-AR', { weekday:'short', day:'numeric', month:'short' })
+            : r.time;
           return `<div class="rem-urgent-item priority-${r.priority}">
             <div class="rem-urgent-row">
               <div style="flex:1;min-width:0">
                 <div style="display:flex;align-items:center;gap:7px;margin-bottom:4px">
-                  <span style="font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:5px;background:rgba(255,255,255,.09);color:var(--ts)">${r._icon} Proyecto</span>
-                  <span style="font-size:10px;color:var(--tt);font-family:var(--mono)">${dstr}</span>
+                  <span style="font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:5px;background:rgba(255,255,255,.09);color:var(--ts)">${r.icon} ${escHtml(r.kindLabel)}</span>
+                  <span style="font-size:10px;color:var(--tt);font-family:var(--mono)">${when}</span>
                 </div>
-                <div class="rem-urgent-title">${escHtml(r.title)}</div>
+                <div class="rem-urgent-title">${escHtml(r.title)}${r.sub ? ` <span style="font-size:11px;color:var(--tt)">· ${escHtml(r.sub)}</span>` : ''}</div>
                 <div class="rem-urgent-countdown" style="${style}">${txt}</div>
               </div>
-              <button class="btn btn-ghost btn-sm" style="flex-shrink:0;font-size:12px" onclick="Proyectos.setDone('${r._tab}','${r._nodeId}',true)">✓ Completar</button>
-            </div>
-          </div>`;
-        }
-        if (r._isGoal) {
-          const cd = remCountdown(r.datetime);
-          const isPast = new Date(r.datetime) - now <= 0;
-          const countdownTxt = cd ? cd : isPast ? '¡Atrasada!' : '¡Ahora!';
-          const countdownStyle = isPast ? 'color:#FF6B6B;text-shadow:0 0 10px rgba(255,107,107,.7)' : '';
-          return `<div class="rem-urgent-item priority-${r.priority}">
-            <div class="rem-urgent-row">
-              <div style="flex:1;min-width:0">
-                <div style="display:flex;align-items:center;gap:7px;margin-bottom:4px">
-                  <span style="font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:5px;background:rgba(255,255,255,.09);color:var(--ts)">${r._isTomorrow ? '🗓 Mañana' : '🎯 Meta'}</span>
-                  <span style="font-size:10px;color:var(--tt);font-family:var(--mono)">${fmtGoalTime(r.datetime.split('T')[1])}</span>
-                </div>
-                <div class="rem-urgent-title">${escHtml(r.title)}</div>
-                <div class="rem-urgent-countdown" style="${countdownStyle}">${countdownTxt}</div>
-              </div>
-              <button class="btn btn-ghost btn-sm" style="flex-shrink:0;font-size:12px" onclick="toggleGoalById('${r._date}','${r._id}')">✓ Completar</button>
+              ${r.doneAction ? `<button class="btn btn-ghost btn-sm" style="flex-shrink:0;font-size:12px" onclick="${r.doneAction}">✓ Completar</button>` : ''}
             </div>
           </div>`;
         }
@@ -155,19 +115,20 @@ function renderReminders(tab) {
     </div>` : '';
 
   const remItemHTML = r => {
-    if (r._isProject) {
+    if (r._virtual) {
       const cfgP = REM_CFG[r.priority] || REM_CFG.medium;
-      const dstr = new Date(r.datetime).toLocaleDateString('es-AR', { weekday:'short', day:'numeric', month:'short' });
-      return `<div class="rem-item" style="cursor:pointer" onclick="Proyectos.openDetail('${r._tab}','${r._nodeId}')">
+      const dstr = new Date(r.at).toLocaleDateString('es-AR', { weekday:'short', day:'numeric', month:'short' })
+        + (r.allDay ? '' : ' · ' + r.time);
+      return `<div class="rem-item"${r.openAction ? ` style="cursor:pointer" onclick="${r.openAction}"` : ''}>
         <div class="rem-priority-dot" style="background:${cfgP.dot}"></div>
         <div class="rem-info">
           <div class="rem-title">${escHtml(r.title)}</div>
-          <div class="rem-meta">${r._icon} Proyecto · ${dstr}</div>
+          <div class="rem-meta">${r.icon} ${escHtml(r.kindLabel)}${r.sub ? ' · ' + escHtml(r.sub) : ''} · ${dstr}</div>
         </div>
         <span class="rem-badge rem-badge-${r.priority}">${cfgP.label}</span>
-        <div class="rem-actions">
-          <button class="icon-btn" title="Completar" onclick="event.stopPropagation();Proyectos.setDone('${r._tab}','${r._nodeId}',true)">✓</button>
-        </div>
+        ${r.doneAction ? `<div class="rem-actions">
+          <button class="icon-btn" title="Completar" onclick="event.stopPropagation();${r.doneAction}">✓</button>
+        </div>` : ''}
       </div>`;
     }
     const cfg = REM_CFG[r.priority] || REM_CFG.medium;
@@ -187,7 +148,7 @@ function renderReminders(tab) {
     </div>`;
   };
 
-  const upcomingMerged = [...upcoming, ...proyUpcoming].sort((a,b)=>new Date(a.datetime)-new Date(b.datetime));
+  const upcomingMerged = [...upcoming, ...virtUpcoming].sort((a,b)=>new Date(a.datetime)-new Date(b.datetime));
   const upcomingHTML = upcomingMerged.length ? upcomingMerged.map(remItemHTML).join('') : '';
   const noDateHTML   = noDate.length
     ? `<div class="rem-nodate-section">📌 Sin fecha asignada</div>${noDate.map(remItemHTML).join('')}`
@@ -196,7 +157,7 @@ function renderReminders(tab) {
     ? `<div class="rem-nodate-section" style="margin-top:14px">✓ Pasados</div>${past.map(remItemHTML).join('')}`
     : '';
 
-  const isEmpty = all.length === 0 && proyImminent.length === 0 && proyUpcoming.length === 0 && proyPast.length === 0;
+  const isEmpty = all.length === 0 && virtImminent.length === 0 && virtUpcoming.length === 0 && virtPast.length === 0;
 
   wrap.innerHTML = `<div class="card">
     <div class="card-title">
@@ -216,31 +177,43 @@ function renderRemindersNotif(tab) {
   const body = document.getElementById('reminders-notif-' + tab); if (!body) return;
   if (!S.reminders) S.reminders = {};
   const now = Date.now();
-  const { proyImminent, proyUpcoming, proyPast } = remProyItems(tab);
-  const dated = [...(S.reminders[tab] || []), ...proyImminent, ...proyUpcoming, ...proyPast]
-    .filter(r => r.datetime)
-    .sort((a, b) => new Date(a.datetime) - new Date(b.datetime)).slice(0, 5);
+  const { virtImminent, virtUpcoming, virtPast } = remVirtualItems(tab);
+  // Los vencidos primero (son los que hay que mirar), después lo que viene por fecha.
+  const rec = (S.reminders[tab] || []).filter(r => r.datetime)
+    .map(r => ({ title: r.title, priority: r.priority, at: new Date(r.datetime).getTime(), datetime: r.datetime, kindLabel: 'Recordatorio', icon: '🔔' }));
+  const recPast = rec.filter(r => r.at - now <= 0).sort((a, b) => b.at - a.at);
+  const recNext = rec.filter(r => r.at - now > 0);
+  const dated = [...recPast, ...virtPast, ...[...recNext, ...virtImminent, ...virtUpcoming].sort((a, b) => a.at - b.at)].slice(0, 6);
   if (!dated.length) {
-    body.innerHTML = `<div class="rnotif-empty">Sin recordatorios próximos.</div>
+    body.innerHTML = `<div class="rnotif-empty">Nada por vencer.</div>
       <button class="rnotif-all" onclick="if(window.openRemindersOverlay)openRemindersOverlay('${tab}')">Crear un recordatorio →</button>`;
     return;
   }
   body.innerHTML = dated.map(r => {
-    const diff = new Date(r.datetime) - now;
+    const diff = r.at - now;
     const overdue  = diff <= 0;
     const imminent = !overdue && diff < 86400000;
     const cd = overdue ? 'Vencido' : ((typeof remCountdown === 'function') ? remCountdown(r.datetime) : '');
-    const d = new Date(r.datetime);
-    const when = d.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' }) + ' · ' + d.toTimeString().slice(0, 5);
+    const d = new Date(r.at);
+    const when = `${r.icon} ${escHtml(r.kindLabel)} · `
+      + d.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' })
+      + (r.allDay ? '' : ' · ' + d.toTimeString().slice(0, 5));
     const prioCfg = REM_CFG[r.priority] || REM_CFG.medium;
     const dotStyle = (overdue || imminent) ? '' : ` style="background:${prioCfg.dot};box-shadow:0 0 8px ${prioCfg.dot}"`;
-    return `<div class="rnotif-item${overdue ? ' overdue' : imminent ? ' imminent' : ''}" title="${prioCfg.label}">
+    return `<div class="rnotif-item${overdue ? ' overdue' : imminent ? ' imminent' : ''}"${r.openAction ? ` style="cursor:pointer" onclick="${r.openAction}"` : ''} title="${prioCfg.label}">
       <span class="rnotif-dot"${dotStyle}></span>
       <div class="rnotif-body"><div class="rnotif-title">${escHtml(r.title)}</div><div class="rnotif-when">${when}</div></div>
       ${cd ? `<span class="rnotif-cd">${cd}</span>` : ''}
     </div>`;
   }).join('') +
-    `<button class="rnotif-all" onclick="if(window.openRemindersOverlay)openRemindersOverlay('${tab}')">Ver todos los recordatorios →</button>`;
+    `<button class="rnotif-all" onclick="if(window.openRemindersOverlay)openRemindersOverlay('${tab}')">Ver todos los vencimientos →</button>`;
+}
+
+// Re-dibuja los vencimientos de la sección visible. Lo llaman el intervalo de un
+// minuto (mantiene frescos los "en 3h") y las secciones que cargan fechas nuevas.
+function refreshRemindersView(tab) {
+  const t = tab || (typeof currentTab === 'string' ? currentTab : '');
+  if (t && document.getElementById('reminders-notif-' + t)) renderReminders(t);
 }
 
 function openAddReminder(tab) {
@@ -324,40 +297,23 @@ function _showNotif(title, opts) {
   try { const n = new Notification(title, opts); n.onclick = () => { window.focus(); n.close(); }; } catch(e) {}
 }
 
+// Notifica TODO lo que vence (recordatorios, proyectos, finales, cursada, metas,
+// actividades, proyecciones, suscripciones, pedidos). Los avisos los calcula
+// CMDeadlines; acá solo se disparan los que cayeron en los últimos 5 min.
+// Corre cada 60 s con la app abierta; con la app cerrada lo cubre push-reminders.js.
 function checkReminderNotifications() {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
-  const now = new Date();
-  const pad = n => String(n).padStart(2, '0');
-  const toMinStr = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  const currentDT  = toMinStr(now);
-  const in24hDT    = toMinStr(new Date(now.getTime() + 86400000));
-  const PRIO_EMOJI = { critical:'⚡', high:'🔴', medium:'🟡', low:'🟢' };
-  ['vida','finanzas','salud','conocimiento','ia'].forEach(tab => {
-    (S.reminders?.[tab] || []).forEach(r => {
-      if (!r.datetime) return;
-      const remDT = r.datetime.slice(0, 16);
-      // 24 h de anticipación
-      if (remDT === in24hDT && !_notifiedSet.has(r.id + '_1d')) {
-        _notifiedSet.add(r.id + '_1d');
-        _showNotif('📅 Vence mañana — Centro de Mando', {
-          body: `${PRIO_EMOJI[r.priority] || '🔵'} ${r.title}`,
-          tag: r.id + '_1d',
-          requireInteraction: true,
-          icon: './icon.svg',
-        });
-      }
-      // Al momento exacto
-      if (remDT === currentDT && !_notifiedSet.has(r.id)) {
-        _notifiedSet.add(r.id);
-        _showNotif('🔔 Recordatorio — Centro de Mando', {
-          body: `${PRIO_EMOJI[r.priority] || '🔵'} ${r.title}`,
-          tag: r.id,
-          requireInteraction: false,
-          icon: './icon.svg',
-        });
-      }
+  if (typeof CMDeadlines === 'undefined') return;
+  CMDeadlines.dueAlerts(S, { now: Date.now(), windowMs: 5 * 60000, seen: _notifiedSet })
+    .forEach(a => {
+      _notifiedSet.add(a.key);
+      _showNotif(a.title, {
+        body: a.body,
+        tag: a.key,
+        requireInteraction: a.key.endsWith('_1d') || a.key.endsWith('_7d'),
+        icon: './icon.svg',
+      });
     });
-  });
 }
 
 function _notifBtnHTML() {
