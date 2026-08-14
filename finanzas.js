@@ -154,11 +154,17 @@ function renderWishlist() {
     irrelevante:     { label:'Irrelevante',    color:'var(--ts)'     },
   };
 
-  // Sort: by category (alpha, "Sin categoría" last), then by priority rank
+  // Sort: by category (alpha, "Sin categoría" last), luego por importancia dentro
+  // de la categoría: puntaje (5→1, deriva de la prioridad si no está seteado),
+  // desempate por prioridad y por monto ascendente — mismo criterio que el Top 5.
   const sorted = [...S.wishlist].sort((a,b) => {
     const cA = a.category || '￿', cB = b.category || '￿';
     if (cA !== cB) return cA.localeCompare(cB, 'es');
-    return (PRIO_ORDER.indexOf(a.priority||'normal')) - (PRIO_ORDER.indexOf(b.priority||'normal'));
+    const d = _wishScore(b) - _wishScore(a);
+    if (d) return d;
+    const p = (PRIO_ORDER.indexOf(a.priority||'normal')) - (PRIO_ORDER.indexOf(b.priority||'normal'));
+    if (p) return p;
+    return (+a.amount || 0) - (+b.amount || 0);
   });
 
   // Group by category
