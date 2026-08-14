@@ -1288,12 +1288,28 @@ function renderMetasReadonly() {
   }
   const done = goals.filter(g => g.done).length;
   body.innerHTML = `<div class="mrd-prog"><span class="mrd-prog-num">${done}</span><span class="mrd-prog-sep">/</span><span class="mrd-prog-tot">${goals.length}</span><span class="mrd-prog-lbl">completadas</span></div>`
-    + goals.map((g, idx) => `<div class="mrd-item${g.done ? ' done' : ''}">
+    + sortGoalsView(goals).map(({ g, i: idx }) => `<div class="mrd-item${g.done ? ' done' : ''}">
         <button class="mrd-check" onclick="toggleGoal('${escHtml(date)}',${idx})" aria-label="Marcar meta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></button>
         ${g.time ? `<span class="mrd-time">${fmtGoalTime(g.time)}</span>` : ''}
         <span class="mrd-prio" style="background:${PRIORITY_COLOR[g.priority] || '#666'}"></span>
         <span class="mrd-text">${escHtml(g.text)}</span>
       </div>`).join('');
+}
+
+// ── Orden automático de metas (capa de vista: ordena una copia y conserva el índice real) ──
+// Grupos: 0) pendientes con horario (hora asc, empate → importancia),
+//         1) pendientes sin horario (importancia), 2) completadas al final.
+// Empates: sort nativo estable → respeta el orden manual (drag) dentro del mismo nivel.
+const GOAL_PRIO_ORDER = { high: 0, mid: 1, low: 2 };
+function goalPrioRank(g) { const v = GOAL_PRIO_ORDER[g.priority]; return v == null ? 1 : v; }
+function sortGoalsView(goals) {
+  return (goals || []).map((g, i) => ({ g, i })).sort((a, b) => {
+    const ra = a.g.done ? 2 : (a.g.time ? 0 : 1);
+    const rb = b.g.done ? 2 : (b.g.time ? 0 : 1);
+    if (ra !== rb) return ra - rb;
+    if (ra === 0 && a.g.time !== b.g.time) return a.g.time < b.g.time ? -1 : 1;
+    return goalPrioRank(a.g) - goalPrioRank(b.g);
+  });
 }
 
 const GOAL_PERIODS = [
@@ -1371,7 +1387,7 @@ function renderGoalList(date, listId, emptyId, readOnly) {
   if (listId === 'goalList') {
     if (!goals.length) return;
     GOAL_PERIODS.forEach(([key, label]) => {
-      const items = goals.map((g, i) => ({ g, i })).filter(x => goalPeriodOf(x.g) === key);
+      const items = sortGoalsView(goals).filter(x => goalPeriodOf(x.g) === key);
       const done = items.filter(x => x.g.done).length;
       const head = document.createElement('div');
       head.className = 'goal-section-head';
@@ -1386,17 +1402,35 @@ function renderGoalList(date, listId, emptyId, readOnly) {
       if (!readOnly && typeof Sortable !== 'undefined') {
         Sortable.create(sec, {
           handle: '.goal-drag', animation: 150, group: 'goalsToday',
-          onEnd: () => {
+          onEnd: (evt) => {
+            // Uses live state (not the render-time closure) to avoid re-entrant renderGoals() corruption.
+            const cur = S.goals[date] || [];
+            const li = evt.item;
+            const sectionEl = li.closest('.goal-section-list');
+            const g = cur[+li.dataset.idx];
+            if (g && !g.done && sectionEl) {
+              // Dragging changes priority: adopt the nearest pending neighbor's priority (up, then down), within the same section.
+              let neighbor = li.previousElementSibling;
+              while (neighbor && neighbor.classList.contains('done-row')) neighbor = neighbor.previousElementSibling;
+              if (!neighbor) {
+                neighbor = li.nextElementSibling;
+                while (neighbor && neighbor.classList.contains('done-row')) neighbor = neighbor.nextElementSibling;
+              }
+              const ng = neighbor ? cur[+neighbor.dataset.idx] : null;
+              if (ng && !ng.done) g.priority = ng.priority;
+            }
             // Rebuild order from DOM across all sections; section determines period
             const newArr = [];
             list.querySelectorAll('.goal-section-list').forEach(s => {
-              s.querySelectorAll('.goal-item').forEach(li => {
-                const g = goals[+li.dataset.idx];
-                g.period = s.dataset.period;
-                newArr.push(g);
+              s.querySelectorAll('.goal-item').forEach(el => {
+                const item = cur[+el.dataset.idx];
+                item.period = s.dataset.period;
+                newArr.push(item);
               });
             });
-            S.goals[date] = newArr; saveState(); renderGoals();
+            S.goals[date] = newArr; saveState();
+            // Deferred: avoids re-entrant onEnd corruption from synchronous renderGoals().
+            setTimeout(renderGoals, 0);
           }
         });
       }
@@ -1404,7 +1438,7 @@ function renderGoalList(date, listId, emptyId, readOnly) {
     return;
   }
 
-  goals.forEach((g, idx) => list.appendChild(buildGoalItem(g, idx, date, readOnly)));
+  sortGoalsView(goals).forEach(({ g, i }) => list.appendChild(buildGoalItem(g, i, date, readOnly)));
 
   // Sortable drag — destroy previous instance before creating new one
   if (!readOnly && typeof Sortable !== 'undefined') {
@@ -1412,10 +1446,28 @@ function renderGoalList(date, listId, emptyId, readOnly) {
     if (existing) existing.destroy();
     Sortable.create(list, {
       handle: '.goal-drag', animation: 150,
-      onEnd: ev => {
-        const arr = S.goals[date] || [];
-        arr.splice(ev.newIndex, 0, arr.splice(ev.oldIndex, 1)[0]);
-        S.goals[date] = arr; saveState(); renderGoals();
+      onEnd: (evt) => {
+        // Uses live state (not the render-time closure) to avoid re-entrant renderGoals() corruption.
+        const cur = S.goals[date] || [];
+        const li = evt.item;
+        const g = cur[+li.dataset.idx];
+        if (g && !g.done) {
+          // Dragging changes priority: adopt the nearest pending neighbor's priority (up, then down).
+          let neighbor = li.previousElementSibling;
+          while (neighbor && neighbor.classList.contains('done-row')) neighbor = neighbor.previousElementSibling;
+          if (!neighbor) {
+            neighbor = li.nextElementSibling;
+            while (neighbor && neighbor.classList.contains('done-row')) neighbor = neighbor.nextElementSibling;
+          }
+          const ng = neighbor ? cur[+neighbor.dataset.idx] : null;
+          if (ng && !ng.done) g.priority = ng.priority;
+        }
+        // Rebuild order from DOM (list is sorted for view, not for storage): real idx lives in dataset.
+        const newArr = [];
+        list.querySelectorAll('.goal-item').forEach(el => newArr.push(cur[+el.dataset.idx]));
+        S.goals[date] = newArr; saveState();
+        // Deferred: destroy() below re-enters _onDrop synchronously if called from within onEnd.
+        setTimeout(renderGoals, 0);
       }
     });
   }

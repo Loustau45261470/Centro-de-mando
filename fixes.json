@@ -161,6 +161,20 @@
       "desc": "DEFAULT_STATE.txnCategories:{} hacia que loadState() precargara S.txnCategories como objeto vacio ANTES de ensureTxnCategories(); un {} es truthy, asi que 'if (S.txnCategories) return false' pensaba que ya estaba sembrado y nunca cargaba las 19 categorias por defecto en ningun dispositivo/sesion nueva. Se agrego S.txnCategoriesSeeded (booleano explicito) que distingue 'nunca sembrado' de 'usuario borro todo a proposito'.",
       "file": "app.js",
       "marker": "txnCategoriesSeeded"
+    },
+    {
+      "id": "goals-sort-is-view-only",
+      "fecha": "2026-08-13",
+      "desc": "Las listas de metas se ordenan por importancia como CAPA DE VISTA: sortGoalsView() mapea a una copia [{g, i}] conservando el indice REAL del array persistido, que es el que consumen buildGoalItem/toggleGoal/deleteGoal y la edicion inline. Si alguien ordena S.goals[date] in-place, la posicion visual y la del array vuelven a coincidir por casualidad y el bug queda latente hasta que se desincronicen. NO reordenar el array persistido.",
+      "file": "app.js",
+      "marker": "sortGoalsView"
+    },
+    {
+      "id": "goals-drag-onend-not-reentrant",
+      "fecha": "2026-08-13",
+      "desc": "El onEnd de Sortable llamaba renderGoals() de forma sincrona; ese re-render hace Sortable.get(list).destroy() sobre la instancia cuyo onEnd estaba corriendo, y en SortableJS 1.15 destroy() ejecuta _onDrop() antes de _nulling(), disparando onEnd una SEGUNDA vez con el DOM ya reconstruido leido contra la closure del array viejo. Resultado: se persistia un orden que no era ni el viejo ni el nuevo, doble escritura a Firestore por arrastre y dos instancias de Sortable vivas sobre la misma lista. El fix son dos cosas juntas, en las DOS ramas de renderGoalList: leer el array vigente (const cur = S.goals[date]) en vez de la closure, y diferir el re-render con setTimeout(renderGoals, 0). NO volver a llamar renderGoals() sincrono dentro de onEnd.",
+      "file": "app.js",
+      "marker": "setTimeout(renderGoals, 0)"
     }
   ]
 }
