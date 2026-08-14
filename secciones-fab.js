@@ -138,8 +138,8 @@ function _sfMount() {
 
   // Openers de overlays inmersivos por reubicación del contenido existente.
   const R = (CMOverlay && CMOverlay.relocate) ? CMOverlay.relocate : () => () => {};
-  const openRem = tab => R({ id: 'ov-rem-' + tab, accent: '#7DD3FC', eyebrow: 'RECORDATORIOS', title: 'Recordatorios', sourceId: 'reminders-wrap-' + tab });
-  const remItem = tab => ({ icon: _SF_ICONS.bell, label: 'Recordatorios', accent: '#7DD3FC', onClick: openRem(tab) });
+  const openRem = tab => R({ id: 'ov-rem-' + tab, accent: '#7DD3FC', eyebrow: 'VENCIMIENTOS', title: 'Vencimientos', sourceId: 'reminders-wrap-' + tab });
+  const remItem = tab => ({ icon: _SF_ICONS.bell, label: 'Vencimientos', accent: '#7DD3FC', onClick: openRem(tab) });
   // Mismo overlay, abierto desde la card de la sección (no solo desde el abanico).
   window.openRemindersOverlay = tab => openRem(tab)();
 

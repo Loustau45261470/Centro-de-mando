@@ -47,29 +47,42 @@ const CMDeadlines = (() => {
   }
 
   // ── avisos ──────────────────────────────────────────────────────────────
+  // Ítem de día completo: un aviso a las 09:00 por cada día de `leads` (días de
+  // anticipación) + otro a las 09:00 del día que vence.
   // Ítem con hora: 10 min antes (+ al momento, salvo las actividades del planner).
-  // Ítem de día completo: 09:00 del día anterior + 09:00 del día (finales suman 7 días antes).
+  const LEADS = {
+    final:       [60, 30, 15, 7],   // pedido de Tobías: alerta temprana y escalonada
+    tp:          [30, 15, 7],
+    proy:        [7],
+    cursada:     [1],               // clases y foros
+    suscripcion: [2],
+    proyeccion:  [],
+    pedido:      [],
+  };
+
   function buildAlerts(it, opts) {
     const tz = opts.tz, out = [];
-    const push = (suffix, at, title) => { if (!isNaN(at)) out.push({ key: it.id + suffix, at, title, body: it.notifBody }); };
+    // `lead` = aviso de anticipación (tolera llegar tarde y pide interacción);
+    // sin lead = aviso "es ahora", que tarde ya no sirve.
+    const push = (suffix, at, title, lead) => { if (!isNaN(at)) out.push({ key: it.id + suffix, at, title, body: it.notifBody, lead: !!lead }); };
 
     if (it.allDay) {
       // Se muestran al cierre del día pero avisan a las 09:00 (nadie quiere el aviso 23:59).
-      const lead = it.leadDays != null ? it.leadDays : 1;
-      if (it.kind === 'final') push('_7d', toMs(addDays(it.date, -7), ALLDAY_HOUR, tz), `🎓 Final en una semana: ${it.title}`);
-      if (lead > 0) push('_1d', toMs(addDays(it.date, -lead), ALLDAY_HOUR, tz),
-                         `${it.icon} ${lead === 1 ? 'Mañana' : 'En ' + lead + ' días'}: ${it.title}`);
-      push('_due', toMs(it.date, ALLDAY_HOUR, tz), `${it.icon} Hoy: ${it.title}`);
+      (it.leads || LEADS[it.kind] || [1]).forEach(d => {
+        if (d > 0) push('_d' + d, toMs(addDays(it.date, -d), ALLDAY_HOUR, tz),
+                        `${it.icon} ${d === 1 ? 'Mañana' : 'En ' + d + ' días'}: ${it.title}`, true);
+      });
+      push('_due', toMs(it.date, ALLDAY_HOUR, tz), `${it.icon} Hoy: ${it.title}`, true);
     } else if (it.kind === 'rec') {
       // Recordatorios clásicos: se respetan las claves y los tiempos originales
       // (24 h antes + al momento) para no re-disparar lo ya notificado.
-      out.push({ key: it.id + '_1d', at: it.at - DAY, title: '📅 Vence mañana — Centro de Mando', body: it.notifBody });
-      out.push({ key: it.id,        at: it.at,       title: '🔔 Recordatorio — Centro de Mando', body: it.notifBody });
+      out.push({ key: it.id + '_1d', at: it.at - DAY, title: '📅 Vence mañana — Centro de Mando', body: it.notifBody, lead: true });
+      out.push({ key: it.id,        at: it.at,       title: '🔔 Recordatorio — Centro de Mando', body: it.notifBody, lead: false });
     } else {
-      push('_10m', it.at - 10 * MIN, `${it.icon} En 10 min: ${it.title}`);
+      push('_10m', it.at - 10 * MIN, `${it.icon} En 10 min: ${it.title}`, false);
       // Las actividades del planner avisan SOLO 10 min antes: son muchas por día y
       // el segundo aviso al arrancar no agrega nada. El resto sí avisa a la hora.
-      if (it.kind !== 'actividad') push('_due', it.at, `${it.icon} Ahora: ${it.title}`);
+      if (it.kind !== 'actividad') push('_due', it.at, `${it.icon} Ahora: ${it.title}`, false);
     }
     return out;
   }
@@ -159,6 +172,7 @@ const CMDeadlines = (() => {
       add({ id: 'curs_' + c.id, kind: 'cursada', kindLabel: lbl, icon: ico, tab: 'conocimiento',
             title: c.materia || lbl, sub: c.titulo || '', date: c.fecha, time: c.hora || '',
             allDay: !isTime(c.hora), priority: c.tipo === 'tp' ? 'high' : 'medium',
+            leads: c.tipo === 'tp' ? LEADS.tp : LEADS.cursada,
             doneAction: `Cursada.done('${c.id}')`, openAction: 'Cursada.open()' });
     });
 
@@ -199,7 +213,7 @@ const CMDeadlines = (() => {
       if (!p || p.precioReal != null || !isDate(p.fechaVence)) return;
       add({ id: 'proye_' + p.id, kind: 'proyeccion', kindLabel: 'Proyección', icon: '📈', tab: 'finanzas',
             title: `${p.simbolo} — cargar precio real`, date: p.fechaVence, allDay: true,
-            priority: 'medium', leadDays: 0 });
+            priority: 'medium' });
     });
 
     // 8) Suscripciones (día de cobro del mes) y 9) pedidos en camino
@@ -210,12 +224,12 @@ const CMDeadlines = (() => {
       if (date < today) date = addDays(today.slice(0, 8) + '01', 32).slice(0, 8) + pad(day);
       add({ id: 'sub_' + (s.id || s.name) + '_' + date, kind: 'suscripcion', kindLabel: 'Suscripción', icon: '💳',
             tab: 'finanzas', title: `${s.name} se cobra`, sub: s.amount ? `$${s.amount}` : '',
-            date, allDay: true, priority: 'high', leadDays: 2 });
+            date, allDay: true, priority: 'high' });
     });
     (S.orders || []).forEach(o => {
       if (!o || !isDate(o.arrival)) return;
       add({ id: 'ord_' + o.id, kind: 'pedido', kindLabel: 'Pedido', icon: '📦', tab: 'finanzas',
-            title: `${o.name} llega`, date: o.arrival, allDay: true, priority: 'low', leadDays: 0 });
+            title: `${o.name} llega`, date: o.arrival, allDay: true, priority: 'low' });
     });
 
     return items.sort((a, b) => a.at - b.at);

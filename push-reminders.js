@@ -63,7 +63,7 @@ async function main() {
   const items = CMDeadlines.collect(state, { now, tz: TZ });
   for (const it of items) {
     for (const a of (it.alerts || [])) {
-      const isLead = a.key.endsWith('_1d') || a.key.endsWith('_7d');
+      const isLead = a.lead;
       const win = isLead ? WINDOW_LEAD : WINDOW_TIMED;
       // Sigue "vivo" mientras el aviso pueda volver a corresponder: así el mapa de
       // notificados no crece para siempre pero tampoco olvida uno recién mandado.
