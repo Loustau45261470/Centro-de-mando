@@ -20,11 +20,11 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-<link rel="stylesheet" href="styles.css?v=162">
+<link rel="stylesheet" href="styles.css?v=163">
 <link rel="stylesheet" href="gamemode.css">
 <link rel="stylesheet" href="overlay-core.css">
 <link rel="stylesheet" href="speed-dial.css">
-<link rel="stylesheet" href="proyectos-overlay.css?v=152">
+<link rel="stylesheet" href="proyectos-overlay.css?v=153">
 </head>
 <body>
 
@@ -80,7 +80,7 @@
       <div class="agent-name">Asistente IA</div>
       <div class="agent-status on" id="agent-status-lbl">● LISTO</div>
     </div>
-    <button class="agent-hdr-btn" style="font-size:10px" onclick="agentClear()" title="Limpiar conversación">LIMPIAR</button>
+    <button class="agent-hdr-btn" style="font-size:11.5px" onclick="agentClear()" title="Limpiar conversación">LIMPIAR</button>
     <button class="agent-hdr-btn" onclick="agentShowSetup()" title="Configurar API key">⚙️</button>
     <button class="agent-hdr-btn" style="font-size:20px" onclick="agentToggle()" title="Cerrar">✕</button>
   </div>
@@ -248,7 +248,7 @@
           📅 Planificación del Día
         </div>
         <div style="display:flex;align-items:center;gap:9px">
-          <span id="plannerDateLabel" style="font-size:11px;font-weight:500;color:var(--ts);text-transform:none;letter-spacing:0"></span>
+          <span id="plannerDateLabel" style="font-size:12px;font-weight:500;color:var(--ts);text-transform:none;letter-spacing:0"></span>
           <div id="plannerDots" style="display:flex;gap:5px;align-items:center"></div>
         </div>
       </div>
@@ -375,7 +375,7 @@
       <!-- Notas (oculto) -->
       <button class="sleep-notes-toggle" onclick="toggleSleepNotes()">
         <span>📝 Notas de bienestar</span>
-        <span id="sleepNotesChevron" style="font-size:11px;display:inline-block;transition:transform .25s">▾</span>
+        <span id="sleepNotesChevron" style="font-size:12px;display:inline-block;transition:transform .25s">▾</span>
       </button>
       <div class="sleep-notes-body" id="sleepNotesBody">
         <textarea class="inp" id="sleepNotesText" rows="4"
@@ -876,7 +876,7 @@
     <input type="hidden" id="modal-rtn-ex-rtnid">
     <input type="hidden" id="modal-rtn-ex-exid">
     <div id="rtn-ex-name-lbl" style="font-size:13px;font-weight:700;color:var(--fg);margin-bottom:12px"></div>
-    <p style="font-size:11px;color:var(--tt);margin:-6px 0 12px">Solo cambia el descanso y las series para esta rutina. El ejercicio y sus valores por defecto se editan en la Biblioteca.</p>
+    <p style="font-size:12px;color:var(--tt);margin:-6px 0 12px">Solo cambia el descanso y las series para esta rutina. El ejercicio y sus valores por defecto se editan en la Biblioteca.</p>
     <div class="input-row">
       <div class="field" style="flex:1"><label>Descanso (seg)</label><input class="inp" type="number" id="rtn-ex-frest" placeholder="90" value="90"></div>
       <div class="field" style="width:110px"><label>Series</label><input class="inp" type="number" id="rtn-ex-fsets" placeholder="4" value="4"></div>
@@ -1348,7 +1348,7 @@
     <div class="field">
       <label style="display:flex;align-items:center;justify-content:space-between">
         Fecha y hora
-        <span style="font-size:11px;font-weight:500;color:var(--tt);text-transform:none;letter-spacing:0">opcional</span>
+        <span style="font-size:12px;font-weight:500;color:var(--tt);text-transform:none;letter-spacing:0">opcional</span>
       </label>
       <input class="inp" type="datetime-local" id="remDatetime">
     </div>
@@ -1756,7 +1756,7 @@
     </div>
     <input class="inp" id="period-input-label" placeholder="Ej: T4 2026" style="margin-bottom:10px;width:100%">
     <input class="inp" id="period-input-note" placeholder="Nota (ej: 92 días · 50%=46)" style="margin-bottom:10px;width:100%">
-    <label style="font-size:12px;color:var(--ter);display:flex;gap:8px;align-items:center;margin-bottom:14px">
+    <label style="font-size:12.5px;color:var(--ter);display:flex;gap:8px;align-items:center;margin-bottom:14px">
       <input type="checkbox" id="period-input-flat"> Sin categorías (lista plana)
     </label>
     <div class="modal-actions">
@@ -1767,16 +1767,16 @@
 </div>
 
 <script src="deadlines.js?v=3"></script>
-<script src="app.js?v=162"></script>
+<script src="app.js?v=163"></script>
 <script src="workspace.js?v=196"></script>
-<script src="abogacia.js?v=1"></script>
+<script src="abogacia.js?v=2"></script>
 <script src="correlativas.js?v=2"></script>
 <script src="habitos.js"></script>
 <script src="rutinas.js"></script>
 <script src="finanzas.js"></script>
-<script src="recordatorios.js?v=5"></script>
+<script src="recordatorios.js?v=6"></script>
 <script src="objetivos.js"></script>
-<script src="cursada.js?v=3"></script>
+<script src="cursada.js?v=4"></script>
 
 <script src="gamemode.js"></script>
 <script src="gamemode-ui.js"></script>
@@ -1814,7 +1814,7 @@
 <script src="planificacion-overlay.js"></script>
 <script src="fichero-personas.js"></script>
 <script src="pomodoro.js"></script>
-<script src="finales.js?v=2"></script>
+<script src="finales.js?v=3"></script>
 <script src="secciones-fab.js?v=2"></script>
 
 <script src="login.js"></script>
@@ -1887,14 +1887,14 @@
       </button>
     </div>
     <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px">
-      <button id="jarvis-toggle-btn" onclick="JARVIS.toggle()" style="width:100%;padding:9px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:9px;cursor:pointer;font-size:11px;font-weight:600;letter-spacing:0.06em;transition:all .2s;font-family:var(--mono)">🔊 JARVIS activo</button>
-      <button id="jarvis-wake-btn" onclick="JARVIS_EARS.toggleWake()" style="width:100%;padding:9px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:9px;cursor:pointer;font-size:11px;font-weight:600;letter-spacing:0.06em;transition:all .2s;font-family:var(--mono)">🎙️ "Hey Jarvis" apagado</button>
-      <input id="jarvis-gemini-key" type="password" placeholder="🔑 API key de IA: Gemini, Groq u OpenRouter" onchange="JARVIS_EARS.saveKey('jarvis_gemini_key', this.value)" autocomplete="off" style="width:100%;padding:9px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:9px;font-size:11px;color:inherit;font-family:var(--mono);box-sizing:border-box">
-      <input id="jarvis-el-key" type="password" placeholder="🔑 ElevenLabs API key (opcional)" onchange="JARVIS_EARS.saveKey('jarvis_el_key', this.value)" autocomplete="off" style="width:100%;padding:9px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:9px;font-size:11px;color:inherit;font-family:var(--mono);box-sizing:border-box">
-      <div id="jarvis-el-usage" style="font-size:9px;opacity:.4;padding:0 2px;font-family:var(--mono)"></div>
-      <div id="jarvis-api-usage" style="font-size:9px;opacity:.4;padding:0 2px;font-family:var(--mono)"></div>
-      <button id="theme-panel-export-backup" onclick="_sdExportBackup()" style="width:100%;padding:9px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:9px;cursor:pointer;font-size:11px;font-weight:600;letter-spacing:0.06em;transition:all .2s;font-family:var(--mono)">💾 Exportar backup</button>
-      <button id="theme-panel-restore-backup" onclick="_sdRestoreBackup()" style="width:100%;padding:9px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:9px;cursor:pointer;font-size:11px;font-weight:600;letter-spacing:0.06em;transition:all .2s;font-family:var(--mono)">📥 Restaurar backup</button>
+      <button id="jarvis-toggle-btn" onclick="JARVIS.toggle()" style="width:100%;padding:9px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:9px;cursor:pointer;font-size:12px;font-weight:600;letter-spacing:0.06em;transition:all .2s;font-family:var(--mono)">🔊 JARVIS activo</button>
+      <button id="jarvis-wake-btn" onclick="JARVIS_EARS.toggleWake()" style="width:100%;padding:9px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:9px;cursor:pointer;font-size:12px;font-weight:600;letter-spacing:0.06em;transition:all .2s;font-family:var(--mono)">🎙️ "Hey Jarvis" apagado</button>
+      <input id="jarvis-gemini-key" type="password" placeholder="🔑 API key de IA: Gemini, Groq u OpenRouter" onchange="JARVIS_EARS.saveKey('jarvis_gemini_key', this.value)" autocomplete="off" style="width:100%;padding:9px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:9px;font-size:12px;color:inherit;font-family:var(--mono);box-sizing:border-box">
+      <input id="jarvis-el-key" type="password" placeholder="🔑 ElevenLabs API key (opcional)" onchange="JARVIS_EARS.saveKey('jarvis_el_key', this.value)" autocomplete="off" style="width:100%;padding:9px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:9px;font-size:12px;color:inherit;font-family:var(--mono);box-sizing:border-box">
+      <div id="jarvis-el-usage" style="font-size:11px;opacity:.4;padding:0 2px;font-family:var(--mono)"></div>
+      <div id="jarvis-api-usage" style="font-size:11px;opacity:.4;padding:0 2px;font-family:var(--mono)"></div>
+      <button id="theme-panel-export-backup" onclick="_sdExportBackup()" style="width:100%;padding:9px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:9px;cursor:pointer;font-size:12px;font-weight:600;letter-spacing:0.06em;transition:all .2s;font-family:var(--mono)">💾 Exportar backup</button>
+      <button id="theme-panel-restore-backup" onclick="_sdRestoreBackup()" style="width:100%;padding:9px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:9px;cursor:pointer;font-size:12px;font-weight:600;letter-spacing:0.06em;transition:all .2s;font-family:var(--mono)">📥 Restaurar backup</button>
       <button class="theme-close-btn" onclick="document.getElementById('theme-panel').classList.remove('open')">Cerrar</button>
     </div>
   </div>
