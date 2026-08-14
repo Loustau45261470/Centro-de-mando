@@ -1435,7 +1435,7 @@ textarea { resize: vertical; min-height: 60px; }
 .rem-priority-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; margin-top:5px; }
 .rem-info { flex:1; }
 .rem-title { font-size:15px; font-weight:600; color:var(--tp); }
-.rem-meta { font-size:12px; color:var(--tt); font-family:var(--mono); margin-top:3px; }
+.rem-meta { font-size:12px; color:var(--ts); font-family:var(--mono); margin-top:3px; }  /* --tt daba 2.7:1 y acá va la fecha, que hay que poder leer */
 .rem-nodate-section { font-size:10px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--tt); margin:10px 0 6px; }
 .rem-badge { font-size:11px; font-weight:800; padding:3px 10px; border-radius:99px; letter-spacing:.06em; flex-shrink:0; text-transform:uppercase; }
 .rem-badge-critical { background:rgba(255,30,30,.22);  color:#FF2020; border:1px solid rgba(255,30,30,.5);  box-shadow:0 0 8px rgba(255,30,30,.35); }
@@ -4925,14 +4925,15 @@ input:focus, select:focus, textarea:focus {
 .rnotif-empty b { color: var(--ts); }
 .rnotif-item { display: flex; align-items: center; gap: 11px; padding: 12px 12px; border-radius: 11px; background: rgba(10,16,30,.4); border: 1px solid var(--border); margin-bottom: 7px; }
 .rnotif-item.imminent { border-color: color-mix(in oklab, var(--warn) 45%, var(--border)); background: linear-gradient(90deg, rgba(245,166,35,.08), rgba(10,16,30,.4) 40%); }
-.rnotif-item.overdue { border-color: color-mix(in oklab, #ff3c3c 45%, var(--border)); background: linear-gradient(90deg, rgba(255,60,60,.1), rgba(10,16,30,.4) 40%); }
+.rnotif-item.overdue { border-color: color-mix(in oklab, var(--danger) 45%, var(--border)); background: linear-gradient(90deg, color-mix(in srgb, var(--danger) 11%, transparent), rgba(10,16,30,.4) 40%); }
 .rnotif-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--rn-accent); box-shadow: 0 0 8px var(--rn-accent); }
 .rnotif-item.imminent .rnotif-dot { background: var(--warn); box-shadow: 0 0 10px var(--warn); animation: rnotif-pulse 1.6s ease-in-out infinite; }
-.rnotif-item.overdue .rnotif-dot { background: #ff3c3c; box-shadow: 0 0 10px #ff3c3c; }
+.rnotif-item.overdue .rnotif-dot { background: var(--danger); box-shadow: 0 0 10px var(--danger); }
 @keyframes rnotif-pulse { 50% { opacity: .4; } }
 .rnotif-body { flex: 1; min-width: 0; }
 .rnotif-title { font-size: 15px; font-weight: 600; color: var(--tp); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rnotif-when { font-family: var(--mono); font-size: 11.5px; color: var(--ts); margin-top: 3px; text-transform: capitalize; }
+.rnotif-when { font-family: var(--mono); font-size: 11.5px; color: var(--ts); margin-top: 3px; }
+.rnotif-date { text-transform: capitalize; }
 .rnotif-cd {
   font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--rn-accent);
   flex: none; padding: 3px 9px; border-radius: 999px;
@@ -4940,7 +4941,7 @@ input:focus, select:focus, textarea:focus {
   background: color-mix(in srgb, var(--rn-accent) 10%, transparent);
 }
 .rnotif-item.imminent .rnotif-cd { border-color: color-mix(in srgb, var(--warn) 40%, transparent); background: color-mix(in srgb, var(--warn) 12%, transparent); }
-.rnotif-item.overdue  .rnotif-cd { border-color: rgba(255,60,60,.45); background: rgba(255,60,60,.12); }
+.rnotif-item.overdue  .rnotif-cd { border-color: color-mix(in srgb, var(--danger) 45%, transparent); background: color-mix(in srgb, var(--danger) 13%, transparent); }
 /* Acceso al overlay desde la card: antes el único camino era el FAB. */
 .rnotif-all {
   width: 100%; margin-top: 4px; padding: 9px 10px;
@@ -4950,7 +4951,75 @@ input:focus, select:focus, textarea:focus {
 }
 .rnotif-all:hover, .rnotif-all:focus-visible { color: var(--tp); border-color: var(--rn-accent); background: color-mix(in srgb, var(--rn-accent) 8%, transparent); }
 .rnotif-item.imminent .rnotif-cd { color: var(--warn); }
-.rnotif-item.overdue .rnotif-cd { color: #ff3c3c; }
+.rnotif-item.overdue .rnotif-cd { color: var(--danger); }
+
+/* Texto solo para lectores de pantalla (la prioridad viaja en el color del punto). */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+
+/* ════════════════════ VENCIMIENTOS ════════════════════
+   La card dejó de ser "mis recordatorios" para ser "todo lo que vence": finales,
+   TPs, proyectos, metas, actividades. Con tipos mezclados, el tipo es la primera
+   dimensión que se escanea → chip propio con acento por tipo, en vez de texto
+   plano perdido en la línea de la fecha. El acento entra por --k desde el JS. */
+.cm-kind {
+  --k: var(--hud);
+  display: inline-flex; align-items: center; gap: 4px; flex: none;
+  font-size: 10px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase;
+  padding: 3px 9px; border-radius: 999px; line-height: 1.5;
+  color: var(--k);
+  background: color-mix(in srgb, var(--k) 13%, transparent);
+  border: 1px solid color-mix(in srgb, var(--k) 34%, transparent);
+}
+.cm-kind .cm-kind-ico { font-size: 10px; filter: saturate(1.15); }
+
+/* Encabezado de grupo dentro de la card: Vencido / Hoy / Próximo.
+   Seis filas de horizontes distintos sin corte se leen como una lista sin jerarquía. */
+.rnotif-group {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--mono); font-size: 11px; font-weight: 700;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--ts);
+  margin: 12px 2px 7px;
+}
+.rnotif-group:first-child { margin-top: 2px; }
+.rnotif-group::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, var(--border), transparent); }
+.rnotif-group.is-overdue { color: color-mix(in srgb, var(--danger) 75%, var(--ts)); }
+/* Cuántas filas del grupo quedaron fuera: el contador del encabezado dice el total. */
+.rnotif-more {
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em;
+  color: var(--ts); padding: 2px 2px 8px 22px; opacity: .8;
+}
+.rnotif-group.is-today   { color: color-mix(in srgb, var(--warn) 75%, var(--ts)); }
+
+/* Fila: chip de tipo + título / fecha / cuenta regresiva. El estado (vencido,
+   ya mismo, agendado) lo dan el borde y la píldora; el punto da la prioridad.
+   Nada de un cuarto código de color encima. */
+.rnotif-item {
+  position: relative; overflow: hidden;
+  transition: border-color .18s var(--ease-out-quart), transform .18s var(--ease-out-quart), background .18s;
+  animation: rnotif-in .34s var(--ease-out-quart) both;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+.rnotif-item[onclick] { cursor: pointer; }
+.rnotif-item[onclick]:hover { border-color: var(--border-h); transform: translateX(2px); background: rgba(16,24,42,.55); }
+.rnotif-item[onclick]:focus-visible { outline: 2px solid var(--hud); outline-offset: 2px; }
+.rnotif-head { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.rnotif-head .rnotif-title { min-width: 0; }
+.rnotif-when { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+@keyframes rnotif-in { from { opacity: 0; transform: translateY(6px); } }
+@media (prefers-reduced-motion: reduce) {
+  .rnotif-item { animation: none; }
+  .rnotif-item[onclick]:hover { transform: none; }
+  .rnotif-item.imminent .rnotif-dot { animation: none; }
+}
+
+/* Mismo chip dentro del overlay, donde la fila ya trae prioridad y acciones. */
+.rem-meta .cm-kind, .rem-urgent-row .cm-kind { vertical-align: middle; }
+.rem-urgent-kind { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; }
+.rem-urgent-kind .rem-urgent-at { font-family: var(--mono); font-size: 10px; color: var(--tt); letter-spacing: .04em; }
+.rem-item .rem-meta { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
 
 /* ════════════════════ ENTRENAMIENTO · overlay (restyle holográfico) ════════════════════
    Scopeado a #ov-gym: no toca el JS ni el logging, sólo la estética dentro del overlay. */

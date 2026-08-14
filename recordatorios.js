@@ -26,6 +26,26 @@ const REM_CFG = {
 };
 const REM_ORDER = { critical:0, high:1, medium:2, low:3, someday:4 };
 
+// Acento del chip de tipo. Sale de los tokens del tema — nada de hex sueltos salvo
+// el rojo de finales, que es el mismo de --danger pero necesita ser literal acá.
+const REM_KIND_ACCENT = {
+  final:       'var(--danger)',
+  cursada:     'var(--c-conocimiento)',
+  proy:        'var(--hud)',
+  meta:        'var(--c-vida)',
+  actividad:   'var(--indigo)',
+  rec:         'var(--hud-bright)',
+  proyeccion:  'var(--c-finanzas)',
+  suscripcion: 'var(--c-finanzas)',
+  pedido:      'var(--c-finanzas)',
+};
+// Chip de tipo (Final / TP / Proyecto / Meta / …). Los TPs pisan el acento de
+// cursada con el ámbar de alerta: entregan, no son solo agenda.
+function remKindChip(r) {
+  const accent = r.kindLabel === 'TP' ? 'var(--warn)' : (REM_KIND_ACCENT[r.kind] || 'var(--hud)');
+  return `<span class="cm-kind" style="--k:${accent}"><span class="cm-kind-ico" aria-hidden="true">${r.icon || '🔔'}</span>${escHtml(r.kindLabel || 'Recordatorio')}</span>`;
+}
+
 // ── Todo lo que vence fuera de S.reminders (proyectos, finales, cursada, metas,
 //    actividades del planner, proyecciones, suscripciones, pedidos) entra acá como
 //    ítem virtual de recordatorio. Fuente única: CMDeadlines (deadlines.js).
@@ -89,9 +109,9 @@ function renderReminders(tab) {
           return `<div class="rem-urgent-item priority-${r.priority}">
             <div class="rem-urgent-row">
               <div style="flex:1;min-width:0">
-                <div style="display:flex;align-items:center;gap:7px;margin-bottom:4px">
-                  <span style="font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:5px;background:rgba(255,255,255,.09);color:var(--ts)">${r.icon} ${escHtml(r.kindLabel)}</span>
-                  <span style="font-size:10px;color:var(--tt);font-family:var(--mono)">${when}</span>
+                <div class="rem-urgent-kind">
+                  ${remKindChip(r)}
+                  <span class="rem-urgent-at">${when}</span>
                 </div>
                 <div class="rem-urgent-title">${escHtml(r.title)}${r.sub ? ` <span style="font-size:11px;color:var(--tt)">· ${escHtml(r.sub)}</span>` : ''}</div>
                 <div class="rem-urgent-countdown" style="${style}">${txt}</div>
@@ -123,7 +143,7 @@ function renderReminders(tab) {
         <div class="rem-priority-dot" style="background:${cfgP.dot}"></div>
         <div class="rem-info">
           <div class="rem-title">${escHtml(r.title)}</div>
-          <div class="rem-meta">${r.icon} ${escHtml(r.kindLabel)}${r.sub ? ' · ' + escHtml(r.sub) : ''} · ${dstr}</div>
+          <div class="rem-meta">${remKindChip(r)}<span>${r.sub ? escHtml(r.sub) + ' · ' : ''}${dstr}</span></div>
         </div>
         <span class="rem-badge rem-badge-${r.priority}">${cfgP.label}</span>
         ${r.doneAction ? `<div class="rem-actions">
@@ -167,7 +187,7 @@ function renderReminders(tab) {
         <button class="btn btn-ghost btn-sm" onclick="openAddReminder('${tab}')">+ Recordatorio</button>
       </div>
     </div>
-    ${isEmpty ? '<div class="empty-state">Sin recordatorios</div>' : urgentHTML + upcomingHTML + noDateHTML + pastHTML}
+    ${isEmpty ? '<div class="empty-state">Nada por vencer</div>' : urgentHTML + upcomingHTML + noDateHTML + pastHTML}
   </div>`;
   renderRemindersNotif(tab);
 }
@@ -183,30 +203,57 @@ function renderRemindersNotif(tab) {
     .map(r => ({ title: r.title, priority: r.priority, at: new Date(r.datetime).getTime(), datetime: r.datetime, kindLabel: 'Recordatorio', icon: '🔔' }));
   const recPast = rec.filter(r => r.at - now <= 0).sort((a, b) => b.at - a.at);
   const recNext = rec.filter(r => r.at - now > 0);
-  const dated = [...recPast, ...virtPast, ...[...recNext, ...virtImminent, ...virtUpcoming].sort((a, b) => a.at - b.at)].slice(0, 6);
-  if (!dated.length) {
+  const finDia = new Date(now); finDia.setHours(23, 59, 59, 999);
+
+  // Tres grupos: lo vencido primero (es lo que hay que mirar), lo de hoy, y lo que
+  // viene. Sin este corte, seis filas de horizontes distintos se leen todas iguales.
+  const vencidos = [...recPast, ...virtPast].sort((a, b) => b.at - a.at);
+  const resto    = [...recNext, ...virtImminent, ...virtUpcoming].sort((a, b) => a.at - b.at);
+  const hoy      = resto.filter(r => r.at <= finDia.getTime());
+  const proximos = resto.filter(r => r.at > finDia.getTime());
+  if (!vencidos.length && !resto.length) {
     body.innerHTML = `<div class="rnotif-empty">Nada por vencer.</div>
       <button class="rnotif-all" onclick="if(window.openRemindersOverlay)openRemindersOverlay('${tab}')">Crear un recordatorio →</button>`;
     return;
   }
-  body.innerHTML = dated.map(r => {
+
+  let i = 0;   // índice global: la aparición escalonada no se reinicia por grupo
+  const filaHTML = r => {
     const diff = r.at - now;
     const overdue  = diff <= 0;
-    const imminent = !overdue && diff < 86400000;
+    // Ámbar solo para lo que es YA (3 h). Con el umbral de 24 h, todo el grupo "Hoy"
+    // se pintaba de ámbar y el color dejaba de avisar nada.
+    const imminent = !overdue && diff < 3 * 3600000;
     const cd = overdue ? 'Vencido' : ((typeof remCountdown === 'function') ? remCountdown(r.datetime) : '');
     const d = new Date(r.at);
-    const when = `${r.icon} ${escHtml(r.kindLabel)} · `
-      + d.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' })
+    const when = d.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' })
       + (r.allDay ? '' : ' · ' + d.toTimeString().slice(0, 5));
     const prioCfg = REM_CFG[r.priority] || REM_CFG.medium;
     const dotStyle = (overdue || imminent) ? '' : ` style="background:${prioCfg.dot};box-shadow:0 0 8px ${prioCfg.dot}"`;
-    return `<div class="rnotif-item${overdue ? ' overdue' : imminent ? ' imminent' : ''}"${r.openAction ? ` style="cursor:pointer" onclick="${r.openAction}"` : ''} title="${prioCfg.label}">
+    const act = r.openAction
+      ? ` onclick="${r.openAction}" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"`
+      : '';
+    return `<div class="rnotif-item${overdue ? ' overdue' : imminent ? ' imminent' : ''}" role="listitem" style="--i:${i++}"${act} title="Prioridad ${prioCfg.label.toLowerCase()}">
       <span class="rnotif-dot"${dotStyle}></span>
-      <div class="rnotif-body"><div class="rnotif-title">${escHtml(r.title)}</div><div class="rnotif-when">${when}</div></div>
+      <div class="rnotif-body">
+        <span class="sr-only">Prioridad ${prioCfg.label}.</span>
+        <div class="rnotif-head">${remKindChip(r)}<div class="rnotif-title">${escHtml(r.title)}</div></div>
+        <div class="rnotif-when"><span class="rnotif-date">${when}</span>${r.sub ? ` · ${escHtml(r.sub)}` : ''}</div>
+      </div>
       ${cd ? `<span class="rnotif-cd">${cd}</span>` : ''}
     </div>`;
-  }).join('') +
-    `<button class="rnotif-all" onclick="if(window.openRemindersOverlay)openRemindersOverlay('${tab}')">Ver todos los vencimientos →</button>`;
+  };
+  // El contador del encabezado cuenta TODO el grupo, aunque se muestren menos filas.
+  const grupoHTML = (all, max, label, cls) => all.length
+    ? `<div class="rnotif-group ${cls}">${label} · ${all.length}</div><div role="list">${all.slice(0, max).map(filaHTML).join('')}</div>`
+      + (all.length > max ? `<div class="rnotif-more">+${all.length - max} más</div>` : '')
+    : '';
+
+  body.innerHTML =
+    grupoHTML(vencidos, 3, 'Vencido',  'is-overdue') +
+    grupoHTML(hoy,      4, 'Hoy',      'is-today') +
+    grupoHTML(proximos, 4, 'Próximo',  '') +
+    `<button class="rnotif-all" onclick="if(window.openRemindersOverlay)openRemindersOverlay('${tab}')">Ver todo →</button>`;
 }
 
 // Re-dibuja los vencimientos de la sección visible. Lo llaman el intervalo de un
@@ -310,7 +357,7 @@ function checkReminderNotifications() {
       _showNotif(a.title, {
         body: a.body,
         tag: a.key,
-        requireInteraction: a.key.endsWith('_1d') || a.key.endsWith('_7d'),
+        requireInteraction: !!a.lead,
         icon: './icon.svg',
       });
     });
