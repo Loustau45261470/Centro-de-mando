@@ -2828,11 +2828,11 @@ try {
   _setChartDefault('plugins.tooltip.borderWidth', 1);
   _setChartDefault('plugins.tooltip.titleColor', '#7DD3FC');
   _setChartDefault('plugins.tooltip.titleFont.family', MONO);
-  _setChartDefault('plugins.tooltip.titleFont.size', 10);
+  _setChartDefault('plugins.tooltip.titleFont.size', _cfs(13));
   _setChartDefault('plugins.tooltip.titleFont.weight', '600');
   _setChartDefault('plugins.tooltip.bodyColor', '#EDF4FF');
   _setChartDefault('plugins.tooltip.bodyFont.family', MONO);
-  _setChartDefault('plugins.tooltip.bodyFont.size', 12);
+  _setChartDefault('plugins.tooltip.bodyFont.size', _cfs(14));
   _setChartDefault('plugins.tooltip.cornerRadius', 8);
   _setChartDefault('plugins.tooltip.padding', 11);
   _setChartDefault('plugins.tooltip.caretSize', 5);

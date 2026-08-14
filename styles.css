@@ -1794,23 +1794,27 @@ textarea { resize: vertical; min-height: 60px; }
   color: var(--fin-t1);
   font-family: var(--mono);
 }
+/* Botones de agregar (+ FONDO, + CUENTA…): van con el color de la sección, no en
+   gris casi invisible. El borde y el fondo salen del --accent de cada pestaña, así
+   que el mismo bloque sirve para todos los temas. */
 #tab-finanzas .card-title .btn {
-  font-size: var(--fs-12-5);
+  font-size: var(--fs-13);
   font-weight: 700;
   /* Tracking angosto: con la letra más grande, 0.14em desbordaba el título de la card. */
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  padding: 4px 9px;
-  border-radius: 2px;
-  color: var(--fin-t3);
-  border-color: rgba(255,255,255,0.08);
-  background: rgba(255,255,255,0.022);
+  padding: 5px 10px;
+  border-radius: 3px;
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
   font-family: var(--mono);
 }
 #tab-finanzas .card-title .btn:hover {
-  background: rgba(255,255,255,0.065);
-  color: var(--fin-t2);
-  border-color: rgba(255,255,255,0.14);
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 65%, transparent);
+  color: var(--tp);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 28%, transparent);
 }
 
 /* ══ COLUMN HEADER ROW ═══════════════════════════════════════ */
@@ -3349,24 +3353,25 @@ body.font-jakarta  { --sans: "Plus Jakarta Sans", sans-serif; --mono: "JetBrains
 #tab-salud .card-title .btn,
 #tab-conocimiento .card-title .btn,
 #tab-ia .card-title .btn {
-  font-size: var(--fs-12-5);
+  font-size: var(--fs-13);
   font-weight: 700;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  padding: 4px 9px;
-  border-radius: 2px;
-  color: var(--tab-t3);
-  border-color: rgba(255,255,255,0.08);
-  background: rgba(255,255,255,0.022);
+  padding: 5px 10px;
+  border-radius: 3px;
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
   font-family: var(--mono);
 }
 #tab-vida .card-title .btn:hover,
 #tab-salud .card-title .btn:hover,
 #tab-conocimiento .card-title .btn:hover,
 #tab-ia .card-title .btn:hover {
-  background: rgba(255,255,255,0.065);
-  color: var(--tab-t2);
-  border-color: rgba(255,255,255,0.14);
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 65%, transparent);
+  color: var(--tp);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 28%, transparent);
 }
 #tab-vida .card-title .icon-btn,
 #tab-salud .card-title .icon-btn,
