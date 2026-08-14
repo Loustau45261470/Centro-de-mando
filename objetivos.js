@@ -148,7 +148,7 @@ function renderQObjForTab(tabName) {
 
     let listHTML;
     if (period.flat && !isVida) {
-      listHTML = `<div class="empty-state" style="font-size:12px;padding:16px 0">Sin categorías en este período</div>`;
+      listHTML = `<div class="empty-state" style="font-size:12.5px;padding:16px 0">Sin categorías en este período</div>`;
     } else if (period.flat) {
       listHTML = objs.map(o => qobjItemHTML(period.id, o)).join('');
     } else {
