@@ -337,6 +337,14 @@ body::after {
   display: flex; align-items: center; justify-content: space-between;
 }
 .card-title span { font-size: var(--fs-13); font-weight: 600; letter-spacing: 0; color: var(--ts); text-transform: none; }
+/* En pantallas angostas los botones de la cabecera bajan a otro renglón en vez de
+   salirse de la card (pasaba en Actividad, con dos botones y título largo).
+   El segundo selector es para el <span class="flex"> que agrupa los botones:
+   en elementos que no son flex, flex-wrap no hace nada. */
+@media (max-width: 620px) {
+  .card-title { flex-wrap: wrap; row-gap: 7px; }
+  .card-title > * { flex-wrap: wrap; }
+}
 
 /* ── Section headers ── */
 .sec-label {
@@ -1749,6 +1757,19 @@ textarea { resize: vertical; min-height: 60px; }
 ═══════════════════════════════════════════════════════════ */
 
 /* ── Root overrides ── */
+/* ── PRUEBA de tipografía de números (solo Finanzas, 2026-08-14) ──────────────
+   Los importes, fechas y contadores pasan de JetBrains Mono a la misma familia
+   del texto, con cifras tabulares para que las columnas sigan alineadas.
+   Va también en los overlays que sacan sus cards de esta pestaña (presupuesto,
+   adquisición, historial, cartera, objetivos), porque al abrirse el nodo se
+   muda fuera de #tab-finanzas y perdería la fuente.
+   Si convence: se cambia --mono en :root y se borra este bloque. */
+#tab-finanzas,
+#ov-budget, #ov-goals, #ov-historial, #ov-finobj, #ov-cartera {
+  --mono: var(--sans);
+  font-variant-numeric: tabular-nums;
+}
+
 #tab-finanzas {
   --accent:       #009E6A;
   --c-finanzas:   #009E6A;
