@@ -2798,7 +2798,8 @@ try {
   _setChartDefault('color', '#8BA5C0');
   _setChartDefault('borderColor', 'rgba(100,160,230,0.07)');
   _setChartDefault('font.family', MONO);
-  _setChartDefault('font.size', 10);
+  // Piso de tamaño para cualquier gráfico que no fije el suyo (antes 10px, ilegible).
+  _setChartDefault('font.size', _cfs(13));
   _setChartDefault('elements.line.tension', 0.4);
   _setChartDefault('elements.line.borderWidth', 2.5);
   _setChartDefault('elements.line.capBezierPoints', true);
