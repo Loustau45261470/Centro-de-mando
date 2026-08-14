@@ -2115,7 +2115,7 @@ function renderFinObjectives() {
     const expectedDisp = o.expected !== null ? _fmtARS(o.expected) : '—';
     const rowStyle     = isPast && o.real === null ? 'opacity:.45' : '';
     return `<tr style="${rowStyle}">
-      <td style="font-family:var(--mono);font-size:12px;color:var(--fin-t2)">${o.date}</td>
+      <td style="font-family:var(--mono);font-size:12.5px;color:var(--fin-t2)">${o.date}</td>
       <td class="num" style="color:var(--fin-t2)">${expectedDisp}</td>
       <td class="num" style="color:${o.real !== null ? 'var(--fin-green)' : 'var(--fin-t3)'}">${realDisp}</td>
       <td class="diff ${diffClass}">${diffDisp}</td>
@@ -2212,10 +2212,10 @@ function renderFinObjectives() {
       },
       options: {
         responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { labels: { color: '#8CA2C0', font: { size: 12 }, boxWidth: 12 } } },
+        plugins: { legend: { labels: { color: '#8CA2C0', font: { size: 13 }, boxWidth: 12 } } },
         scales: {
-          x: { ticks: { color: '#556070', font: { size: 12 } }, grid: { color: 'rgba(255,255,255,.04)' } },
-          y: { ticks: { color: '#556070', font: { size: 12 },
+          x: { ticks: { color: '#556070', font: { size: 13 } }, grid: { color: 'rgba(255,255,255,.04)' } },
+          y: { ticks: { color: '#556070', font: { size: 13 },
                  callback: v => v >= 1000000 ? '$' + (v/1000000).toFixed(0) + 'M' : v >= 1000 ? '$' + (v/1000).toFixed(0) + 'k' : v },
                grid: { color: 'rgba(255,255,255,.04)' }, min: 0 }
         }
@@ -2482,11 +2482,11 @@ function renderInventory() {
         <div class="sub-detail">Stock: <b class="${neg ? 'text-danger' : ''}">${it.stock} ${it.unit}</b> · Hoy: ${consumedDay}/${it.daily} ${it.unit} · Mes: ${consumedMonth}/${it.monthly} ${it.unit}</div>
       </div>
       <div class="flex gap-8 items-center" style="flex-wrap:wrap">
-        <span class="mono" style="font-size:12px">stock</span>
+        <span class="mono" style="font-size:12.5px">stock</span>
         <input class="inp" style="width:60px" type="number" step="0.01" value="${it.stock}" onchange="setInvStock('${it.id}',this.value)">
-        <span class="mono" style="font-size:12px">día</span>
+        <span class="mono" style="font-size:12.5px">día</span>
         <input class="inp" style="width:60px" type="number" step="0.01" value="${it.daily}" onchange="setInvExpected('${it.id}','daily',this.value)">
-        <span class="mono" style="font-size:12px">mes</span>
+        <span class="mono" style="font-size:12.5px">mes</span>
         <input class="inp" style="width:60px" type="number" step="0.01" value="${it.monthly}" onchange="setInvExpected('${it.id}','monthly',this.value)">
         <button class="icon-btn" onclick="deleteInvItem('${it.id}')">${_DEL_SVG}</button>
       </div>
@@ -2978,8 +2978,8 @@ function _nwAccountDatasets(hist) {
 // Escalas del gráfico de líneas: la del patrimonio total + una oculta por cuenta.
 function _nwLineScales() {
   const scales = {
-    x: { type: 'category', ticks: { font: { size: 11 } } },
-    y: { ticks: { font: { size: 11 }, callback: v => fmtMoney(v, 'USD') } },
+    x: { type: 'category', ticks: { font: { size: 13 } } },
+    y: { ticks: { font: { size: 13 }, callback: v => fmtMoney(v, 'USD') } },
   };
   nwSelectedAccounts.forEach((_, i) => {
     scales['yAcc' + i] = { display: false, position: 'right', grid: { drawOnChartArea: false } };
@@ -3008,7 +3008,7 @@ function initNWCharts() {
   nwPieInst=new Chart(pieCtx,{
     type:'doughnut',
     data:{ labels, datasets:[{ data, backgroundColor:colors, borderWidth:0, hoverOffset:6 }] },
-    options:{ responsive:true, maintainAspectRatio:false, cutout:'68%', _noCrosshair:true, interaction:{ mode:'nearest', intersect:true }, animation:{ animateRotate:true, animateScale:true, duration:900, easing:'easeOutQuart' }, plugins:{ legend:{ position:'bottom', labels:{ font:{size:12, weight:'600'}, padding:12, color:'#C8D5E8' } } } }
+    options:{ responsive:true, maintainAspectRatio:false, cutout:'68%', _noCrosshair:true, interaction:{ mode:'nearest', intersect:true }, animation:{ animateRotate:true, animateScale:true, duration:900, easing:'easeOutQuart' }, plugins:{ legend:{ position:'bottom', labels:{ font:{size:13, weight:'600'}, padding:12, color:'#C8D5E8' } } } }
   });
   // Line
   const lineCtx=document.getElementById('nwLineChart').getContext('2d');
@@ -3017,7 +3017,7 @@ function initNWCharts() {
   nwLineInst=new Chart(lineCtx,{
     type:'line',
     data:{ labels:hist.map(h=>h.date.slice(5)), datasets:[{ label:'Patrimonio total', data:hist.map(h=>h.value), borderColor:'rgba(107,227,164,.8)', backgroundColor:'rgba(107,227,164,.06)', tension:.3, pointRadius:3, fill:true }, ...accDatasets] },
-    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display: accDatasets.length>0, position:'bottom', labels:{ font:{size:11}, boxWidth:10, color:'#C8D5E8' } } }, scales:_nwLineScales() }
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display: accDatasets.length>0, position:'bottom', labels:{ font:{size:13}, boxWidth:10, color:'#C8D5E8' } } }, scales:_nwLineScales() }
   });
   renderAccountChartToggles();
   _renderNWScaleNote();
@@ -3207,7 +3207,7 @@ function _renderSleepChart() {
           display: true,
           position: 'top',
           labels: {
-            color: '#76746E', font: { size: 11 },
+            color: '#76746E', font: { size: 13 },
             boxWidth: 10, padding: 6,
             filter(item) { return item.datasetIndex > 0; },
           },
@@ -3227,7 +3227,7 @@ function _renderSleepChart() {
       },
       scales: {
         x: {
-          ticks: { color: '#76746E', font: { size: 11 } },
+          ticks: { color: '#76746E', font: { size: 13 } },
           grid:  { color: 'rgba(255,255,255,0.04)' },
         },
         y: {
@@ -3235,7 +3235,7 @@ function _renderSleepChart() {
           position: 'left',
           ticks: {
             color: 'rgba(180,180,180,0.5)',
-            font: { size: 11 },
+            font: { size: 13 },
             stepSize: 2,
             callback: v => `${v}h`,
           },
@@ -3246,7 +3246,7 @@ function _renderSleepChart() {
           position: 'right',
           ticks: {
             color: '#76746E',
-            font: { size: 11 },
+            font: { size: 13 },
             stepSize: 1,
             callback: v => Number.isInteger(v) && v > 0 ? v : '',
           },
@@ -3579,7 +3579,7 @@ function renderAchievementsPanel() {
       style="${isOn?`border-color:${rc.e};background:${rc.b};box-shadow:0 0 22px ${rc.g}`:''}">
       <div class="ach-icon" style="position:relative;${isOn?`color:${rc.c};filter:drop-shadow(0 0 8px ${rc.g})`:'filter:grayscale(1);opacity:.28'}">
         ${a.icon}
-        ${n>1?`<span style="position:absolute;bottom:-4px;right:-8px;font-size:11px;font-weight:900;background:${rc.c};color:#050506;border-radius:99px;padding:1px 5px;line-height:1.5">×${n}</span>`:''}
+        ${n>1?`<span style="position:absolute;bottom:-4px;right:-8px;font-size:12.5px;font-weight:900;background:${rc.c};color:#050506;border-radius:99px;padding:1px 5px;line-height:1.5">×${n}</span>`:''}
       </div>
       <div class="ach-body">
         <div class="ach-name" style="${isOn?`color:${rc.c}`:'color:var(--ts)'}">${a.name}</div>

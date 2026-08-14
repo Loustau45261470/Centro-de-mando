@@ -64,7 +64,7 @@ const Finales = (() => {
     } else {
       rows = '<div class="empty-state" style="padding:12px 0">Sin finales próximos. Cargalos desde el menú de Conocimiento → Finales.</div>';
     }
-    el.innerHTML = `<div class="card"><div class="card-title">🎓 Finales <span style="font-size:11px;font-weight:400;color:var(--tt)">días restantes</span></div>${rows}</div>`;
+    el.innerHTML = `<div class="card"><div class="card-title">🎓 Finales <span style="font-size:12.5px;font-weight:400;color:var(--tt)">días restantes</span></div>${rows}</div>`;
   }
 
   // ══════════ Overlay ══════════
@@ -99,7 +99,7 @@ const Finales = (() => {
   }
 
   function filaEdit(f) {
-    const inp = 'background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:6px 8px;font-size:12px;color:inherit';
+    const inp = 'background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:6px 8px;font-size:12.5px;color:inherit';
     return `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:8px;border:1px solid var(--accent,#6B8EFF);border-radius:8px;margin-bottom:6px">
       <input id="fin-e-materia" value="${esc(f.materia)}" style="${inp};flex:1;min-width:120px">
       <input id="fin-e-fecha" type="date" value="${f.fecha}" style="${inp}">
@@ -114,7 +114,7 @@ const Finales = (() => {
     return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px;border:1px solid rgba(255,255,255,.08);border-radius:8px;margin-bottom:6px">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1">
         <input type="checkbox" onclick="Finales.done('${f.id}')" title="Marcar como rendido" style="width:16px;height:16px;cursor:pointer">
-        <span style="font-size:12.5px"><b>${esc(f.materia)}</b> <span style="font-size:11.5px;color:var(--tt)">· ${esc(f.tipo)} · ${fmtF(f.fecha)}</span></span>
+        <span style="font-size:12.5px"><b>${esc(f.materia)}</b> <span style="font-size:12.5px;color:var(--tt)">· ${esc(f.tipo)} · ${fmtF(f.fecha)}</span></span>
       </label>
       <span style="white-space:nowrap;font-size:12.5px">${etiqueta(f)}
         <button class="btn btn-ghost btn-sm" style="padding:2px 6px" onclick="Finales.edit('${f.id}')">✎</button>
@@ -124,7 +124,7 @@ const Finales = (() => {
 
   function filaHist(f) {
     if (_editId === f.id) return filaEdit(f);
-    return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 8px;font-size:12px;color:var(--tt);border-bottom:1px solid rgba(255,255,255,.05)">
+    return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 8px;font-size:12.5px;color:var(--tt);border-bottom:1px solid rgba(255,255,255,.05)">
       <span>✅ <b>${esc(f.materia)}</b> · ${esc(f.tipo)} · ${fmtF(f.fecha)}</span>
       <span style="white-space:nowrap">
         <button class="btn btn-ghost btn-sm" style="padding:2px 6px" onclick="Finales.edit('${f.id}')" title="Editar fecha / reactivar">✎</button>
@@ -137,9 +137,9 @@ const Finales = (() => {
     const el = document.getElementById('ov-finales-list'); if (!el) return;
     const act = activos(), hist = historial();
     el.innerHTML = `
-      <div style="font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--tt);margin-bottom:6px">Activos (${act.length})</div>
+      <div style="font-size:12.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--tt);margin-bottom:6px">Activos (${act.length})</div>
       ${act.length ? act.map(filaActiva).join('') : '<div class="empty-state" style="padding:8px 0">Sin finales cargados.</div>'}
-      ${hist.length ? `<div style="font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--tt);margin:14px 0 6px">Historial (${hist.length})</div>${hist.map(filaHist).join('')}` : ''}`;
+      ${hist.length ? `<div style="font-size:12.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--tt);margin:14px 0 6px">Historial (${hist.length})</div>${hist.map(filaHist).join('')}` : ''}`;
   }
 
   function refresh() { renderList(); renderPrincipal(); if (typeof refreshRemindersView === 'function') refreshRemindersView('conocimiento'); }

@@ -110,7 +110,7 @@ function renderSubscriptions() {
     total+=sub.amount;
     return `<div class="sub-row ${alert?'sub-alert':''}">
       <div class="sub-info">
-        <div class="sub-name">${sub.name} ${alert?'<span class="pill pill-danger" style="font-size:11.5px">⚠ '+days+'d</span>':''}</div>
+        <div class="sub-name">${sub.name} ${alert?'<span class="pill pill-danger" style="font-size:12.5px">⚠ '+days+'d</span>':''}</div>
         <div class="sub-detail">Día ${sub.billingDay} de cada mes</div>
       </div>
       <div class="sub-amount">${fmtMoney(sub.amount,sub.currency)}</div>
@@ -206,7 +206,7 @@ function renderWishlist() {
       const hasNotes = w.notes && w.notes.trim();
       html += `<div class="wish-row">
         <div class="flex items-center justify-between">
-          <div class="wish-name">${_esc(w.name)}${affordable?' <span class="pill pill-ok" style="font-size:11.5px">¡Puedes comprarlo!</span>':''}</div>
+          <div class="wish-name">${_esc(w.name)}${affordable?' <span class="pill pill-ok" style="font-size:12.5px">¡Puedes comprarlo!</span>':''}</div>
           <div class="flex gap-8 items-center">
             <span class="wish-priority-badge" style="color:${pi.color}">${pi.label}</span>
             <span class="mono text-sm">${fmtMoney(w.amount,w.currency)}</span>
@@ -316,8 +316,8 @@ function renderFixedExpenses() {
       </div>
       <div class="flex gap-8 items-center">
         ${paid
-          ? '<span class="pill pill-ok" style="font-size:11.5px">✓ Pagado</span>'
-          : `<button class="btn btn-ghost btn-sm" onclick="markFixedExpensePaid('${exp.id}')" style="font-size:11.5px">Marcar pagado</button>`}
+          ? '<span class="pill pill-ok" style="font-size:12.5px">✓ Pagado</span>'
+          : `<button class="btn btn-ghost btn-sm" onclick="markFixedExpensePaid('${exp.id}')" style="font-size:12.5px">Marcar pagado</button>`}
         <button class="icon-btn" onclick="openEditFixedExpense('${exp.id}')"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
         <button class="icon-btn" onclick="deleteFixedExpense('${exp.id}')"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg></button>
       </div>
@@ -538,20 +538,20 @@ function pfCancelCredit(fundId, mk) {
 
 // ── Render de la tarjeta de la sección ──
 function _pfStatusPill(fund) {
-  if (pfConditionBroken(fund)) return '<span class="pill pill-danger" style="font-size:11.5px">Condición rota</span>';
+  if (pfConditionBroken(fund)) return '<span class="pill pill-danger" style="font-size:12.5px">Condición rota</span>';
   const curMK = _pfMonthKey(new Date());
   const cur = _pfLog(fund.id)[curMK];
-  if (cur && +cur.credited > 0) return '<span class="pill pill-ok" style="font-size:11.5px">Acreditado</span>';
+  if (cur && +cur.credited > 0) return '<span class="pill pill-ok" style="font-size:12.5px">Acreditado</span>';
   if (!_pfAppliesToMonth(fund, curMK)) {
     const txt = _pfIsQuarterly(fund) ? 'Acredita al cierre del trimestre' : `Acredita en ${_pfMonthLabel(fund.condition.periodKey)}`;
-    return `<span class="pill pill-ghost" style="font-size:11.5px">${txt}</span>`;
+    return `<span class="pill pill-ghost" style="font-size:12.5px">${txt}</span>`;
   }
-  if (!fund.condition) return '<span class="pill pill-ghost" style="font-size:11.5px">Sin condición</span>';
+  if (!fund.condition) return '<span class="pill pill-ghost" style="font-size:12.5px">Sin condición</span>';
   const r = pfEvalMonth(fund, curMK, true);
   const pct = r.pct === null || r.pct === undefined ? '' : ` ${Math.round(r.pct)}%`;
   return r.met
-    ? `<span class="pill pill-ok" style="font-size:11.5px">Cumpliendo${pct}</span>`
-    : `<span class="pill pill-warn" style="font-size:11.5px">No cumple${pct}</span>`;
+    ? `<span class="pill pill-ok" style="font-size:12.5px">Cumpliendo${pct}</span>`
+    : `<span class="pill pill-warn" style="font-size:12.5px">No cumple${pct}</span>`;
 }
 
 function renderPurchaseFunds() {
@@ -780,14 +780,14 @@ function renderFundDetail() {
     const ok = !!e && +e.credited > 0;
     return `<div class="sub-row">
       <div class="sub-info">
-        <div class="sub-name">${_pfMonthLabel(mk)} ${e && e.manual ? '<span class="pill pill-ghost" style="font-size:11.5px">manual</span>' : ''}</div>
+        <div class="sub-name">${_pfMonthLabel(mk)} ${e && e.manual ? '<span class="pill pill-ghost" style="font-size:12.5px">manual</span>' : ''}</div>
         <div class="sub-detail">${ok ? 'Cumplido' : (e ? 'No cumplido' : 'Sin evaluar')}</div>
       </div>
       <div class="flex gap-8 items-center">
         <span class="mono bold ${ok ? 'text-ok' : 'text-ter'}">${fmtMoney(e ? (+e.credited || 0) : 0, 'ARS')}</span>
         ${ok
-          ? `<button class="btn btn-ghost btn-sm" onclick="pfCancelCredit('${f.id}','${mk}')" style="font-size:11.5px">Anular</button>`
-          : `<button class="btn btn-ghost btn-sm" onclick="pfForceCredit('${f.id}','${mk}')" style="font-size:11.5px">Forzar</button>`}
+          ? `<button class="btn btn-ghost btn-sm" onclick="pfCancelCredit('${f.id}','${mk}')" style="font-size:12.5px">Anular</button>`
+          : `<button class="btn btn-ghost btn-sm" onclick="pfForceCredit('${f.id}','${mk}')" style="font-size:12.5px">Forzar</button>`}
       </div>
     </div>`;
   }).join('') : '<p class="empty-state">Sin meses evaluados todavía</p>';
@@ -836,12 +836,12 @@ function _pfBudgetTotal(mk) {
 function _pfBudgetRows(mk) {
   return _pfFundsOfMonth(mk).map(f => `<div class="sub-row">
       <div class="sub-info">
-        <div class="sub-name">${escHtml(f.emoji || '🪙')} ${escHtml(f.name)} <span class="pill pill-ghost" style="font-size:11.5px">fondo</span></div>
+        <div class="sub-name">${escHtml(f.emoji || '🪙')} ${escHtml(f.name)} <span class="pill pill-ghost" style="font-size:12.5px">fondo</span></div>
         <div class="sub-detail">${escHtml(pfConditionLabel(f))}</div>
       </div>
       <div class="flex gap-8 items-center">
         <span class="mono bold">${fmtMoney(+f.monthlyAmount || 0, 'ARS')}</span>
-        <button class="btn btn-ghost btn-sm" onclick="openFundDetail('${f.id}')" style="font-size:11.5px">Detalle</button>
+        <button class="btn btn-ghost btn-sm" onclick="openFundDetail('${f.id}')" style="font-size:12.5px">Detalle</button>
       </div>
     </div>`).join('');
 }
@@ -1609,7 +1609,7 @@ function renderActivity() {
       const cat = getCatInfo(t.category, t.type);
       const acc = t.accountId ? accMap[t.accountId] : null;
       const catBadge = t.category
-        ? `<span style="font-size:11.5px;padding:1px 7px;border-radius:99px;font-weight:700;background:${cat.color};border:1px solid ${cat.border};color:var(--ts);margin-left:4px">${escHtml(cat.icon)} ${escHtml(cat.label)}</span>`
+        ? `<span style="font-size:12.5px;padding:1px 7px;border-radius:99px;font-weight:700;background:${cat.color};border:1px solid ${cat.border};color:var(--ts);margin-left:4px">${escHtml(cat.icon)} ${escHtml(cat.label)}</span>`
         : '';
       const pendingBadge = t.pending ? `<span class="txn-pending-badge">⏳ Pendiente</span>` : '';
       return `<div class="activity-row">
@@ -1687,7 +1687,7 @@ function renderTxnChart(transactions) {
         legend: {
           position: 'right',
           labels: {
-            font: { size: 12, weight: '600' },
+            font: { size: 13, weight: '600' },
             padding: 10,
             boxWidth: 10,
             color: '#FFFFFF',

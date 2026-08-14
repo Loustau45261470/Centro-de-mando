@@ -114,7 +114,7 @@ const Cursada = (() => {
         <input id="curs-titulo" placeholder="Título / consigna (opcional)" style="${inp};flex:1;min-width:140px">
         <input id="curs-fecha" type="date" value="${hoy()}" style="${inp}">
         <input id="curs-hora" type="time" style="${inp}">
-        <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--tt);cursor:pointer">
+        <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--tt);cursor:pointer">
           <input type="checkbox" id="curs-repeat" style="width:14px;height:14px;cursor:pointer"> Se repite todas las semanas
         </label>
         <button class="btn btn-sm" onclick="Cursada.add()">+ Agregar</button>
@@ -129,14 +129,14 @@ const Cursada = (() => {
   function setFiltro(v) { _filtTipo = v; renderFiltros(); renderList(); }
 
   function filaEdit(it) {
-    const inp = 'background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:6px 8px;font-size:12px;color:inherit';
+    const inp = 'background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:6px 8px;font-size:12.5px;color:inherit';
     return `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:8px;border:1px solid var(--c-conocimiento);border-radius:8px;margin-bottom:6px">
       <select id="curs-e-tipo" style="${inp}">${Object.keys(TIPOS).map(k => `<option value="${k}" ${k === it.tipo ? 'selected' : ''}>${TIPOS[k].icon} ${TIPOS[k].label}</option>`).join('')}</select>
       <input id="curs-e-materia" value="${esc(it.materia)}" style="${inp};flex:1;min-width:100px">
       <input id="curs-e-titulo" value="${esc(it.titulo || '')}" placeholder="Título / consigna" style="${inp};flex:1;min-width:120px">
       <input id="curs-e-fecha" type="date" value="${it.fecha}" style="${inp}">
       <input id="curs-e-hora" type="time" value="${it.hora || ''}" style="${inp}">
-      <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--tt);cursor:pointer">
+      <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--tt);cursor:pointer">
         <input type="checkbox" id="curs-e-repeat" ${it.repeat === 'weekly' ? 'checked' : ''} style="width:13px;height:13px;cursor:pointer"> Semanal
       </label>
       <button class="btn btn-sm" onclick="Cursada.saveEdit('${it.id}')">Guardar</button>
@@ -146,11 +146,11 @@ const Cursada = (() => {
 
   function filaActiva(it) {
     if (_editId === it.id) return filaEdit(it);
-    const rep = it.repeat === 'weekly' ? `<span style="font-size:11.5px;color:var(--tt)"> · 🔁 semanal${it.hechas ? ` (${it.hechas})` : ''}</span>` : '';
+    const rep = it.repeat === 'weekly' ? `<span style="font-size:12.5px;color:var(--tt)"> · 🔁 semanal${it.hechas ? ` (${it.hechas})` : ''}</span>` : '';
     return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px;border:1px solid rgba(255,255,255,.08);border-radius:8px;margin-bottom:6px">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;min-width:0">
         <input type="checkbox" onclick="Cursada.done('${it.id}')" title="Marcar hecho" style="width:16px;height:16px;cursor:pointer;flex-shrink:0">
-        <span style="font-size:12.5px">${badge(it)} <b>${esc(it.materia)}</b>${it.titulo ? ` <span style="color:var(--tt)">· ${esc(it.titulo)}</span>` : ''} <span style="font-size:11.5px;color:var(--tt)">· ${fmtF(it.fecha)}${it.hora ? ' ' + esc(it.hora) : ''}${rep}</span></span>
+        <span style="font-size:12.5px">${badge(it)} <b>${esc(it.materia)}</b>${it.titulo ? ` <span style="color:var(--tt)">· ${esc(it.titulo)}</span>` : ''} <span style="font-size:12.5px;color:var(--tt)">· ${fmtF(it.fecha)}${it.hora ? ' ' + esc(it.hora) : ''}${rep}</span></span>
       </label>
       <span style="white-space:nowrap;font-size:12.5px">${etiqueta(it)}
         <button class="btn btn-ghost btn-sm" style="padding:2px 6px" onclick="Cursada.edit('${it.id}')">✎</button>
@@ -160,7 +160,7 @@ const Cursada = (() => {
 
   function filaHist(it) {
     if (_editId === it.id) return filaEdit(it);
-    return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 8px;font-size:12px;color:var(--tt);border-bottom:1px solid rgba(255,255,255,.05)">
+    return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 8px;font-size:12.5px;color:var(--tt);border-bottom:1px solid rgba(255,255,255,.05)">
       <span>✅ ${badge(it)} <b>${esc(it.materia)}</b>${it.titulo ? ` · ${esc(it.titulo)}` : ''} · ${fmtF(it.fecha)}</span>
       <span style="white-space:nowrap">
         <button class="btn btn-ghost btn-sm" style="padding:2px 6px" onclick="Cursada.edit('${it.id}')" title="Editar / reactivar">✎</button>
@@ -174,9 +174,9 @@ const Cursada = (() => {
     const filt = it => _filtTipo === 'todos' || it.tipo === _filtTipo;
     const act = pendientes().filter(filt), hist = historial().filter(filt);
     el.innerHTML = `
-      <div style="font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--tt);margin-bottom:6px">Pendientes (${act.length})</div>
+      <div style="font-size:12.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--tt);margin-bottom:6px">Pendientes (${act.length})</div>
       ${act.length ? act.map(filaActiva).join('') : '<div class="empty-state" style="padding:8px 0">Sin ítems cargados.</div>'}
-      ${hist.length ? `<div style="font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--tt);margin:14px 0 6px">Historial (${hist.length})</div>${hist.map(filaHist).join('')}` : ''}`;
+      ${hist.length ? `<div style="font-size:12.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--tt);margin:14px 0 6px">Historial (${hist.length})</div>${hist.map(filaHist).join('')}` : ''}`;
   }
 
   function refresh() { renderList(); renderPrincipal(); if (typeof refreshRemindersView === 'function') refreshRemindersView('conocimiento'); }

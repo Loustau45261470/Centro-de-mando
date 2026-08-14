@@ -220,7 +220,7 @@ function renderLawMilestones() {
     }
     return `<tr>
       <td style="font-family:var(--mono);font-size:12.5px">${m.date}</td>
-      <td class="num">${realDisp}${m.real === null && isPast ? '<sup style="font-size:11px;color:var(--tt)">*</sup>' : ''}</td>
+      <td class="num">${realDisp}${m.real === null && isPast ? '<sup style="font-size:12.5px;color:var(--tt)">*</sup>' : ''}</td>
       <td class="num" style="color:var(--ok)">${m.expected}</td>
       <td class="diff ${diffClass}">${diffDisp}</td>
       <td style="padding:4px 4px 4px 0;white-space:nowrap">
@@ -274,7 +274,7 @@ function renderLawMilestones() {
       <thead><tr><th>Fecha</th><th style="text-align:center">Real</th><th style="text-align:center">Esperado</th><th style="text-align:center">Dif.</th><th></th></tr></thead>
       <tbody>${rowsHTML}</tbody>
     </table>
-    <div style="font-size:12px;color:var(--tt);margin-top:8px">* Valor actual del progreso registrado</div>
+    <div style="font-size:12.5px;color:var(--tt);margin-top:8px">* Valor actual del progreso registrado</div>
     <button class="bsum-full" onclick="if(window.openLawMsHistorial)openLawMsHistorial()">
       Ver historial completo${hiddenN > 0 ? ` (${hiddenN} punto${hiddenN > 1 ? 's' : ''} más)` : ''} →
     </button>
@@ -308,10 +308,10 @@ function renderLawMilestones() {
       },
       options: {
         responsive:true, maintainAspectRatio:false,
-        plugins:{ legend:{ labels:{ color:'#B8B6B0', font:{ size:12 }, boxWidth:12 } } },
+        plugins:{ legend:{ labels:{ color:'#B8B6B0', font:{ size:13 }, boxWidth:12 } } },
         scales:{
-          x:{ ticks:{ color:'#76746E', font:{ size:12 } }, grid:{ color:'rgba(255,255,255,.05)' } },
-          y:{ ticks:{ color:'#76746E', font:{ size:12 }, stepSize:2 }, grid:{ color:'rgba(255,255,255,.05)' }, min:0 }
+          x:{ ticks:{ color:'#76746E', font:{ size:13 } }, grid:{ color:'rgba(255,255,255,.05)' } },
+          y:{ ticks:{ color:'#76746E', font:{ size:13 }, stepSize:2 }, grid:{ color:'rgba(255,255,255,.05)' }, min:0 }
         }
       }
     });
