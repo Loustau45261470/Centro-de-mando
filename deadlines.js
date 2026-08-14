@@ -235,21 +235,30 @@ const CMDeadlines = (() => {
     return items.sort((a, b) => a.at - b.at);
   }
 
-  // Avisos que deben dispararse ahora: cayeron dentro de la ventana y no se notificaron.
+  // Avisos que deben dispararse ahora: cayeron dentro de su ventana de rescate y
+  // no se notificaron todavía.
+  //
+  // Dos ventanas, según el flag `lead` del aviso: uno de anticipación ("final en
+  // 30 días") sigue sirviendo una hora tarde, así que se rescata; uno de momento
+  // ("en 10 min") tarde ya es ruido. Sin esta distinción, con la pestaña dormida
+  // más de la ventana corta —lo normal en el celular— los avisos de anticipación
+  // se perdían en silencio.
   function dueAlerts(state, opts) {
     opts = opts || {};
     const now = opts.now || Date.now();
-    const windowMs = opts.windowMs || 5 * MIN;
+    const winTimed = opts.windowMs || 5 * MIN;
+    const winLead  = opts.windowLeadMs || 60 * MIN;
     const seen = opts.seen || {};
     const has = k => (typeof seen.has === 'function' ? seen.has(k) : !!seen[k]);
     const out = [];
     collect(state, opts).forEach(it => (it.alerts || []).forEach(a => {
-      if (a.at <= now && now - a.at < windowMs && !has(a.key)) out.push({ ...a, item: it });
+      const win = a.lead ? winLead : winTimed;
+      if (a.at <= now && now - a.at < win && !has(a.key)) out.push({ ...a, item: it });
     }));
     return out;
   }
 
-  return { collect, dueAlerts, recOccursOn, TABS, PRIO_EMOJI, ALLDAY_HOUR };
+  return { collect, dueAlerts };
 })();
 
 if (typeof window !== 'undefined') window.CMDeadlines = CMDeadlines;
