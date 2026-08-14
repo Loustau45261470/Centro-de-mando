@@ -551,8 +551,8 @@ function _renderHabitChart(section, habit) {
       responsive:true, maintainAspectRatio:false,
       plugins:{ legend:{ display:false } },
       scales:{
-        x:{ min:0, max:100, ticks:{ font:{size:13}, callback:v=>v+'%' } },
-        y:{ ticks:{ font:{size:13} } }
+        x:{ min:0, max:100, ticks:{ font:{size:_cfs(13)}, callback:v=>v+'%' } },
+        y:{ ticks:{ font:{size:_cfs(13)} } }
       }
     }
   });

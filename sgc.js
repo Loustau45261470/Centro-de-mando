@@ -134,7 +134,7 @@ const SGC = (() => {
       const h = v == null ? 3 : Math.max(4, v / max * 34);
       const col = v == null ? 'var(--tt)' : v >= std ? 'var(--ok, #22C55E)' : '#F43F5E';
       return `<div title="Semana -${3 - i}: ${v == null ? 'sin datos' : v.toFixed(1)}" style="flex:1;height:${h}px;border-radius:2px;background:${col};opacity:${v == null ? .25 : .8}"></div>`;
-    }).join('') + `</div><div style="font-size:12px;color:var(--tt);letter-spacing:.08em">TENDENCIA 4 SEMANAS · línea de estándar ${std}${std === STD.gym ? '%' : '%'}</div>`;
+    }).join('') + `</div><div style="font-size:var(--fs-12);color:var(--tt);letter-spacing:.08em">TENDENCIA 4 SEMANAS · línea de estándar ${std}${std === STD.gym ? '%' : '%'}</div>`;
   }
 
   // ══════════ INFORME EN CARDS DE ANÁLISIS ══════════
@@ -142,18 +142,18 @@ const SGC = (() => {
   function bloque(titulo, m, std, warn, unidad, alerta, extra, csvKey) {
     const semana = `Semana del ${fmtF(addDias(hoy(), -6))} al ${fmtF(hoy())}`;
     const valTxt = m.val == null ? 'Sin datos aún' : (m.val >= 0 && std === STD.gym ? '+' : '') + m.val.toFixed(1) + unidad;
-    const alertHtml = (m.val != null && m.val < warn) ? `<div style="font-size:12.5px;color:#F43F5E;margin-top:4px">🔔 ${alerta}</div>` : '';
+    const alertHtml = (m.val != null && m.val < warn) ? `<div style="font-size:var(--fs-12-5);color:#F43F5E;margin-top:4px">🔔 ${alerta}</div>` : '';
     return `<div style="border-top:1px solid rgba(255,255,255,.06);margin-top:10px;padding-top:8px">
       <div style="display:flex;justify-content:space-between;align-items:baseline">
-        <span style="font-size:12.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--tt)">🛡️ SGC · ${titulo}</span>
-        <span style="font-size:12px;color:var(--tt)">${semana}</span>
+        <span style="font-size:var(--fs-12-5);font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--tt)">🛡️ SGC · ${titulo}</span>
+        <span style="font-size:var(--fs-12);color:var(--tt)">${semana}</span>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
-        <span style="font-family:var(--mono);font-size:16px;font-weight:800">${valTxt} <span style="font-size:12.5px">${badge(m.val, std, warn)}</span></span>
-        <span style="font-size:12.5px;color:var(--tt)">estándar ${std === STD.gym ? '+' + std + '% mensual' : std + '%'}</span>
+        <span style="font-family:var(--mono);font-size:var(--fs-16);font-weight:800">${valTxt} <span style="font-size:var(--fs-12-5)">${badge(m.val, std, warn)}</span></span>
+        <span style="font-size:var(--fs-12-5);color:var(--tt)">estándar ${std === STD.gym ? '+' + std + '% mensual' : std + '%'}</span>
       </div>
       ${extra || ''}${alertHtml}
-      <div style="text-align:right;margin-top:4px"><button class="btn btn-ghost btn-sm" style="font-size:12.5px;padding:2px 8px" onclick="SGC.exportCSV('${csvKey}')">⬇ CSV</button></div>
+      <div style="text-align:right;margin-top:4px"><button class="btn btn-ghost btn-sm" style="font-size:var(--fs-12-5);padding:2px 8px" onclick="SGC.exportCSV('${csvKey}')">⬇ CSV</button></div>
     </div>`;
   }
 
@@ -167,22 +167,22 @@ const SGC = (() => {
       const tend = tendencia4Sem(m.resueltas, p => p.fechaVence, precisionDe);
       el.innerHTML = bloque('Precisión de proyecciones (YTD)', m, STD.inv, WARN.inv, '%',
         'Revisar análisis fundamental',
-        `${barras(tend, STD.inv)}<div style="font-size:12.5px;color:var(--tt);margin-top:3px">${m.n} resueltas · ${pend} pendientes — registro en la <b>Cartera de inversión</b></div>`, 'inv');
+        `${barras(tend, STD.inv)}<div style="font-size:var(--fs-12-5);color:var(--tt);margin-top:3px">${m.n} resueltas · ${pend} pendientes — registro en la <b>Cartera de inversión</b></div>`, 'inv');
     }
     if (sec === 'conocimiento') {
       const m = metricEst();
       const tend = tendencia4Sem((S.sgc.estudio || []).filter(s => s.retencion != null), s => s.fecha, s => s.retencion);
-      const deb = m.debiles.length ? `<div style="font-size:12.5px;color:var(--tt);margin-top:3px">Temas débiles: ${m.debiles.slice(0, 3).map(([t, v]) => `<b>${esc(t)}</b> (${v.toFixed(0)}%)`).join(' · ')}</div>` : '';
+      const deb = m.debiles.length ? `<div style="font-size:var(--fs-12-5);color:var(--tt);margin-top:3px">Temas débiles: ${m.debiles.slice(0, 3).map(([t, v]) => `<b>${esc(t)}</b> (${v.toFixed(0)}%)`).join(' · ')}</div>` : '';
       el.innerHTML = bloque('Retención de estudio (4 sem.)', m, STD.est, WARN.est, '%',
         'Técnica de estudio menos efectiva' + (m.debiles.length ? ' — días débiles: ' + esc(m.debiles[0][0]) : ''),
-        barras(tend, STD.est) + deb + (m.pendientes.length ? `<div style="font-size:12.5px;color:#FBBF24;margin-top:3px">📝 ${m.pendientes.length} repaso(s) pendiente(s) en la card Sesiones de estudio</div>` : ''), 'est');
+        barras(tend, STD.est) + deb + (m.pendientes.length ? `<div style="font-size:var(--fs-12-5);color:#FBBF24;margin-top:3px">📝 ${m.pendientes.length} repaso(s) pendiente(s) en la card Sesiones de estudio</div>` : ''), 'est');
     }
     if (sec === 'salud') {
       const m = metricGym();
       const peores = m.items.slice(0, 2).map(x => `<b>${esc(x.nombre)}</b> ${fmtPct(x.prog)}`).join(' · ');
       el.innerHTML = bloque(`Progresión de volumen (${m.mesAnt} → ${m.mesAct})`, m, STD.gym, WARN.gym, '%',
         'Revisar descanso/nutrición',
-        `<div style="font-size:12.5px;color:var(--tt);margin-top:3px">${m.items.length
+        `<div style="font-size:var(--fs-12-5);color:var(--tt);margin-top:3px">${m.items.length
           ? `${(m.totAct / 1000).toFixed(1)}t vs ${(m.totAnt / 1000).toFixed(1)}t · ${m.items.length} ejercicios comparados` + (peores ? ' · rezagados: ' + peores : '')
           : 'Se necesitan registros en dos meses consecutivos'}</div>`, 'gym');
     }
@@ -213,7 +213,7 @@ const SGC = (() => {
         ultimas.map(s => {
           const right = s.retencion == null
             ? (hoy() >= addDias(s.fecha, 7) ? '<span class="est-ret-pend">repaso listo</span>' : `<span class="est-ret-wait">repaso ${fmtF(addDias(s.fecha, 7))}</span>`)
-            : `<span class="est-ret ${s.retencion >= STD.est ? 'ok' : 'bad'}">${s.retencion.toFixed(0)}<span style="font-size:12.5px">%</span></span>`;
+            : `<span class="est-ret ${s.retencion >= STD.est ? 'ok' : 'bad'}">${s.retencion.toFixed(0)}<span style="font-size:var(--fs-12-5)">%</span></span>`;
           return `<div class="est-sess">
             <div style="min-width:0"><div class="est-sess-tema">${s.origen === 'dominio' ? '📋 ' : ''}${esc(s.tema)}</div>
               <div class="est-sess-sub">${s.duracionMin}′ · ${fmtF(s.fecha)}</div></div>
@@ -233,7 +233,7 @@ const SGC = (() => {
       <input id="sgc-e-dur" class="est-input" type="number" min="5" placeholder="Duración (min)">
       <div class="est-hint">3 a 5 preguntas con respuesta — son tu test de retención del día 7:</div>
       <div id="sgc-e-qs">${[0, 1, 2].map(i => qRow(i)).join('')}</div>
-      <button class="est-btn est-btn-ghost" style="flex:none;font-size:12.5px;padding:7px 13px;margin-top:2px" onclick="SGC.masPregunta()">+ pregunta</button>
+      <button class="est-btn est-btn-ghost" style="flex:none;font-size:var(--fs-12-5);padding:7px 13px;margin-top:2px" onclick="SGC.masPregunta()">+ pregunta</button>
       <div class="est-actions">
         <button class="est-btn est-btn-primary" onclick="SGC.guardarSesion()">Guardar sesión</button>
         <button class="est-btn est-btn-ghost" onclick="SGC.cerrarForm()">Cancelar</button>
@@ -334,7 +334,7 @@ const SGC = (() => {
              <button class="est-q-ok" onclick="SGC.respuestaQuiz(true)">✔ La recordé</button>
              <button class="est-q-bad" onclick="SGC.respuestaQuiz(false)">✘ No la recordé</button></div>`
         : `<button class="est-btn est-btn-primary" style="width:100%" onclick="SGC.revelarQuiz()">Ver respuesta</button>`}
-      <div class="est-quiz-exit"><button class="est-btn est-btn-ghost" style="flex:none;font-size:12.5px;padding:6px 13px" onclick="SGC.salirQuiz()">Salir (retomar después)</button></div>
+      <div class="est-quiz-exit"><button class="est-btn est-btn-ghost" style="flex:none;font-size:var(--fs-12-5);padding:6px 13px" onclick="SGC.salirQuiz()">Salir (retomar después)</button></div>
     </div>`;
   }
   function revelarQuiz() { _quiz.revelada = true; renderEstudioCard(); }
@@ -362,7 +362,7 @@ const SGC = (() => {
     const pend = (S.sgc.proyecciones || []).filter(p => p.precioReal == null).sort((a, b) => a.fechaVence.localeCompare(b.fechaVence));
     const res = (S.sgc.proyecciones || []).filter(p => p.precioReal != null).sort((a, b) => b.fechaVence.localeCompare(a.fechaVence));
     const m = metricInv();
-    const inp = 'background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:6px 8px;font-size:12.5px;color:inherit';
+    const inp = 'background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:6px 8px;font-size:var(--fs-12-5);color:inherit';
     const activos = (_cartera?.cedears || []).slice().sort((a, b) => (a.simbolo || '').localeCompare(b.simbolo || ''));
 
     const proyTxt = p => p.varProy != null ? fmtPct(p.varProy) : '$' + (p.precioProy || 0).toLocaleString('es-AR');
@@ -373,19 +373,19 @@ const SGC = (() => {
       return `<div class="ci-row" style="grid-template-columns:1fr .9fr 1fr 1.3fr">
         <span><b>${esc(p.simbolo)}</b></span>
         <span class="${p.varProy >= 0 ? 'text-ok' : 'text-danger'}" style="font-weight:700">${proyTxt(p)}</span>
-        <span style="font-size:12.5px;color:var(--text-ter,#8b93a7)">${fmtF(p.fechaCreada)} → ${fmtF(p.fechaVence)}</span>
+        <span style="font-size:var(--fs-12-5);color:var(--text-ter,#8b93a7)">${fmtF(p.fechaCreada)} → ${fmtF(p.fechaVence)}</span>
         <span style="text-align:right">${vencida
           ? `<input id="sgc-pr-${p.id}" type="number" step="any" placeholder="precio real $" style="${inp};width:100px"> <button class="btn btn-ghost btn-sm" onclick="SGC.cargarReal('${p.id}')">✓</button>`
-          : `<span style="font-size:12.5px;color:var(--text-ter,#8b93a7)">en ${diasEntre(hoy(), p.fechaVence)} días</span>`}
+          : `<span style="font-size:var(--fs-12-5);color:var(--text-ter,#8b93a7)">en ${diasEntre(hoy(), p.fechaVence)} días</span>`}
           <button class="btn btn-ghost btn-sm" style="opacity:.6" onclick="SGC.borrarProyeccion('${p.id}')">🗑</button></span>
       </div>`;
     };
 
     const filaHist = p => { const prec = precisionDe(p); return `<div class="ci-row" style="grid-template-columns:1fr .9fr .9fr .9fr .6fr">
-      <span><b>${esc(p.simbolo)}</b> <span style="font-size:12.5px;color:var(--text-ter,#8b93a7)">${fmtF(p.fechaVence)}</span></span>
+      <span><b>${esc(p.simbolo)}</b> <span style="font-size:var(--fs-12-5);color:var(--text-ter,#8b93a7)">${fmtF(p.fechaVence)}</span></span>
       <span>${proyTxt(p)}</span>
       <span>${realTxt(p)}</span>
-      <span style="font-size:12.5px;color:var(--text-ter,#8b93a7)">${esc(p.fuente || 'manual')}</span>
+      <span style="font-size:var(--fs-12-5);color:var(--text-ter,#8b93a7)">${esc(p.fuente || 'manual')}</span>
       <span class="ci-est ${prec >= STD.inv ? 'text-ok' : 'text-danger'}">${prec.toFixed(1)}%</span>
     </div>`; };
 
@@ -399,13 +399,13 @@ const SGC = (() => {
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:12px 0">
         ${activos.length
           ? `<select id="sgc-p-sim" style="${inp};min-width:110px">${activos.map(a => `<option value="${esc(a.simbolo)}" data-precio="${a.precio}">${esc(a.simbolo)} · $${(a.precio || 0).toLocaleString('es-AR')}</option>`).join('')}</select>`
-          : `<span style="font-size:12.5px;color:var(--text-ter,#8b93a7)">Sin datos de cartera para elegir activo (reabrí el overlay con conexión)</span>`}
+          : `<span style="font-size:var(--fs-12-5);color:var(--text-ter,#8b93a7)">Sin datos de cartera para elegir activo (reabrí el overlay con conexión)</span>`}
         <input id="sgc-p-var" type="number" step="any" placeholder="Variación proyectada %" style="${inp};width:160px">
         <select id="sgc-p-hor" style="${inp}"><option value="1">1 mes</option><option value="3" selected>3 meses</option><option value="6">6 meses</option></select>
         <button class="btn btn-sm" onclick="SGC.guardarProyeccion()" ${activos.length ? '' : 'disabled'}>+ Proyectar</button>
       </div>
       <div class="ci-hdr ci-row" style="grid-template-columns:1fr .9fr 1fr 1.3fr"><span>Activo</span><span>Proyección</span><span>Período</span><span style="text-align:right">Estado</span></div>
-      ${pend.length ? pend.map(filaPend).join('') : '<div style="font-size:12.5px;color:var(--text-ter,#8b93a7);padding:6px 2px">Sin proyecciones pendientes — cargá la primera arriba.</div>'}
+      ${pend.length ? pend.map(filaPend).join('') : '<div style="font-size:var(--fs-12-5);color:var(--text-ter,#8b93a7);padding:6px 2px">Sin proyecciones pendientes — cargá la primera arriba.</div>'}
       ${res.length ? `
         <div class="ci-sub">Historial (${res.length})</div>
         <div class="ci-hdr ci-row" style="grid-template-columns:1fr .9fr .9fr .9fr .6fr"><span>Activo</span><span>Proyectado</span><span>Real</span><span>Fuente</span><span style="text-align:right">Precisión</span></div>

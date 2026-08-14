@@ -373,7 +373,7 @@ function renderRutinas() {
     const hist = S.routineLog[r.id] || [];
     const last = hist[hist.length - 1];
 
-    const lastDateLabel = last ? `<span style="font-family:var(--mono);font-size:12.5px;color:var(--tt);flex-shrink:0;margin-right:6px">${last.date.slice(5)}</span>` : '';
+    const lastDateLabel = last ? `<span style="font-family:var(--mono);font-size:var(--fs-12-5);color:var(--tt);flex-shrink:0;margin-right:6px">${last.date.slice(5)}</span>` : '';
 
     const exListHtml = r.exercises.length
       ? r.exercises.map(exRaw => { const ex = exDisplay(exRaw); return `
@@ -396,12 +396,12 @@ function renderRutinas() {
           <span class="rtn-icon">${r.icon}</span>
           <div class="rtn-info">
             <div class="rtn-name">${r.name}</div>
-            <div class="rtn-preview" style="margin-top:1px;font-size:12.5px;color:var(--tt)">${r.exercises.length} ejercicios</div>
+            <div class="rtn-preview" style="margin-top:1px;font-size:var(--fs-12-5);color:var(--tt)">${r.exercises.length} ejercicios</div>
           </div>
           <button class="icon-btn" onclick="event.stopPropagation();openEditRoutine('${r.id}')" style="color:var(--tt);flex-shrink:0">
             <svg viewBox="0 0 24 24" style="width:15px;height:15px"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           </button>
-          <button class="btn btn-ghost" onclick="event.stopPropagation();openExPicker('add','${r.id}')" style="font-size:12.5px;padding:2px 7px;flex-shrink:0;line-height:1.4">+ Ej</button>
+          <button class="btn btn-ghost" onclick="event.stopPropagation();openExPicker('add','${r.id}')" style="font-size:var(--fs-12-5);padding:2px 7px;flex-shrink:0;line-height:1.4">+ Ej</button>
           <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();startRutinaSession('${r.id}')" style="flex-shrink:0">▶ Empezar</button>
           <span class="rtn-chevron">▾</span>
         </div>
@@ -489,23 +489,23 @@ function renderRutinas() {
   const statsBodyHtml = `
     <div style="padding:12px 14px 16px">
       <div style="display:flex;gap:4px;margin-bottom:14px">
-        ${['mes','trimestre','semestre','año'].map(p => `<button onclick="setStatsPeriod('${p}')" style="flex:1;padding:5px 0;font-size:12.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;border-radius:6px;border:1px solid ${_statsPeriod===p ? 'var(--c-salud)' : 'var(--border)'};background:${_statsPeriod===p ? 'rgba(244,63,94,.12)' : 'transparent'};color:${_statsPeriod===p ? 'var(--c-salud)' : 'var(--tt)'};cursor:pointer">${p}</button>`).join('')}
+        ${['mes','trimestre','semestre','año'].map(p => `<button onclick="setStatsPeriod('${p}')" style="flex:1;padding:5px 0;font-size:var(--fs-12-5);font-weight:700;letter-spacing:.07em;text-transform:uppercase;border-radius:6px;border:1px solid ${_statsPeriod===p ? 'var(--c-salud)' : 'var(--border)'};background:${_statsPeriod===p ? 'rgba(244,63,94,.12)' : 'transparent'};color:${_statsPeriod===p ? 'var(--c-salud)' : 'var(--tt)'};cursor:pointer">${p}</button>`).join('')}
       </div>
       <div style="margin-bottom:14px">
         <div onclick="toggleMuscleDist()" style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:6px;user-select:none">
-          <span id="muscle-dist-chev" style="font-size:12.5px;color:var(--tt);display:inline-block;transition:transform .2s;transform:${_muscleDistOpen ? 'rotate(0deg)' : 'rotate(-90deg)'}">▾</span>
-          <span style="font-size:12.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--tt)">Distribución muscular</span>
+          <span id="muscle-dist-chev" style="font-size:var(--fs-12-5);color:var(--tt);display:inline-block;transition:transform .2s;transform:${_muscleDistOpen ? 'rotate(0deg)' : 'rotate(-90deg)'}">▾</span>
+          <span style="font-size:var(--fs-12-5);font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--tt)">Distribución muscular</span>
         </div>
         <div id="muscle-dist-body" style="display:${_muscleDistOpen ? 'block' : 'none'}">
           ${_muscleArr.length === 0
-            ? `<p style="font-size:12.5px;color:var(--tt);margin:0">Sin datos en este período.</p>`
+            ? `<p style="font-size:var(--fs-12-5);color:var(--tt);margin:0">Sin datos en este período.</p>`
             : '<div class="scan-duo">' + buildSpinViewer() + buildMuscleHeatmap(_muscleCounts) + '</div>' + _muscleArr.map(([muscle, count]) => {
                 const pct = Math.round(count / _muscleTotal * 100);
                 const hc = muscleHeatColor(Math.round(count / Math.max(...Object.values(_muscleCounts), 1) * 100));
                 return `<div style="margin-bottom:6px">
                   <div style="display:flex;justify-content:space-between;margin-bottom:2px">
-                    <span style="font-size:12.5px;color:var(--fg)">${muscle}</span>
-                    <span style="font-family:var(--mono);font-size:12.5px;color:var(--tt)">${pct}%</span>
+                    <span style="font-size:var(--fs-12-5);color:var(--fg)">${muscle}</span>
+                    <span style="font-family:var(--mono);font-size:var(--fs-12-5);color:var(--tt)">${pct}%</span>
                   </div>
                   <div style="height:3px;background:var(--border);border-radius:2px">
                     <div style="height:100%;width:${pct}%;background:${hc.fill.replace(/[\d.]+\)$/, '0.9)')};border-radius:2px;transition:width .4s"></div>
@@ -517,44 +517,44 @@ function renderRutinas() {
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px">
         <div style="background:var(--bg2);border-radius:10px;padding:10px 12px">
           <div style="font-family:var(--mono);font-size:22px;font-weight:800;color:var(--c-salud);line-height:1">${_totalSess}</div>
-          <div style="font-size:12.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--tt);margin-top:5px">Entrenamientos</div>
+          <div style="font-size:var(--fs-12-5);font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--tt);margin-top:5px">Entrenamientos</div>
         </div>
         <div style="background:var(--bg2);border-radius:10px;padding:10px 12px">
           <div style="font-family:var(--mono);font-size:${_totalVol >= 10000 ? 16 : 22}px;font-weight:800;color:var(--c-salud);line-height:1">${_volStr}</div>
-          <div style="font-size:12.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--tt);margin-top:5px">Volumen kg</div>
+          <div style="font-size:var(--fs-12-5);font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--tt);margin-top:5px">Volumen kg</div>
         </div>
         <div style="background:var(--bg2);border-radius:10px;padding:10px 12px">
           <div style="font-family:var(--mono);font-size:22px;font-weight:800;color:var(--c-salud);line-height:1">${_totalSets}</div>
-          <div style="font-size:12.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--tt);margin-top:5px">Series</div>
+          <div style="font-size:var(--fs-12-5);font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--tt);margin-top:5px">Series</div>
         </div>
         <div style="background:var(--bg2);border-radius:10px;padding:10px 12px">
           <div style="font-family:var(--mono);font-size:22px;font-weight:800;color:var(--c-salud);line-height:1">${_timeStr}</div>
-          <div style="font-size:12.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--tt);margin-top:5px">Tiempo</div>
+          <div style="font-size:var(--fs-12-5);font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--tt);margin-top:5px">Tiempo</div>
         </div>
       </div>
       <div style="margin-top:16px">
         <div onclick="toggleRecords()" style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:6px;user-select:none">
-          <span id="records-chev" style="font-size:12.5px;color:var(--tt);display:inline-block;transition:transform .2s;transform:${_recordsOpen ? 'rotate(0deg)' : 'rotate(-90deg)'}">▾</span>
-          <span style="font-size:12.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--tt)">Records</span>
+          <span id="records-chev" style="font-size:var(--fs-12-5);color:var(--tt);display:inline-block;transition:transform .2s;transform:${_recordsOpen ? 'rotate(0deg)' : 'rotate(-90deg)'}">▾</span>
+          <span style="font-size:var(--fs-12-5);font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--tt)">Records</span>
         </div>
         <div id="records-body" style="display:${_recordsOpen ? 'block' : 'none'}">
           ${_recArr.length === 0
-            ? `<p style="font-size:12.5px;color:var(--tt);margin:0">Sin datos en este período.</p>`
+            ? `<p style="font-size:var(--fs-12-5);color:var(--tt);margin:0">Sin datos en este período.</p>`
             : _recArr.map(rec => `
               <div style="padding:9px 0;border-top:1px solid var(--border)">
-                <div style="font-size:12.5px;font-weight:700;color:var(--fg);margin-bottom:6px">${rec.name}</div>
+                <div style="font-size:var(--fs-12-5);font-weight:700;color:var(--fg);margin-bottom:6px">${rec.name}</div>
                 <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
                   <div>
-                    <div style="font-family:var(--mono);font-size:14px;font-weight:800;color:var(--c-salud);line-height:1">${rec.maxWeight}<span style="font-size:12.5px;font-weight:400"> kg</span></div>
-                    <div style="font-size:12.5px;color:var(--tt);margin-top:2px">${rec.maxWeightDate ? rec.maxWeightDate.slice(5) : '—'} · peso</div>
+                    <div style="font-family:var(--mono);font-size:var(--fs-14);font-weight:800;color:var(--c-salud);line-height:1">${rec.maxWeight}<span style="font-size:var(--fs-12-5);font-weight:400"> kg</span></div>
+                    <div style="font-size:var(--fs-12-5);color:var(--tt);margin-top:2px">${rec.maxWeightDate ? rec.maxWeightDate.slice(5) : '—'} · peso</div>
                   </div>
                   <div>
-                    <div style="font-family:var(--mono);font-size:14px;font-weight:800;color:var(--c-salud);line-height:1">${rec.maxReps}<span style="font-size:12.5px;font-weight:400"> reps</span></div>
-                    <div style="font-size:12.5px;color:var(--tt);margin-top:2px">${rec.maxRepsDate ? rec.maxRepsDate.slice(5) : '—'} · reps</div>
+                    <div style="font-family:var(--mono);font-size:var(--fs-14);font-weight:800;color:var(--c-salud);line-height:1">${rec.maxReps}<span style="font-size:var(--fs-12-5);font-weight:400"> reps</span></div>
+                    <div style="font-size:var(--fs-12-5);color:var(--tt);margin-top:2px">${rec.maxRepsDate ? rec.maxRepsDate.slice(5) : '—'} · reps</div>
                   </div>
                   <div>
-                    <div style="font-family:var(--mono);font-size:14px;font-weight:800;color:var(--c-salud);line-height:1">${rec.maxVol >= 1000 ? (rec.maxVol/1000).toFixed(1)+'<span style="font-size:12.5px;font-weight:400">t</span>' : rec.maxVol+'<span style="font-size:12.5px;font-weight:400"> kg</span>'}</div>
-                    <div style="font-size:12.5px;color:var(--tt);margin-top:2px">${rec.maxVolDate ? rec.maxVolDate.slice(5) : '—'} · kg×reps</div>
+                    <div style="font-family:var(--mono);font-size:var(--fs-14);font-weight:800;color:var(--c-salud);line-height:1">${rec.maxVol >= 1000 ? (rec.maxVol/1000).toFixed(1)+'<span style="font-size:var(--fs-12-5);font-weight:400">t</span>' : rec.maxVol+'<span style="font-size:var(--fs-12-5);font-weight:400"> kg</span>'}</div>
+                    <div style="font-size:var(--fs-12-5);color:var(--tt);margin-top:2px">${rec.maxVolDate ? rec.maxVolDate.slice(5) : '—'} · kg×reps</div>
                   </div>
                 </div>
               </div>`).join('')}
@@ -572,13 +572,13 @@ function renderRutinas() {
       <div class="rtn-section-hdr" onclick="toggleRtnSection('rutinas')">
         <span id="rtn-section-chev-rutinas" style="display:inline-block;transition:transform .2s;transform:${_rutinaOpen ? 'rotate(0deg)' : 'rotate(-90deg)'}">▾</span>
         <span style="flex:1">Rutinas</span>
-        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openModal('modal-add-routine')" style="font-size:12.5px;letter-spacing:.06em">+ Nueva</button>
+        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openModal('modal-add-routine')" style="font-size:var(--fs-12-5);letter-spacing:.06em">+ Nueva</button>
       </div>
       <div id="rtn-section-rutinas" style="display:${_rutinaOpen ? 'block' : 'none'}">${cards}</div>
       <div class="rtn-section-hdr" onclick="toggleRtnSection('biblioteca')">
         <span id="rtn-section-chev-biblioteca" style="display:inline-block;transition:transform .2s;transform:${_libOpen ? 'rotate(0deg)' : 'rotate(-90deg)'}">▾</span>
         <span style="flex:1">Biblioteca</span>
-        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openLibEx()" style="font-size:12.5px;letter-spacing:.06em">+ Nuevo</button>
+        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openLibEx()" style="font-size:var(--fs-12-5);letter-spacing:.06em">+ Nuevo</button>
       </div>
       <div id="rtn-section-biblioteca" style="display:${_libOpen ? 'block' : 'none'}">${buildLibraryBody()}</div>
       <div class="rtn-section-hdr" onclick="toggleRtnSection('estadisticas')">
@@ -626,9 +626,9 @@ function buildLibraryBody() {
 
   let listHtml;
   if (all.length === 0) {
-    listHtml = `<p style="font-size:12.5px;color:var(--tt);text-align:center;padding:18px 0">Biblioteca vacía. Agregá el primer ejercicio.</p>`;
+    listHtml = `<p style="font-size:var(--fs-12-5);color:var(--tt);text-align:center;padding:18px 0">Biblioteca vacía. Agregá el primer ejercicio.</p>`;
   } else if (filtered.length === 0) {
-    listHtml = `<p style="font-size:12.5px;color:var(--tt);text-align:center;padding:18px 0">No hay ejercicios con estos filtros.</p>`;
+    listHtml = `<p style="font-size:var(--fs-12-5);color:var(--tt);text-align:center;padding:18px 0">No hay ejercicios con estos filtros.</p>`;
   } else {
     listHtml = filtered.map(l => {
       const uses = libUsageCount(l.id);
@@ -861,8 +861,8 @@ function renderExPicker() {
   ).sort((a, b) => a.name.localeCompare(b.name));
 
   let list;
-  if (all.length === 0) list = `<p style="font-size:12.5px;color:var(--tt);text-align:center;padding:18px 0">Biblioteca vacía. Creá un ejercicio primero.</p>`;
-  else if (filtered.length === 0) list = `<p style="font-size:12.5px;color:var(--tt);text-align:center;padding:18px 0">No hay ejercicios con estos filtros.</p>`;
+  if (all.length === 0) list = `<p style="font-size:var(--fs-12-5);color:var(--tt);text-align:center;padding:18px 0">Biblioteca vacía. Creá un ejercicio primero.</p>`;
+  else if (filtered.length === 0) list = `<p style="font-size:var(--fs-12-5);color:var(--tt);text-align:center;padding:18px 0">No hay ejercicios con estos filtros.</p>`;
   else list = filtered.map(l => `<div class="lib-ex-row" style="cursor:pointer" onclick="pickExercise('${l.id}')">
       <div style="flex:1;min-width:0">
         <div class="lib-ex-name">${l.name}</div>
@@ -982,7 +982,7 @@ function _scanLayer(view, idx, counts, maxCount) {
 // Visor fluido: video del cuerpo girando 360 (decorativo, sin interacción)
 function buildSpinViewer() {
   return `<div style="margin:6px 0 18px">
-    <div style="font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,150,40,.6);margin-bottom:8px">◈ GIRO 360°</div>
+    <div style="font-size:var(--fs-12);font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,150,40,.6);margin-bottom:8px">◈ GIRO 360°</div>
     <div class="spin-stage">
       <video class="spin-video" src="assets/body-360.mp4" autoplay muted loop playsinline></video>
       <div class="body-scan-line"></div>
@@ -997,8 +997,8 @@ function buildMuscleHeatmap(muscleCounts) {
   const dots = SCAN_VIEWS.map((v, i) => `<button class="scan-dot${i === 0 ? ' on' : ''}" data-dot="${i}" onclick="scanSetView(${i})" title="${v.key}"></button>`).join('');
   return `<div style="margin:10px 0 6px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-      <span style="font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:rgba(0,200,255,0.45)">◈ MAPA DE ENTRENAMIENTO</span>
-      <span style="font-size:12px;color:rgba(0,200,255,0.4)">toca un músculo</span>
+      <span style="font-size:var(--fs-12);font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:rgba(0,200,255,0.45)">◈ MAPA DE ENTRENAMIENTO</span>
+      <span style="font-size:var(--fs-12);color:rgba(0,200,255,0.4)">toca un músculo</span>
     </div>
     <div class="body-scan-stage" id="scan-stage">
       ${layers}
@@ -1010,9 +1010,9 @@ function buildMuscleHeatmap(muscleCounts) {
       <button class="scan-btn" id="scan-play" onclick="scanToggleAuto()" title="Pausar/Reanudar">⏸</button>
     </div>
     <div style="display:flex;align-items:center;gap:8px;justify-content:center;margin-top:9px">
-      <span style="font-size:12.5px;color:var(--ts)">Menos</span>
+      <span style="font-size:var(--fs-12-5);color:var(--ts)">Menos</span>
       <div style="flex:0 1 120px;height:7px;border-radius:4px;background:linear-gradient(90deg, rgba(235,20,20,0.15), rgba(235,20,20,0.95))"></div>
-      <span style="font-size:12.5px;color:var(--ts)">Más</span>
+      <span style="font-size:var(--fs-12-5);color:var(--ts)">Más</span>
     </div>
   </div>`;
 }
@@ -1083,7 +1083,7 @@ function scanMuscleTap(ev, muscle, viewKey) {
        <div class="mp-row"><span class="mp-k">Series</span><span class="mp-v">${data.sets}</span></div>
        <div class="mp-row"><span class="mp-k">Volumen</span><span class="mp-v">${volStr}</span></div>
        <div class="mp-row"><span class="mp-k">Último</span><span class="mp-v">${data.last ? data.last.slice(5) : '—'}</span></div>`
-    : `<div style="font-size:12.5px;color:rgba(150,180,200,.7);padding:2px 0">Sin entrenar en este período</div>`;
+    : `<div style="font-size:var(--fs-12-5);color:rgba(150,180,200,.7);padding:2px 0">Sin entrenar en este período</div>`;
   const below = y < 30;
   pop.innerHTML = `<div class="muscle-pop${below ? ' below' : ''}" style="left:${x}%;top:${y}%;${below ? 'transform:translate(-50%,18px)' : ''}">
     <div class="mp-name"><span style="width:7px;height:7px;border-radius:50%;background:rgb(255,${Math.round(60 - pct*0.6)},40);box-shadow:0 0 6px rgba(255,40,40,.8)"></span>${muscle}</div>
@@ -1113,7 +1113,7 @@ function openExHistByLib(libId) {
     const v = (s.weight || 0) * (s.reps || 0);
     if (v > maxVol) maxVol = v;
   }));
-  const maxVolStr = maxVol >= 1000 ? `${(maxVol / 1000).toFixed(1)}<span style="font-size:12.5px;font-weight:400"> t</span>` : `${maxVol}<span style="font-size:12.5px;font-weight:400"> kg</span>`;
+  const maxVolStr = maxVol >= 1000 ? `${(maxVol / 1000).toFixed(1)}<span style="font-size:var(--fs-12-5);font-weight:400"> t</span>` : `${maxVol}<span style="font-size:var(--fs-12-5);font-weight:400"> kg</span>`;
 
   // Serie por sesión (últimas 15 para los charts)
   const perSession = log.map(e => {
@@ -1146,7 +1146,7 @@ function openExHistByLib(libId) {
   }).join('');
 
   const tableHtml = log.length === 0
-    ? '<p style="color:rgba(0,200,255,.35);font-size:12.5px;padding:8px 0;text-align:center">Sin historial aún.</p>'
+    ? '<p style="color:rgba(0,200,255,.35);font-size:var(--fs-12-5);padding:8px 0;text-align:center">Sin historial aún.</p>'
     : `<table class="ex-hist-table">
         <thead><tr><th>Fecha</th><th style="text-align:center">Series</th><th style="text-align:center">Reps</th><th style="text-align:center">Peso</th><th style="text-align:right">Prog.</th></tr></thead>
         <tbody>${tableRows}</tbody>
@@ -1161,7 +1161,7 @@ function openExHistByLib(libId) {
         <div class="ex-hud-chart-title">◈ VOLUMEN (peso × reps) — últimas ${chartData.length} sesiones</div>
         <div style="height:150px"><canvas id="exHistChartVol"></canvas></div>
       </div>`
-    : '<div style="font-size:12.5px;color:rgba(0,200,255,.35);padding:12px 0;text-align:center">Se necesitan al menos 2 sesiones para los gráficos.</div>';
+    : '<div style="font-size:var(--fs-12-5);color:rgba(0,200,255,.35);padding:12px 0;text-align:center">Se necesitan al menos 2 sesiones para los gráficos.</div>';
 
   document.getElementById('modal-ex-hist-body').innerHTML = `
     <div style="position:relative;overflow:hidden">
@@ -1172,7 +1172,7 @@ function openExHistByLib(libId) {
           <div class="ex-hud-kpi-lbl">Sesiones</div>
         </div>
         <div class="ex-hud-kpi">
-          <div class="ex-hud-kpi-val">${maxWeight}<span style="font-size:12.5px;font-weight:400"> kg</span></div>
+          <div class="ex-hud-kpi-val">${maxWeight}<span style="font-size:var(--fs-12-5);font-weight:400"> kg</span></div>
           <div class="ex-hud-kpi-lbl">Récord Peso</div>
         </div>
         <div class="ex-hud-kpi">
@@ -1195,7 +1195,7 @@ function openExHistByLib(libId) {
   if (chartData.length >= 2) {
     const labels = chartData.map(p => p.date.slice(5));
     const grid = { color: 'rgba(255,255,255,.06)' };
-    const tick = { color: 'rgba(255,255,255,.5)', font: { size: 13 } };
+    const tick = { color: 'rgba(255,255,255,.5)', font: { size: _cfs(13) } };
     const wrCanvas = document.getElementById('exHistChartWR');
     if (wrCanvas) _exHistCharts.push(new Chart(wrCanvas.getContext('2d'), {
       type: 'line',
@@ -1208,7 +1208,7 @@ function openExHistByLib(libId) {
       },
       options: {
         responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { labels: { color: 'rgba(255,255,255,.65)', font: { size: 13 }, boxWidth: 12 } } },
+        plugins: { legend: { labels: { color: 'rgba(255,255,255,.65)', font: { size: _cfs(13) }, boxWidth: 12 } } },
         scales: {
           x: { grid, ticks: tick },
           y: { position: 'left', grid, ticks: { ...tick, color: '#00DCFF' } },
@@ -1603,7 +1603,7 @@ function renderActiveSession() {
     const isExpanded = _rtnExpandedEx.has(ex.id);
     const isFirst = idx === 0;
     const isLast = idx === _orderedExes.length - 1;
-    const btnStyle = 'background:none;border:none;cursor:pointer;padding:2px 5px;font-size:13px;color:var(--tt);line-height:1;flex-shrink:0';
+    const btnStyle = 'background:none;border:none;cursor:pointer;padding:2px 5px;font-size:var(--fs-13);color:var(--tt);line-height:1;flex-shrink:0';
     const btnDisabled = 'opacity:.25;cursor:default;pointer-events:none';
     return `
       <div class="rtn-ex-block">
@@ -1622,7 +1622,7 @@ function renderActiveSession() {
         <div class="rtn-ex-block-body" id="rtn-exbody-${ex.id}" style="${isExpanded ? '' : 'display:none'}">
           ${ex.notes ? `<div class="rtn-ex-notes">💡 ${ex.notes}</div>` : ''}
           <div style="${ex.notes ? 'margin-top:8px' : ''}">
-            <div class="rtn-sets-header"><div>Serie</div><div>KG</div><div>Reps</div><div style="text-align:center;font-size:12.5px">✓</div><div></div></div>
+            <div class="rtn-sets-header"><div>Serie</div><div>KG</div><div>Reps</div><div style="text-align:center;font-size:var(--fs-12-5)">✓</div><div></div></div>
             <div id="rtn-sets-${ex.id}">${setsHtml}</div>
             <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="addRtnSet('${ex.id}')">+ Serie</button>
           </div>
@@ -1925,7 +1925,7 @@ function renderGymConfigModal() {
   grid.innerHTML = days.map(d=>`
     <div class="split-day">
       <label>${names[d]}</label>
-      <select id="split_${d}" class="inp" style="padding:4px;font-size:12.5px">
+      <select id="split_${d}" class="inp" style="padding:4px;font-size:var(--fs-12-5)">
         ${options.map(o=>`<option ${S.split[d]===o?'selected':''}>${o}</option>`).join('')}
       </select>
     </div>`).join('');
@@ -2122,6 +2122,6 @@ function drawExerciseChart(exId, dates) {
       labels,
       datasets: [{ label: 'Peso máx.', data: maxWeights, borderColor: 'rgba(124,142,232,.8)', backgroundColor: 'rgba(124,142,232,.1)', pointRadius: 4, tension: .3, fill: true }]
     },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { font: { size: 13 } } }, y: { ticks: { font: { size: 13 }, callback: v => v + ' kg' } } } }
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { font: { size: _cfs(13) } } }, y: { ticks: { font: { size: _cfs(13) }, callback: v => v + ' kg' } } } }
   });
 }

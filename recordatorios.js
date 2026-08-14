@@ -113,10 +113,10 @@ function renderReminders(tab) {
                   ${remKindChip(r)}
                   <span class="rem-urgent-at">${when}</span>
                 </div>
-                <div class="rem-urgent-title">${escHtml(r.title)}${r.sub ? ` <span style="font-size:12.5px;color:var(--tt)">· ${escHtml(r.sub)}</span>` : ''}</div>
+                <div class="rem-urgent-title">${escHtml(r.title)}${r.sub ? ` <span style="font-size:var(--fs-12-5);color:var(--tt)">· ${escHtml(r.sub)}</span>` : ''}</div>
                 <div class="rem-urgent-countdown" style="${style}">${txt}</div>
               </div>
-              ${r.doneAction ? `<button class="btn btn-ghost btn-sm" style="flex-shrink:0;font-size:12.5px" onclick="${r.doneAction}">✓ Completar</button>` : ''}
+              ${r.doneAction ? `<button class="btn btn-ghost btn-sm" style="flex-shrink:0;font-size:var(--fs-12-5)" onclick="${r.doneAction}">✓ Completar</button>` : ''}
             </div>
           </div>`;
         }
@@ -369,11 +369,11 @@ function _notifBtnHTML() {
   const isStandalone = window.navigator.standalone === true;
   if (Notification.permission === 'granted') {
     const iosHint = isIOS && !isStandalone
-      ? `<button class="btn btn-ghost btn-sm" style="font-size:12.5px;opacity:.6" onclick="showToast('En iPhone: abre desde el ícono de la pantalla de inicio para recibir push cuando la app está cerrada')">📱 Instalar</button>`
+      ? `<button class="btn btn-ghost btn-sm" style="font-size:var(--fs-12-5);opacity:.6" onclick="showToast('En iPhone: abre desde el ícono de la pantalla de inicio para recibir push cuando la app está cerrada')">📱 Instalar</button>`
       : '';
-    return `<span style="font-size:12.5px;opacity:.5;cursor:default" title="Notificaciones activas">🔔</span>${iosHint}`;
+    return `<span style="font-size:var(--fs-12-5);opacity:.5;cursor:default" title="Notificaciones activas">🔔</span>${iosHint}`;
   }
-  if (Notification.permission === 'denied') return '<span style="font-size:12.5px;opacity:.5;cursor:default" title="Notificaciones bloqueadas en el navegador">🔕</span>';
-  if (isIOS && !isStandalone) return `<button class="btn btn-ghost btn-sm" style="font-size:12.5px" onclick="showToast('En iPhone: toca Compartir → Agregar a pantalla de inicio, luego abre la app instalada y activa notificaciones')">Instalar en iPhone 📱</button>`;
-  return `<button class="btn btn-ghost btn-sm" style="font-size:12.5px" onclick="initNotifications()">Activar 🔔</button>`;
+  if (Notification.permission === 'denied') return '<span style="font-size:var(--fs-12-5);opacity:.5;cursor:default" title="Notificaciones bloqueadas en el navegador">🔕</span>';
+  if (isIOS && !isStandalone) return `<button class="btn btn-ghost btn-sm" style="font-size:var(--fs-12-5)" onclick="showToast('En iPhone: toca Compartir → Agregar a pantalla de inicio, luego abre la app instalada y activa notificaciones')">Instalar en iPhone 📱</button>`;
+  return `<button class="btn btn-ghost btn-sm" style="font-size:var(--fs-12-5)" onclick="initNotifications()">Activar 🔔</button>`;
 }

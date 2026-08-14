@@ -511,7 +511,7 @@ function gmDrawRadar() {
   _gmRadar = new Chart(cv.getContext('2d'), {
     type: 'radar', data: { labels, datasets: ds },
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: _gmThemeColor('--ts') } } },
-      scales: { r: { angleLines: { color: 'rgba(255,255,255,.08)' }, grid: { color: 'rgba(255,255,255,.08)' }, pointLabels: { color: _gmThemeColor('--ts'), font: { size: 13 } }, ticks: { display: false, beginAtZero: true } } } },
+      scales: { r: { angleLines: { color: 'rgba(255,255,255,.08)' }, grid: { color: 'rgba(255,255,255,.08)' }, pointLabels: { color: _gmThemeColor('--ts'), font: { size: _cfs(13) } }, ticks: { display: false, beginAtZero: true } } } },
   });
 }
 function gmSetRadarPeriod(mo) { _gmRadarMonths = mo; gmRenderAll(); }

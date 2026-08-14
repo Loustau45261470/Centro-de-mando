@@ -148,7 +148,7 @@ function renderQObjForTab(tabName) {
 
     let listHTML;
     if (period.flat && !isVida) {
-      listHTML = `<div class="empty-state" style="font-size:12.5px;padding:16px 0">Sin categorías en este período</div>`;
+      listHTML = `<div class="empty-state" style="font-size:var(--fs-12-5);padding:16px 0">Sin categorías en este período</div>`;
     } else if (period.flat) {
       listHTML = objs.map(o => qobjItemHTML(period.id, o)).join('');
     } else {
@@ -197,7 +197,7 @@ function renderQObjForTab(tabName) {
           <span class="mg-text">${g.text}</span>
           <button class="mg-del" onclick="deleteMonthlyGoal('${tabName}','${monthKey}',${i})">✕</button>
         </div>`).join('')
-      : `<div class="empty-state" style="font-size:12.5px;padding:14px 0;text-align:center">Sin metas para ${_MONTH_SHORT[mn]} ${yr}</div>`;
+      : `<div class="empty-state" style="font-size:var(--fs-12-5);padding:14px 0;text-align:center">Sin metas para ${_MONTH_SHORT[mn]} ${yr}</div>`;
 
     contentHTML = `${progressHTML}
     <div>${goalsHTML}</div>
@@ -288,7 +288,7 @@ function toggleQObj(periodId, objId) {
       el.innerHTML = `
         <div style="font-size:38px;line-height:1;margin-bottom:8px">🏅</div>
         <div style="font-size:22px;font-weight:900;letter-spacing:.06em;color:#F2C063;text-shadow:0 0 35px rgba(242,192,99,.9)">¡${period.label} COMPLETADO!</div>
-        <div style="font-size:13px;color:rgba(255,255,255,.7);margin-top:6px;font-weight:600">Todos los objetivos del trimestre logrados</div>
+        <div style="font-size:var(--fs-13);color:rgba(255,255,255,.7);margin-top:6px;font-weight:600">Todos los objetivos del trimestre logrados</div>
       `;
       document.body.appendChild(el);
       setTimeout(() => el.remove(), 4200);
