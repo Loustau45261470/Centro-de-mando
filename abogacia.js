@@ -59,7 +59,7 @@ function renderLawProgress() {
         <div class="law-total-sub">progreso total</div>
       </div>
       <div style="text-align:right">
-        <div style="font-size:22px;font-weight:800;letter-spacing:-.04em">${totalDone}<span style="font-size:14px;font-weight:500;color:var(--tt);font-family:var(--mono)">/${totalSubs}</span></div>
+        <div style="font-size:22px;font-weight:800;letter-spacing:-.04em">${totalDone}<span style="font-size:var(--fs-14);font-weight:500;color:var(--tt);font-family:var(--mono)">/${totalSubs}</span></div>
         <div class="law-total-sub">materias aprobadas</div>
       </div>
     </div>
@@ -144,7 +144,7 @@ function toggleLawSubject(yearId, subId) {
       el.innerHTML = `
         <div style="font-size:36px;line-height:1;margin-bottom:6px">🎓</div>
         <div style="font-size:20px;font-weight:900;letter-spacing:.06em;color:#4B7BEC;text-shadow:0 0 30px rgba(75,123,236,.9)">¡${y.label.toUpperCase()} COMPLETADO!</div>
-        <div style="font-size:13px;color:rgba(255,255,255,.7);margin-top:5px;font-weight:600">Todas las materias aprobadas</div>
+        <div style="font-size:var(--fs-13);color:rgba(255,255,255,.7);margin-top:5px;font-weight:600">Todas las materias aprobadas</div>
       `;
       document.body.appendChild(el);
       setTimeout(() => el.remove(), 4000);
@@ -219,8 +219,8 @@ function renderLawMilestones() {
       diffClass = diff >= 0 ? 'diff-ok' : 'diff-bad';
     }
     return `<tr>
-      <td style="font-family:var(--mono);font-size:12.5px">${m.date}</td>
-      <td class="num">${realDisp}${m.real === null && isPast ? '<sup style="font-size:12.5px;color:var(--tt)">*</sup>' : ''}</td>
+      <td style="font-family:var(--mono);font-size:var(--fs-12-5)">${m.date}</td>
+      <td class="num">${realDisp}${m.real === null && isPast ? '<sup style="font-size:var(--fs-12-5);color:var(--tt)">*</sup>' : ''}</td>
       <td class="num" style="color:var(--ok)">${m.expected}</td>
       <td class="diff ${diffClass}">${diffDisp}</td>
       <td style="padding:4px 4px 4px 0;white-space:nowrap">
@@ -274,7 +274,7 @@ function renderLawMilestones() {
       <thead><tr><th>Fecha</th><th style="text-align:center">Real</th><th style="text-align:center">Esperado</th><th style="text-align:center">Dif.</th><th></th></tr></thead>
       <tbody>${rowsHTML}</tbody>
     </table>
-    <div style="font-size:12.5px;color:var(--tt);margin-top:8px">* Valor actual del progreso registrado</div>
+    <div style="font-size:var(--fs-12-5);color:var(--tt);margin-top:8px">* Valor actual del progreso registrado</div>
     <button class="bsum-full" onclick="if(window.openLawMsHistorial)openLawMsHistorial()">
       Ver historial completo${hiddenN > 0 ? ` (${hiddenN} punto${hiddenN > 1 ? 's' : ''} más)` : ''} →
     </button>
@@ -308,10 +308,10 @@ function renderLawMilestones() {
       },
       options: {
         responsive:true, maintainAspectRatio:false,
-        plugins:{ legend:{ labels:{ color:'#B8B6B0', font:{ size:13 }, boxWidth:12 } } },
+        plugins:{ legend:{ labels:{ color:'#B8B6B0', font:{ size:_cfs(13) }, boxWidth:12 } } },
         scales:{
-          x:{ ticks:{ color:'#76746E', font:{ size:13 } }, grid:{ color:'rgba(255,255,255,.05)' } },
-          y:{ ticks:{ color:'#76746E', font:{ size:13 }, stepSize:2 }, grid:{ color:'rgba(255,255,255,.05)' }, min:0 }
+          x:{ ticks:{ color:'#76746E', font:{ size:_cfs(13) } }, grid:{ color:'rgba(255,255,255,.05)' } },
+          y:{ ticks:{ color:'#76746E', font:{ size:_cfs(13) }, stepSize:2 }, grid:{ color:'rgba(255,255,255,.05)' }, min:0 }
         }
       }
     });

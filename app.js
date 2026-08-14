@@ -1,4 +1,10 @@
 'use strict';
+// Tamaño de fuente de los gráficos. Chart.js dibuja en canvas y no lee los tokens
+// --fs-* de styles.css, así que replica acá el mismo salto: en pantallas grandes
+// (>= 900px, el mismo corte del @media) el texto de ejes y leyendas acompaña al
+// del resto de la app. Todo font:{size:N} de los charts pasa por esta función.
+function _cfs(n) { return window.innerWidth >= 900 ? Math.round(n * 1.15) : n; }
+
 // ════════════════════════════════════════════════════════
 // STATE  —  All app data lives here; synced to localStorage
 // [SUPABASE] Replace storeGet/storeSet with Supabase client calls
@@ -2115,7 +2121,7 @@ function renderFinObjectives() {
     const expectedDisp = o.expected !== null ? _fmtARS(o.expected) : '—';
     const rowStyle     = isPast && o.real === null ? 'opacity:.45' : '';
     return `<tr style="${rowStyle}">
-      <td style="font-family:var(--mono);font-size:12.5px;color:var(--fin-t2)">${o.date}</td>
+      <td style="font-family:var(--mono);font-size:var(--fs-12-5);color:var(--fin-t2)">${o.date}</td>
       <td class="num" style="color:var(--fin-t2)">${expectedDisp}</td>
       <td class="num" style="color:${o.real !== null ? 'var(--fin-green)' : 'var(--fin-t3)'}">${realDisp}</td>
       <td class="diff ${diffClass}">${diffDisp}</td>
@@ -2212,10 +2218,10 @@ function renderFinObjectives() {
       },
       options: {
         responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { labels: { color: '#8CA2C0', font: { size: 13 }, boxWidth: 12 } } },
+        plugins: { legend: { labels: { color: '#8CA2C0', font: { size: _cfs(13) }, boxWidth: 12 } } },
         scales: {
-          x: { ticks: { color: '#556070', font: { size: 13 } }, grid: { color: 'rgba(255,255,255,.04)' } },
-          y: { ticks: { color: '#556070', font: { size: 13 },
+          x: { ticks: { color: '#556070', font: { size: _cfs(13) } }, grid: { color: 'rgba(255,255,255,.04)' } },
+          y: { ticks: { color: '#556070', font: { size: _cfs(13) },
                  callback: v => v >= 1000000 ? '$' + (v/1000000).toFixed(0) + 'M' : v >= 1000 ? '$' + (v/1000).toFixed(0) + 'k' : v },
                grid: { color: 'rgba(255,255,255,.04)' }, min: 0 }
         }
@@ -2482,11 +2488,11 @@ function renderInventory() {
         <div class="sub-detail">Stock: <b class="${neg ? 'text-danger' : ''}">${it.stock} ${it.unit}</b> · Hoy: ${consumedDay}/${it.daily} ${it.unit} · Mes: ${consumedMonth}/${it.monthly} ${it.unit}</div>
       </div>
       <div class="flex gap-8 items-center" style="flex-wrap:wrap">
-        <span class="mono" style="font-size:12.5px">stock</span>
+        <span class="mono" style="font-size:var(--fs-12-5)">stock</span>
         <input class="inp" style="width:60px" type="number" step="0.01" value="${it.stock}" onchange="setInvStock('${it.id}',this.value)">
-        <span class="mono" style="font-size:12.5px">día</span>
+        <span class="mono" style="font-size:var(--fs-12-5)">día</span>
         <input class="inp" style="width:60px" type="number" step="0.01" value="${it.daily}" onchange="setInvExpected('${it.id}','daily',this.value)">
-        <span class="mono" style="font-size:12.5px">mes</span>
+        <span class="mono" style="font-size:var(--fs-12-5)">mes</span>
         <input class="inp" style="width:60px" type="number" step="0.01" value="${it.monthly}" onchange="setInvExpected('${it.id}','monthly',this.value)">
         <button class="icon-btn" onclick="deleteInvItem('${it.id}')">${_DEL_SVG}</button>
       </div>
@@ -2978,8 +2984,8 @@ function _nwAccountDatasets(hist) {
 // Escalas del gráfico de líneas: la del patrimonio total + una oculta por cuenta.
 function _nwLineScales() {
   const scales = {
-    x: { type: 'category', ticks: { font: { size: 13 } } },
-    y: { ticks: { font: { size: 13 }, callback: v => fmtMoney(v, 'USD') } },
+    x: { type: 'category', ticks: { font: { size: _cfs(13) } } },
+    y: { ticks: { font: { size: _cfs(13) }, callback: v => fmtMoney(v, 'USD') } },
   };
   nwSelectedAccounts.forEach((_, i) => {
     scales['yAcc' + i] = { display: false, position: 'right', grid: { drawOnChartArea: false } };
@@ -3008,7 +3014,7 @@ function initNWCharts() {
   nwPieInst=new Chart(pieCtx,{
     type:'doughnut',
     data:{ labels, datasets:[{ data, backgroundColor:colors, borderWidth:0, hoverOffset:6 }] },
-    options:{ responsive:true, maintainAspectRatio:false, cutout:'68%', _noCrosshair:true, interaction:{ mode:'nearest', intersect:true }, animation:{ animateRotate:true, animateScale:true, duration:900, easing:'easeOutQuart' }, plugins:{ legend:{ position:'bottom', labels:{ font:{size:13, weight:'600'}, padding:12, color:'#C8D5E8' } } } }
+    options:{ responsive:true, maintainAspectRatio:false, cutout:'68%', _noCrosshair:true, interaction:{ mode:'nearest', intersect:true }, animation:{ animateRotate:true, animateScale:true, duration:900, easing:'easeOutQuart' }, plugins:{ legend:{ position:'bottom', labels:{ font:{size:_cfs(13), weight:'600'}, padding:12, color:'#C8D5E8' } } } }
   });
   // Line
   const lineCtx=document.getElementById('nwLineChart').getContext('2d');
@@ -3017,7 +3023,7 @@ function initNWCharts() {
   nwLineInst=new Chart(lineCtx,{
     type:'line',
     data:{ labels:hist.map(h=>h.date.slice(5)), datasets:[{ label:'Patrimonio total', data:hist.map(h=>h.value), borderColor:'rgba(107,227,164,.8)', backgroundColor:'rgba(107,227,164,.06)', tension:.3, pointRadius:3, fill:true }, ...accDatasets] },
-    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display: accDatasets.length>0, position:'bottom', labels:{ font:{size:13}, boxWidth:10, color:'#C8D5E8' } } }, scales:_nwLineScales() }
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display: accDatasets.length>0, position:'bottom', labels:{ font:{size:_cfs(13)}, boxWidth:10, color:'#C8D5E8' } } }, scales:_nwLineScales() }
   });
   renderAccountChartToggles();
   _renderNWScaleNote();
@@ -3207,7 +3213,7 @@ function _renderSleepChart() {
           display: true,
           position: 'top',
           labels: {
-            color: '#76746E', font: { size: 13 },
+            color: '#76746E', font: { size: _cfs(13) },
             boxWidth: 10, padding: 6,
             filter(item) { return item.datasetIndex > 0; },
           },
@@ -3227,7 +3233,7 @@ function _renderSleepChart() {
       },
       scales: {
         x: {
-          ticks: { color: '#76746E', font: { size: 13 } },
+          ticks: { color: '#76746E', font: { size: _cfs(13) } },
           grid:  { color: 'rgba(255,255,255,0.04)' },
         },
         y: {
@@ -3235,7 +3241,7 @@ function _renderSleepChart() {
           position: 'left',
           ticks: {
             color: 'rgba(180,180,180,0.5)',
-            font: { size: 13 },
+            font: { size: _cfs(13) },
             stepSize: 2,
             callback: v => `${v}h`,
           },
@@ -3246,7 +3252,7 @@ function _renderSleepChart() {
           position: 'right',
           ticks: {
             color: '#76746E',
-            font: { size: 13 },
+            font: { size: _cfs(13) },
             stepSize: 1,
             callback: v => Number.isInteger(v) && v > 0 ? v : '',
           },
@@ -3579,7 +3585,7 @@ function renderAchievementsPanel() {
       style="${isOn?`border-color:${rc.e};background:${rc.b};box-shadow:0 0 22px ${rc.g}`:''}">
       <div class="ach-icon" style="position:relative;${isOn?`color:${rc.c};filter:drop-shadow(0 0 8px ${rc.g})`:'filter:grayscale(1);opacity:.28'}">
         ${a.icon}
-        ${n>1?`<span style="position:absolute;bottom:-4px;right:-8px;font-size:12.5px;font-weight:900;background:${rc.c};color:#050506;border-radius:99px;padding:1px 5px;line-height:1.5">×${n}</span>`:''}
+        ${n>1?`<span style="position:absolute;bottom:-4px;right:-8px;font-size:var(--fs-12-5);font-weight:900;background:${rc.c};color:#050506;border-radius:99px;padding:1px 5px;line-height:1.5">×${n}</span>`:''}
       </div>
       <div class="ach-body">
         <div class="ach-name" style="${isOn?`color:${rc.c}`:'color:var(--ts)'}">${a.name}</div>
@@ -3695,7 +3701,7 @@ function showMissionBanner() {
   el.innerHTML = `
     <div style="font-size:36px;line-height:1;margin-bottom:6px">🏆</div>
     <div style="font-size:22px;font-weight:900;letter-spacing:.06em;color:#6BE3A4;text-shadow:0 0 30px rgba(107,227,164,.8)">¡MISIÓN CUMPLIDA!</div>
-    <div style="font-size:14px;color:rgba(255,255,255,.7);margin-top:5px;font-weight:600">Todas las metas del día completadas</div>
+    <div style="font-size:var(--fs-14);color:rgba(255,255,255,.7);margin-top:5px;font-weight:600">Todas las metas del día completadas</div>
   `;
   document.body.appendChild(el);
   setTimeout(() => el.remove(), 4000);
@@ -3737,7 +3743,7 @@ function showFailBanner() {
   el.innerHTML = `
     <div style="font-size:32px;line-height:1;margin-bottom:6px">🔥💀🔥</div>
     <div style="font-size:18px;font-weight:900;letter-spacing:.06em;color:#FF6B6B;text-shadow:0 0 30px rgba(255,107,107,.8)">METAS SIN CUMPLIR</div>
-    <div style="font-size:13px;color:rgba(255,255,255,.65);margin-top:5px;font-weight:600">A recuperarlas mañana — sin excusas</div>
+    <div style="font-size:var(--fs-13);color:rgba(255,255,255,.65);margin-top:5px;font-weight:600">A recuperarlas mañana — sin excusas</div>
   `;
   document.body.appendChild(el);
   setTimeout(() => el.remove(), 3600);
@@ -3841,15 +3847,15 @@ function _injectAuthStyles() {
       padding:38px 34px;max-width:340px;width:88%;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.6);backdrop-filter:blur(12px)}
     #authGate .auth-logo{font-size:46px;margin-bottom:10px}
     #authGate h2{margin:0 0 6px;color:#eaf1ff;font-size:22px;letter-spacing:.3px}
-    #authGate p{margin:0 0 22px;color:#9fb3d4;font-size:14px;line-height:1.5}
+    #authGate p{margin:0 0 22px;color:#9fb3d4;font-size:var(--fs-14);line-height:1.5}
     #authGate .auth-btn{width:100%;padding:13px;border:none;border-radius:12px;cursor:pointer;
-      background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;font-size:15px;font-weight:600;transition:filter .15s,transform .1s}
+      background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;font-size:var(--fs-15);font-weight:600;transition:filter .15s,transform .1s}
     #authGate .auth-btn:hover{filter:brightness(1.08)}
     #authGate .auth-btn:active{transform:scale(.98)}
     #authGate .auth-btn:disabled{opacity:.6;cursor:default}
-    #authGate .auth-err{margin-top:14px;color:#ff9b9b;font-size:13px;line-height:1.45;
+    #authGate .auth-err{margin-top:14px;color:#ff9b9b;font-size:var(--fs-13);line-height:1.45;
       background:rgba(180,40,40,.12);border:1px solid rgba(220,80,80,.25);border-radius:8px;padding:8px 10px}
-    #authGate .auth-escape{margin-top:16px;background:none;border:none;color:#7f93b4;font-size:13px;text-decoration:underline;cursor:pointer}
+    #authGate .auth-escape{margin-top:16px;background:none;border:none;color:#7f93b4;font-size:var(--fs-13);text-decoration:underline;cursor:pointer}
     #authGate .auth-escape:hover{color:#aebfdc}
   `;
   document.head.appendChild(st);

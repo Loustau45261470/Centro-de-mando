@@ -42,7 +42,7 @@
 /* Breadcrumb */
 .po-crumbs { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; margin: 2px 2px 12px; }
 .po-crumb {
-  font-family: var(--mono); font-size: 12.5px; letter-spacing: .3px; cursor: pointer;
+  font-family: var(--mono); font-size: var(--fs-12-5); letter-spacing: .3px; cursor: pointer;
   background: none; border: none; color: var(--ts); padding: 4px 6px; border-radius: 7px;
   transition: color .15s, background .15s;
 }
@@ -56,7 +56,7 @@
 
 .po-back {
   align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
-  font-family: var(--mono); font-size: 12.5px; font-weight: 600; letter-spacing: .5px; text-transform: uppercase;
+  font-family: var(--mono); font-size: var(--fs-12-5); font-weight: 600; letter-spacing: .5px; text-transform: uppercase;
   color: var(--ts); background: rgba(120,150,220,.06); border: 1px solid var(--border); border-radius: 9px; padding: 6px 11px 6px 8px;
   transition: color .15s, border-color .15s, transform .12s; margin-bottom: 4px;
 }
@@ -80,10 +80,10 @@
 }
 .po-title:focus { outline: none; border-bottom-color: color-mix(in oklab, var(--po-accent) 55%, transparent); }
 
-.po-flbl { font-family: var(--mono); font-size: 12.5px; letter-spacing: .5px; font-weight: 600; color: var(--ts); margin: 12px 0 3px; text-transform: uppercase; }
+.po-flbl { font-family: var(--mono); font-size: var(--fs-12-5); letter-spacing: .5px; font-weight: 600; color: var(--ts); margin: 12px 0 3px; text-transform: uppercase; }
 .po-details {
   background: rgba(10,16,30,.5); border: 1px solid var(--border); border-radius: 12px;
-  color: var(--ts); font-family: var(--sans); font-size: 14px; line-height: 1.5; padding: 11px 13px; width: 100%; resize: vertical; min-height: 58px;
+  color: var(--ts); font-family: var(--sans); font-size: var(--fs-14); line-height: 1.5; padding: 11px 13px; width: 100%; resize: vertical; min-height: 58px;
   transition: border-color .2s, box-shadow .2s;
 }
 .po-details:focus { outline: none; border-color: var(--po-accent); box-shadow: 0 0 0 3px color-mix(in oklab, var(--po-accent) 16%, transparent); }
@@ -93,7 +93,7 @@
 .po-meta-col { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .po-input {
   background: rgba(10,16,30,.5); border: 1px solid var(--border); border-radius: 12px;
-  color: var(--tp); font-family: var(--sans); font-size: 14px; padding: 0 12px; height: 44px; width: 100%;
+  color: var(--tp); font-family: var(--sans); font-size: var(--fs-14); padding: 0 12px; height: 44px; width: 100%;
   color-scheme: dark; transition: border-color .2s, box-shadow .2s;
 }
 .po-input:focus { outline: none; border-color: var(--po-accent); box-shadow: 0 0 0 3px color-mix(in oklab, var(--po-accent) 16%, transparent); }
@@ -102,13 +102,13 @@
 .po-sec { margin-top: 18px; }
 .po-sec-h {
   display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;
-  font-family: var(--mono); font-size: 12.5px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--ts);
+  font-family: var(--mono); font-size: var(--fs-12-5); font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--ts);
 }
 .po-sec-h::before { content: '▸'; color: var(--po-accent); margin-right: -4px; }
 .po-sec-h > span:first-child { flex: 1; padding-left: 8px; }
 .po-add {
   display: inline-flex; align-items: center; gap: 4px; cursor: pointer;
-  font-family: var(--mono); font-size: 12.5px; font-weight: 600; letter-spacing: .3px; text-transform: none;
+  font-family: var(--mono); font-size: var(--fs-12-5); font-weight: 600; letter-spacing: .3px; text-transform: none;
   color: color-mix(in oklab, var(--po-accent) 88%, #fff); padding: 5px 11px 5px 8px; border-radius: 999px;
   background: color-mix(in oklab, var(--po-accent) 16%, transparent); border: 1px solid color-mix(in oklab, var(--po-accent) 40%, transparent);
   transition: background .15s, border-color .15s, transform .12s;
@@ -139,8 +139,8 @@
 }
 .po-card-ico svg { width: 22px; height: 22px; }
 .po-card-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.po-card-ttl { font-size: 15px; font-weight: 700; color: var(--tp); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.po-card-meta { font-family: var(--mono); font-size: 12.5px; color: var(--tt); letter-spacing: .3px; }
+.po-card-ttl { font-size: var(--fs-15); font-weight: 700; color: var(--tp); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.po-card-meta { font-family: var(--mono); font-size: var(--fs-12-5); color: var(--tt); letter-spacing: .3px; }
 .po-card-chev { color: var(--tt); display: grid; place-items: center; flex: none; transition: transform .18s, color .18s; }
 .po-card-chev svg { width: 18px; height: 18px; }
 .po-card:hover .po-card-chev { color: var(--po-accent); transform: translateX(3px); }
@@ -161,19 +161,19 @@
 .po-check svg { width: 15px; height: 15px; }
 .po-task.done .po-check { background: var(--ok); border-color: var(--ok); box-shadow: 0 0 14px -3px var(--ok); }
 .po-task-main { flex: 1; min-width: 0; text-align: left; background: none; border: none; cursor: pointer; display: flex; flex-direction: column; gap: 1px; }
-.po-task-ttl { font-size: 14.5px; font-weight: 600; color: var(--tp); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.po-task-ttl { font-size: var(--fs-14-5); font-weight: 600; color: var(--tp); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .po-task.done .po-task-ttl { color: var(--ts); text-decoration: line-through; text-decoration-color: color-mix(in oklab, var(--ok) 60%, transparent); }
-.po-task-sub { font-family: var(--mono); font-size: 12.5px; color: var(--tt); letter-spacing: .3px; }
+.po-task-sub { font-family: var(--mono); font-size: var(--fs-12-5); color: var(--tt); letter-spacing: .3px; }
 .po-task-chev { color: var(--tt); flex: none; display: grid; place-items: center; }
 .po-task-chev svg { width: 16px; height: 16px; }
 
-.po-empty { font-size: 13px; color: var(--tt); padding: 12px 14px; border: 1px dashed var(--border); border-radius: 12px; text-align: center; }
+.po-empty { font-size: var(--fs-13); color: var(--tt); padding: 12px 14px; border: 1px dashed var(--border); border-radius: 12px; text-align: center; }
 
 .po-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .po-move {
   align-self: flex-start; margin-top: 22px; cursor: pointer;
   display: inline-flex; align-items: center; gap: 7px;
-  font-family: var(--sans); font-size: 13px; font-weight: 600;
+  font-family: var(--sans); font-size: var(--fs-13); font-weight: 600;
   color: var(--po-accent, var(--hud)); background: rgba(255,255,255,.04);
   border: 1px solid var(--border); border-radius: 10px; padding: 9px 14px;
   transition: background .15s, border-color .15s;
@@ -183,7 +183,7 @@
 
 .po-del {
   align-self: flex-start; margin-top: 22px; cursor: pointer;
-  font-family: var(--sans); font-size: 13px; font-weight: 600;
+  font-family: var(--sans); font-size: var(--fs-13); font-weight: 600;
   color: var(--danger); background: rgba(255,51,88,.08); border: 1px solid rgba(255,51,88,.28); border-radius: 10px; padding: 9px 14px;
   transition: background .15s, border-color .15s;
 }

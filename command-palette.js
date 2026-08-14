@@ -16,18 +16,18 @@
       box-shadow:0 0 50px rgba(56,189,248,0.18), 0 30px 80px rgba(0,0,0,0.6);animation:cmdk-in .16s ease-out}
     @keyframes cmdk-in{from{opacity:0;transform:translateY(-10px) scale(.985)}to{opacity:1;transform:none}}
     .cmdk-top{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid rgba(56,189,248,0.18)}
-    .cmdk-prompt{color:var(--hud);font-family:var(--mono);font-weight:800;font-size:16px;text-shadow:0 0 10px var(--hud-dim)}
-    #cmdk-input{flex:1;background:none;border:none;outline:none;color:var(--tp);font-family:var(--mono);font-size:16px;letter-spacing:.02em;min-width:0}
+    .cmdk-prompt{color:var(--hud);font-family:var(--mono);font-weight:800;font-size:var(--fs-16);text-shadow:0 0 10px var(--hud-dim)}
+    #cmdk-input{flex:1;background:none;border:none;outline:none;color:var(--tp);font-family:var(--mono);font-size:var(--fs-16);letter-spacing:.02em;min-width:0}
     #cmdk-input::placeholder{color:var(--tt)}
-    .cmdk-hint{font-family:var(--mono);font-size:12.5px;color:var(--tt);letter-spacing:.1em;border:1px solid var(--border);border-radius:5px;padding:2px 6px}
+    .cmdk-hint{font-family:var(--mono);font-size:var(--fs-12-5);color:var(--tt);letter-spacing:.1em;border:1px solid var(--border);border-radius:5px;padding:2px 6px}
     #cmdk-list{overflow-y:auto;padding:6px}
     .cmdk-item{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:9px;cursor:pointer;border:1px solid transparent}
-    .cmdk-item .ci-ic{width:22px;text-align:center;color:var(--hud);font-family:var(--mono);font-size:13px;flex-shrink:0}
-    .cmdk-item .ci-lbl{flex:1;font-size:14px;color:var(--ts);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .cmdk-item .ci-cat{font-family:var(--mono);font-size:12.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--tt);flex-shrink:0}
+    .cmdk-item .ci-ic{width:22px;text-align:center;color:var(--hud);font-family:var(--mono);font-size:var(--fs-13);flex-shrink:0}
+    .cmdk-item .ci-lbl{flex:1;font-size:var(--fs-14);color:var(--ts);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .cmdk-item .ci-cat{font-family:var(--mono);font-size:var(--fs-12-5);letter-spacing:.1em;text-transform:uppercase;color:var(--tt);flex-shrink:0}
     .cmdk-item.sel{background:rgba(56,189,248,0.10);border-color:var(--hud-dim);box-shadow:inset 0 0 14px rgba(56,189,248,0.08)}
     .cmdk-item.sel .ci-lbl{color:var(--tp)}
-    .cmdk-empty{padding:22px;text-align:center;color:var(--tt);font-family:var(--mono);font-size:12.5px}`;
+    .cmdk-empty{padding:22px;text-align:center;color:var(--tt);font-family:var(--mono);font-size:var(--fs-12-5)}`;
   document.head.appendChild(style);
 
   const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');

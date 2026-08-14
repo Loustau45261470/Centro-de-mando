@@ -73,7 +73,7 @@
 .cm-sd.open .cm-sd-item:nth-child(4) { transition-delay: .19s; }
 .cm-sd.open .cm-sd-item:nth-child(5) { transition-delay: .24s; }
 .cm-sd-item-lbl {
-  font-family: var(--mono); font-size: 12.5px; font-weight: 600; letter-spacing: .3px; color: var(--tp);
+  font-family: var(--mono); font-size: var(--fs-12-5); font-weight: 600; letter-spacing: .3px; color: var(--tp);
   padding: 6px 11px; border-radius: 9px; white-space: nowrap;
   background: rgba(10,16,30,.72); border: 1px solid var(--border);
   backdrop-filter: blur(8px); box-shadow: 0 6px 18px -8px rgba(0,0,0,.8);
