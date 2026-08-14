@@ -142,7 +142,7 @@ const Finales = (() => {
       ${hist.length ? `<div style="font-size:9px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--tt);margin:14px 0 6px">Historial (${hist.length})</div>${hist.map(filaHist).join('')}` : ''}`;
   }
 
-  function refresh() { renderList(); renderPrincipal(); }
+  function refresh() { renderList(); renderPrincipal(); if (typeof refreshRemindersView === 'function') refreshRemindersView('conocimiento'); }
 
   // ══════════ CRUD ══════════
   function add() {
