@@ -181,7 +181,7 @@ function renderReminders(tab) {
 
   wrap.innerHTML = `<div class="card">
     <div class="card-title">
-      🔔 Recordatorios
+      🔔 Vencimientos
       <div style="display:flex;gap:6px;align-items:center">
         ${_notifBtnHTML()}
         <button class="btn btn-ghost btn-sm" onclick="openAddReminder('${tab}')">+ Recordatorio</button>
