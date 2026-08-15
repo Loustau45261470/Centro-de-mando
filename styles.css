@@ -4882,7 +4882,6 @@ input:focus, select:focus, textarea:focus {
 
 /* ════════════════════ PRESUPUESTO · resumen comparativo (sección) ════════════════════ */
 #budget-summary-card { --bsum-accent: var(--c-finanzas, #22C55E); }
-#inventario-resumen-card { --bsum-accent: var(--c-finanzas, #22C55E); }
 .bsum-head { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 10px; }
 .bsum-head-r { text-align: right; }
 .bsum-lbl { font-family: var(--mono); font-size: var(--fs-12-5); letter-spacing: .8px; text-transform: uppercase; color: var(--tt); margin-bottom: 2px; }
