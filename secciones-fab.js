@@ -40,7 +40,7 @@ function _sfOpenBudget() {
   }
   const host = document.getElementById('ov-budget-host');
   _sfBudgetSrcs = [];
-  ['budget-card', 'fondos-card', 'obligaciones-card', 'inventario-card'].forEach(id => {
+  ['budget-card', 'fondos-card', 'obligaciones-card'].forEach(id => {
     const el = document.getElementById(id);
     if (el) { el._sfHome = { parent: el.parentNode, next: el.nextSibling }; host.appendChild(el); _sfBudgetSrcs.push(el); }
   });

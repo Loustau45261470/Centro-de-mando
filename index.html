@@ -20,11 +20,11 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-<link rel="stylesheet" href="styles.css?v=170">
+<link rel="stylesheet" href="styles.css?v=171">
 <link rel="stylesheet" href="gamemode.css">
 <link rel="stylesheet" href="overlay-core.css">
 <link rel="stylesheet" href="speed-dial.css">
-<link rel="stylesheet" href="proyectos-overlay.css?v=155">
+<link rel="stylesheet" href="proyectos-overlay.css?v=156">
 </head>
 <body>
 
@@ -333,11 +333,20 @@
     </div>
 
     <div id="qobj-wrap-salud"></div>
+
+    <!-- Entrenamiento: resumen (sección) · detalle completo en el overlay (FAB → Entrenamiento) -->
+    <div class="card" id="entrenamiento-resumen-card">
+      <div class="card-title">🏋️ Entrenamiento</div>
+      <div id="entrenoResumenBody"></div>
+    </div>
+    <!-- Dieta: resumen (sección) · reglas completas en el overlay (FAB → Dieta) -->
+    <div class="card" id="dieta-resumen-card">
+      <div class="card-title">🥗 Dieta</div>
+      <div id="dietaResumenBody"></div>
+    </div>
+
     <div id="proyectos-wrap-salud"></div>
     <div id="salud-habits-wrap"></div>
-    <div class="affirmation-strip aff-mid"><span id="affirmation2-salud"></span></div>
-    <div class="card rnotif-card"><div class="card-title">🔔 Vencimientos</div><div id="reminders-notif-salud"></div></div>
-    <div id="reminders-wrap-salud"></div>
 
     <!-- Bienestar Tracker -->
     <div class="card" id="bienestar-card">
@@ -367,10 +376,8 @@
       <!-- Métricas de bienestar (renderizado por JS) -->
       <div class="wellness-grid" id="wellnessGrid"></div>
 
-      <!-- Gráfico 14 días -->
-      <div style="position:relative;height:170px;margin-bottom:4px">
-        <canvas id="sleepChart"></canvas>
-      </div>
+      <!-- Franjas de 14 días por métrica (renderizado por JS) -->
+      <div class="wstrips" id="wellnessStrips"></div>
 
       <!-- Notas (oculto) -->
       <button class="sleep-notes-toggle" onclick="toggleSleepNotes()">
@@ -385,23 +392,15 @@
       </div>
     </div>
 
-    <!-- Entrenamiento: resumen (sección) · detalle completo en el overlay (FAB → Entrenamiento) -->
-    <div class="card" id="entrenamiento-resumen-card">
-      <div class="card-title">🏋️ Entrenamiento</div>
-      <div id="entrenoResumenBody"></div>
-    </div>
+    <div class="affirmation-strip aff-mid"><span id="affirmation2-salud"></span></div>
+    <div class="card rnotif-card"><div class="card-title">🔔 Vencimientos</div><div id="reminders-notif-salud"></div></div>
+    <div id="reminders-wrap-salud"></div>
+
     <!-- Entrenamiento completo (vive en el overlay) -->
     <div id="rutinas-wrap"></div>
-
-    <!-- Dieta: resumen (sección) · checklist completo en el overlay (FAB → Dieta) -->
-    <div class="card" id="dieta-resumen-card">
-      <div class="card-title">🥗 Dieta</div>
-      <div id="dietaResumenBody"></div>
-    </div>
-    <!-- Dieta completa: checklist marcable, descuenta stock de Inventario (Finanzas) · vive en el overlay -->
+    <!-- Dieta completa: reglas de comida sana del día · vive en el overlay -->
     <div class="card" id="dieta-card">
       <div class="card-title">🥗 Dieta</div>
-      <div id="dietaPlanillaBar"></div>
       <div id="dietaBody"></div>
     </div>
   </div>
@@ -627,11 +626,6 @@
             <select class="inp budget-month-sel" id="budgetMonthSel" onchange="setBudgetMonth(this.value)"></select>
           </div>
           <div id="budgetBody"></div>
-        </div>
-        <!-- Inventario completo: vive en el overlay de Presupuesto -->
-        <div class="card" id="inventario-card">
-          <div class="card-title">🍱 Inventario</div>
-          <div id="inventarioBody"></div>
         </div>
         <!-- Reminders -->
         <div class="card rnotif-card"><div class="card-title">🔔 Vencimientos</div><div id="reminders-notif-finanzas"></div></div>
@@ -1484,7 +1478,6 @@
       </div>
     </div>
     <div class="field"><label>Cuenta</label><select class="inp" id="txnAccount"><option value="">— Ninguna —</option></select></div>
-    <div class="field"><label>Cantidad comprada (solo si es un ítem de Inventario)</label><input class="inp" type="number" step="0.01" id="txnInvQty" placeholder="Ej: 2 (suma al stock si el nombre coincide)"></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('modal-add-txn')">Cancelar</button>
       <button class="btn btn-primary" onclick="addTransaction()">Registrar</button>
@@ -1605,54 +1598,20 @@
   </div>
 </div>
 
+<!-- Dieta: crear/editar una regla de alimentación -->
+<div class="modal-overlay" id="modal-dieta-regla" onclick="if(event.target===this)closeModal('modal-dieta-regla')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="dietaReglaTitle">Nueva regla</div>
+    <div class="field"><label>Regla</label><input class="inp" id="dietaReglaText" placeholder="Ej: Verduras en 2+ comidas"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-dieta-regla')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveDietaRegla()">Guardar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Budget: gasto reservado (add/edit) -->
-<div class="modal-overlay" id="modal-inv-item" onclick="if(event.target===this)closeModal('modal-inv-item')">
-  <div class="modal">
-    <div class="modal-handle"></div>
-    <div class="modal-title">Nuevo ítem de inventario</div>
-    <div class="field"><label>Nombre</label><input class="inp" id="invItemName" placeholder="Ej: Merluza"></div>
-    <div class="field"><label>Unidad</label><input class="inp" id="invItemUnit" placeholder="kg, litros, unidades…"></div>
-    <div class="input-row">
-      <div class="field" style="flex:1"><label>Consumo diario esperado</label><input class="inp" type="number" step="0.01" id="invItemDaily" placeholder="0"></div>
-      <div class="field" style="flex:1"><label>Consumo mensual esperado</label><input class="inp" type="number" step="0.01" id="invItemMonthly" placeholder="0"></div>
-    </div>
-    <div class="modal-actions">
-      <button class="btn btn-ghost" onclick="closeModal('modal-inv-item')">Cancelar</button>
-      <button class="btn btn-primary" onclick="saveInvItem()">Guardar</button>
-    </div>
-  </div>
-</div>
-
-<!-- Dieta: listado de planillas (gestionar) -->
-<div class="modal-overlay" id="modal-dieta-planillas" onclick="if(event.target===this)closeModal('modal-dieta-planillas')">
-  <div class="modal">
-    <div class="modal-handle"></div>
-    <div class="modal-title">Planillas de dieta</div>
-    <div id="dietaPlanillasListBody"></div>
-    <div class="modal-actions">
-      <button class="btn btn-ghost" onclick="closeModal('modal-dieta-planillas')">Cerrar</button>
-      <button class="btn btn-primary" onclick="openPlanillaEditModal(null)">+ Nueva planilla</button>
-    </div>
-  </div>
-</div>
-
-<!-- Dieta: crear/editar planilla (nombre + ítems del Inventario con cantidad propia) -->
-<div class="modal-overlay" id="modal-dieta-planilla-edit" onclick="if(event.target===this)closeModal('modal-dieta-planilla-edit')">
-  <div class="modal">
-    <div class="modal-handle"></div>
-    <div class="modal-title">Planilla de dieta</div>
-    <div class="field"><label>Nombre</label><input class="inp" id="planillaEditName" placeholder="Ej: Entrenamiento"></div>
-    <div class="field"><label>Ítems (del Inventario)</label></div>
-    <div id="planillaEditItemsBody"></div>
-    <div class="modal-actions" style="display:flex;gap:8px">
-      <button class="btn btn-danger btn-sm" id="planillaEditDelBtn" onclick="deletePlanillaEdit()">Eliminar</button>
-      <div style="flex:1;display:flex;gap:8px;justify-content:flex-end">
-        <button class="btn btn-ghost" onclick="closeModal('modal-dieta-planilla-edit')">Cancelar</button>
-        <button class="btn btn-primary" onclick="savePlanillaEdit()">Guardar</button>
-      </div>
-    </div>
-  </div>
-</div>
 
 <div class="modal-overlay" id="modal-budget-reserved" onclick="if(event.target===this)closeModal('modal-budget-reserved')">
   <div class="modal">
@@ -1767,7 +1726,7 @@
 </div>
 
 <script src="deadlines.js?v=3"></script>
-<script src="app.js?v=169"></script>
+<script src="app.js?v=170"></script>
 <script src="workspace.js?v=196"></script>
 <script src="abogacia.js?v=4"></script>
 <script src="correlativas.js?v=2"></script>
@@ -1815,7 +1774,7 @@
 <script src="fichero-personas.js"></script>
 <script src="pomodoro.js"></script>
 <script src="finales.js?v=5"></script>
-<script src="secciones-fab.js?v=2"></script>
+<script src="secciones-fab.js?v=3"></script>
 
 <script src="login.js"></script>
 

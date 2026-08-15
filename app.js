@@ -2404,384 +2404,222 @@ function saveEditWish() {
 
 
 // ════════════════════════════════════════════════════════
-// INVENTARIO DE ALIMENTOS (Finanzas × Salud)
+// DIETA (Salud) — tracker de comida sana. Reglas de alimentación que define
+// Tobías, umbral de cumplimiento por día y marcado AUTOMÁTICO del hábito
+// "Comida sana" del calendario de Hábitos de Salud.
 // ════════════════════════════════════════════════════════
-const INV_DEFAULT_ITEMS = [
-  { name: 'Bifes',            unit: 'kg' },
-  { name: 'Carne molida',     unit: 'kg' },
-  { name: 'Pechuga de pollo', unit: 'kg' },
-  { name: 'Pacú',             unit: 'kg' },
-  { name: 'Sábalo',           unit: 'kg' },
-  { name: 'Zanahoria',        unit: 'kg' },
-  { name: 'Cebolla',          unit: 'kg' },
-  { name: 'Tomate',           unit: 'kg' },
-  { name: 'Mandarina',        unit: 'kg' },
-  { name: 'Naranja',          unit: 'kg' },
-  { name: 'Agua',             unit: 'litros' },
-  { name: 'Soda',             unit: 'litros' },
+const DIETA_HABIT_ID = 'habit-comida-sana';
+const DIETA_REGLAS_DEFAULT = [
+  'Proteína en cada comida',
+  'Verduras en 2+ comidas',
+  'Sin ultraprocesados',
+  'Sin azúcar agregada',
+  '3L de agua',
 ];
 
-function _invMonthKey(d) { d = d || new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
-
-function ensureInventoryState() {
-  if (!S.inventory) S.inventory = { items: [], log: {}, history: {} };
-  if (!S.inventory.items)   S.inventory.items = [];
-  if (!S.inventory.log)     S.inventory.log = {};
-  if (!S.inventory.history) S.inventory.history = {};
-  if (!S.inventory.items.length) {
-    S.inventory.items = INV_DEFAULT_ITEMS.map(it => ({ id: uid(), name: it.name, unit: it.unit, daily: 0, monthly: 0, stock: 0 }));
-    return true;
-  }
-  return false;
-}
-
-// Suma consumida (Dieta) de un ítem dentro del mes `mk`, según el log diario.
-function _invMonthlyReal(mk, itemId) {
-  let s = 0;
-  for (const ds in S.inventory.log) {
-    if (ds.slice(0, 7) === mk && S.inventory.log[ds] && (itemId in S.inventory.log[ds])) s += (+S.inventory.log[ds][itemId] || 0);
-  }
-  return s;
-}
-
-// Crea el historial del mes `mk` si no existe. Al pasar de mes, congela el real
-// del mes anterior y recalcula la expectativa (diaria/mensual) en base a ese real.
-function ensureInventoryMonth(mk) {
-  ensureInventoryState();
-  if (S.inventory.history[mk]) return false;
-  const prevKeys = Object.keys(S.inventory.history).filter(k => k < mk).sort();
-  const prevMk = prevKeys[prevKeys.length - 1];
-  if (prevMk) {
-    const [py, pmo] = prevMk.split('-').map(Number);
-    const daysInPrev = new Date(py, pmo, 0).getDate();
-    S.inventory.items.forEach(it => {
-      const prevEntry = S.inventory.history[prevMk][it.id];
-      if (!prevEntry) return;
-      const real = _invMonthlyReal(prevMk, it.id);
-      prevEntry.real = real;
-      if (real !== prevEntry.expectedMonthly) {
-        it.monthly = real;
-        it.daily = +(real / daysInPrev).toFixed(2);
-      }
-    });
-  }
-  S.inventory.history[mk] = {};
-  S.inventory.items.forEach(it => {
-    S.inventory.history[mk][it.id] = { expectedDaily: it.daily, expectedMonthly: it.monthly, real: 0 };
-  });
-  return true;
-}
-
-function _invItem(id) { return (S.inventory.items || []).find(i => i.id === id); }
-
-function renderInventory() {
-  const body = document.getElementById('inventarioBody');
-  if (!body) return;
-  if (ensureInventoryState()) saveState();
-  const mk = _invMonthKey();
-  if (ensureInventoryMonth(mk)) saveState();
-  const today = getActiveDate();
-
-  const rows = S.inventory.items.map(it => {
-    const consumedDay = (S.inventory.log[today] && +S.inventory.log[today][it.id]) || 0;
-    const consumedMonth = _invMonthlyReal(mk, it.id);
-    const neg = it.stock < 0;
-    return `<div class="sub-row${neg ? ' inv-alert' : ''}">
-      <div class="sub-info">
-        <div class="sub-name">${it.name} ${neg ? '<span class="inv-alert-badge">⚠ stock negativo</span>' : ''}</div>
-        <div class="sub-detail">Stock: <b class="${neg ? 'text-danger' : ''}">${it.stock} ${it.unit}</b> · Hoy: ${consumedDay}/${it.daily} ${it.unit} · Mes: ${consumedMonth}/${it.monthly} ${it.unit}</div>
-      </div>
-      <div class="flex gap-8 items-center" style="flex-wrap:wrap">
-        <span class="mono" style="font-size:var(--fs-12-5)">stock</span>
-        <input class="inp" style="width:60px" type="number" step="0.01" value="${it.stock}" onchange="setInvStock('${it.id}',this.value)">
-        <span class="mono" style="font-size:var(--fs-12-5)">día</span>
-        <input class="inp" style="width:60px" type="number" step="0.01" value="${it.daily}" onchange="setInvExpected('${it.id}','daily',this.value)">
-        <span class="mono" style="font-size:var(--fs-12-5)">mes</span>
-        <input class="inp" style="width:60px" type="number" step="0.01" value="${it.monthly}" onchange="setInvExpected('${it.id}','monthly',this.value)">
-        <button class="icon-btn" onclick="deleteInvItem('${it.id}')">${_DEL_SVG}</button>
-      </div>
-    </div>`;
-  }).join('') || '<p class="empty-state">Sin ítems en el inventario</p>';
-
-  body.innerHTML = `
-    <div class="budget-block-hdr">
-      <span>Ítems</span>
-      <button class="btn btn-ghost btn-sm" onclick="openInvItemModal()">+ Ítem</button>
-    </div>
-    ${rows}`;
-}
-
-function setInvExpected(id, field, val) {
-  const it = _invItem(id); if (!it) return;
-  it[field] = +val || 0;
-  saveState(); renderInventory(); renderDieta(); renderDietaResumen();
-}
-
-function setInvStock(id, val) {
-  const it = _invItem(id); if (!it) return;
-  it.stock = +val || 0;
-  saveState(); renderInventory(); renderDieta(); renderDietaResumen();
-}
-
-function openInvItemModal() {
-  document.getElementById('invItemName').value = '';
-  document.getElementById('invItemUnit').value = 'kg';
-  document.getElementById('invItemDaily').value = '';
-  document.getElementById('invItemMonthly').value = '';
-  openModal('modal-inv-item');
-}
-
-function saveInvItem() {
-  const name = document.getElementById('invItemName').value.trim();
-  if (!name) { showToast('Escribe el nombre'); return; }
-  ensureInventoryState();
-  const unit = document.getElementById('invItemUnit').value.trim() || 'unidades';
-  const daily = +document.getElementById('invItemDaily').value || 0;
-  const monthly = +document.getElementById('invItemMonthly').value || 0;
-  const it = { id: uid(), name, unit, daily, monthly, stock: 0 };
-  S.inventory.items.push(it);
-  const mk = _invMonthKey();
-  if (S.inventory.history[mk]) S.inventory.history[mk][it.id] = { expectedDaily: daily, expectedMonthly: monthly, real: 0 };
-  saveState(); renderInventory(); renderDieta(); renderDietaResumen(); closeModal('modal-inv-item');
-  showToast('Ítem agregado al inventario');
-}
-
-function deleteInvItem(id) {
-  if (!confirm('¿Eliminar este ítem del inventario?')) return;
-  S.inventory.items = S.inventory.items.filter(i => i.id !== id);
-  saveState(); renderInventory(); renderDieta(); renderDietaResumen();
-}
-
-// Match por nombre (case-insensitive) contra la descripción de un movimiento de Actividad.
-// Si no hay match, no se crea el ítem automáticamente (Tobías debe agregarlo primero).
-function invApplyPurchase(name, qty) {
-  if (!qty) return;
-  ensureInventoryState();
-  const it = S.inventory.items.find(i => i.name.trim().toLowerCase() === name.trim().toLowerCase());
-  if (!it) return;
-  it.stock += qty;
-}
-
-// ════════════════════════════════════════════════════════
-// DIETA (Salud) — planillas personalizadas (S.dieta.planillas) + checklist
-// marcable con cantidad propia de la planilla activa, descuenta stock.
-// ════════════════════════════════════════════════════════
 function ensureDietaState() {
-  if (!S.dieta) S.dieta = { planillas: [], activeId: null };
-  if (!S.dieta.planillas) S.dieta.planillas = [];
-  if (S.dieta.activeId === undefined) S.dieta.activeId = null;
+  if (!S.dieta || typeof S.dieta !== 'object') S.dieta = {};
+  // Primera vez (o estado viejo de planillas): siembra las reglas por defecto.
+  if (!Array.isArray(S.dieta.reglas)) S.dieta.reglas = DIETA_REGLAS_DEFAULT.map(text => ({ id: uid(), text }));
+  if (!S.dieta.log || typeof S.dieta.log !== 'object') S.dieta.log = {};
+  if (typeof S.dieta.umbral !== 'number' || S.dieta.umbral < 1) S.dieta.umbral = Math.min(4, S.dieta.reglas.length) || 1;
 }
 
-// Planilla activa vigente; si el id activo apunta a una planilla borrada, la limpia.
-function getActivePlanilla() {
-  ensureDietaState();
-  if (!S.dieta.activeId) return null;
-  const p = S.dieta.planillas.find(p => p.id === S.dieta.activeId);
-  if (!p) { S.dieta.activeId = null; return null; }
-  return p;
+// Umbral efectivo: nunca puede exigir más reglas de las que existen.
+function _dietaUmbral() { return Math.min(S.dieta.umbral, S.dieta.reglas.length); }
+
+// Reglas marcadas ese día, ignorando ids de reglas que ya no existen.
+function _dietaDoneIds(ds) {
+  const ids = S.dieta.log[ds] || [];
+  return ids.filter(id => S.dieta.reglas.some(r => r.id === id));
 }
 
-function setActivePlanilla(id) {
-  ensureDietaState();
-  S.dieta.activeId = id || null;
-  saveState(); renderDietaPlanillaBar(); renderDieta(); renderDietaResumen();
+function dietaDayMet(ds) {
+  const n = _dietaUmbral();
+  return n > 0 && _dietaDoneIds(ds).length >= n;
 }
 
-// ── Selector de planilla activa + acceso a "Gestionar planillas" ──
-function renderDietaPlanillaBar() {
-  const el = document.getElementById('dietaPlanillaBar');
-  if (!el) return;
-  ensureDietaState();
-  const opts = S.dieta.planillas.map(p => `<option value="${p.id}" ${p.id === S.dieta.activeId ? 'selected' : ''}>${p.nombre}</option>`).join('');
-  el.innerHTML = `
-    <div class="flex gap-8 items-center" style="flex-wrap:wrap;margin-bottom:10px">
-      <select class="inp" style="flex:1;min-width:140px" onchange="setActivePlanilla(this.value)">
-        <option value="">— sin planilla activa —</option>
-        ${opts}
-      </select>
-      <button class="btn btn-ghost btn-sm" onclick="openPlanillasListModal()">Gestionar planillas</button>
-    </div>`;
+function _dietaDS(d) { return d.toISOString().slice(0, 10); }
+
+// Días consecutivos cumplidos. El día en curso solo suma si ya está cumplido:
+// si todavía no, la racha se mide hasta ayer y no se "rompe" a la mañana.
+function _dietaStreak() {
+  const d = new Date(getActiveDate() + 'T00:00:00');
+  if (!dietaDayMet(_dietaDS(d))) d.setDate(d.getDate() - 1);
+  let n = 0;
+  while (dietaDayMet(_dietaDS(d))) { n++; d.setDate(d.getDate() - 1); }
+  return n;
 }
 
-function openPlanillasListModal() {
-  renderPlanillasListModal();
-  openModal('modal-dieta-planillas');
-}
-
-function renderPlanillasListModal() {
-  const body = document.getElementById('dietaPlanillasListBody');
-  if (!body) return;
-  ensureDietaState();
-  const rows = S.dieta.planillas.map(p => `
-    <div class="sub-row">
-      <div class="sub-info">
-        <div class="sub-name">${p.nombre}${p.id === S.dieta.activeId ? ' <span class="inv-alert-badge" style="background:#10E07C22;color:#10E07C">activa</span>' : ''}</div>
-        <div class="sub-detail">${p.items.length} ítem(s)</div>
-      </div>
-      <div class="flex gap-8">
-        <button class="icon-btn" onclick="openPlanillaEditModal('${p.id}')">✎</button>
-        <button class="icon-btn" onclick="deletePlanilla('${p.id}')">${_DEL_SVG}</button>
-      </div>
-    </div>`).join('') || '<p class="empty-state">Sin planillas creadas todavía</p>';
-  body.innerHTML = rows;
-}
-
-function deletePlanilla(id) {
-  if (!confirm('¿Eliminar esta planilla?')) return;
-  ensureDietaState();
-  S.dieta.planillas = S.dieta.planillas.filter(p => p.id !== id);
-  if (S.dieta.activeId === id) S.dieta.activeId = null;
-  saveState(); renderPlanillasListModal(); renderDietaPlanillaBar(); renderDieta(); renderDietaResumen();
-}
-
-// ── Crear/editar planilla: nombre + ítems del Inventario con cantidad propia ──
-let _planillaEditId = null;
-let _planillaEditItems = {}; // itemId -> cantidad (solo los incluidos en la planilla)
-
-function openPlanillaEditModal(id) {
-  ensureDietaState(); ensureInventoryState();
-  _planillaEditId = id || null;
-  const p = id ? S.dieta.planillas.find(p => p.id === id) : null;
-  document.getElementById('planillaEditName').value = p ? p.nombre : '';
-  _planillaEditItems = {};
-  if (p) p.items.forEach(it => { if (_invItem(it.itemId)) _planillaEditItems[it.itemId] = it.cantidad; });
-  renderPlanillaEditItems();
-  document.getElementById('planillaEditDelBtn').style.display = p ? '' : 'none';
-  closeModal('modal-dieta-planillas');
-  openModal('modal-dieta-planilla-edit');
-}
-
-function renderPlanillaEditItems() {
-  const body = document.getElementById('planillaEditItemsBody');
-  if (!body) return;
-  ensureInventoryState();
-  body.innerHTML = S.inventory.items.map(it => {
-    const checked = it.id in _planillaEditItems;
-    const qty = checked ? _planillaEditItems[it.id] : '';
-    return `<div class="sub-row">
-      <label class="ptask-check"><input type="checkbox" ${checked ? 'checked' : ''} onchange="togglePlanillaEditItem('${it.id}',this.checked)"></label>
-      <div class="sub-info"><div class="sub-name">${it.name}</div></div>
-      <input class="inp" style="width:70px" type="number" step="0.01" value="${qty}" placeholder="cant." ${checked ? '' : 'disabled'} onchange="setPlanillaEditQty('${it.id}',this.value)">
-    </div>`;
-  }).join('') || '<p class="empty-state">Sin ítems en el inventario. Agregalos desde Finanzas → Inventario.</p>';
-}
-
-function togglePlanillaEditItem(itemId, checked) {
-  if (checked) _planillaEditItems[itemId] = _planillaEditItems[itemId] || 0;
-  else delete _planillaEditItems[itemId];
-  renderPlanillaEditItems();
-}
-
-function setPlanillaEditQty(itemId, val) {
-  if (itemId in _planillaEditItems) _planillaEditItems[itemId] = +val || 0;
-}
-
-function savePlanillaEdit() {
-  const nombre = document.getElementById('planillaEditName').value.trim();
-  if (!nombre) { showToast('Escribe el nombre de la planilla'); return; }
-  ensureDietaState();
-  const items = Object.keys(_planillaEditItems).map(itemId => ({ itemId, cantidad: +_planillaEditItems[itemId] || 0 }));
-  if (_planillaEditId) {
-    const p = S.dieta.planillas.find(p => p.id === _planillaEditId);
-    if (p) { p.nombre = nombre; p.items = items; }
-  } else {
-    S.dieta.planillas.push({ id: uid(), nombre, items });
+function _dietaLast7() {
+  const base = new Date(getActiveDate() + 'T00:00:00');
+  let n = 0;
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(base); d.setDate(d.getDate() - i);
+    if (dietaDayMet(_dietaDS(d))) n++;
   }
-  saveState(); closeModal('modal-dieta-planilla-edit');
-  renderDietaPlanillaBar(); renderDieta(); renderDietaResumen();
-  showToast('Planilla guardada');
+  return n;
 }
 
-function deletePlanillaEdit() {
-  if (!_planillaEditId) return;
-  closeModal('modal-dieta-planilla-edit');
-  deletePlanilla(_planillaEditId);
+// ── Hábito "Comida sana": lo maneja la Dieta, no se marca a mano ──
+function _dietaHabit(create) {
+  if (!S.habitTrackers || Array.isArray(S.habitTrackers)) return null; // formato viejo: solo Vida
+  const arr = S.habitTrackers.salud || (S.habitTrackers.salud = []);
+  let h = arr.find(x => x.id === DIETA_HABIT_ID);
+  if (!h && create) { h = { id: DIETA_HABIT_ID, name: 'Comida sana', emoji: '🥗', days: {} }; arr.push(h); }
+  if (h && !h.days) h.days = {};
+  return h || null;
 }
 
-// ── Checklist de Dieta: opera sobre los ítems/cantidades de la planilla activa ──
+// Escribe 'done' si el día cumple el objetivo y lo saca si dejó de cumplirlo.
+// Nunca pisa un 'partial'/'rest' puesto a mano en el calendario.
+function _dietaSyncHabit(ds) {
+  const h = _dietaHabit(true);
+  if (!h) return;
+  if (dietaDayMet(ds)) h.days[ds] = 'done';
+  else if (h.days[ds] === 'done') delete h.days[ds];
+}
+
+// Al cambiar el umbral o borrar una regla cambia el cumplimiento de días pasados:
+// se recalculan todos los días con registro para que el calendario no mienta.
+function _dietaSyncAll() {
+  Object.keys(S.dieta.log).forEach(_dietaSyncHabit);
+  _dietaSyncHabit(getActiveDate());
+}
+
+function _dietaRefresh() {
+  saveState();
+  renderDieta(); renderDietaResumen();
+  if (typeof renderHabitsCard === 'function') renderHabitsCard('salud');
+}
+
+function toggleDietaRegla(id) {
+  ensureDietaState();
+  const ds = getActiveDate();
+  const arr = S.dieta.log[ds] || (S.dieta.log[ds] = []);
+  const i = arr.indexOf(id);
+  if (i >= 0) arr.splice(i, 1); else arr.push(id);
+  if (!arr.length) delete S.dieta.log[ds];
+  _dietaSyncHabit(ds);
+  _dietaRefresh();
+}
+
+function setDietaUmbral(val) {
+  ensureDietaState();
+  S.dieta.umbral = Math.max(1, +val || 1);
+  _dietaSyncAll();
+  _dietaRefresh();
+}
+
+// ── Alta/edición/baja de reglas ──
+let _dietaReglaEditId = null;
+
+function openDietaReglaModal(id) {
+  ensureDietaState();
+  _dietaReglaEditId = id || null;
+  const r = id ? S.dieta.reglas.find(x => x.id === id) : null;
+  document.getElementById('dietaReglaTitle').textContent = r ? 'Editar regla' : 'Nueva regla';
+  document.getElementById('dietaReglaText').value = r ? r.text : '';
+  openModal('modal-dieta-regla');
+}
+
+function saveDietaRegla() {
+  const text = document.getElementById('dietaReglaText').value.trim();
+  if (!text) { showToast('Escribí la regla'); return; }
+  ensureDietaState();
+  if (_dietaReglaEditId) {
+    const r = S.dieta.reglas.find(x => x.id === _dietaReglaEditId);
+    if (r) r.text = text;
+  } else {
+    S.dieta.reglas.push({ id: uid(), text });
+  }
+  closeModal('modal-dieta-regla');
+  _dietaSyncAll();
+  _dietaRefresh();
+}
+
+function deleteDietaRegla(id) {
+  if (!confirm('¿Eliminar esta regla de alimentación?')) return;
+  ensureDietaState();
+  S.dieta.reglas = S.dieta.reglas.filter(r => r.id !== id);
+  if (S.dieta.umbral > S.dieta.reglas.length) S.dieta.umbral = Math.max(1, S.dieta.reglas.length);
+  _dietaSyncAll();
+  _dietaRefresh();
+}
+
+// ── Checklist completo (vive en el overlay de Dieta) ──
 function renderDieta() {
   const body = document.getElementById('dietaBody');
   if (!body) return;
-  ensureInventoryState(); ensureDietaState();
-  renderDietaPlanillaBar();
-  const planilla = getActivePlanilla();
-  if (!planilla) {
-    body.innerHTML = '<p class="empty-state">No hay una planilla de dieta activa. Creá una desde "Gestionar planillas" y seleccionala arriba para empezar a marcar el checklist.</p>';
-    return;
-  }
-  const today = getActiveDate();
-  const todayLog = S.inventory.log[today] || {};
+  ensureDietaState();
+  const ds    = getActiveDate();
+  const done  = _dietaDoneIds(ds);
+  const total = S.dieta.reglas.length;
+  const meta  = _dietaUmbral();
+  const met   = dietaDayMet(ds);
+  const falta = Math.max(0, meta - done.length);
 
-  const rows = planilla.items.map(pit => {
-    const it = _invItem(pit.itemId);
-    if (!it) return ''; // ítem borrado del Inventario: no se muestra, el resto sigue intacto
-    const done = it.id in todayLog;
-    const qty = done ? todayLog[it.id] : pit.cantidad;
-    const neg = it.stock < 0;
-    return `<div class="sub-row${neg ? ' inv-alert' : ''}">
-      <label class="ptask-check"><input type="checkbox" ${done ? 'checked' : ''} onchange="toggleDietItem('${it.id}')"></label>
-      <div class="sub-info">
-        <div class="sub-name">${it.name} ${neg ? '<span class="inv-alert-badge">⚠ stock negativo</span>' : ''}</div>
-        <div class="sub-detail">Stock: <b class="${neg ? 'text-danger' : ''}">${it.stock} ${it.unit}</b></div>
+  const rows = S.dieta.reglas.map(r => {
+    const on = done.includes(r.id);
+    return `<div class="sub-row diet-rule${on ? ' on' : ''}">
+      <label class="ptask-check"><input type="checkbox" ${on ? 'checked' : ''} onchange="toggleDietaRegla('${r.id}')"></label>
+      <div class="sub-info"><div class="sub-name">${r.text}</div></div>
+      <div class="flex gap-8">
+        <button class="icon-btn" onclick="openDietaReglaModal('${r.id}')" title="Editar">✎</button>
+        <button class="icon-btn" onclick="deleteDietaRegla('${r.id}')" title="Eliminar">${_DEL_SVG}</button>
       </div>
-      <input class="inp" style="width:70px" type="number" step="0.01" id="diet-qty-${it.id}" value="${qty}" ${done ? 'disabled' : ''}>
     </div>`;
-  }).join('') || '<p class="empty-state">Los ítems de esta planilla fueron eliminados del inventario.</p>';
+  }).join('') || '<p class="empty-state">Sin reglas de alimentación. Agregá la primera con “+ Regla”.</p>';
 
-  body.innerHTML = rows;
+  const opts = S.dieta.reglas.map((_, i) => `<option value="${i + 1}"${i + 1 === meta ? ' selected' : ''}>${i + 1}</option>`).join('');
+
+  body.innerHTML = `
+    <div class="diet-head${met ? ' met' : ''}">
+      <div class="diet-head-count">${done.length}<span class="diet-head-total">/${total}</span></div>
+      <div>
+        <div class="diet-head-state">${!total ? 'Sin reglas cargadas' : met ? '✔ Día sano cumplido' : `Falta${falta === 1 ? '' : 'n'} ${falta} para cumplir`}</div>
+        <div class="diet-head-sub">Objetivo: ${meta} de ${total} reglas</div>
+        <div class="diet-head-sub">Cumplirlo marca el hábito 🥗 Comida sana</div>
+      </div>
+    </div>
+    ${total ? `<div class="diet-bar"><i style="left:${(meta / total) * 100}%"></i><span class="${met ? 'met' : ''}" style="width:${(done.length / total) * 100}%"></span></div>` : ''}
+    ${rows}
+    <div class="diet-foot">
+      <label class="diet-umbral">Objetivo del día
+        <select class="inp" onchange="setDietaUmbral(this.value)"${total ? '' : ' disabled'}>${opts}</select>
+        de ${total}
+      </label>
+      <button class="btn btn-ghost btn-sm" onclick="openDietaReglaModal(null)">+ Regla</button>
+    </div>`;
 }
 
 // ── Resumen de dieta (sección) · el checklist completo vive en el overlay ──
 function renderDietaResumen() {
-  const body = document.getElementById('dietaResumenBody'); if (!body) return;
-  ensureInventoryState(); ensureDietaState();
-  const planilla = getActivePlanilla();
-
-  if (!planilla) {
-    body.innerHTML = `<p class="empty-state">Sin planilla de dieta activa. Creá una desde el detalle.</p>
-      <button class="ent-full" onclick="if(window.openDietaOverlay)openDietaOverlay()">Abrir dieta completa →</button>`;
-    return;
-  }
-
-  const today = getActiveDate();
-  const todayLog = S.inventory.log[today] || {};
-  const validItems = planilla.items.map(pit => _invItem(pit.itemId)).filter(Boolean);
-  const total = validItems.length;
-  const done = validItems.filter(it => it.id in todayLog).length;
-  const alerts = validItems.filter(it => it.stock < 0).length;
+  const body = document.getElementById('dietaResumenBody');
+  if (!body) return;
+  ensureDietaState();
+  const total = S.dieta.reglas.length;
+  const abrir = '<button class="ent-full" onclick="if(window.openDietaOverlay)openDietaOverlay()">Abrir dieta completa →</button>';
 
   if (!total) {
-    body.innerHTML = `<p class="empty-state">La planilla activa no tiene ítems válidos.</p>
-      <button class="ent-full" onclick="if(window.openDietaOverlay)openDietaOverlay()">Abrir dieta completa →</button>`;
+    body.innerHTML = `<p class="empty-state">Sin reglas de alimentación cargadas.</p>${abrir}`;
     return;
   }
 
-  body.innerHTML = `
-    <div class="ent-kpis" style="grid-template-columns:repeat(${alerts ? 3 : 2},1fr)">
-      <div class="ent-kpi"><div class="ent-kpi-num">${done}<span class="ent-kpi-u">/${total}</span></div><div class="ent-kpi-lbl">Hoy</div></div>
-      <div class="ent-kpi"><div class="ent-kpi-num">${Math.round(total ? (done / total) * 100 : 0)}<span class="ent-kpi-u">%</span></div><div class="ent-kpi-lbl">Cumplido</div></div>
-      ${alerts ? `<div class="ent-kpi"><div class="ent-kpi-num text-danger">${alerts}</div><div class="ent-kpi-lbl">Stock negativo</div></div>` : ''}
-    </div>
-    <button class="ent-full" onclick="if(window.openDietaOverlay)openDietaOverlay()">Abrir dieta completa →</button>`;
-}
+  const ds   = getActiveDate();
+  const done = _dietaDoneIds(ds).length;
+  const meta = _dietaUmbral();
+  const met  = dietaDayMet(ds);
+  const falta = Math.max(0, meta - done);
 
-function toggleDietItem(id) {
-  ensureInventoryState();
-  const it = _invItem(id); if (!it) return;
-  const today = getActiveDate();
-  if (!S.inventory.log[today]) S.inventory.log[today] = {};
-  const log = S.inventory.log[today];
-  if (id in log) {
-    // Desmarcar: restaura el stock y borra el registro del día.
-    it.stock += log[id];
-    delete log[id];
-  } else {
-    const inputEl = document.getElementById('diet-qty-' + id);
-    const qty = inputEl ? (+inputEl.value || 0) : (it.daily || 0);
-    it.stock -= qty;
-    log[id] = qty;
-  }
-  saveState(); renderDieta(); renderDietaResumen(); renderInventory();
+  body.innerHTML = `
+    <div class="ent-kpis" style="grid-template-columns:repeat(3,1fr)">
+      <div class="ent-kpi"><div class="ent-kpi-num">${done}<span class="ent-kpi-u">/${total}</span></div><div class="ent-kpi-lbl">Hoy</div></div>
+      <div class="ent-kpi"><div class="ent-kpi-num">${_dietaStreak()}</div><div class="ent-kpi-lbl">Racha</div></div>
+      <div class="ent-kpi"><div class="ent-kpi-num">${_dietaLast7()}<span class="ent-kpi-u">/7</span></div><div class="ent-kpi-lbl">7 días</div></div>
+    </div>
+    <div class="diet-state${met ? ' met' : ''}">${met ? '✔ Objetivo de hoy cumplido' : `Falta${falta === 1 ? '' : 'n'} ${falta} regla${falta === 1 ? '' : 's'} para cumplir hoy`}</div>
+    ${abrir}`;
 }
 
 // ════════════════════════════════════════════════════════
@@ -2933,7 +2771,7 @@ try {
   });
 } catch (e) { console.warn('[charts] tema HUD no aplicado:', e); }
 
-let nwPieInst=null, nwLineInst=null, txnChartInst=null, sleepChartInst=null;
+let nwPieInst=null, nwLineInst=null, txnChartInst=null;
 
 function initChartsForTab(tab) {
   if (tab==='finanzas') { initNWCharts(); }
@@ -3152,12 +2990,17 @@ function renderSleepTracker() {
   const notesEl = document.getElementById('sleepNotesText');
   if (notesEl) notesEl.value = entry.notes || '';
 
-  _renderSleepChart();
+  _renderWellnessStrips();
 }
 
-function _renderSleepChart() {
-  const canvas = document.getElementById('sleepChart');
-  if (!canvas) return;
+// Franjas de 14 días: una fila por métrica, un cuadrito por día. La intensidad
+// del color de la fila codifica el nivel 1-5 (ramp secuencial de un solo tono),
+// y a la derecha va el promedio de los días registrados.
+const _WSTRIP_MIX = { 1: 20, 2: 38, 3: 56, 4: 78, 5: 100 };
+
+function _renderWellnessStrips() {
+  const el = document.getElementById('wellnessStrips');
+  if (!el) return;
 
   const today = getActiveDate();
   const days  = [];
@@ -3166,110 +3009,42 @@ function _renderSleepChart() {
     d.setDate(d.getDate() - i);
     days.push(d.toISOString().slice(0, 10));
   }
+  const dLabel = ds => { const p = ds.split('-'); return `${+p[2]}/${+p[1]}`; };
 
-  const labels = days.map(d => { const p = d.split('-'); return `${+p[2]}/${+p[1]}`; });
+  const rows = WELLNESS_METRICS.map(m => {
+    const vals   = days.map(ds => S.sleepLog[ds]?.wellness?.[m.id] || 0);
+    const marked = vals.filter(v => v > 0);
+    const avg    = marked.length ? (marked.reduce((a, b) => a + b, 0) / marked.length).toFixed(1) : '—';
+    const cells  = days.map((ds, i) => {
+      const v  = vals[i];
+      const bg = v ? ` style="background:color-mix(in oklab, ${m.color} ${_WSTRIP_MIX[v]}%, transparent)"` : '';
+      const tip = `${dLabel(ds)} · ${m.label}: ${v ? `${v}/5 — ${WELLNESS_LABELS[v]}` : 'sin registro'}`;
+      return `<span class="wstrip-cell${v ? '' : ' empty'}"${bg} title="${tip}"></span>`;
+    }).join('');
+    return `<div class="wstrip-row">
+      <span class="wstrip-name">${m.label}</span>
+      <span class="wstrip-cells">${cells}</span>
+      <span class="wstrip-avg">${avg}</span>
+    </div>`;
+  }).join('');
 
-  // Horas dormidas con colores adaptativos (verde 7-9h, ámbar 5-7 o >9, rojo <5)
-  const hoursData = days.map(d => {
-    const e = S.sleepLog[d] || {};
+  // Sueño de los últimos 7 días: promedio y noches dentro del rango 7-9h.
+  const last7 = days.slice(-7).map(ds => {
+    const e = S.sleepLog[ds] || {};
     let h = e.hours ?? null;
     if (e.bedtime && e.waketime) { const c = _sleepCalcHours(e.bedtime, e.waketime); if (c !== null) h = c; }
     return h;
-  });
-  const hoursBg     = hoursData.map(h => h === null ? 'rgba(100,100,100,0.1)' : h >= 7 && h <= 9 ? 'rgba(0,255,136,0.3)' : h >= 5 ? 'rgba(255,176,32,0.3)' : 'rgba(255,70,70,0.3)');
-  const hoursBorder = hoursData.map(h => h === null ? 'transparent' : h >= 7 && h <= 9 ? 'rgba(0,255,136,0.75)' : h >= 5 ? 'rgba(255,176,32,0.75)' : 'rgba(255,70,70,0.75)');
+  }).filter(h => h !== null);
+  const avg7  = last7.length ? (last7.reduce((a, b) => a + b, 0) / last7.length).toFixed(1) : null;
+  const inRng = last7.filter(h => h >= 7 && h <= 9).length;
 
-  // Series de métricas de bienestar
-  const metricDatasets = WELLNESS_METRICS.map(m => ({
-    label: m.label,
-    data:  days.map(d => S.sleepLog[d]?.wellness?.[m.id] || null),
-    type:  'line',
-    yAxisID: 'y1',
-    borderColor:          m.color,
-    backgroundColor:      m.color + '20',
-    borderWidth: 1.8,
-    pointRadius: 3,
-    pointBackgroundColor: m.color,
-    tension: 0.38,
-    spanGaps: true,
-  }));
-
-  if (sleepChartInst) { sleepChartInst.destroy(); sleepChartInst = null; }
-  sleepChartInst = new Chart(canvas, {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [
-        {
-          label: 'Horas de sueño',
-          data:            hoursData,
-          backgroundColor: hoursBg,
-          borderColor:     hoursBorder,
-          borderWidth: 1.5,
-          borderRadius: 4,
-          yAxisID: 'y',
-          order: 2,
-        },
-        ...metricDatasets.map(d => ({ ...d, order: 1 })),
-      ],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      animation: { duration: 350 },
-      plugins: {
-        legend: {
-          display: true,
-          position: 'top',
-          labels: {
-            color: '#76746E', font: { size: _cfs(13) },
-            boxWidth: 10, padding: 6,
-            filter(item) { return item.datasetIndex > 0; },
-          },
-        },
-        tooltip: {
-          callbacks: {
-            label(ctx) {
-              if (ctx.datasetIndex === 0) {
-                const h = ctx.raw;
-                return h !== null ? `Sueño: ${h}h` : 'Sueño: sin datos';
-              }
-              const v = ctx.raw;
-              return v ? `${ctx.dataset.label}: ${v}/5 — ${WELLNESS_LABELS[v]}` : `${ctx.dataset.label}: —`;
-            },
-          },
-        },
-      },
-      scales: {
-        x: {
-          ticks: { color: '#76746E', font: { size: _cfs(13) } },
-          grid:  { color: 'rgba(255,255,255,0.04)' },
-        },
-        y: {
-          min: 0, max: 12,
-          position: 'left',
-          ticks: {
-            color: 'rgba(180,180,180,0.5)',
-            font: { size: _cfs(13) },
-            stepSize: 2,
-            callback: v => `${v}h`,
-          },
-          grid: { color: 'rgba(255,255,255,0.05)' },
-        },
-        y1: {
-          min: 0, max: 5,
-          position: 'right',
-          ticks: {
-            color: '#76746E',
-            font: { size: _cfs(13) },
-            stepSize: 1,
-            callback: v => Number.isInteger(v) && v > 0 ? v : '',
-          },
-          grid: { drawOnChartArea: false },
-        },
-      },
-    },
-  });
+  el.innerHTML = `
+    <div class="wstrip-hdr"><span>Últimos 14 días</span><span>hoy →</span></div>
+    ${rows}
+    <div class="wstrip-foot">
+      <span>Sueño 7 días: <b>${avg7 !== null ? avg7 + 'h' : '—'}</b> promedio</span>
+      <span><b>${inRng}</b> de ${last7.length || 0} noches en rango 7-9h</span>
+    </div>`;
 }
 
 // ════════════════════════════════════════════════════════

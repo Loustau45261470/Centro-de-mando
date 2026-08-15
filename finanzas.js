@@ -44,7 +44,6 @@ function renderFinanzasTab() {
   renderFinObjectives();
   renderBudget();
   renderBudgetSummary();
-  renderInventory();
   if (nwPieInst) updateNWCharts();
 }
 
@@ -1845,8 +1844,6 @@ function addTransaction() {
   const currency=document.getElementById('txnCurrency').value;
   const accountId=document.getElementById('txnAccount').value;
   const category=document.getElementById('txnCategory').value;
-  const invQtyEl = document.getElementById('txnInvQty');
-  const invQty = invQtyEl ? (+invQtyEl.value || 0) : 0;
 
   // Mes destino: viene de la pestaña activa de Actividad (txnActiveMonth), no de un selector
   // dentro del modal (ver revisión 2026-07-22 del spec). "pending" solo aplica a gastos: si el
@@ -1866,13 +1863,11 @@ function addTransaction() {
     if (acc) { acc.balance += type==='income'?amount:-amount; snapshotNW(); }
   }
   const txn = { id:uid(), date, name, type, amount, currency, accountId, category };
-  if (pending) { txn.pending = true; if (invQty > 0) txn.invQty = invQty; }
+  if (pending) txn.pending = true;
   S.transactions.unshift(txn);
-  if (!pending && type === 'expense' && invQty > 0) invApplyPurchase(name, invQty);
   saveState(); renderFinanzasTab(); closeModal('modal-add-txn');
   document.getElementById('txnName').value='';
   document.getElementById('txnAmount').value='';
-  if (invQtyEl) invQtyEl.value = '';
 
   if (type === 'income') {
     // Sparkle near the modal close button / center of screen
@@ -1939,7 +1934,6 @@ function applyPendingScheduledExpenses() {
       const acc = S.accounts.find(a=>a.id===t.accountId);
       if (acc) { acc.balance += t.type==='income' ? t.amount : -t.amount; snapshotNW(); }
     }
-    if (t.type === 'expense' && t.invQty > 0) invApplyPurchase(t.name, t.invQty);
     t.pending = false;
     applied = true;
   });
