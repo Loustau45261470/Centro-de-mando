@@ -860,7 +860,7 @@ async function _syncOnFocus() {
 // ─────────────────────────────────────────────────────────────────────────
 
 async function loadState() {
-  let _loadSrc = '?';
+  let _loadSrc = '?', _loadErr = null;
   try {
     const snap = await _DOC().get();
     if (snap.exists && snap.data()?.state) {
@@ -875,8 +875,12 @@ async function loadState() {
   } catch(e) {
     try { S = JSON.parse(localStorage.getItem('lifedash_v2')) || {}; } catch { S = {}; }
     _loadSrc = 'local-error';
+    // El motivo del fallo se guarda y se muestra: sin el codigo de error no se puede
+    // distinguir un permiso denegado de una caida de red, y se diagnostica a ciegas.
+    _loadErr = (e && (e.code || e.name) ? (e.code || e.name) + ' — ' : '') + ((e && e.message) || String(e));
+    console.error('[load] fallo la lectura de la nube:', e);
     // Un fallo de carga NUNCA debe parecer una instalación vacía legítima: avisar siempre.
-    setTimeout(() => showToast('⚠️ No se pudo cargar desde la nube — mostrando datos locales (pueden estar desactualizados). No uses forzarGuardado().', 12000), 1500);
+    setTimeout(() => showToast('⚠️ No se pudo cargar desde la nube (' + _loadErr + ') — mostrando datos locales (pueden estar desactualizados). No uses forzarGuardado().', 15000), 1500);
   }
   // ── Cambios locales guardados sin conexión (write a la nube pendiente): mergearlos, no descartarlos.
   // Sin esto, la carga cloud-first pisa el localStorage y se pierden las ediciones offline.
@@ -900,7 +904,7 @@ async function loadState() {
   }
   // ── Diag de carga (de dónde vino el estado inicial). diagLoad() en consola.
   try {
-    const _ld = { t: new Date().toLocaleString('es-AR'), src: _loadSrc, lastSynced: _lastSyncedSavedAt, items: _dataMetric(S) };
+    const _ld = { t: new Date().toLocaleString('es-AR'), src: _loadSrc, lastSynced: _lastSyncedSavedAt, items: _dataMetric(S), err: _loadErr || null, uid: (_auth.currentUser && _auth.currentUser.uid) || null };
     localStorage.setItem('_loadDiag', JSON.stringify(_ld));
   } catch (e) {}
   // Merge defaults for any missing keys
