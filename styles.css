@@ -49,7 +49,7 @@
   --hud: #38BDF8; --hud-bright: #7DD3FC; --hud-dim: rgba(56,189,248,0.4); --hud-glow: rgba(56,189,248,0.18);
   /* ── Acento premium secundario ── */
   --indigo: #818CF8; --indigo-dim: rgba(129,140,248,0.25);
-  --sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+  --sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
   /* Números, importes, fechas y etiquetas: la misma familia que el texto (elegido
      el 2026-08-14, tras comparar ocho candidatas), con cifras tabulares en body
      para que las columnas de importes sigan alineadas. Se conserva el nombre
@@ -1317,9 +1317,12 @@ textarea { resize: vertical; min-height: 60px; }
 .sleep-feel-row { display:flex; align-items:baseline; gap:4px; }
 .sleep-feel-val { font-size:32px; font-weight:800; letter-spacing:-.04em; line-height:1; color:var(--ok); }
 .sleep-feel-unit { font-size:var(--fs-13); color:var(--tt); }
-.sleep-time-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px; }
+/* minmax(0,1fr) + min-width:0: sin eso los <input type="time"> no bajan de su ancho
+   natural y la grilla se sale de la card en celular. */
+.sleep-time-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:10px; margin-bottom:14px; }
 .sleep-time-inp {
   font-size:19px !important; font-weight:700 !important;
+  min-width:0;
   font-family:var(--mono) !important; text-align:center;
   color-scheme:dark; padding:10px 8px !important;
   letter-spacing:.02em;
