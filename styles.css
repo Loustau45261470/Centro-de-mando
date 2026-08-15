@@ -1386,6 +1386,45 @@ textarea { resize: vertical; min-height: 60px; }
   transition: color .2s;
 }
 
+/* ── Bienestar · franjas de 14 días (una fila por métrica) ── */
+.wstrips { margin: 2px 0 12px; }
+.wstrip-hdr {
+  display: flex; justify-content: space-between;
+  font-family: var(--mono); font-size: var(--fs-12-5);
+  letter-spacing: .5px; text-transform: uppercase;
+  color: var(--tt); margin-bottom: 8px;
+}
+.wstrip-row {
+  display: grid;
+  grid-template-columns: minmax(0, 104px) minmax(0, 1fr) 30px;
+  align-items: center; column-gap: 9px; margin-bottom: 5px;
+}
+.wstrip-name {
+  font-size: var(--fs-12-5); color: var(--ts);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.wstrip-cells { display: grid; grid-template-columns: repeat(14, 1fr); gap: 2px; }
+.wstrip-cell {
+  height: 17px; border-radius: 3px;
+  border: 1px solid transparent;
+  background: rgba(120,150,220,.05);
+}
+.wstrip-cell.empty { border-color: var(--border); }
+.wstrip-avg {
+  font-size: var(--fs-12-5); font-weight: 700; color: var(--ts);
+  text-align: right; font-variant-numeric: tabular-nums;
+}
+.wstrip-foot {
+  display: flex; flex-wrap: wrap; gap: 4px 14px; justify-content: space-between;
+  font-size: var(--fs-12-5); color: var(--tt);
+  margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--border);
+}
+.wstrip-foot b { color: var(--tp); font-variant-numeric: tabular-nums; }
+@media (max-width: 420px) {
+  .wstrip-row { grid-template-columns: minmax(0, 76px) minmax(0, 1fr) 26px; column-gap: 6px; }
+  .wstrip-cell { height: 15px; }
+}
+
 /* ── Law Tables ── */
 .law-tbl { width:100%; border-collapse:collapse; }
 .law-tbl th { background:rgba(107,227,164,.13); color:var(--ok); font-weight:700; text-align:left;
@@ -4891,6 +4930,45 @@ input:focus, select:focus, textarea:focus {
 .ent-last b { color: var(--tp); }
 .ent-full { width: 100%; padding: 11px; border-radius: 11px; cursor: pointer; font-family: var(--sans); font-size: var(--fs-13); font-weight: 700; color: color-mix(in oklab, var(--ent-accent) 88%, #fff); background: color-mix(in oklab, var(--ent-accent) 14%, transparent); border: 1px solid color-mix(in oklab, var(--ent-accent) 38%, transparent); transition: background .15s, border-color .15s; }
 .ent-full:hover { background: color-mix(in oklab, var(--ent-accent) 24%, transparent); border-color: var(--ent-accent); }
+.diet-state {
+  font-size: var(--fs-13); font-weight: 700; color: var(--ts);
+  text-align: center; padding: 9px; margin-bottom: 12px;
+  border-radius: 10px; background: rgba(120,150,220,.06); border: 1px solid var(--border);
+}
+.diet-state.met { color: #10E07C; background: rgba(16,224,124,.10); border-color: rgba(16,224,124,.32); }
+
+/* ════════════════════ DIETA · reglas de comida sana (overlay) ════════════════════ */
+#dieta-card { --ent-accent: #10E07C; }
+.diet-head { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
+.diet-head > div:last-child { min-width: 0; flex: 1; }
+.diet-head-count {
+  font-size: 34px; font-weight: 800; letter-spacing: -.04em; line-height: 1;
+  color: var(--tp); font-variant-numeric: tabular-nums;
+}
+.diet-head.met .diet-head-count { color: #10E07C; }
+.diet-head-total { font-size: var(--fs-15); font-weight: 700; color: var(--tt); }
+.diet-head-state { font-size: var(--fs-13); font-weight: 700; color: var(--ts); }
+.diet-head.met .diet-head-state { color: #10E07C; }
+.diet-head-sub { font-size: var(--fs-12-5); color: var(--tt); margin-top: 2px; line-height: 1.35; }
+.diet-bar {
+  position: relative; height: 9px; border-radius: 6px; margin-bottom: 14px;
+  background: rgba(6,10,20,.65); border: 1px solid rgba(120,160,255,.08); overflow: hidden;
+}
+.diet-bar span {
+  display: block; height: 100%; border-radius: 6px;
+  background: color-mix(in oklab, #10E07C 60%, transparent);
+  transition: width .45s var(--ease-out-expo);
+}
+.diet-bar span.met { background: linear-gradient(90deg, color-mix(in oklab, #10E07C 55%, #000), #10E07C); box-shadow: 0 0 12px -2px #10E07C; }
+.diet-bar i { position: absolute; top: 0; bottom: 0; width: 2px; background: rgba(255,255,255,.45); z-index: 1; }
+.diet-rule.on .sub-name { color: #10E07C; }
+.diet-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 10px; margin-top: 14px; padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.diet-umbral { display: flex; align-items: center; gap: 7px; font-size: var(--fs-12-5); color: var(--tt); }
+.diet-umbral .inp { width: 62px; }
 
 /* ════════════════════ ADQUISICIÓN · puntaje + Top 5 ════════════════════ */
 /* Control de puntaje en cada fila del overlay */
