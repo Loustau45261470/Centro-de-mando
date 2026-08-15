@@ -375,18 +375,24 @@ function renderRutinas() {
 
     const lastDateLabel = last ? `<span style="font-family:var(--mono);font-size:var(--fs-12-5);color:var(--tt);flex-shrink:0;margin-right:6px">${last.date.slice(5)}</span>` : '';
 
+    const _ordBtn = 'background:none;border:none;cursor:pointer;padding:3px 4px;font-size:var(--fs-13);color:var(--tt);line-height:1;flex-shrink:0';
+    const _ordOff = ';opacity:.25;pointer-events:none';
     const exListHtml = r.exercises.length
-      ? r.exercises.map(exRaw => { const ex = exDisplay(exRaw); return `
+      ? r.exercises.map((exRaw, i, arr) => { const ex = exDisplay(exRaw); return `
           <div class="rtn-ex-row">
             <span class="rtn-equip-tag">${ex.equipment}</span>
             <span class="rtn-ex-name" style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px" onclick="event.stopPropagation();openExHistByLib('${ex.libId}')">${ex.name}</span>
             <span class="rtn-ex-rest">⏱ ${fmtRestTime(ex.restSecs)}</span>
-            <button class="icon-btn" onclick="event.stopPropagation();editRtnEx('${r.id}','${ex.id}')" style="color:var(--tt);flex-shrink:0">
-              <svg viewBox="0 0 24 24" style="width:15px;height:15px"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-            </button>
-            <button class="icon-btn" onclick="event.stopPropagation();deleteRtnEx('${r.id}','${ex.id}')" style="color:var(--tt);flex-shrink:0">
-              <svg viewBox="0 0 24 24" style="width:15px;height:15px"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
-            </button>
+            <div style="display:flex;align-items:center;gap:2px;flex-shrink:0">
+              <button title="Subir" onclick="event.stopPropagation();moveRtnEx('${r.id}','${ex.id}',-1)" style="${_ordBtn}${i === 0 ? _ordOff : ''}">↑</button>
+              <button title="Bajar" onclick="event.stopPropagation();moveRtnEx('${r.id}','${ex.id}',1)" style="${_ordBtn}${i === arr.length - 1 ? _ordOff : ''}">↓</button>
+              <button class="icon-btn" onclick="event.stopPropagation();editRtnEx('${r.id}','${ex.id}')" style="color:var(--tt);flex-shrink:0">
+                <svg viewBox="0 0 24 24" style="width:15px;height:15px"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
+              <button class="icon-btn" onclick="event.stopPropagation();deleteRtnEx('${r.id}','${ex.id}')" style="color:var(--tt);flex-shrink:0">
+                <svg viewBox="0 0 24 24" style="width:15px;height:15px"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+              </button>
+            </div>
           </div>`; }).join('')
       : '<p class="text-xs text-ter" style="padding:8px 0">Sin ejercicios. Agregá uno abajo.</p>';
 
@@ -407,6 +413,9 @@ function renderRutinas() {
         </div>
         <div class="rtn-body">
           <div class="rtn-ex-list">${exListHtml}</div>
+          <div style="display:flex;justify-content:flex-end;padding:2px 14px 10px">
+            <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="event.stopPropagation();deleteRoutineById('${r.id}')">🗑 Borrar rutina</button>
+          </div>
         </div>
       </div>`;
   }).join('');
@@ -698,9 +707,13 @@ function saveEditRoutine() {
 }
 
 function deleteRoutine() {
-  const id = document.getElementById('editRtnId').value;
+  deleteRoutineById(document.getElementById('editRtnId').value);
+}
+
+function deleteRoutineById(id) {
   const rtn = S.routines.find(r => r.id === id);
   if (!rtn) return;
+  if (S.activeRtnSession && S.activeRtnSession.routineId === id) { showToast('Terminá o cancelá la sesión activa primero'); return; }
   if (!confirm(`¿Borrar la rutina "${rtn.name}"? Se perderá el historial asociado.`)) return;
   S.routines = S.routines.filter(r => r.id !== id);
   delete S.routineLog[id];
@@ -756,6 +769,19 @@ function deleteRtnEx(rtnId, exId) {
   if (!rtn) return;
   rtn.exercises = rtn.exercises.filter(e => e.id !== exId);
   saveState(); renderRutinas();
+}
+
+// Reordena el ejercicio DENTRO de la rutina (permanente, fuera de sesión).
+function moveRtnEx(rtnId, exId, dir) {
+  const rtn = S.routines.find(r => r.id === rtnId);
+  if (!rtn) return;
+  const i = rtn.exercises.findIndex(e => e.id === exId);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= rtn.exercises.length) return;
+  [rtn.exercises[i], rtn.exercises[j]] = [rtn.exercises[j], rtn.exercises[i]];
+  saveState(); renderRutinas();
+  const card = document.getElementById('rtn-card-' + rtnId);
+  if (card) card.classList.add('rtn-open');
 }
 
 // ── Biblioteca: alta/edición/borrado ──
@@ -900,7 +926,8 @@ function _doAddExToRoutine(rtnId, libId) {
     else sess.exOrder.push(newEx.id);
     if (!sess.exMeta) sess.exMeta = {};
     sess.exMeta[newEx.id] = { libId, restSecs: lib.defaultRestSecs };
-    sess.exSets[newEx.id] = [{ weight: '', reps: '' }];
+    const prev = _prefillSets(null, null, libId);
+    sess.exSets[newEx.id] = prev.length ? prev : [{ weight: '', reps: '' }];
     _rtnExpandedEx.add(newEx.id);
   }
   saveState(); renderRutinas();
@@ -1481,19 +1508,41 @@ const _msHub = (() => {
   return { onTimerStart, onTimerTick, onTimerDone, onTimerSkip, showReminders, getCtx: () => _ctx };
 })();
 
+// Series con las que arranca un ejercicio: las de la última vez que se hizo
+// (primero en esta rutina, si no en el historial global del ejercicio).
+// Devuelve filas editables sin marcar como hechas; [] si no hay antecedente.
+function _prefillSets(rtnId, exId, libId) {
+  const pick = sets => sets.filter(s => (s.reps || 0) > 0)
+                           .map(s => ({ weight: s.weight || '', reps: s.reps }));
+  const hist = (rtnId && S.routineLog && S.routineLog[rtnId]) || [];
+  for (let i = hist.length - 1; i >= 0; i--) {
+    const sets = hist[i].exSets && hist[i].exSets[exId];
+    if (sets && sets.length) { const p = pick(sets); if (p.length) return p; }
+  }
+  const gh = (libId && S.exerciseHistory && S.exerciseHistory[libId]) || [];
+  for (let i = gh.length - 1; i >= 0; i--) {
+    if (gh[i].sets && gh[i].sets.length) { const p = pick(gh[i].sets); if (p.length) return p; }
+  }
+  return [];
+}
+
 function startRutinaSession(rtnId) {
   const rtn = S.routines.find(r => r.id === rtnId);
   if (!rtn) return;
   if (!rtn.exercises.length) { showToast('Agregá ejercicios primero'); return; }
   const exSets = {}, exMeta = {};
+  let prefilled = 0;
   rtn.exercises.forEach(ex => {
-    exSets[ex.id] = [{ weight: '', reps: '' }];
+    const prev = _prefillSets(rtnId, ex.id, ex.libId);
+    if (prev.length) prefilled++;
+    exSets[ex.id] = prev.length ? prev : [{ weight: '', reps: '' }];
     const d = exDisplay(ex);
     exMeta[ex.id] = { libId: ex.libId, restSecs: d.restSecs };
   });
   S.activeRtnSession = { routineId: rtnId, startedAt: Date.now(), exSets, exMeta, exOrder: rtn.exercises.map(e => e.id) };
   _rtnExpandedEx = new Set(rtn.exercises.map(e => e.id));
   saveState(); renderRutinas();
+  if (prefilled) showToast(`Precargado con lo de la última vez (${prefilled} ejercicio${prefilled > 1 ? 's' : ''})`);
 }
 
 // Swap: reemplaza un ejercicio SOLO en la sesión activa (no toca S.routines).
@@ -1508,7 +1557,8 @@ function _doSwapSessionEx(oldExId, newLibId) {
   if (!sess.exMeta) sess.exMeta = {};
   const newId = uid();
   sess.exMeta[newId] = { libId: newLibId, restSecs: lib.defaultRestSecs };
-  sess.exSets[newId] = [{ weight: '', reps: '' }];
+  const _prevSwap = _prefillSets(null, null, newLibId);
+  sess.exSets[newId] = _prevSwap.length ? _prevSwap : [{ weight: '', reps: '' }];
   // Reemplazar en el orden visible; el original sale de la vista pero SU exSets/exMeta
   // quedan para loguear su historial al finalizar.
   const order = sess.exOrder || [];
@@ -1530,6 +1580,45 @@ function moveRtnSessionEx(exId, dir) {
   if (j < 0 || j >= order.length) return;
   [order[i], order[j]] = [order[j], order[i]];
   saveState(); renderRutinas();
+}
+
+// Quita un ejercicio SOLO de la sesión activa (no toca S.routines) y descarta lo cargado.
+function removeSessionEx(exId) {
+  const sess = S.activeRtnSession;
+  if (!sess) return;
+  const info = sessExInfo(exId);
+  if (!confirm(`¿Sacar "${info.name}" de esta sesión? No se guardarán sus series.`)) return;
+  sess.exOrder = (sess.exOrder || []).filter(id => id !== exId);
+  delete sess.exSets[exId];
+  if (sess.exMeta) delete sess.exMeta[exId];
+  if (_rtnTimers[exId]) { clearInterval(_rtnTimers[exId]); delete _rtnTimers[exId]; }
+  delete _rtnTimerRemaining[exId];
+  _rtnExpandedEx.delete(exId);
+  if (_pipExId === exId) { _pipExId = null; _updatePip(); }
+  saveState(); renderRutinas();
+  showToast('Ejercicio quitado de esta sesión');
+}
+
+// Guarda el orden actual de la sesión como orden fijo de la rutina.
+function pinSessionOrder() {
+  const sess = S.activeRtnSession;
+  if (!sess) return;
+  const rtn = S.routines.find(r => r.id === sess.routineId);
+  if (!rtn) return;
+  const pos = {};
+  (sess.exOrder || []).forEach((id, i) => { pos[id] = i; });
+  rtn.exercises.sort((a, b) => (pos[a.id] ?? 9e9) - (pos[b.id] ?? 9e9));
+  saveState(); renderRutinas();
+  showToast('Orden guardado en la rutina');
+}
+
+// El orden visible de la sesión difiere del guardado en la rutina?
+function _sessionOrderDiffers(sess, rtn) {
+  const inRtn = new Set(rtn.exercises.map(e => e.id));
+  const a = (sess.exOrder || []).filter(id => inRtn.has(id)).join('|');
+  const inSess = new Set(sess.exOrder || []);
+  const b = rtn.exercises.map(e => e.id).filter(id => inSess.has(id)).join('|');
+  return a !== b;
 }
 
 function fmtChrono(secs) {
@@ -1612,11 +1701,14 @@ function renderActiveSession() {
             <span class="rtn-ex-title-name">${ex.name}</span>
             <span class="rtn-ex-title-equip">(${ex.equipment})</span>
           </div>
-          <button onclick="event.stopPropagation();openExHistByLib('${ex.libId}')" style="${btnStyle}" title="Historial">📊</button>
-          <button onclick="event.stopPropagation();swapSessionEx('${ex.id}')" style="${btnStyle}" title="Reemplazar (solo esta sesión)">⇄</button>
-          <button onclick="event.stopPropagation();editRtnEx('${routineId}','${ex.id}')" style="${btnStyle}" title="Ajustar descanso/series">✎</button>
-          <button onclick="event.stopPropagation();moveRtnSessionEx('${ex.id}',-1)" style="${btnStyle}${isFirst ? ';'+btnDisabled : ''}">↑</button>
-          <button onclick="event.stopPropagation();moveRtnSessionEx('${ex.id}',+1)" style="${btnStyle}${isLast ? ';'+btnDisabled : ''}">↓</button>
+          <div style="display:flex;align-items:center;gap:2px;flex-shrink:0">
+            <button onclick="event.stopPropagation();openExHistByLib('${ex.libId}')" style="${btnStyle}" title="Historial">📊</button>
+            <button onclick="event.stopPropagation();swapSessionEx('${ex.id}')" style="${btnStyle}" title="Reemplazar (solo esta sesión)">⇄</button>
+            <button onclick="event.stopPropagation();editRtnEx('${routineId}','${ex.id}')" style="${btnStyle}" title="Ajustar descanso/series">✎</button>
+            <button onclick="event.stopPropagation();removeSessionEx('${ex.id}')" style="${btnStyle};color:var(--danger)" title="Sacar de esta sesión">✕</button>
+            <button onclick="event.stopPropagation();moveRtnSessionEx('${ex.id}',-1)" style="${btnStyle}${isFirst ? ';'+btnDisabled : ''}" title="Subir">↑</button>
+            <button onclick="event.stopPropagation();moveRtnSessionEx('${ex.id}',+1)" style="${btnStyle}${isLast ? ';'+btnDisabled : ''}" title="Bajar">↓</button>
+          </div>
           <span class="rtn-ex-chevron" id="rtn-exchev-${ex.id}" style="transform:${isExpanded ? 'rotate(-180deg)' : 'rotate(0deg)'}">▾</span>
         </div>
         <div class="rtn-ex-block-body" id="rtn-exbody-${ex.id}" style="${isExpanded ? '' : 'display:none'}">
@@ -1646,6 +1738,7 @@ function renderActiveSession() {
           </div>
           <div class="rtn-session-sub">${_orderedExes.length} ejercicios</div>
         </div>
+        ${_sessionOrderDiffers(S.activeRtnSession, rtn) ? `<button class="btn btn-ghost btn-sm" style="color:var(--c-salud);flex-shrink:0" onclick="pinSessionOrder()" title="Guardar este orden en la rutina">📌 Fijar orden</button>` : ''}
         <button class="btn btn-ghost btn-sm" style="color:var(--ts);flex-shrink:0" onclick="cancelRtnSession()">✕ Cancelar</button>
       </div>
       <div class="rtn-session-exes">${exBlocks}
