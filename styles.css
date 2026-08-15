@@ -50,7 +50,12 @@
   /* ── Acento premium secundario ── */
   --indigo: #818CF8; --indigo-dim: rgba(129,140,248,0.25);
   --sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
-  --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  /* Números, importes, fechas y etiquetas: la misma familia que el texto (elegido
+     el 2026-08-14, tras comparar ocho candidatas), con cifras tabulares en body
+     para que las columnas de importes sigan alineadas. Se conserva el nombre
+     --mono porque lo usan cientos de reglas; la asignación real está en body,
+     así que sigue al --sans que elija el usuario en Ajustes. */
+  --mono: var(--sans);
   --font-label: "Sistema";
   --nav: 60px; --ticker: 34px; --r: 12px; --r-lg: 16px;
   --safe-b: env(safe-area-inset-bottom, 0px);
@@ -68,6 +73,8 @@
 html, body { height: 100%; }
 body {
   font-family: var(--sans);
+  --mono: var(--sans);
+  font-variant-numeric: tabular-nums;
   font-size: var(--fs-15);
   color: var(--tp);
   overflow: hidden;
@@ -1757,19 +1764,6 @@ textarea { resize: vertical; min-height: 60px; }
 ═══════════════════════════════════════════════════════════ */
 
 /* ── Root overrides ── */
-/* ── PRUEBA de tipografía de números (solo Finanzas, 2026-08-14) ──────────────
-   Los importes, fechas y contadores pasan de JetBrains Mono a la misma familia
-   del texto, con cifras tabulares para que las columnas sigan alineadas.
-   Va también en los overlays que sacan sus cards de esta pestaña (presupuesto,
-   adquisición, historial, cartera, objetivos), porque al abrirse el nodo se
-   muda fuera de #tab-finanzas y perdería la fuente.
-   Si convence: se cambia --mono en :root y se borra este bloque. */
-#tab-finanzas,
-#ov-budget, #ov-goals, #ov-historial, #ov-finobj, #ov-cartera {
-  --mono: var(--sans);
-  font-variant-numeric: tabular-nums;
-}
-
 #tab-finanzas {
   --accent:       #009E6A;
   --c-finanzas:   #009E6A;
@@ -2461,10 +2455,12 @@ body.theme-infrared #tab-finanzas {
 }
 
 /* ── Font overrides ── */
-body.font-dm       { --sans: "DM Sans", sans-serif;           --mono: "DM Mono", monospace; }
-body.font-outfit   { --sans: "Outfit", sans-serif;            --mono: "JetBrains Mono", monospace; }
-body.font-manrope  { --sans: "Manrope", sans-serif;           --mono: "IBM Plex Mono", monospace; }
-body.font-jakarta  { --sans: "Plus Jakarta Sans", sans-serif; --mono: "JetBrains Mono", monospace; }
+/* Cada opción de letra cambia solo --sans: los números heredan la misma familia
+   por el --mono: var(--sans) de body. */
+body.font-dm       { --sans: "DM Sans", sans-serif; }
+body.font-outfit   { --sans: "Outfit", sans-serif; }
+body.font-manrope  { --sans: "Manrope", sans-serif; }
+body.font-jakarta  { --sans: "Plus Jakarta Sans", sans-serif; }
 
 /* ── Font selector cards ── */
 .font-section-title {
