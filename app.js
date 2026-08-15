@@ -2794,7 +2794,11 @@ function _toRGBA(c, a){
 }
 function _setChartDefault(path, val){ try { const p = path.split('.'); let o = Chart.defaults; for (let i=0;i<p.length-1;i++){ if (o[p[i]]==null) o[p[i]]={}; o=o[p[i]]; } o[p[p.length-1]]=val; } catch(e){} }
 try {
-  const MONO = '"JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+  // Los gráficos dibujan en canvas y no leen CSS: se les pasa la misma familia que
+  // usa la app (el --sans que haya elegido el usuario en Ajustes), para que los
+  // números de ejes, leyendas y tooltips no queden en otra letra que el resto.
+  const MONO = (getComputedStyle(document.body).getPropertyValue('--sans') || '').trim()
+    || "'Plus Jakarta Sans', -apple-system, 'Segoe UI', sans-serif";
   _setChartDefault('color', '#8BA5C0');
   _setChartDefault('borderColor', 'rgba(100,160,230,0.07)');
   _setChartDefault('font.family', MONO);
