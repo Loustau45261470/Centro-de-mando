@@ -58,6 +58,10 @@
 .cm-sd-items {
   position: absolute; right: 4px; bottom: 68px;
   display: flex; flex-direction: column-reverse; gap: 12px; align-items: flex-end;
+  /* Los items cerrados siguen ocupando lugar (solo opacity:0), así que el contenedor
+     conserva su caja sobre el FAB. Sin esto se come los clicks de toda esa franja del
+     borde derecho. Cada item se rehabilita solo con .cm-sd.open .cm-sd-item. */
+  pointer-events: none;
 }
 .cm-sd-item {
   display: inline-flex; align-items: center; gap: 11px; cursor: pointer;
