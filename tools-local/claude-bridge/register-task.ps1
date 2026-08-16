@@ -46,11 +46,22 @@ Write-Output "Ruta de node resuelta: $nodePath"
 $userId = "$env:USERDOMAIN\$env:USERNAME"
 $startBoundary = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ss")
 
-# Se lanza vía powershell -WindowStyle Hidden en vez de node.exe directo: bajo LogonType
-# Interactive, Task Scheduler le crea consola visible a cualquier app de consola (node.exe
-# incluido) en la sesión del usuario. powershell oculto evita esa ventana negra cada 2 min.
-$psArgs = "-NoProfile -WindowStyle Hidden -Command `"& '$nodePath' '$pollerPath'`""
-$action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $psArgs -WorkingDirectory $scriptRoot
+# Regla dura "Cero ventanas en pantalla" del CLAUDE.md global + memoria
+# tareas-programadas-sin-ventana:
+#   - NO usar "powershell -WindowStyle Hidden" como Command: la consola la crea el host ANTES
+#     de que PowerShell aplique el estilo, así que parpadea igual.
+#   - S4U tampoco sirve ACÁ: poller.js ejecuta el CLI de `claude` (ver runClaudeTask), cuyas
+#     credenciales OAuth están cifradas con DPAPI contra la sesión interactiva del usuario.
+#     Sin sesión interactiva no desencriptan y toda claude_task falla por auth.
+#   - El patrón correcto para este caso: wscript.exe + run-hidden.vbs (no tiene consola propia
+#     y lanza al hijo con la ventana suprimida desde el arranque) manteniendo
+#     LogonType=Interactive, que es lo que DPAPI necesita.
+$vbsLauncher = Join-Path $env:USERPROFILE ".claude\automations\run-hidden.vbs"
+if (-not (Test-Path $vbsLauncher)) {
+    throw "No se encontró el launcher invisible en '$vbsLauncher'. Sin él la tarea mostraría una ventana de consola cada 2 min."
+}
+$action = New-ScheduledTaskAction -Execute "wscript.exe" `
+    -Argument "`"$vbsLauncher`" `"$nodePath`" `"$pollerPath`"" -WorkingDirectory $scriptRoot
 
 # RepetitionDuration: [TimeSpan]::MaxValue serializa a P99999999DT... que el Task Scheduler
 # de Windows 10 (build 18362) rechaza por fuera de rango. Se usa 10 años (efectivamente

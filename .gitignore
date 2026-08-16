@@ -6,3 +6,6 @@ _preview_finanzas.html
 _verify_*.png
 _shot_*.png
 graphify-out/
+
+# Exports del estado personal de la app (LevelDB de Chrome) — el repo es PUBLICO
+tools-local/exports/
