@@ -4064,7 +4064,7 @@ body:has(#login-screen) #hud-frame { opacity: 0; }
   .tab-panel.active { column-count: 3; }
   .tab-panel { max-width: 1760px; }
   /* Salud maneja su propio layout de 2 columnas fijas (.tab-grid-2): el masonry de 3 columnas lo rompe */
-  #tab-salud.tab-panel.active { column-count: 1; }
+  #tab-salud.tab-panel.active { column-count: 1 !important; }
 }
 
 /* ═══════════════ PANELES INSTRUMENTALES ═══════════════ */
