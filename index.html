@@ -89,11 +89,12 @@
     <div class="agent-setup-icon">🔑</div>
     <div class="agent-setup-title">Configurar Asistente</div>
     <div class="agent-setup-desc">
-      Necesitás una API key de Anthropic.<br><br>
-      Obtenela en <strong>console.anthropic.com</strong> → API Keys.<br>
+      Necesitás una API key de <strong>Groq</strong> (gratis) o de Anthropic.<br><br>
+      Groq: <strong>console.groq.com/keys</strong> → empieza con <code>gsk_</code><br>
+      Anthropic: <strong>console.anthropic.com</strong> → empieza con <code>sk-ant-</code><br>
       Se guarda localmente en tu dispositivo.
     </div>
-    <input id="agent-key-inp" type="password" placeholder="sk-ant-api03-…"
+    <input id="agent-key-inp" type="password" placeholder="gsk_… o sk-ant-api03-…"
       autocomplete="off" spellcheck="false"
       onkeydown="if(event.key==='Enter') agentSaveKey()" />
     <button id="agent-key-save" onclick="agentSaveKey()">Conectar asistente</button>
