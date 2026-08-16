@@ -8,9 +8,15 @@
   const MODEL_FAST  = 'claude-haiku-4-5-20251001';
   const MODEL_SMART = 'claude-sonnet-5';
   const API_URL    = 'https://api.anthropic.com/v1/messages';
+  // Groq: nivel gratuito con soporte de tools. Mismo modelo que ya usa jarvis-ears.js para la voz.
+  const MODEL_GROQ = 'llama-3.3-70b-versatile';
+  const GROQ_URL   = 'https://api.groq.com/openai/v1/chat/completions';
+  // El proveedor se deduce del prefijo de la key (igual que en jarvis-ears.js): gsk_ → Groq.
+  function _isGroq() { return apiKey.startsWith('gsk_'); }
 
   // Heurística de ruteo: decide una vez por mensaje del usuario qué modelo usar para todo el turno.
   function _pickModel(userText) {
+    if (_isGroq()) return MODEL_GROQ;   // Groq: un solo modelo, no hay split fast/smart
     const override = localStorage.getItem('jarvis_agent_model');
     if (override === 'fast') return MODEL_FAST;
     if (override === 'smart') return MODEL_SMART;
@@ -49,8 +55,8 @@
 
   window.agentSaveKey = function () {
     const val = document.getElementById('agent-key-inp').value.trim();
-    if (!val.startsWith('sk-ant-')) {
-      _sysmsg('La key debe empezar con sk-ant-'); return;
+    if (!val.startsWith('sk-ant-') && !val.startsWith('gsk_')) {
+      _sysmsg('La key debe empezar con sk-ant- (Anthropic) o gsk_ (Groq, gratis)'); return;
     }
     apiKey = val;
     localStorage.setItem(KEY_STORE, apiKey);
@@ -107,7 +113,7 @@
     el.className = 'agent-msg ' + role;
     let html = _fmt(text);
     if (role === 'assistant' && model) {
-      const label = model === MODEL_SMART ? '🧠 sonnet' : '⚡ haiku';
+      const label = model === MODEL_SMART ? '🧠 sonnet' : model === MODEL_GROQ ? '🦙 groq' : '⚡ haiku';
       html += ` <span style="opacity:.45;font-size:var(--fs-12-5)">${label}</span>`;
     }
     el.innerHTML = html;
@@ -624,9 +630,95 @@ Instrucciones:
 - Confirmá brevemente lo que hiciste
 - Si hay un error o no podés hacer algo, explicalo en una frase`;
 
+  /* ── Adaptador Groq (API estilo OpenAI) ──────────────────────────────────────────────
+     apiHist se guarda SIEMPRE en formato Anthropic — es el formato canónico del historial
+     persistido, y así una conversación empezada con una key sigue abriéndose con la otra.
+     Groq se traduce solo en el momento de la llamada, y su respuesta vuelve YA con forma
+     Anthropic (content[] + stop_reason), de modo que _run, _exec y _sanitizeApiHist no
+     se enteran de qué proveedor contestó.                                                */
+
+  let _toolsOAI = null;
+  function _toolsOpenAI() {
+    if (!_toolsOAI) _toolsOAI = TOOLS.map(t => ({
+      type: 'function',
+      function: { name: t.name, description: t.description, parameters: t.input_schema },
+    }));
+    return _toolsOAI;
+  }
+
+  // Anthropic → OpenAI. Diferencia clave: Anthropic mete todos los tool_result de un turno
+  // en UN mensaje user; OpenAI exige un mensaje role:'tool' separado por cada resultado.
+  function _histToOpenAI(msgs, sysText) {
+    const out = [{ role: 'system', content: sysText }];
+    for (const m of msgs) {
+      if (typeof m.content === 'string') { out.push({ role: m.role, content: m.content }); continue; }
+      const blocks = Array.isArray(m.content) ? m.content : [];
+      if (m.role === 'assistant') {
+        const text  = blocks.filter(b => b.type === 'text').map(b => b.text).join('');
+        const calls = blocks.filter(b => b.type === 'tool_use').map(b => ({
+          id: b.id, type: 'function',
+          function: { name: b.name, arguments: JSON.stringify(b.input || {}) },
+        }));
+        const msg = { role: 'assistant', content: text || null };
+        if (calls.length) msg.tool_calls = calls;
+        out.push(msg);
+      } else {
+        const results = blocks.filter(b => b.type === 'tool_result');
+        if (results.length) {
+          for (const r of results) out.push({ role: 'tool', tool_call_id: r.tool_use_id, content: String(r.content == null ? '' : r.content) });
+        } else {
+          out.push({ role: 'user', content: blocks.filter(b => b.type === 'text').map(b => b.text).join('') });
+        }
+      }
+    }
+    return out;
+  }
+
+  function _groqToAnthropic(json) {
+    const msg = (json.choices && json.choices[0] && json.choices[0].message) || {};
+    const content = [];
+    if (msg.content) content.push({ type: 'text', text: msg.content });
+    for (const tc of msg.tool_calls || []) {
+      let input = {};
+      // Un LLM puede devolver argumentos JSON rotos: se degrada a {} en vez de tumbar el turno.
+      try { input = JSON.parse((tc.function && tc.function.arguments) || '{}'); } catch (e) {}
+      content.push({ type: 'tool_use', id: tc.id, name: tc.function && tc.function.name, input });
+    }
+    return {
+      content,
+      stop_reason: (msg.tool_calls && msg.tool_calls.length) ? 'tool_use' : 'end_turn',
+      usage: {
+        input_tokens:  (json.usage && json.usage.prompt_tokens)     || 0,
+        output_tokens: (json.usage && json.usage.completion_tokens) || 0,
+      },
+    };
+  }
+
+  async function _callGroq(msgs, model, today) {
+    const res = await fetch(GROQ_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+      body: JSON.stringify({
+        model: model || MODEL_GROQ,
+        max_tokens: 1024,
+        messages: _histToOpenAI(msgs, SYS_STABLE + `\n\nFecha actual: ${today}.`),
+        tools: _toolsOpenAI(),
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error((err.error && err.error.message) || `HTTP ${res.status}`);
+    }
+    const data = _groqToAnthropic(await res.json());
+    // free=true: el nivel gratuito de Groq no cobra — se cuentan tokens pero el costo va en $0.
+    try { window.JARVIS && JARVIS.addApiUsage && JARVIS.addApiUsage(model || MODEL_GROQ, data.usage.input_tokens, data.usage.output_tokens, true); } catch (e) {}
+    return data;
+  }
+
   async function _call(msgs, model) {
     // Bloque dinámico: lo único que cambia por turno/día va DESPUÉS del breakpoint de caching.
     const today = (typeof getActiveDate === 'function') ? getActiveDate() : new Date().toISOString().slice(0, 10);
+    if (_isGroq()) return _callGroq(msgs, model, today);   // el prompt caching es solo de Anthropic
     const sys = [
       { type: 'text', text: SYS_STABLE, cache_control: { type: 'ephemeral' } },
       { type: 'text', text: `Fecha actual: ${today}.` },
