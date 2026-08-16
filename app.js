@@ -2007,7 +2007,33 @@ function plannerHourTicksHTML(hourPx) {
   return ticks.join('');
 }
 
-const PCAL_HOUR_PX = 64;      // pestaña Día / card standalone — grande y legible, estilo Google Calendar
+// ── Lista simple del día (card standalone, pestaña Vida): solo actividades con horario, sin huecos vacíos ──
+function plannerListRowHTML(date, t) {
+  const endMin  = _timeToMin(t.time) + (t.duration || 30);
+  const area    = PLANNER_AREAS[t.area] ? t.area : 'vida';
+  const areaCfg = PLANNER_AREAS[area];
+  const prioCfg = PLANNER_PRIO[t.priority] || PLANNER_PRIO[2];
+  const rid     = escHtml(t.id);
+  const range   = `${t.time}–${_minToTimeDisp(endMin)}`;
+  return `<div class="pcal-row${t.done ? ' done' : ''}" data-id="${rid}"
+    style="--area-c:var(${areaCfg.cssVar})"
+    onclick="openPlanModal('${escHtml(date)}','${rid}')" title="${escHtml(t.text)} · ${areaCfg.label} · ${prioCfg.label}">
+    <span class="pcal-row-time">${range}</span>
+    <label class="pcal-check" onclick="event.stopPropagation()"><input type="checkbox" aria-label="Marcar como hecha: ${escHtml(t.text)}"${t.done ? ' checked' : ''} onchange="plannerToggleTask('${escHtml(date)}','${rid}')"></label>
+    <div class="pcal-text">${escHtml(t.text) || '<span class="pcal-empty">Sin título</span>'}</div>
+    <button class="pcal-del" onclick="event.stopPropagation();plannerDeleteTask('${escHtml(date)}','${rid}')" title="Eliminar" aria-label="Eliminar">✕</button>
+  </div>`;
+}
+function buildDayList(containerEl, date) {
+  if (!containerEl) return;
+  const tasks = plannerDayTasks(date).slice().sort((a, b) => _timeToMin(a.time) - _timeToMin(b.time));
+  const body = tasks.length
+    ? `<div class="pcal-list">${tasks.map(t => plannerListRowHTML(date, t)).join('')}</div>`
+    : '<p class="empty-state">Sin actividades planificadas para hoy.</p>';
+  containerEl.innerHTML = plannerDaybarHTML(date) + body;
+}
+
+const PCAL_HOUR_PX = 64;      // pestaña Día (overlay) — grande y legible, estilo Google Calendar
 const PCAL_WEEK_HOUR_PX = 48; // columnas de la vista Semana
 
 function buildDayCalendar(containerEl, date) {
@@ -2056,9 +2082,9 @@ function buildWeekCalendar(containerEl, anchorDate) {
 function renderDayPlanner() {
   const today = getActiveDate();
 
-  // Card standalone (pestaña Vida): siempre hoy, estilo calendario.
+  // Card standalone (pestaña Vida): siempre hoy, lista de actividades sin horas vacías.
   const listEl = document.getElementById('dayPlannerList');
-  buildDayCalendar(listEl, today);
+  buildDayList(listEl, today);
   const tom = document.getElementById('dayPlannerListTom'); if (tom) tom.style.display = 'none';
   const dots = document.getElementById('plannerDots'); if (dots) dots.style.display = 'none';
   const label = document.getElementById('plannerDateLabel');
