@@ -43,6 +43,93 @@
     try { const hit = await c.match(key); if (hit) return await hit.blob(); } catch(e) {}
     return null;
   }
+
+  // ── Caché compartida en Firestore (colección jarvis_tts) ──────────────────────────────
+  // La Cache Storage de arriba es POR DISPOSITIVO: la misma frase se pagaba de nuevo en la PC,
+  // en el celular y en cada perfil de navegador. Esta capa la comparte entre todos: una frase se
+  // sintetiza UNA sola vez en la vida y después sale gratis en cualquier dispositivo logueado.
+  // Colección propia a propósito — NO va en appdata/: varias funciones de app.js hacen
+  // _db.collection('appdata').get(), que trae TODOS los docs, y se bajarían los MP3 enteros.
+  const TTS_COL     = 'jarvis_tts';
+  const TTS_MAX_B64 = 700000;   // tope propio; el límite duro de un doc de Firestore es 1 MiB
+  function _cloudReady() {
+    try { return typeof _db !== 'undefined' && !!_db && typeof _auth !== 'undefined' && !!_auth && !!_auth.currentUser; }
+    catch(e) { return false; }
+  }
+  // Id de documento estable: SHA-256 del MISMO triple (voz/modelo/texto) que la clave local, así
+  // las dos capas de cache aciertan y fallan juntas. Requiere contexto seguro (HTTPS/localhost).
+  async function _ttsDocId(text, elModel) {
+    const raw = EL_VOICE + '/' + elModel + '/' + text;
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+  function _blobToB64(blob) {
+    return new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload  = () => resolve(String(fr.result).split(',')[1] || '');
+      fr.onerror = reject;
+      fr.readAsDataURL(blob);
+    });
+  }
+  function _b64ToBlob(b64) {
+    const bin = atob(b64);
+    const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return new Blob([arr], { type: 'audio/mpeg' });
+  }
+  // La caché de nube NUNCA rompe la voz: ante cualquier fallo se devuelve null y el flujo cae a
+  // sintetizar como siempre. Pero no falla en silencio — si faltan las reglas de Firestore, cada
+  // dispositivo gastaría cuota por su cuenta sin que se note, así que eso se avisa (1 vez/día).
+  function _cloudFail(e, op) {
+    console.warn('[jarvis-tts] ' + op + ' de la caché compartida falló:', (e && (e.code || e.message)) || e);
+    if (e && e.code === 'permission-denied') {
+      _elToastOncePerDay('jarvis_tts_perm_toast_at', '☁️ La caché de voz compartida no tiene permiso en Firestore — cada dispositivo va a gastar cuota por su cuenta. Falta publicar la regla de jarvis_tts.');
+    }
+  }
+  async function _cloudGet(id) {
+    if (!_cloudReady()) return null;
+    try {
+      const d = await _db.collection(TTS_COL).doc(id).get();
+      if (!d.exists) return null;
+      const b64 = d.data() && d.data().mp3;
+      return b64 ? _b64ToBlob(b64) : null;
+    } catch(e) { _cloudFail(e, 'lectura'); return null; }
+  }
+  async function _cloudPut(id, text, elModel, blob) {
+    if (!_cloudReady()) return;
+    try {
+      const b64 = await _blobToB64(blob);
+      if (!b64 || b64.length > TTS_MAX_B64) return;
+      await _db.collection(TTS_COL).doc(id).set({
+        mp3: b64, text, voice: EL_VOICE, model: elModel,
+        chars: text.length, bytes: b64.length, createdAt: Date.now()
+      });
+    } catch(e) { _cloudFail(e, 'escritura'); }
+  }
+  // Busca una frase ya pagada: cache local (instantánea) → Firestore (una lectura, 0 caracteres).
+  // Un acierto de nube se copia a la cache local para que la próxima vez ni toque la red.
+  async function _lookup(text, key, elModel, c) {
+    const local = await _cacheGet(c, key);
+    if (local) return local;
+    const id = await _ttsDocId(text, elModel).catch(() => null);
+    if (!id) return null;
+    const cloud = await _cloudGet(id);
+    if (cloud && c) { try { await c.put(key, new Response(cloud, { headers: { 'Content-Type': 'audio/mpeg' } })); } catch(e) {} }
+    return cloud;
+  }
+  // Sintetiza de verdad (lo único que gasta cuota) y sube la frase para que ningún OTRO
+  // dispositivo la vuelva a pagar. Se llama solo con un miss ya confirmado de las dos caches.
+  async function _synthAndUpload(text, key, elModel, c) {
+    const blob = await _synthAndCache(text, key, elModel, c);
+    // Sin await: subir no debe demorar la reproducción de la frase recién sintetizada.
+    _ttsDocId(text, elModel).then(id => _cloudPut(id, text, elModel, blob)).catch(() => {});
+    return blob;
+  }
+  async function _getOrSynth(text, key, elModel, c) {
+    const hit = await _lookup(text, key, elModel, c);
+    return hit || _synthAndUpload(text, key, elModel, c);
+  }
+
   const CHARS_KEY = 'jarvis_el_chars_used_total';
   // Solo se llama tras una llamada REAL (exitosa) a la API — nunca en un cache hit — para que el
   // contador refleje el consumo real contra la cuota mensual de ElevenLabs.
@@ -169,7 +256,7 @@
     // Fast path: la frase COMPLETA ya sonó antes tal cual → 1 sola lectura de cache, sin split ni
     // llamadas extra (cubre las líneas fijas/canned que se repiten exactas).
     const fullKey = _ttsCacheKey(text, elModel);
-    const fullHit = await _cacheGet(c, fullKey);
+    const fullHit = await _lookup(text, fullKey, elModel, c);
     if (fullHit) return _playSequence([fullHit]);
 
     // Miss de la frase completa: partimos en oraciones para capturar hits PARCIALES — las
@@ -178,7 +265,8 @@
     const sentences = _splitSentences(text);
     if (sentences.length <= 1) {
       // No se pudo partir (o ya es 1 sola oración): mismo camino de siempre, sin overhead extra.
-      const blob = await _synthAndCache(text, fullKey, elModel, c);
+      // _lookup ya falló arriba con esta MISMA clave: sintetizar directo, sin releer las caches.
+      const blob = await _synthAndUpload(text, fullKey, elModel, c);
       return _playSequence([blob]);
     }
 
@@ -189,9 +277,7 @@
     const blobs = [];
     for (const s of sentences) {
       const sKey = _ttsCacheKey(s, elModel);
-      let b = await _cacheGet(c, sKey);
-      if (!b) b = await _synthAndCache(s, sKey, elModel, c);
-      blobs.push(b);
+      blobs.push(await _getOrSynth(s, sKey, elModel, c));
     }
     // No se cachea la frase completa acá: concatenar blobs MP3 independientes de ElevenLabs
     // (cada uno con sus propios headers/frames) es riesgoso — puede sonar con glitches o no
@@ -358,9 +444,7 @@
       const blobs = [];
       for (const seg of segments) {
         const key = _ttsCacheKey(seg.t, elModel);
-        let b = await _cacheGet(c, key);
-        if (!b) b = await _synthAndCache(seg.t, key, elModel, c);
-        blobs.push(b);
+        blobs.push(await _getOrSynth(seg.t, key, elModel, c));
       }
       return _playSequence(blobs);
     } catch (e) {
