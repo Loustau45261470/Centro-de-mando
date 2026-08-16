@@ -2,6 +2,13 @@
   "_doc": "Registro witness de fixes (idea adaptada de ruflo-core/witness, sin criptografía). Cada entrada tiene un marker: una substring distintiva que DEBE seguir presente en el archivo. Si un marker desaparece, el fix pudo haber sido revertido — alertar antes de asumir que 'ya estaba arreglado'. Se chequea con grep en cada verificación y en /mantenimiento.",
   "fixes": [
     {
+      "id": "speed-dial-items-eat-clicks",
+      "fecha": "2026-08-16",
+      "desc": "El abanico CERRADO del speed-dial se comia los clicks de una franja del borde derecho (medido: 202x394 px, x[1698-1900] y[494-888] a 1920x1030), en TODAS las secciones. Los .cm-sd-item apagados solo tienen opacity:0 y siguen ocupando lugar, asi que el contenedor .cm-sd-items conservaba su caja sobre el FAB con pointer-events:auto. Ahora el contenedor es pointer-events:none y cada item se rehabilita con .cm-sd.open .cm-sd-item. NO quitar el pointer-events:none del contenedor.",
+      "file": "speed-dial.css",
+      "marker": "conserva su caja sobre el FAB"
+    },
+    {
       "id": "sync-write-in-flight-guard",
       "fecha": "2026-07-10",
       "desc": "Flag que bloquea onSnapshot y _syncOnFocus mientras hay un write en vuelo, para que un snapshot remoto viejo no pise el estado local recién guardado. NO eliminar.",
