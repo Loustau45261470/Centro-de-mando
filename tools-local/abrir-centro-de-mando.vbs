@@ -29,9 +29,12 @@ Else
   url = "https://loustau45261470.github.io/Centro-de-mando/"
 End If
 
+' --start-maximized: la ventana de app arranca ocupando toda la pantalla. Sin esto Chrome
+' reusa el tamano guardado de la ultima vez y queda una ventanita parcial.
+' El 3 del Run es SW_SHOWMAXIMIZED, por si Chrome ignorara el flag.
 chrome = "C:\Program Files\Google\Chrome\Application\chrome.exe"
 If fso.FileExists(chrome) Then
-  sh.Run """" & chrome & """ --app=" & url, 1, False
+  sh.Run """" & chrome & """ --start-maximized --app=" & url, 3, False
 Else
-  sh.Run url, 1, False
+  sh.Run url, 3, False
 End If
