@@ -4022,14 +4022,16 @@ body:has(#login-screen) #hud-frame { opacity: 0; }
   .tab-panel.active > .intel-card {
     column-span: all;
   }
-  /* Finanzas: 2 columnas reales en vez del masonry (evita huecos entre tarjetas) ·
-     izq: objetivos/calendarios/obligaciones/recordatorios · der: patrimonio + resto */
+  /* Finanzas/Vida/Conocimiento/Salud: 2 columnas reales en vez del masonry (evita huecos entre tarjetas) ·
+     izq: objetivos/calendarios/obligaciones/recordatorios · der: patrimonio (o equivalente) + resto */
   #tab-finanzas.tab-panel.active,
   #tab-vida.tab-panel.active,
-  #tab-conocimiento.tab-panel.active { column-count: auto; }
+  #tab-conocimiento.tab-panel.active,
+  #tab-salud.tab-panel.active { column-count: auto; }
   #tab-finanzas .fin-cols,
   #tab-vida .fin-cols,
-  #tab-conocimiento .fin-cols {
+  #tab-conocimiento .fin-cols,
+  #tab-salud .fin-cols {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 20px;
@@ -4039,10 +4041,12 @@ body:has(#login-screen) #hud-frame { opacity: 0; }
      (evita el desborde horizontal clásico de grid cuando una tarjeta tiene contenido ancho) */
   #tab-finanzas .fin-col,
   #tab-vida .fin-col,
-  #tab-conocimiento .fin-col { min-width: 0; }
+  #tab-conocimiento .fin-col,
+  #tab-salud .fin-col { min-width: 0; }
   #tab-finanzas .fin-col > *,
   #tab-vida .fin-col > *,
-  #tab-conocimiento .fin-col > * { min-width: 0; max-width: 100%; }
+  #tab-conocimiento .fin-col > *,
+  #tab-salud .fin-col > * { min-width: 0; max-width: 100%; }
   /* cada tarjeta es una unidad de masonry: no se parte entre columnas */
   .tab-panel.active .card,
   .tab-panel.active > [id^="qobj-wrap-"],
@@ -4063,8 +4067,6 @@ body:has(#login-screen) #hud-frame { opacity: 0; }
 @media (min-width: 1560px) {
   .tab-panel.active { column-count: 3; }
   .tab-panel { max-width: 1760px; }
-  /* Salud maneja su propio layout de 2 columnas fijas (.tab-grid-2): el masonry de 3 columnas lo rompe */
-  #tab-salud.tab-panel.active { column-count: 1 !important; }
 }
 
 /* ═══════════════ PANELES INSTRUMENTALES ═══════════════ */
