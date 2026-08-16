@@ -23,6 +23,19 @@
     });
   };
 
+  // Ojo de los campos de API key del panel: alterna password↔text para poder LEER una key
+  // ya guardada. Las keys son de vista única al crearlas (ElevenLabs, Groq); sin esto la
+  // única forma de recuperar una era la consola del navegador. Al revelarla se selecciona
+  // sola, así copiarla es un Ctrl+C. Nunca queda visible sola: arranca siempre oculta.
+  window._toggleKeyVisible = function(inputId, btn) {
+    const inp = document.getElementById(inputId);
+    if (!inp) return;
+    const revelar = inp.type === 'password';
+    inp.type = revelar ? 'text' : 'password';
+    if (btn) btn.textContent = revelar ? '🙈' : '👁️';
+    if (revelar) { try { inp.focus(); inp.select(); } catch (e) {} }
+  };
+
   // Restore saved preferences on load
   const savedTheme = localStorage.getItem('ui_theme') || '';
   const savedFont  = localStorage.getItem('ui_font')  || '';
