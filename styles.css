@@ -1133,7 +1133,23 @@ textarea { resize: vertical; min-height: 60px; }
 .pcal-prio-tag { flex-shrink: 0; font-family: var(--mono); font-size: var(--fs-12-5); font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: #fff; background: rgba(0,0,0,.28); padding: 1px 6px; border-radius: 99px; }
 .pcal-prio-tag::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--pc); box-shadow: 0 0 5px var(--pc); margin-right: 4px; vertical-align: middle; }
 
-/* ── Día (card standalone + pestaña Día del overlay) ── */
+/* ── Lista simple del día (card standalone, pestaña Vida): solo actividades, sin horas vacías ── */
+.pcal-list { display: flex; flex-direction: column; gap: 6px; }
+.pcal-row {
+  display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 7px;
+  background: color-mix(in srgb, var(--area-c, var(--hud)) 80%, #0a0f1a);
+  border: 1px solid color-mix(in srgb, var(--area-c, var(--hud)) 62%, #000);
+  color: #fff; cursor: pointer; transition: filter .15s var(--ease-out-quart);
+}
+.pcal-row:hover { filter: brightness(1.08); }
+.pcal-row.done { opacity: .5; }
+.pcal-row.done .pcal-text { text-decoration: line-through; }
+.pcal-row-time {
+  flex-shrink: 0; font-family: var(--mono); font-size: var(--fs-12-5); font-weight: 700;
+  color: #fff; background: rgba(0,0,0,.28); padding: 2px 7px; border-radius: 99px;
+}
+
+/* ── Día (pestaña Día del overlay): grilla horaria completa ── */
 .pcal-day-wrap { display: flex; }
 .pcal-day-body { flex: 1; min-width: 0; }
 
@@ -4045,6 +4061,8 @@ body:has(#login-screen) #hud-frame { opacity: 0; }
 @media (min-width: 1560px) {
   .tab-panel.active { column-count: 3; }
   .tab-panel { max-width: 1760px; }
+  /* Salud maneja su propio layout de 2 columnas fijas (.tab-grid-2): el masonry de 3 columnas lo rompe */
+  #tab-salud.tab-panel.active { column-count: 1; }
 }
 
 /* ═══════════════ PANELES INSTRUMENTALES ═══════════════ */
