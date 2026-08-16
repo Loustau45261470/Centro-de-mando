@@ -20,7 +20,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-<link rel="stylesheet" href="styles.css?v=174">
+<link rel="stylesheet" href="styles.css?v=175">
 <link rel="stylesheet" href="gamemode.css">
 <link rel="stylesheet" href="overlay-core.css">
 <link rel="stylesheet" href="speed-dial.css?v=2">
@@ -337,69 +337,70 @@
 
     <div class="affirmation-strip aff-mid"><span id="affirmation2-salud"></span></div>
 
-    <!-- Grid 2 columnas (desktop; en mobile cae en columna única en este mismo orden): izquierda = Objetivos→Bienestar→Dieta, derecha = Hábitos→Entrenamiento→Recordatorios -->
-    <div class="tab-grid-2" id="salud-grid-2" style="grid-auto-flow:column; grid-template-rows:repeat(3,auto)">
-      <div id="qobj-wrap-salud"></div>
+    <!-- 2 columnas reales (desktop; en mobile cae en columna única en este mismo orden): izquierda = Objetivos→Bienestar→Dieta, derecha = Hábitos→Entrenamiento→Recordatorios -->
+    <div class="fin-cols">
+      <div class="fin-col">
+        <div id="qobj-wrap-salud"></div>
 
-      <!-- Bienestar Tracker -->
-      <div class="card" id="bienestar-card">
-        <div class="card-title">🌿 Bienestar</div>
+        <!-- Bienestar Tracker -->
+        <div class="card" id="bienestar-card">
+          <div class="card-title">🌿 Bienestar</div>
 
-        <!-- Horarios -->
-        <div class="sleep-time-grid">
-          <div>
-            <div class="sleep-section-label">Me dormí</div>
-            <input type="time" class="inp sleep-time-inp" id="sleepBedtime" onchange="saveSleepTimes()">
+          <!-- Horarios -->
+          <div class="sleep-time-grid">
+            <div>
+              <div class="sleep-section-label">Me dormí</div>
+              <input type="time" class="inp sleep-time-inp" id="sleepBedtime" onchange="saveSleepTimes()">
+            </div>
+            <div>
+              <div class="sleep-section-label">Me desperté</div>
+              <input type="time" class="inp sleep-time-inp" id="sleepWaketime" onchange="saveSleepTimes()">
+            </div>
           </div>
-          <div>
-            <div class="sleep-section-label">Me desperté</div>
-            <input type="time" class="inp sleep-time-inp" id="sleepWaketime" onchange="saveSleepTimes()">
+
+          <!-- Horas dormidas -->
+          <div class="sleep-section" style="margin-bottom:14px">
+            <div class="sleep-section-label">Horas dormidas</div>
+            <div class="sleep-hours-row">
+              <span class="sleep-hours-val" id="sleepHoursVal">—</span>
+              <span class="sleep-hours-unit">h</span>
+            </div>
+          </div>
+
+          <!-- Métricas de bienestar (renderizado por JS) -->
+          <div class="wellness-grid" id="wellnessGrid"></div>
+
+          <!-- Franjas de 14 días por métrica (renderizado por JS) -->
+          <div class="wstrips" id="wellnessStrips"></div>
+
+          <!-- Notas (oculto) -->
+          <button class="sleep-notes-toggle" onclick="toggleSleepNotes()">
+            <span>📝 Notas de bienestar</span>
+            <span id="sleepNotesChevron" style="font-size:var(--fs-12-5);display:inline-block;transition:transform .25s">▾</span>
+          </button>
+          <div class="sleep-notes-body" id="sleepNotesBody">
+            <textarea class="inp" id="sleepNotesText" rows="4"
+              placeholder="Notas sobre tu bienestar: sueño, energía, estado de ánimo, dolor, estrés…"
+              style="resize:vertical;min-height:80px"
+              oninput="saveSleepNotes()"></textarea>
           </div>
         </div>
 
-        <!-- Horas dormidas -->
-        <div class="sleep-section" style="margin-bottom:14px">
-          <div class="sleep-section-label">Horas dormidas</div>
-          <div class="sleep-hours-row">
-            <span class="sleep-hours-val" id="sleepHoursVal">—</span>
-            <span class="sleep-hours-unit">h</span>
-          </div>
-        </div>
-
-        <!-- Métricas de bienestar (renderizado por JS) -->
-        <div class="wellness-grid" id="wellnessGrid"></div>
-
-        <!-- Franjas de 14 días por métrica (renderizado por JS) -->
-        <div class="wstrips" id="wellnessStrips"></div>
-
-        <!-- Notas (oculto) -->
-        <button class="sleep-notes-toggle" onclick="toggleSleepNotes()">
-          <span>📝 Notas de bienestar</span>
-          <span id="sleepNotesChevron" style="font-size:var(--fs-12-5);display:inline-block;transition:transform .25s">▾</span>
-        </button>
-        <div class="sleep-notes-body" id="sleepNotesBody">
-          <textarea class="inp" id="sleepNotesText" rows="4"
-            placeholder="Notas sobre tu bienestar: sueño, energía, estado de ánimo, dolor, estrés…"
-            style="resize:vertical;min-height:80px"
-            oninput="saveSleepNotes()"></textarea>
+        <!-- Dieta: resumen (sección) · reglas completas en el overlay (FAB → Dieta) -->
+        <div class="card" id="dieta-resumen-card">
+          <div class="card-title">🥗 Dieta</div>
+          <div id="dietaResumenBody"></div>
         </div>
       </div>
+      <div class="fin-col">
+        <div id="salud-habits-wrap"></div>
 
-      <!-- Dieta: resumen (sección) · reglas completas en el overlay (FAB → Dieta) -->
-      <div class="card" id="dieta-resumen-card">
-        <div class="card-title">🥗 Dieta</div>
-        <div id="dietaResumenBody"></div>
-      </div>
+        <!-- Entrenamiento: resumen (sección) · detalle completo en el overlay (FAB → Entrenamiento) -->
+        <div class="card" id="entrenamiento-resumen-card">
+          <div class="card-title">🏋️ Entrenamiento</div>
+          <div id="entrenoResumenBody"></div>
+        </div>
 
-      <div id="salud-habits-wrap"></div>
-
-      <!-- Entrenamiento: resumen (sección) · detalle completo en el overlay (FAB → Entrenamiento) -->
-      <div class="card" id="entrenamiento-resumen-card">
-        <div class="card-title">🏋️ Entrenamiento</div>
-        <div id="entrenoResumenBody"></div>
-      </div>
-
-      <div>
         <div class="card rnotif-card"><div class="card-title">🔔 Vencimientos</div><div id="reminders-notif-salud"></div></div>
         <div id="reminders-wrap-salud"></div>
       </div>
