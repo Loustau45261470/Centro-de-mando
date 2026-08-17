@@ -2880,8 +2880,8 @@ function _renderNWScaleNote() {
 function initNWCharts() {
   // Pie
   const pieCtx=document.getElementById('nwPieChart').getContext('2d');
-  const types=['bank','invest','crypto','other'];
-  const labels=['Cuentas','Inversión','Cripto','Otros'];
+  const types=['bank','invest','prestamo','other'];
+  const labels=['Cuentas','Inversión','Préstamo','Otros'];
   const colors=['rgba(107,227,164,.7)','rgba(124,142,232,.7)','rgba(242,192,99,.7)','rgba(255,107,107,.7)'];
   const data=types.map(t=>S.accounts.filter(a=>a.type===t).reduce((s,a)=>s+a.balance,0));
   nwPieInst=new Chart(pieCtx,{
@@ -2904,7 +2904,7 @@ function initNWCharts() {
 
 function updateNWCharts() {
   if (!nwPieInst||!nwLineInst) return;
-  const types=['bank','invest','crypto','other'];
+  const types=['bank','invest','prestamo','other'];
   nwPieInst.data.datasets[0].data=types.map(t=>S.accounts.filter(a=>a.type===t).reduce((s,a)=>s+a.balance,0));
   nwPieInst.update('none');
   const hist=S.nwHistory.slice(-30);
