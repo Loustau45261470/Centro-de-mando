@@ -110,7 +110,7 @@ function _sfEnsureSesionEstudio() {
   if (!overlay._sfBuilt) {
     body.innerHTML = `<div class="cm-ov-head"><div class="cm-ov-eyebrow">CONOCIMIENTO · SESIÓN DE ESTUDIO</div><div class="cm-ov-title">Sesión de estudio</div></div>
       <div class="card" style="margin-bottom:12px"><div class="card-title">⏱ Pomodoro</div><div id="ov-pomodoro"></div></div>
-      <div class="card"><div class="card-title">📊 Historial de estudio</div><div id="ov-pomo-hist"></div></div>`;
+      <div class="card"><div class="card-title">📊 Historial de estudio<span id="pomo-hist-tot"></span></div><div id="ov-pomo-hist"></div></div>`;
     overlay._sfBuilt = true;
     if (window.Pomodoro) Pomodoro.mount(document.getElementById('ov-pomodoro'));
     if (window.Pomodoro) Pomodoro.mountHistory(document.getElementById('ov-pomo-hist'));

@@ -223,38 +223,48 @@ const Pomodoro = (() => {
 
   function setHistView(v) { histView = v; renderHistory(); }
 
+  const fmtDur = m => {
+    const h = Math.floor((m || 0) / 60), mm = (m || 0) % 60;
+    return h ? `${h}<span class="u">h</span>${mm ? ' ' + mm + '<span class="u">′</span>' : ''}` : `${m || 0}<span class="u">′</span>`;
+  };
+
   function renderHistory() {
     if (!histContainer) return;
     if (histChartInst) { histChartInst.destroy(); histChartInst = null; }
     const hist = (typeof S !== 'undefined' && Array.isArray(S.pomodoroHistory)) ? S.pomodoroHistory : [];
+    const totEl = document.getElementById('pomo-hist-tot');
     if (!hist.length) {
-      histContainer.innerHTML = '<div class="empty-state" style="padding:14px 0">Sin pomodoros registrados todavía.</div>';
+      if (totEl) totEl.textContent = '';
+      histContainer.innerHTML = `<div class="pomo-empty">
+        <div class="pomo-empty-ico">🍅</div>
+        <div class="pomo-empty-t">Sin sesiones todavía</div>
+        <div class="pomo-empty-s">Arrancá un pomodoro arriba y acá vas a ver tu historial.</div>
+      </div>`;
       return;
     }
     const today = typeof getActiveDate === 'function' ? getActiveDate() : new Date().toISOString().slice(0, 10);
     const sumMin = arr => arr.reduce((a, e) => a + (e.minutes || 0), 0);
-    const tile = (n, mins, lbl) => `<div class="ci-kpi"><div class="ci-kpi-num">${n}</div><div class="ci-kpi-lbl">${lbl} · ${mins}′</div></div>`;
+    if (totEl) totEl.textContent = `${hist.length} sesión${hist.length === 1 ? '' : 'es'} · ${Math.round(sumMin(hist) / 60 * 10) / 10}h`;
 
+    // ── Pulso: hoy / 7 días / este mes, hoy como héroe ──
     const hoyE = hist.filter(h => h.date === today);
     const semDesde = addDiasH(today, -6);
     const semE = hist.filter(h => h.date >= semDesde && h.date <= today);
     const mesPref = today.slice(0, 7);
     const mesE = hist.filter(h => h.date.slice(0, 7) === mesPref);
-
-    const tilesHtml = `<div class="ci-kpis pomo-hist-kpis">
-      ${tile(hoyE.length, sumMin(hoyE), '🍅 Hoy')}
-      ${tile(semE.length, sumMin(semE), 'Esta semana')}
-      ${tile(mesE.length, sumMin(mesE), 'Este mes')}
+    const pulseCell = (n, lbl, hero) => `<div class="pomo-pulse-cell${hero ? ' is-hero' : ''}">
+      <div class="pomo-pulse-lbl">${lbl}</div>
+      <div class="pomo-pulse-val">${fmtDur(sumMin(n))}</div>
+      <div class="pomo-pulse-sub">${n.length} sesion${n.length === 1 ? '' : 'es'}</div>
+    </div>`;
+    const pulseHtml = `<div class="pomo-pulse">
+      ${pulseCell(hoyE, 'Hoy', true)}
+      ${pulseCell(semE, '7 días', false)}
+      ${pulseCell(mesE, 'Este mes', false)}
     </div>`;
 
-    const toggleHtml = `<div class="habit-view-toggle" style="margin-top:12px">
-      <button class="${histView === 'day' ? 'active' : ''}" onclick="Pomodoro.setHistView('day')">Día</button>
-      <button class="${histView === 'week' ? 'active' : ''}" onclick="Pomodoro.setHistView('week')">Semana</button>
-      <button class="${histView === 'month' ? 'active' : ''}" onclick="Pomodoro.setHistView('month')">Mes</button>
-    </div>`;
-
-    // Datos del gráfico + acumulados para los promedios, sobre la MISMA ventana que muestran las barras
-    // (14 días / 8 semanas / 6 meses) — así el toggle cambia ambos juntos y quedan coherentes entre sí.
+    // ── Módulo de tendencia: datos del gráfico + promedios, sobre la MISMA ventana
+    // que muestran las barras (14 días / 8 semanas / 6 meses) — coherentes entre sí. ──
     const horas = arr => Math.round(sumMin(arr) / 60 * 10) / 10;
     let labels = [], data = [], totalMin = 0, totalSes = 0, nBuckets = 0;
     if (histView === 'day') {
@@ -292,43 +302,87 @@ const Pomodoro = (() => {
     const avgMinSesion = totalSes ? Math.round(totalMin / totalSes) : 0;
     const avgSesBucket = Math.round(totalSes / nBuckets * 10) / 10;
     const avgMinBucket = Math.round(totalMin / nBuckets);
-    const statTile = (n, lbl) => `<div class="ci-kpi"><div class="ci-kpi-num">${n}</div><div class="ci-kpi-lbl">${lbl}</div></div>`;
-    const avgHtml = `<div class="ci-kpis pomo-hist-kpis" style="margin-top:10px">
-      ${statTile(avgMinSesion || '—', 'Min / sesión')}
-      ${statTile(avgSesBucket, 'Sesiones / ' + vistaLbl)}
-      ${statTile(avgMinBucket, 'Min / ' + vistaLbl)}
-    </div>`;
 
-    // Lista de sesiones individuales (más nueva primero) — mismo patrón visual que
-    // el historial de gastos (.activity-row), con acción de borrar por fila.
-    const sessionRow = e => `<div class="activity-row">
-      <div class="act-icon" style="background:rgba(107,142,255,.1)">${e.full ? '🍅' : '⏱️'}</div>
-      <div class="act-info">
-        <div class="act-name">${e.full ? 'Pomodoro completo' : 'Sesión cortada'}</div>
-        <div class="act-date">${typeof fmtDate === 'function' ? fmtDate(e.date) : e.date} · ${new Date(e.ts).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</div>
+    const modHtml = `<div class="pomo-mod">
+      <div class="pomo-mod-head">
+        <div class="pomo-mod-title">Tiempo por ${vistaLbl}</div>
+        <div class="pomo-seg">
+          <button class="${histView === 'day' ? 'active' : ''}" onclick="Pomodoro.setHistView('day')">Día</button>
+          <button class="${histView === 'week' ? 'active' : ''}" onclick="Pomodoro.setHistView('week')">Semana</button>
+          <button class="${histView === 'month' ? 'active' : ''}" onclick="Pomodoro.setHistView('month')">Mes</button>
+        </div>
       </div>
-      <div style="display:flex;align-items:center;gap:6px">
-        <div class="act-amount" style="color:#6B8EFF">${e.minutes}′</div>
-        <div class="txn-actions"><button class="icon-btn" onclick="Pomodoro.deleteSession('${e.id}')" title="Eliminar">🗑</button></div>
+      <div class="pomo-chart"><canvas id="pomo-hist-canvas"></canvas></div>
+      <div class="pomo-mod-foot">
+        <span class="pomo-avg"><b>${avgMinSesion || '—'}′</b> por sesión</span>
+        <span class="pomo-avg"><b>${avgSesBucket}</b> sesiones por ${vistaLbl}</span>
+        <span class="pomo-avg"><b>${avgMinBucket}′</b> por ${vistaLbl}</span>
       </div>
     </div>`;
-    const rowsHtml = `<div class="ci-sub" style="margin-top:14px">Sesiones registradas</div>
-      <div style="max-height:280px;overflow-y:auto">${hist.slice().sort((a, b) => b.ts - a.ts).map(sessionRow).join('')}</div>`;
 
-    histContainer.innerHTML = tilesHtml + toggleHtml + avgHtml + `<div style="height:220px;margin-top:10px"><canvas id="pomo-hist-canvas"></canvas></div>` + rowsHtml;
+    // ── Bitácora: sesiones agrupadas por día, más nuevo primero ──
+    const ayer = addDiasH(today, -1);
+    const dayLbl = d => d === today ? 'Hoy' : d === ayer ? 'Ayer' : (typeof fmtDate === 'function' ? fmtDate(d) : d);
+    const maxMin = Math.max(25, ...hist.map(e => e.minutes || 0));
+    const byDay = {};
+    hist.forEach(e => (byDay[e.date] = byDay[e.date] || []).push(e));
+    const days = Object.keys(byDay).sort().reverse();
+
+    const sessionRow = e => `<div class="pomo-row${e.full ? '' : ' is-cut'}">
+      <span class="pomo-row-tick"></span>
+      <span class="pomo-row-min">${e.minutes}′</span>
+      <span class="pomo-row-bar" style="--w:${Math.max(6, Math.round((e.minutes || 0) / maxMin * 100))}%"></span>
+      ${e.full ? '' : '<span class="pomo-tag-cut">Parcial</span>'}
+      <span class="pomo-row-time">${new Date(e.ts).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
+      <button class="pomo-row-del" onclick="Pomodoro.deleteSession('${e.id}')" aria-label="Eliminar sesión">🗑</button>
+    </div>`;
+    const dayBlock = d => `<div class="pomo-day${d === today ? ' is-today' : ''}">
+        <span class="pomo-day-lbl">${dayLbl(d)}</span>
+        <span class="pomo-day-line"></span>
+        <span class="pomo-day-tot">${fmtDur(sumMin(byDay[d]))}</span>
+      </div>${byDay[d].slice().sort((a, b) => b.ts - a.ts).map(sessionRow).join('')}`;
+
+    const logHtml = `<div class="pomo-log-head">
+        <div class="pomo-log-title">Bitácora</div>
+        <div class="pomo-log-count">${hist.length} sesión${hist.length === 1 ? '' : 'es'}</div>
+      </div>
+      <div class="pomo-log" id="pomo-log-scroll">${days.map(dayBlock).join('')}</div>`;
+
+    histContainer.innerHTML = pulseHtml + modHtml + '<div class="pomo-sep"></div>' + logHtml;
+
+    const logEl = document.getElementById('pomo-log-scroll');
+    if (logEl && logEl.scrollHeight <= logEl.clientHeight) logEl.classList.add('is-short');
 
     const canvas = document.getElementById('pomo-hist-canvas');
     if (!canvas || typeof Chart === 'undefined') return;
 
+    const _f = n => (typeof _cfs === 'function' ? _cfs(n) : n);
     histChartInst = new Chart(canvas.getContext('2d'), {
       type: 'bar',
-      data: { labels, datasets: [{ data, backgroundColor: 'rgba(107,142,255,.7)', borderRadius: 4, maxBarThickness: 26 }] },
+      data: {
+        labels,
+        datasets: [{
+          data,
+          backgroundColor: data.map((_, i) => i === data.length - 1 ? '#6B8EFF' : 'rgba(107,142,255,.34)'),
+          hoverBackgroundColor: '#8AA6FF',
+          borderRadius: 5, maxBarThickness: 22
+        }]
+      },
       options: {
         responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(8,14,26,.94)', borderColor: 'rgba(107,142,255,.35)', borderWidth: 1,
+            titleColor: '#EDF4FF', bodyColor: '#8BA5C0', padding: 9, displayColors: false,
+            callbacks: { label: c => fmtDur(Math.round(c.parsed.y * 60)).replace(/<\/?span[^>]*>/g, '') }
+          }
+        },
         scales: {
-          x: { ticks: { font: { size: typeof _cfs === 'function' ? _cfs(12) : 12 } } },
-          y: { min: 0, ticks: { font: { size: typeof _cfs === 'function' ? _cfs(13) : 13 }, callback: v => v + 'h' } }
+          x: { grid: { display: false }, border: { display: false },
+               ticks: { color: '#8BA5C0', font: { size: _f(11.5) }, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } },
+          y: { min: 0, grid: { color: 'rgba(107,142,255,.09)' }, border: { display: false },
+               ticks: { color: '#8BA5C0', font: { size: _f(11.5) }, maxTicksLimit: 4, callback: v => v + 'h' } }
         }
       }
     });
