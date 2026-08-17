@@ -19,7 +19,8 @@ const Pomodoro = (() => {
   let paused = false;
   let timer = null;
   let container = null;
-  let sessionBlocks = 0;       // bloques de estudio completados en la sesión actual
+  let sessionBlocks = 0;       // bloques de estudio COMPLETOS en la sesión actual
+  let sessionMinutes = 0;      // minutos totales registrados en la sesión actual (completos + parcial de cierre)
   let sessionEarly = false;    // true si se cortó con "Finalizar sesión" antes de los N ciclos
   let histContainer = null;
   let histView = 'day';       // 'day' | 'week' | 'month'
@@ -68,11 +69,11 @@ const Pomodoro = (() => {
       if (typeof renderHabitsCard === 'function') try { renderHabitsCard('conocimiento'); } catch (e) {}
     } catch (e) {}
   }
-  function logSesion(today) {
+  function logSesion(today, minutes) {
     try {
       if (typeof S === 'undefined') return;
       S.pomodoroHistory = S.pomodoroHistory || [];
-      S.pomodoroHistory.push({ id: uid(), date: today, minutes: cfg.study, ts: Date.now() });
+      S.pomodoroHistory.push({ id: uid(), date: today, minutes, ts: Date.now() });
       saveState(); // no depender de que markHabitDay llegue a guardar
     } catch (e) {}
   }
@@ -91,9 +92,9 @@ const Pomodoro = (() => {
   function advance() {
     if (phase === 'study') {
       const today = typeof getActiveDate === 'function' ? getActiveDate() : new Date().toISOString().slice(0, 10);
-      logSesion(today);
+      logSesion(today, cfg.study);
       markHabitDay('done', today);
-      sessionBlocks++;
+      sessionBlocks++; sessionMinutes += cfg.study;
       renderHistory();
       if (cycle < cfg.cycles) {
         phase = 'break'; remaining = cfg.brk * 60;
@@ -117,13 +118,22 @@ const Pomodoro = (() => {
   }
   function endSession() {
     if (phase !== 'study' && phase !== 'break') return;
+    if (phase === 'study') {
+      // Bloque de estudio cortado antes de tiempo: registra el tiempo real transcurrido (no el bloque completo).
+      const elapsedMin = Math.floor((cfg.study * 60 - remaining) / 60);
+      if (elapsedMin >= 1) {
+        const today = typeof getActiveDate === 'function' ? getActiveDate() : new Date().toISOString().slice(0, 10);
+        logSesion(today, elapsedMin);
+        sessionMinutes += elapsedMin;
+      }
+    }
     stopTick();
     phase = 'done'; paused = false; sessionEarly = true;
     announce(
-      sessionBlocks ? '🏁 Sesión finalizada — ' + sessionBlocks + ' bloque(s) completo(s)' : '🏁 Sesión finalizada',
-      sessionBlocks ? 'Session ended, sir. ' + sessionBlocks + ' study blocks logged.' : 'Session ended, sir.'
+      sessionMinutes ? '🏁 Sesión finalizada — ' + sessionMinutes + ' min estudiados' : '🏁 Sesión finalizada',
+      sessionMinutes ? 'Session ended, sir. ' + sessionMinutes + ' minutes logged.' : 'Session ended, sir.'
     );
-    render();
+    render(); renderHistory();
   }
 
   // ── Controles ──
@@ -136,7 +146,7 @@ const Pomodoro = (() => {
   function start() {
     saveCfg();
     phase = 'study'; cycle = 1; remaining = cfg.study * 60; paused = false;
-    sessionBlocks = 0; sessionEarly = false;
+    sessionBlocks = 0; sessionMinutes = 0; sessionEarly = false;
     startTick(); render();
     markHabitDay('partial');
   }
@@ -166,7 +176,7 @@ const Pomodoro = (() => {
     if (phase === 'idle' || phase === 'done') {
       const doneHtml = phase === 'done' ? `<div class="pomo-done">
           ${sessionEarly ? '🏁 Sesión finalizada' : '✅ Pomodoro completo'}
-          ${sessionBlocks ? ` · ${sessionBlocks} bloque${sessionBlocks === 1 ? '' : 's'} · ${sessionBlocks * cfg.study} min estudiados` : ' · sin bloques completos'}
+          ${sessionMinutes ? ` · ${sessionBlocks} bloque${sessionBlocks === 1 ? '' : 's'} completo${sessionBlocks === 1 ? '' : 's'} · ${sessionMinutes} min estudiados` : ' · sin estudio registrado'}
         </div>` : '';
       container.innerHTML = `
         ${doneHtml}
@@ -236,34 +246,56 @@ const Pomodoro = (() => {
       <button class="${histView === 'month' ? 'active' : ''}" onclick="Pomodoro.setHistView('month')">Mes</button>
     </div>`;
 
-    histContainer.innerHTML = tilesHtml + toggleHtml + `<div style="height:220px;margin-top:10px"><canvas id="pomo-hist-canvas"></canvas></div>`;
-
-    const canvas = document.getElementById('pomo-hist-canvas');
-    if (!canvas || typeof Chart === 'undefined') return;
-
+    // Datos del gráfico + acumulados para los promedios, sobre la MISMA ventana que muestran las barras
+    // (14 días / 8 semanas / 6 meses) — así el toggle cambia ambos juntos y quedan coherentes entre sí.
     const horas = arr => Math.round(sumMin(arr) / 60 * 10) / 10;
-    let labels = [], data = [];
+    let labels = [], data = [], totalMin = 0, totalSes = 0, nBuckets = 0;
     if (histView === 'day') {
+      nBuckets = 14;
       for (let i = 13; i >= 0; i--) {
         const d = addDiasH(today, -i);
+        const es = hist.filter(h => h.date === d);
         labels.push(d.slice(8, 10) + '/' + d.slice(5, 7));
-        data.push(horas(hist.filter(h => h.date === d)));
+        data.push(horas(es));
+        totalMin += sumMin(es); totalSes += es.length;
       }
     } else if (histView === 'week') {
+      nBuckets = 8;
       for (let w = 7; w >= 0; w--) {
         const desde = addDiasH(today, -7 * (w + 1) + 1), hasta = addDiasH(today, -7 * w);
+        const es = hist.filter(h => h.date >= desde && h.date <= hasta);
         labels.push(desde.slice(8, 10) + '/' + desde.slice(5, 7));
-        data.push(horas(hist.filter(h => h.date >= desde && h.date <= hasta)));
+        data.push(horas(es));
+        totalMin += sumMin(es); totalSes += es.length;
       }
     } else {
+      nBuckets = 6;
       const now = new Date();
       for (let i = 5; i >= 0; i--) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
         const pref = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+        const es = hist.filter(h => h.date.slice(0, 7) === pref);
         labels.push(typeof CAL_MONTHS !== 'undefined' ? CAL_MONTHS[d.getMonth()].slice(0, 3) : pref.slice(5, 7));
-        data.push(horas(hist.filter(h => h.date.slice(0, 7) === pref)));
+        data.push(horas(es));
+        totalMin += sumMin(es); totalSes += es.length;
       }
     }
+
+    const vistaLbl = { day: 'día', week: 'semana', month: 'mes' }[histView];
+    const avgMinSesion = totalSes ? Math.round(totalMin / totalSes) : 0;
+    const avgSesBucket = Math.round(totalSes / nBuckets * 10) / 10;
+    const avgMinBucket = Math.round(totalMin / nBuckets);
+    const statTile = (n, lbl) => `<div class="ci-kpi"><div class="ci-kpi-num">${n}</div><div class="ci-kpi-lbl">${lbl}</div></div>`;
+    const avgHtml = `<div class="ci-kpis pomo-hist-kpis" style="margin-top:10px">
+      ${statTile(avgMinSesion || '—', 'Min / sesión')}
+      ${statTile(avgSesBucket, 'Sesiones / ' + vistaLbl)}
+      ${statTile(avgMinBucket, 'Min / ' + vistaLbl)}
+    </div>`;
+
+    histContainer.innerHTML = tilesHtml + toggleHtml + avgHtml + `<div style="height:220px;margin-top:10px"><canvas id="pomo-hist-canvas"></canvas></div>`;
+
+    const canvas = document.getElementById('pomo-hist-canvas');
+    if (!canvas || typeof Chart === 'undefined') return;
 
     histChartInst = new Chart(canvas.getContext('2d'), {
       type: 'bar',
