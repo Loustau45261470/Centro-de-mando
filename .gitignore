@@ -1,4 +1,6 @@
 node_modules/
+.wrangler/
+cf-worker/.dev.vars
 
 # Artefactos locales de verificación visual (auth bypass + screenshots) — nunca al repo
 _make_preview.js

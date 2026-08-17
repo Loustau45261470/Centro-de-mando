@@ -1,0 +1,12 @@
+name = "cdm-push-worker"
+main = "src/index.js"
+compatibility_date = "2026-08-17"
+account_id = "670b8efbac8b8c275e2a849e9f130bee"
+
+[[durable_objects.bindings]]
+name = "TIMER"
+class_name = "TimerAlarm"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["TimerAlarm"]

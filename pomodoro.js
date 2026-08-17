@@ -93,6 +93,27 @@ const Pomodoro = (() => {
   // "estirara" cuando el usuario miraba otra pestaña o app. Con timestamp absoluto,
   // aunque el tick llegue tarde o salteado, el tiempo mostrado sigue siendo el real.
   function syncRemaining() { remaining = Math.max(0, Math.ceil((phaseEndsAt - Date.now()) / 1000)); }
+
+  // ── Aviso preciso (Cloudflare Worker) — llega aunque la pestaña esté de fondo o
+  // el celular con otra app. Se reprograma en cada transición de fase; el aviso
+  // local (announce()) ya cubre el caso con la pestaña activa, así que al completar
+  // una fase EN VIVO se cancela el push pendiente para no duplicar el aviso.
+  function scheduleStudyPush() {
+    const isLast = cycle >= cfg.cycles;
+    if (typeof _schedulePushAlarm === 'function') {
+      _schedulePushAlarm('pomo', remaining,
+        isLast ? '✅ Pomodoro completo' : '☕ ¡Descanso!',
+        isLast ? `${cfg.cycles} ciclos completos — buen trabajo.` : `Bloque ${cycle} completo — tomate ${cfg.brk} min.`,
+        'pomo');
+    }
+  }
+  function scheduleBreakPush() {
+    if (typeof _schedulePushAlarm === 'function') {
+      _schedulePushAlarm('pomo', remaining, '📚 ¡A estudiar!', `Descanso terminado — arrancá el ciclo ${cycle}/${cfg.cycles}.`, 'pomo');
+    }
+  }
+  function cancelPush() { if (typeof _cancelPushAlarm === 'function') _cancelPushAlarm('pomo'); }
+
   function startTick() { stopTick(); timer = setInterval(tick, 1000); }
   function stopTick() { if (timer) { clearInterval(timer); timer = null; } }
 
@@ -104,6 +125,7 @@ const Pomodoro = (() => {
   }
 
   function advance() {
+    cancelPush(); // la fase que recién terminó ya se anunció localmente (announce) — no duplicar con el push
     if (phase === 'study') {
       const today = typeof getActiveDate === 'function' ? getActiveDate() : new Date().toISOString().slice(0, 10);
       logSesion(today, cfg.study, true);
@@ -113,6 +135,7 @@ const Pomodoro = (() => {
       if (cycle < cfg.cycles) {
         phase = 'break'; remaining = cfg.brk * 60; phaseEndsAt = Date.now() + remaining * 1000;
         announce('☕ Descanso — bloque ' + cycle + ' completo', 'Study block complete, sir. Take a break.');
+        scheduleBreakPush();
       } else {
         finish();
         return;
@@ -120,6 +143,7 @@ const Pomodoro = (() => {
     } else if (phase === 'break') {
       cycle++; phase = 'study'; remaining = cfg.study * 60; phaseEndsAt = Date.now() + remaining * 1000;
       announce('📚 Estudio — ciclo ' + cycle + '/' + cfg.cycles, 'Break over, sir. Back to work.');
+      scheduleStudyPush();
     }
     render();
   }
@@ -132,6 +156,7 @@ const Pomodoro = (() => {
   }
   function endSession() {
     if (phase !== 'study' && phase !== 'break') return;
+    cancelPush();
     if (phase === 'study') {
       // Bloque de estudio cortado antes de tiempo: registra el tiempo real transcurrido (no el bloque completo).
       syncRemaining();
@@ -164,16 +189,20 @@ const Pomodoro = (() => {
     sessionBlocks = 0; sessionMinutes = 0; sessionEarly = false;
     startTick(); render();
     markHabitDay('partial');
+    scheduleStudyPush();
   }
   function togglePause() {
     if (phase !== 'study' && phase !== 'break') return;
-    if (!paused) { syncRemaining(); paused = true; }
-    else { phaseEndsAt = Date.now() + remaining * 1000; paused = false; }
+    if (!paused) { syncRemaining(); paused = true; cancelPush(); }
+    else {
+      phaseEndsAt = Date.now() + remaining * 1000; paused = false;
+      if (phase === 'study') scheduleStudyPush(); else scheduleBreakPush();
+    }
     render();
   }
-  function reset() { stopTick(); phase = 'idle'; cycle = 1; remaining = 0; paused = false; render(); }
+  function reset() { cancelPush(); stopTick(); phase = 'idle'; cycle = 1; remaining = 0; paused = false; render(); }
   // Al cerrar el overlay: cortar el intervalo (no dejar timer corriendo en background).
-  function pauseOnHide() { if ((phase === 'study' || phase === 'break') && !paused) { syncRemaining(); paused = true; render(); } stopTick(); }
+  function pauseOnHide() { if ((phase === 'study' || phase === 'break') && !paused) { syncRemaining(); paused = true; cancelPush(); render(); } stopTick(); }
   function onShow() { if ((phase === 'study' || phase === 'break') && !timer) startTick(); render(); renderHistory(); }
   // Al volver a la pestaña: recalcular al toque en vez de esperar al próximo tick
   // (que el navegador puede demorar bastante si venía de estar en segundo plano).

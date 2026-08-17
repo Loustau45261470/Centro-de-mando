@@ -317,6 +317,38 @@ async function _subscribePush(pubKey) {
   } catch (e) { console.warn('[PWA] Push subscribe error:', e); }
 }
 
+// ── Worker de push preciso (Pomodoro / descanso gym) ──
+// Programa/cancela un aviso que llega al segundo exacto en que termina un bloque,
+// aunque la pestaña esté en 2do plano o el celular con otra app abierta — a
+// diferencia de un setTimeout del cliente, que el navegador frena/pausa ahí.
+// Corre en un Cloudflare Worker con Durable Object Alarm, ver cf-worker/.
+const _PUSH_WORKER_URL = 'https://cdm-push-worker.tobiasloustau11.workers.dev';
+// Gate básico anti-spam del endpoint, no es un secreto real (el código es público).
+const _PUSH_WORKER_SECRET = 'zhp6HhxLj_aYRas99s9wmB1LWqKste33';
+
+async function _schedulePushAlarm(id, delaySeconds, title, body, tag) {
+  try {
+    if (!_swReg || !delaySeconds || delaySeconds < 1) return;
+    const sub = await _swReg.pushManager.getSubscription();
+    if (!sub) return;
+    fetch(`${_PUSH_WORKER_URL}/schedule/${id}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${_PUSH_WORKER_SECRET}` },
+      body: JSON.stringify({ delaySeconds: Math.ceil(delaySeconds), subscription: JSON.parse(JSON.stringify(sub)), title, body, tag }),
+      keepalive: true,
+    }).catch(() => {});
+  } catch (e) {}
+}
+function _cancelPushAlarm(id) {
+  try {
+    fetch(`${_PUSH_WORKER_URL}/cancel/${id}`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${_PUSH_WORKER_SECRET}` },
+      keepalive: true,
+    }).catch(() => {});
+  } catch (e) {}
+}
+
 _pwaInit();
 
 let _fbSaveTid  = null;
