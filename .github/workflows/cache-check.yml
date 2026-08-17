@@ -39,10 +39,13 @@ jobs:
           CHANGED_FILES=$(git diff --name-only "$BASE"..HEAD)
 
           # Archivos que disparan la exigencia de bump: *.js, *.css, index.html
-          # excluyendo sw.js, todo .github/** y archivos que empiecen con "_".
+          # excluyendo sw.js, todo .github/**, cf-worker/** (Cloudflare Worker
+          # aparte, deploy propio via wrangler, no lo empaqueta sw.js) y
+          # archivos que empiecen con "_".
           TRIGGERING_FILES=$(echo "$CHANGED_FILES" | grep -E '(\.js|\.css)$|(^|/)index\.html$' \
             | grep -v -E '(^|/)sw\.js$' \
             | grep -v -E '^\.github/' \
+            | grep -v -E '^cf-worker/' \
             | grep -v -E '(^|/)_[^/]*$' \
             || true)
 
