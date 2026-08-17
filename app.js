@@ -140,6 +140,7 @@ const DEFAULT_STATE = {
   workoutCalendar: { days: {} }, // { 'YYYY-MM-DD': 'done' | 'rest' }
   financeCalendar: { days: {} }, // { 'YYYY-MM-DD': 'done' | 'rest' }
   habitTrackers: { vida:[], finanzas:[], salud:[], conocimiento:[], ia:[] },
+  pomodoroHistory: [],
   proyectos: { vida: null, finanzas: null, salud: null, conocimiento: null, ia: null },
   historicalDataLoaded: false,
   achievementLog: {},  // { [achievementId]: 'YYYY-MM-DD' (unlock date) }
@@ -715,7 +716,7 @@ window.restaurarBackup = async function (fecha) {
 };
 
 // ── Archivado manual por año (consola, 1 vez al año) ───────────────────────────
-// archivarAno(2025)  → mueve entrenamientos y sesiones de estudio de ese año a
+// archivarAno(2025)  → mueve entrenamientos de ese año a
 //                      appdata/archive_<año> y los quita del doc principal.
 // listarArchivos()   → lista los docs archive_* existentes.
 window.archivarAno = async function (year) {
@@ -736,27 +737,22 @@ window.archivarAno = async function (year) {
     if (dentro.length) { rlogArch[rid] = dentro; rCount += dentro.length; }
   });
 
-  // Estudio: S.sgc.estudio = [ { id, fecha, ... } ]
-  const est = (S.sgc && Array.isArray(S.sgc.estudio)) ? S.sgc.estudio : [];
-  const estArch = est.filter(s => String(s.fecha || '').startsWith(yPref));
-  const eCount = estArch.length;
-
-  if (rCount === 0 && eCount === 0) {
+  if (rCount === 0) {
     console.log('[archivar] No hay datos de ' + year + ' para archivar.');
     return;
   }
 
-  const bytes = JSON.stringify({ routineLog: rlogArch, estudio: estArch }).length;
+  const bytes = JSON.stringify({ routineLog: rlogArch }).length;
   const kb = Math.round(bytes / 1024);
   if (!confirm(
-    'Archivar ' + year + ':\n· ' + rCount + ' sesiones de entrenamiento\n· ' + eCount + ' sesiones de estudio\n' +
+    'Archivar ' + year + ':\n· ' + rCount + ' sesiones de entrenamiento\n' +
     '≈ ' + kb + ' KB se moverán a archive_' + year + ' y se quitarán del documento principal.\n\n¿Continuar?'
   )) { console.log('[archivar] Cancelado.'); return; }
 
   // 1) Escribir PRIMERO el doc de archivo (write directo, fuera de _fbSave). Si falla, abortar sin tocar S.
   try {
     await _db.collection('appdata').doc('archive_' + year).set({
-      year, routineLog: rlogArch, estudio: estArch, archivedAt: Date.now()
+      year, routineLog: rlogArch, archivedAt: Date.now()
     });
   } catch (e) {
     console.error('[archivar] Falló el write del archivo, no se tocó ningún dato:', e.code || e.message);
@@ -768,13 +764,10 @@ window.archivarAno = async function (year) {
     S.routineLog[rid] = (S.routineLog[rid] || []).filter(e => !String(e.date || '').startsWith(yPref));
     if (S.routineLog[rid].length === 0) delete S.routineLog[rid];
   });
-  if (S.sgc && Array.isArray(S.sgc.estudio)) {
-    S.sgc.estudio = S.sgc.estudio.filter(s => !String(s.fecha || '').startsWith(yPref));
-  }
   saveState();
 
   console.log('[archivar] ✅ ' + year + ' archivado en archive_' + year + ': ' +
-    rCount + ' entrenamientos + ' + eCount + ' estudios movidos, ≈ ' + kb + ' KB liberados.');
+    rCount + ' entrenamientos movidos, ≈ ' + kb + ' KB liberados.');
 };
 
 window.listarArchivos = async function () {

@@ -1,9 +1,12 @@
 // ════════════════════════════════════════════════════════
 // SGC — Sistema de Gestión de Calidad
-// Métricas de desempeño sobre 3 procesos: inversiones (precisión de
-// proyecciones), estudio (retención a 7 días) y entrenamiento
-// (progresión mensual de peso, sobre el log del gym existente).
+// Métricas de desempeño sobre 2 procesos: inversiones (precisión de
+// proyecciones) y entrenamiento (progresión mensual de peso, sobre el
+// log del gym existente).
 // Datos en S.sgc (clave aislada del estado; no toca el sync).
+// S.sgc.estudio puede seguir existiendo en documentos viejos (feature
+// de sesiones de estudio/quiz dada de baja) — ya no se lee ni se
+// escribe, no confundir con estado vivo.
 // ════════════════════════════════════════════════════════
 const SGC = (() => {
 
@@ -14,13 +17,12 @@ const SGC = (() => {
   const diasEntre = (a, b) => Math.round((new Date(b) - new Date(a)) / 86400000);
   const fmtF = iso => iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) : '—';
 
-  const STD = { inv: 85, est: 85, gym: 5 };   // estándares del SGC
-  const WARN = { inv: 80, est: 80, gym: 4 };  // umbral ⚠️
+  const STD = { inv: 85, gym: 5 };   // estándares del SGC
+  const WARN = { inv: 80, gym: 4 };  // umbral ⚠️
 
   function ensureState() {
-    if (!S.sgc) S.sgc = { proyecciones: [], estudio: [] };
+    if (!S.sgc) S.sgc = { proyecciones: [] };
     if (!Array.isArray(S.sgc.proyecciones)) S.sgc.proyecciones = [];
-    if (!Array.isArray(S.sgc.estudio)) S.sgc.estudio = [];
   }
 
   const badge = (val, std, warn) => val == null ? '<span class="text-ter">—</span>'
@@ -73,20 +75,6 @@ const SGC = (() => {
     const res = (S.sgc.proyecciones || []).filter(p => p.precioReal != null && p.fechaVence.slice(0, 4) === yr);
     const val = res.length ? res.reduce((a, p) => a + precisionDe(p), 0) / res.length : null;
     return { val, n: res.length, resueltas: res };
-  }
-
-  function metricEst() {
-    const desde = addDias(hoy(), -28);
-    const ses = (S.sgc.estudio || []).filter(s => s.retencion != null && s.fecha >= desde);
-    const val = ses.length ? ses.reduce((a, s) => a + s.retencion, 0) / ses.length : null;
-    // temas débiles: promedio por tema < estándar
-    const porTema = {};
-    ses.forEach(s => { (porTema[s.tema] = porTema[s.tema] || []).push(s.retencion); });
-    const debiles = Object.entries(porTema)
-      .map(([t, arr]) => [t, arr.reduce((a, b) => a + b, 0) / arr.length])
-      .filter(([, v]) => v < STD.est).sort((a, b) => a[1] - b[1]);
-    const pendientes = (S.sgc.estudio || []).filter(s => s.retencion == null && hoy() >= addDias(s.fecha, 7));
-    return { val, n: ses.length, debiles, pendientes };
   }
 
   function volMes(mes) {
@@ -169,14 +157,6 @@ const SGC = (() => {
         'Revisar análisis fundamental',
         `${barras(tend, STD.inv)}<div style="font-size:var(--fs-12-5);color:var(--tt);margin-top:3px">${m.n} resueltas · ${pend} pendientes — registro en la <b>Cartera de inversión</b></div>`, 'inv');
     }
-    if (sec === 'conocimiento') {
-      const m = metricEst();
-      const tend = tendencia4Sem((S.sgc.estudio || []).filter(s => s.retencion != null), s => s.fecha, s => s.retencion);
-      const deb = m.debiles.length ? `<div style="font-size:var(--fs-12-5);color:var(--tt);margin-top:3px">Temas débiles: ${m.debiles.slice(0, 3).map(([t, v]) => `<b>${esc(t)}</b> (${v.toFixed(0)}%)`).join(' · ')}</div>` : '';
-      el.innerHTML = bloque('Retención de estudio (4 sem.)', m, STD.est, WARN.est, '%',
-        'Técnica de estudio menos efectiva' + (m.debiles.length ? ' — días débiles: ' + esc(m.debiles[0][0]) : ''),
-        barras(tend, STD.est) + deb + (m.pendientes.length ? `<div style="font-size:var(--fs-12-5);color:#FBBF24;margin-top:3px">📝 ${m.pendientes.length} repaso(s) pendiente(s) en la card Sesiones de estudio</div>` : ''), 'est');
-    }
     if (sec === 'salud') {
       const m = metricGym();
       const peores = m.items.slice(0, 2).map(x => `<b>${esc(x.nombre)}</b> ${fmtPct(x.prog)}`).join(' · ');
@@ -188,169 +168,7 @@ const SGC = (() => {
     }
   }
 
-  function renderTodo() { ['finanzas', 'conocimiento', 'salud'].forEach(renderAnalisis); renderEstudioCard(); }
-
-  // ══════════ ESTUDIO — registro, repasos y quiz ══════════
-
-  let _estForm = false, _quiz = null, _importForm = false; // _quiz = { id, idx, revelada }
-
-  function renderEstudioCard() {
-    ensureState();
-    const el = document.getElementById('sgc-estudio-wrap'); if (!el) return;
-    const pendientes = (S.sgc.estudio || []).filter(s => s.retencion == null && hoy() >= addDias(s.fecha, 7));
-    const ultimas = (S.sgc.estudio || []).slice().sort((a, b) => b.fecha.localeCompare(a.fecha)).slice(0, 5);
-    let inner;
-    if (_quiz) inner = quizHtml();
-    else if (_estForm) inner = formHtml();
-    else if (_importForm) inner = importHtml();
-    else inner = `
-      ${pendientes.length ? `<div class="est-sec-lbl pend">⚡ Repasos pendientes</div>` +
-        pendientes.map(s => `<div class="est-review" onclick="SGC.iniciarQuiz('${s.id}')">
-          <div style="min-width:0"><div class="est-review-tema">📝 ${esc(s.tema)}</div>
-            <div class="est-review-meta">hace ${diasEntre(s.fecha, hoy())} días · ${s.preguntas.length} preguntas</div></div>
-          <span class="est-review-go">Repasar ▸</span></div>`).join('') : ''}
-      ${ultimas.length ? `<div class="est-sec-lbl">Últimas sesiones</div>` +
-        ultimas.map(s => {
-          const right = s.retencion == null
-            ? (hoy() >= addDias(s.fecha, 7) ? '<span class="est-ret-pend">repaso listo</span>' : `<span class="est-ret-wait">repaso ${fmtF(addDias(s.fecha, 7))}</span>`)
-            : `<span class="est-ret ${s.retencion >= STD.est ? 'ok' : 'bad'}">${s.retencion.toFixed(0)}<span style="font-size:var(--fs-12-5)">%</span></span>`;
-          return `<div class="est-sess">
-            <div style="min-width:0"><div class="est-sess-tema">${s.origen === 'dominio' ? '📋 ' : ''}${esc(s.tema)}</div>
-              <div class="est-sess-sub">${s.duracionMin}′ · ${fmtF(s.fecha)}</div></div>
-            <div style="text-align:right;flex-shrink:0">${right}</div></div>`;
-        }).join('')
-        : '<div class="empty-state" style="padding:14px 0">Sin sesiones registradas. Registrá la primera con sus preguntas de repaso.</div>'}
-      <div class="est-actions">
-        <button class="est-btn est-btn-primary" onclick="SGC.abrirForm()">+ Sesión de estudio</button>
-        <button class="est-btn est-btn-ghost" onclick="SGC.abrirImport()">📋 Importar de Dominio</button>
-      </div>`;
-    el.innerHTML = `<div class="card"><div class="card-title">🎓 Sesiones de estudio <span class="est-card-sub">SGC · retención a 7 días</span></div>${inner}</div>`;
-  }
-
-  function formHtml() {
-    return `
-      <input id="sgc-e-tema" class="est-input" placeholder="Tema estudiado (ej: Obligaciones — mora)">
-      <input id="sgc-e-dur" class="est-input" type="number" min="5" placeholder="Duración (min)">
-      <div class="est-hint">3 a 5 preguntas con respuesta — son tu test de retención del día 7:</div>
-      <div id="sgc-e-qs">${[0, 1, 2].map(i => qRow(i)).join('')}</div>
-      <button class="est-btn est-btn-ghost" style="flex:none;font-size:var(--fs-12-5);padding:7px 13px;margin-top:2px" onclick="SGC.masPregunta()">+ pregunta</button>
-      <div class="est-actions">
-        <button class="est-btn est-btn-primary" onclick="SGC.guardarSesion()">Guardar sesión</button>
-        <button class="est-btn est-btn-ghost" onclick="SGC.cerrarForm()">Cancelar</button>
-      </div>`;
-  }
-  const qRow = i => `<div class="est-qrow">
-    <input id="sgc-e-q${i}" class="est-input" style="flex:1.2" placeholder="Pregunta ${i + 1}">
-    <input id="sgc-e-a${i}" class="est-input" style="flex:1" placeholder="Respuesta"></div>`;
-
-  let _nQs = 3;
-  function masPregunta() { if (_nQs >= 5) return; const c = document.getElementById('sgc-e-qs'); if (c) { c.insertAdjacentHTML('beforeend', qRow(_nQs)); _nQs++; } }
-  function abrirForm() { _estForm = true; _nQs = 3; renderEstudioCard(); }
-  function cerrarForm() { _estForm = false; renderEstudioCard(); }
-
-  // ── Importar simulacro terminado desde Dominio (puente por clipboard) ──
-  function importHtml() {
-    return `
-      <div class="est-hint">Pegá el JSON copiado en Dominio (botón <b>📋 Copiar para Centro de Mando</b> al terminar un simulacro). La retención ya viene resuelta por el SRS de Dominio.</div>
-      <textarea id="sgc-imp-json" class="est-input" rows="4" style="font-family:var(--mono);resize:vertical" placeholder='{"origen":"dominio","tema":"...","retencion":85,...}'></textarea>
-      <div class="est-actions">
-        <button class="est-btn est-btn-primary" onclick="SGC.importarDominio()">Importar</button>
-        <button class="est-btn est-btn-ghost" onclick="SGC.cerrarImport()">Cancelar</button>
-      </div>`;
-  }
-  function abrirImport() { _importForm = true; renderEstudioCard(); }
-  function cerrarImport() { _importForm = false; renderEstudioCard(); }
-
-  function importarDominio() {
-    const notify = m => (typeof showToast === 'function' ? showToast(m) : alert(m));
-    const el = document.getElementById('sgc-imp-json');
-    const raw = el ? el.value.trim() : '';
-    if (!raw) { notify('Pegá el JSON de Dominio'); return; }
-    let d;
-    try { d = JSON.parse(raw); } catch (e) { notify('JSON inválido — copialo completo desde Dominio'); return; }
-    const rNum = Number(d && d.retencion);
-    if (!d || d.origen !== 'dominio' || typeof d.tema !== 'string' || !d.tema.trim()
-        || !Number.isFinite(rNum) || rNum < 0 || rNum > 100
-        || !d.fecha || isNaN(new Date(d.fecha).getTime())) {
-      notify('JSON de Dominio inválido — revisá que sea el que copió el simulacro'); return;
-    }
-    const fecha = new Date(d.fecha).toISOString().slice(0, 10);       // 'YYYY-MM-DD', como el resto de S.sgc.estudio
-    const dur = Math.max(1, parseInt(d.duracion, 10) || 1);
-    ensureState();
-    // Entrada compatible con metricEst: retención YA resuelta → nunca cae en "pendientes" (retencion == null + 7 días).
-    const mk = (tema, duracionMin, retencion) => ({
-      id: uid(), tema, duracionMin, fecha, preguntas: [],
-      retencion: Math.max(0, Math.min(100, retencion)), repasadoEl: fecha, origen: 'dominio'
-    });
-    // Decisión: por UNIDAD (temas[]) cuando existe — la métrica de "temas débiles" se vuelve accionable a nivel unidad.
-    const temas = Array.isArray(d.temas)
-      ? d.temas.filter(t => t && typeof t.tema === 'string' && t.tema.trim() && Number.isFinite(Number(t.retencion)))
-      : [];
-    if (temas.length) {
-      const durU = Math.max(1, Math.round(dur / temas.length));
-      temas.forEach(t => S.sgc.estudio.push(mk(d.tema.trim() + ' — ' + t.tema.trim(), durU, Number(t.retencion))));
-    } else {
-      S.sgc.estudio.push(mk(d.tema.trim(), dur, rNum));
-    }
-    saveState();
-    _importForm = false;
-    notify(`📋 Importado de Dominio: ${d.tema.trim()} (${rNum.toFixed(0)}%)`);
-    renderEstudioCard(); renderAnalisis('conocimiento');
-  }
-
-  function guardarSesion() {
-    const v = id => { const e = document.getElementById(id); return e ? e.value.trim() : ''; };
-    const tema = v('sgc-e-tema'), dur = parseInt(v('sgc-e-dur'), 10);
-    const preguntas = [];
-    for (let i = 0; i < _nQs; i++) { const q = v('sgc-e-q' + i), a = v('sgc-e-a' + i); if (q && a) preguntas.push({ q, a, ok: null }); }
-    if (!tema) { showToast('Escribí el tema estudiado'); return; }
-    if (!dur) { showToast('Cargá la duración en minutos'); return; }
-    if (preguntas.length < 3) { showToast('Cargá al menos 3 preguntas con respuesta'); return; }
-    ensureState();
-    S.sgc.estudio.push({ id: uid(), tema, duracionMin: dur, fecha: hoy(), preguntas, retencion: null, repasadoEl: null });
-    // marca el hábito de estudio del día (mismo patrón que el gym)
-    const h = (S.habitTrackers?.conocimiento || []).find(x => x.id === 'habit-estudio');
-    if (h) { h.days[hoy()] = 'done'; if (typeof _habitActiveId !== 'undefined') _habitActiveId['conocimiento'] = 'habit-estudio'; }
-    saveState();
-    if (typeof renderHabitsCard === 'function') try { renderHabitsCard('conocimiento'); } catch (e) {}
-    _estForm = false;
-    showToast('🎓 Sesión guardada — repaso el ' + fmtF(addDias(hoy(), 7)));
-    renderEstudioCard(); renderAnalisis('conocimiento');
-  }
-
-  // ── Quiz de repaso (día 7) ──
-  function iniciarQuiz(id) { _quiz = { id, idx: 0, revelada: false }; renderEstudioCard(); }
-  function quizHtml() {
-    const s = S.sgc.estudio.find(x => x.id === _quiz.id); if (!s) { _quiz = null; return ''; }
-    const p = s.preguntas[_quiz.idx];
-    const dots = s.preguntas.map((_, i) => `<span class="est-quiz-dot ${i === _quiz.idx ? 'active' : i < _quiz.idx ? 'done' : ''}"></span>`).join('');
-    return `<div class="est-quiz">
-      <div class="est-quiz-tag">⚡ Repaso · ${esc(s.tema)} · ${_quiz.idx + 1}/${s.preguntas.length}</div>
-      <div class="est-quiz-prog">${dots}</div>
-      <div class="est-quiz-q">${esc(p.q)}</div>
-      ${_quiz.revelada
-        ? `<div class="est-quiz-a">${esc(p.a)}</div>
-           <div class="est-quiz-actions">
-             <button class="est-q-ok" onclick="SGC.respuestaQuiz(true)">✔ La recordé</button>
-             <button class="est-q-bad" onclick="SGC.respuestaQuiz(false)">✘ No la recordé</button></div>`
-        : `<button class="est-btn est-btn-primary" style="width:100%" onclick="SGC.revelarQuiz()">Ver respuesta</button>`}
-      <div class="est-quiz-exit"><button class="est-btn est-btn-ghost" style="flex:none;font-size:var(--fs-12-5);padding:6px 13px" onclick="SGC.salirQuiz()">Salir (retomar después)</button></div>
-    </div>`;
-  }
-  function revelarQuiz() { _quiz.revelada = true; renderEstudioCard(); }
-  function salirQuiz() { _quiz = null; renderEstudioCard(); }
-  function respuestaQuiz(ok) {
-    const s = S.sgc.estudio.find(x => x.id === _quiz.id); if (!s) { _quiz = null; renderEstudioCard(); return; }
-    s.preguntas[_quiz.idx].ok = ok;
-    if (_quiz.idx + 1 < s.preguntas.length) { _quiz.idx++; _quiz.revelada = false; renderEstudioCard(); return; }
-    // fin del quiz → calcular retención
-    const okN = s.preguntas.filter(p => p.ok).length;
-    s.retencion = okN / s.preguntas.length * 100;
-    s.repasadoEl = hoy();
-    saveState(); _quiz = null;
-    showToast(`📝 Retención de "${s.tema}": ${s.retencion.toFixed(0)}% ${s.retencion >= STD.est ? '✅' : '— a reforzar'}`, 4000);
-    renderEstudioCard(); renderAnalisis('conocimiento');
-  }
+  function renderTodo() { ['finanzas', 'salud'].forEach(renderAnalisis); }
 
   // ══════════ PROYECCIONES — overlay de cartera ══════════
 
@@ -456,10 +274,6 @@ const SGC = (() => {
       nombre = 'sgc-inversiones';
       rows = [['simbolo', 'var_proyectada_pct', 'precio_base', 'precio_real', 'var_real_pct', 'fecha_creada', 'fecha_vence', 'fuente', 'precision_pct'],
         ...S.sgc.proyecciones.map(p => [p.simbolo, p.varProy ?? '', p.precioBase ?? '', p.precioReal ?? '', (p.varProy != null && p.precioReal != null) ? varRealDe(p).toFixed(2) : '', p.fechaCreada, p.fechaVence, p.fuente ?? '', p.precioReal != null ? precisionDe(p).toFixed(2) : ''])];
-    } else if (que === 'est') {
-      nombre = 'sgc-estudio';
-      rows = [['tema', 'duracion_min', 'fecha', 'repasado_el', 'preguntas', 'retencion_pct'],
-        ...S.sgc.estudio.map(s => [s.tema, s.duracionMin, s.fecha, s.repasadoEl ?? '', s.preguntas.length, s.retencion != null ? s.retencion.toFixed(0) : ''])];
     } else {
       nombre = 'sgc-entrenamiento';
       const m = metricGym();
@@ -494,6 +308,6 @@ const SGC = (() => {
   }
   init();
 
-  return { renderAnalisis, renderTodo, renderEstudioCard, renderProyecciones, abrirForm, cerrarForm, abrirImport, cerrarImport, importarDominio, masPregunta, guardarSesion, iniciarQuiz, revelarQuiz, salirQuiz, respuestaQuiz, guardarProyeccion, cargarReal, borrarProyeccion, exportCSV };
+  return { renderAnalisis, renderTodo, renderProyecciones, guardarProyeccion, cargarReal, borrarProyeccion, exportCSV };
 })();
 window.SGC = SGC;

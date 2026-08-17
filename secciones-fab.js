@@ -100,10 +100,7 @@ function _sfOpenHistorial() {
 }
 window.openHistorialOverlay = _sfOpenHistorial;
 
-// ── Sesión de estudio: overlay con Pomodoro + la card de estudio (SGC) ──
-// La card #sgc-estudio-wrap se reubica UNA vez dentro del overlay (patrón
-// Historial), de modo que ya no ocupa la sección; se accede por el abanico.
-let _sfEstMoved = false;
+// ── Sesión de estudio: overlay con Pomodoro + historial de sesiones ──
 function _sfEnsureSesionEstudio() {
   if (typeof CMOverlay === 'undefined') return null;
   const { overlay, body } = CMOverlay.build({
@@ -113,15 +110,10 @@ function _sfEnsureSesionEstudio() {
   if (!overlay._sfBuilt) {
     body.innerHTML = `<div class="cm-ov-head"><div class="cm-ov-eyebrow">CONOCIMIENTO · SESIÓN DE ESTUDIO</div><div class="cm-ov-title">Sesión de estudio</div></div>
       <div class="card" style="margin-bottom:12px"><div class="card-title">⏱ Pomodoro</div><div id="ov-pomodoro"></div></div>
-      <div class="cm-ov-host" id="ov-sesion-estudio-host"></div>`;
+      <div class="card"><div class="card-title">📊 Historial de estudio</div><div id="ov-pomo-hist"></div></div>`;
     overlay._sfBuilt = true;
     if (window.Pomodoro) Pomodoro.mount(document.getElementById('ov-pomodoro'));
-  }
-  if (!_sfEstMoved) {
-    const host = document.getElementById('ov-sesion-estudio-host');
-    const el = document.getElementById('sgc-estudio-wrap');
-    if (el && host) { host.appendChild(el); if (window.SGC) try { SGC.renderEstudioCard(); } catch (e) {} }
-    _sfEstMoved = true;
+    if (window.Pomodoro) Pomodoro.mountHistory(document.getElementById('ov-pomo-hist'));
   }
   return overlay;
 }
@@ -211,7 +203,7 @@ function _sfMount() {
 
   // Saca la lista de movimientos de la sección hacia el overlay desde el arranque.
   _sfEnsureHistorial();
-  // Saca la card de estudio (SGC) hacia el overlay de Sesión de estudio desde el arranque.
+  // Arma el overlay de Sesión de estudio (Pomodoro + historial) desde el arranque.
   _sfEnsureSesionEstudio();
 }
 
