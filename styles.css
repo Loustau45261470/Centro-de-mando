@@ -5297,7 +5297,7 @@ input:focus, select:focus, textarea:focus {
 .pomo-run:not(.paused) .pomo-time { animation: pomo-breathe 2.6s ease-in-out infinite; }
 .pomo-cyc { font-size: var(--fs-12-5); color: var(--tt); letter-spacing: .09em; margin-top: 4px; }
 .pomo-paused-tag { font-size: var(--fs-12-5); font-weight: 800; letter-spacing: .16em; color: var(--warn); margin-top: 4px; }
-.pomo-controls { display: flex; gap: 10px; }
+.pomo-controls { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
 .pomo-done { text-align: center; font-size: var(--fs-12-5); font-weight: 800; letter-spacing: .05em; color: var(--ok);
   padding: 9px 14px; margin-bottom: 14px; border: 1px solid rgba(16,224,124,.35); border-radius: 11px;
   background: rgba(16,224,124,.08); animation: fin-in .5s cubic-bezier(.2,.7,.3,1) both; }

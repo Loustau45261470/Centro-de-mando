@@ -19,6 +19,8 @@ const Pomodoro = (() => {
   let paused = false;
   let timer = null;
   let container = null;
+  let sessionBlocks = 0;       // bloques de estudio completados en la sesión actual
+  let sessionEarly = false;    // true si se cortó con "Finalizar sesión" antes de los N ciclos
   let histContainer = null;
   let histView = 'day';       // 'day' | 'week' | 'month'
   let histChartInst = null;
@@ -91,6 +93,7 @@ const Pomodoro = (() => {
       const today = typeof getActiveDate === 'function' ? getActiveDate() : new Date().toISOString().slice(0, 10);
       logSesion(today);
       markHabitDay('done', today);
+      sessionBlocks++;
       renderHistory();
       if (cycle < cfg.cycles) {
         phase = 'break'; remaining = cfg.brk * 60;
@@ -108,8 +111,18 @@ const Pomodoro = (() => {
 
   function finish() {
     stopTick();
-    phase = 'done'; paused = false;
+    phase = 'done'; paused = false; sessionEarly = false;
     announce('✅ Pomodoro completo — ' + cfg.cycles + ' ciclos', 'Pomodoro complete, sir. Well done.');
+    render();
+  }
+  function endSession() {
+    if (phase !== 'study' && phase !== 'break') return;
+    stopTick();
+    phase = 'done'; paused = false; sessionEarly = true;
+    announce(
+      sessionBlocks ? '🏁 Sesión finalizada — ' + sessionBlocks + ' bloque(s) completo(s)' : '🏁 Sesión finalizada',
+      sessionBlocks ? 'Session ended, sir. ' + sessionBlocks + ' study blocks logged.' : 'Session ended, sir.'
+    );
     render();
   }
 
@@ -123,6 +136,7 @@ const Pomodoro = (() => {
   function start() {
     saveCfg();
     phase = 'study'; cycle = 1; remaining = cfg.study * 60; paused = false;
+    sessionBlocks = 0; sessionEarly = false;
     startTick(); render();
     markHabitDay('partial');
   }
@@ -150,8 +164,12 @@ const Pomodoro = (() => {
   function render() {
     if (!container) return;
     if (phase === 'idle' || phase === 'done') {
+      const doneHtml = phase === 'done' ? `<div class="pomo-done">
+          ${sessionEarly ? '🏁 Sesión finalizada' : '✅ Pomodoro completo'}
+          ${sessionBlocks ? ` · ${sessionBlocks} bloque${sessionBlocks === 1 ? '' : 's'} · ${sessionBlocks * cfg.study} min estudiados` : ' · sin bloques completos'}
+        </div>` : '';
       container.innerHTML = `
-        ${phase === 'done' ? `<div class="pomo-done">✅ Pomodoro completo · ${cfg.cycles} ciclos</div>` : ''}
+        ${doneHtml}
         <div class="pomo-config">
           ${stepper('study', 'Estudio', 'min', cfg.study)}
           ${stepper('brk', 'Descanso', 'min', cfg.brk)}
@@ -176,6 +194,7 @@ const Pomodoro = (() => {
         <div class="pomo-controls">
           <button class="pomo-start" onclick="Pomodoro.togglePause()">${paused ? '▶ Reanudar' : '⏸ Pausar'}</button>
           <button class="btn btn-ghost btn-sm" onclick="Pomodoro.reset()">■ Reiniciar</button>
+          <button class="btn btn-ghost btn-sm" onclick="Pomodoro.endSession()">🏁 Finalizar sesión</button>
         </div>
       </div>`;
   }
@@ -217,23 +236,24 @@ const Pomodoro = (() => {
       <button class="${histView === 'month' ? 'active' : ''}" onclick="Pomodoro.setHistView('month')">Mes</button>
     </div>`;
 
-    histContainer.innerHTML = tilesHtml + toggleHtml + `<div style="height:160px;margin-top:10px"><canvas id="pomo-hist-canvas"></canvas></div>`;
+    histContainer.innerHTML = tilesHtml + toggleHtml + `<div style="height:220px;margin-top:10px"><canvas id="pomo-hist-canvas"></canvas></div>`;
 
     const canvas = document.getElementById('pomo-hist-canvas');
     if (!canvas || typeof Chart === 'undefined') return;
 
+    const horas = arr => Math.round(sumMin(arr) / 60 * 10) / 10;
     let labels = [], data = [];
     if (histView === 'day') {
       for (let i = 13; i >= 0; i--) {
         const d = addDiasH(today, -i);
         labels.push(d.slice(8, 10) + '/' + d.slice(5, 7));
-        data.push(hist.filter(h => h.date === d).length);
+        data.push(horas(hist.filter(h => h.date === d)));
       }
     } else if (histView === 'week') {
       for (let w = 7; w >= 0; w--) {
         const desde = addDiasH(today, -7 * (w + 1) + 1), hasta = addDiasH(today, -7 * w);
         labels.push(desde.slice(8, 10) + '/' + desde.slice(5, 7));
-        data.push(hist.filter(h => h.date >= desde && h.date <= hasta).length);
+        data.push(horas(hist.filter(h => h.date >= desde && h.date <= hasta)));
       }
     } else {
       const now = new Date();
@@ -241,25 +261,24 @@ const Pomodoro = (() => {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
         const pref = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
         labels.push(typeof CAL_MONTHS !== 'undefined' ? CAL_MONTHS[d.getMonth()].slice(0, 3) : pref.slice(5, 7));
-        data.push(hist.filter(h => h.date.slice(0, 7) === pref).length);
+        data.push(horas(hist.filter(h => h.date.slice(0, 7) === pref)));
       }
     }
 
     histChartInst = new Chart(canvas.getContext('2d'), {
       type: 'bar',
-      data: { labels, datasets: [{ data, backgroundColor: 'rgba(107,142,255,.6)', borderRadius: 2, barThickness: 10 }] },
+      data: { labels, datasets: [{ data, backgroundColor: 'rgba(107,142,255,.7)', borderRadius: 4, maxBarThickness: 26 }] },
       options: {
-        indexAxis: 'y',
         responsive: true, maintainAspectRatio: false,
         plugins: { legend: { display: false } },
         scales: {
-          x: { min: 0, ticks: { precision: 0, font: { size: typeof _cfs === 'function' ? _cfs(13) : 13 } } },
-          y: { ticks: { font: { size: typeof _cfs === 'function' ? _cfs(13) : 13 } } }
+          x: { ticks: { font: { size: typeof _cfs === 'function' ? _cfs(12) : 12 } } },
+          y: { min: 0, ticks: { font: { size: typeof _cfs === 'function' ? _cfs(13) : 13 }, callback: v => v + 'h' } }
         }
       }
     });
   }
 
-  return { mount, start, bump, togglePause, reset, pauseOnHide, onShow, mountHistory, setHistView };
+  return { mount, start, bump, togglePause, reset, endSession, pauseOnHide, onShow, mountHistory, setHistView };
 })();
 window.Pomodoro = Pomodoro;
