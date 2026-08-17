@@ -69,13 +69,20 @@ const Pomodoro = (() => {
       if (typeof renderHabitsCard === 'function') try { renderHabitsCard('conocimiento'); } catch (e) {}
     } catch (e) {}
   }
-  function logSesion(today, minutes) {
+  function logSesion(today, minutes, full) {
     try {
       if (typeof S === 'undefined') return;
       S.pomodoroHistory = S.pomodoroHistory || [];
-      S.pomodoroHistory.push({ id: uid(), date: today, minutes, ts: Date.now() });
+      S.pomodoroHistory.push({ id: uid(), date: today, minutes, full: !!full, ts: Date.now() });
       saveState(); // no depender de que markHabitDay llegue a guardar
     } catch (e) {}
+  }
+  function deleteSession(id) {
+    if (!confirm('¿Eliminar esta sesión del historial?')) return;
+    if (typeof S === 'undefined' || !Array.isArray(S.pomodoroHistory)) return;
+    S.pomodoroHistory = S.pomodoroHistory.filter(e => e.id !== id);
+    saveState();
+    renderHistory();
   }
 
   // ── Timer ──
@@ -92,7 +99,7 @@ const Pomodoro = (() => {
   function advance() {
     if (phase === 'study') {
       const today = typeof getActiveDate === 'function' ? getActiveDate() : new Date().toISOString().slice(0, 10);
-      logSesion(today, cfg.study);
+      logSesion(today, cfg.study, true);
       markHabitDay('done', today);
       sessionBlocks++; sessionMinutes += cfg.study;
       renderHistory();
@@ -123,7 +130,7 @@ const Pomodoro = (() => {
       const elapsedMin = Math.floor((cfg.study * 60 - remaining) / 60);
       if (elapsedMin >= 1) {
         const today = typeof getActiveDate === 'function' ? getActiveDate() : new Date().toISOString().slice(0, 10);
-        logSesion(today, elapsedMin);
+        logSesion(today, elapsedMin, false);
         sessionMinutes += elapsedMin;
       }
     }
@@ -292,7 +299,23 @@ const Pomodoro = (() => {
       ${statTile(avgMinBucket, 'Min / ' + vistaLbl)}
     </div>`;
 
-    histContainer.innerHTML = tilesHtml + toggleHtml + avgHtml + `<div style="height:220px;margin-top:10px"><canvas id="pomo-hist-canvas"></canvas></div>`;
+    // Lista de sesiones individuales (más nueva primero) — mismo patrón visual que
+    // el historial de gastos (.activity-row), con acción de borrar por fila.
+    const sessionRow = e => `<div class="activity-row">
+      <div class="act-icon" style="background:rgba(107,142,255,.1)">${e.full ? '🍅' : '⏱️'}</div>
+      <div class="act-info">
+        <div class="act-name">${e.full ? 'Pomodoro completo' : 'Sesión cortada'}</div>
+        <div class="act-date">${typeof fmtDate === 'function' ? fmtDate(e.date) : e.date} · ${new Date(e.ts).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <div class="act-amount" style="color:#6B8EFF">${e.minutes}′</div>
+        <div class="txn-actions"><button class="icon-btn" onclick="Pomodoro.deleteSession('${e.id}')" title="Eliminar">🗑</button></div>
+      </div>
+    </div>`;
+    const rowsHtml = `<div class="ci-sub" style="margin-top:14px">Sesiones registradas</div>
+      <div style="max-height:280px;overflow-y:auto">${hist.slice().sort((a, b) => b.ts - a.ts).map(sessionRow).join('')}</div>`;
+
+    histContainer.innerHTML = tilesHtml + toggleHtml + avgHtml + `<div style="height:220px;margin-top:10px"><canvas id="pomo-hist-canvas"></canvas></div>` + rowsHtml;
 
     const canvas = document.getElementById('pomo-hist-canvas');
     if (!canvas || typeof Chart === 'undefined') return;
@@ -311,6 +334,6 @@ const Pomodoro = (() => {
     });
   }
 
-  return { mount, start, bump, togglePause, reset, endSession, pauseOnHide, onShow, mountHistory, setHistView };
+  return { mount, start, bump, togglePause, reset, endSession, pauseOnHide, onShow, mountHistory, setHistView, deleteSession };
 })();
 window.Pomodoro = Pomodoro;
