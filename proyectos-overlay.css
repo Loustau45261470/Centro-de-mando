@@ -23,6 +23,9 @@
 /* Vida: Metas de Hoy (completo) y Plan Mañana viven en el overlay de Planificación. */
 #metas-hoy-card, #tomorrow-card { display: none; }
 #ov-planner #metas-hoy-card, #ov-planner #tomorrow-card { display: block; }
+/* Planificación: la vista Semana (7 columnas) queda apretada con el .cm-panel genérico (880px);
+   se ensancha solo este overlay, con techo para no quedar absurdo en monitores ultra-wide. */
+#ov-planner.cm-overlay .cm-panel { max-width: min(1400px, 96vw); }
 /* Finanzas: wishlist completa vive en el overlay de Adquisición; la sección muestra el Top 5. */
 #wishlist-card { display: none; }
 #ov-goals #wishlist-card { display: block; }
