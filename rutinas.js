@@ -1290,7 +1290,8 @@ function toggleRecords() {
 }
 
 let _rtnTimers = {};         // { exId: intervalId }
-let _rtnTimerRemaining = {}; // { exId: secondsLeft }
+let _rtnTimerRemaining = {}; // { exId: secondsLeft } — derivado de _rtnTimerEndsAt, no se decrementa a mano
+let _rtnTimerEndsAt = {};    // { exId: timestamp ms absoluto de fin } — la cuenta real vive acá
 let _rtnChrono = null;       // session stopwatch interval
 let _rtnExpandedEx = new Set(); // currently expanded exercise IDs
 let _pipExId = null;         // exercise shown in floating pip
@@ -1819,6 +1820,7 @@ function checkRtnSet(exId, si) {
 function startRtnTimerBand(exId, secs) {
   if (_rtnTimers[exId]) { clearInterval(_rtnTimers[exId]); delete _rtnTimers[exId]; }
   _rtnTimerRemaining[exId] = secs;
+  _rtnTimerEndsAt[exId] = Date.now() + secs * 1000;
   const band = document.getElementById('rtn-tband-' + exId);
   const display = document.getElementById('rtn-tband-display-' + exId);
   if (!band || !display) return;
@@ -1831,37 +1833,55 @@ function startRtnTimerBand(exId, secs) {
   const _ex  = sessExInfo(exId);
   const _exName = _ex?.name || '';
   _msHub.onTimerStart(exId, _exName);
-  _rtnTimers[exId] = setInterval(() => {
-    _rtnTimerRemaining[exId]--;
-    const d = document.getElementById('rtn-tband-display-' + exId);
-    const b = document.getElementById('rtn-tband-' + exId);
-    if (!d || !b) { clearInterval(_rtnTimers[exId]); delete _rtnTimers[exId]; return; }
-    if (_rtnTimerRemaining[exId] <= 0) {
-      clearInterval(_rtnTimers[exId]); delete _rtnTimers[exId];
-      d.textContent = '¡Listo!';
-      b.classList.add('done');
-      showToast('⏱ ¡Descansaste! Seguí con la próxima serie.');
-      _playTimerDone();
-      _msHub.onTimerDone(_exName);
-      if (Notification.permission === 'granted') {
-        _showNotif('⏱ ¡Descanso terminado!', {
-          body: _exName ? `Seguí con ${_exName}` : 'Retomá la rutina',
-          tag: 'rtn-timer', icon: './icon.svg', requireInteraction: false,
-        });
-      }
-      if (_pipExId === exId) _updatePip();
-      setTimeout(() => { if (_pipExId === exId) { _pipExId = null; _updatePip(); } }, 4000);
-    } else {
-      d.textContent = fmtTimerDisplay(_rtnTimerRemaining[exId]);
-      if (_pipExId === exId) _updatePip();
-      _msHub.onTimerTick(exId, _exName);
-    }
-  }, 1000);
+  // La cuenta se recalcula siempre desde _rtnTimerEndsAt (timestamp absoluto), nunca
+  // decrementando de a 1 por tick — el navegador achica/pausa setInterval en pestañas
+  // en segundo plano, y decrementar por tick hacía que el descanso se "estirara" cuando
+  // el usuario miraba otra pestaña o la app. Con timestamp absoluto, aunque el tick llegue
+  // tarde o salteado, el tiempo mostrado y el aviso de fin siguen siendo el real.
+  _rtnTimers[exId] = setInterval(() => _rtnTimerTick(exId, _exName), 1000);
 }
+
+function _rtnTimerTick(exId, exName) {
+  _rtnTimerRemaining[exId] = Math.max(0, Math.ceil((_rtnTimerEndsAt[exId] - Date.now()) / 1000));
+  const d = document.getElementById('rtn-tband-display-' + exId);
+  const b = document.getElementById('rtn-tband-' + exId);
+  if (!d || !b) { clearInterval(_rtnTimers[exId]); delete _rtnTimers[exId]; return; }
+  if (_rtnTimerRemaining[exId] <= 0) {
+    clearInterval(_rtnTimers[exId]); delete _rtnTimers[exId];
+    d.textContent = '¡Listo!';
+    b.classList.add('done');
+    showToast('⏱ ¡Descansaste! Seguí con la próxima serie.');
+    _playTimerDone();
+    _msHub.onTimerDone(exName);
+    if (Notification.permission === 'granted') {
+      _showNotif('⏱ ¡Descanso terminado!', {
+        body: exName ? `Seguí con ${exName}` : 'Retomá la rutina',
+        tag: 'rtn-timer', icon: './icon.svg', requireInteraction: false,
+      });
+    }
+    if (_pipExId === exId) _updatePip();
+    setTimeout(() => { if (_pipExId === exId) { _pipExId = null; _updatePip(); } }, 4000);
+  } else {
+    d.textContent = fmtTimerDisplay(_rtnTimerRemaining[exId]);
+    if (_pipExId === exId) _updatePip();
+    _msHub.onTimerTick(exId, exName);
+  }
+}
+
+// Al volver a la pestaña, recalcular al toque en vez de esperar al próximo tick
+// (que el navegador puede demorar bastante si venía de estar en segundo plano).
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  Object.keys(_rtnTimers).forEach(exId => {
+    const ex = sessExInfo(exId);
+    _rtnTimerTick(exId, ex?.name || '');
+  });
+});
 
 function adjustRtnTimer(exId, delta) {
   if (_rtnTimerRemaining[exId] === undefined) return;
-  _rtnTimerRemaining[exId] = Math.max(1, _rtnTimerRemaining[exId] + delta);
+  _rtnTimerEndsAt[exId] = Math.max(Date.now() + 1000, (_rtnTimerEndsAt[exId] || Date.now()) + delta * 1000);
+  _rtnTimerRemaining[exId] = Math.max(1, Math.ceil((_rtnTimerEndsAt[exId] - Date.now()) / 1000));
   const d = document.getElementById('rtn-tband-display-' + exId);
   if (d) d.textContent = fmtTimerDisplay(_rtnTimerRemaining[exId]);
   const b = document.getElementById('rtn-tband-' + exId);
@@ -1872,6 +1892,7 @@ function adjustRtnTimer(exId, delta) {
 function skipRtnTimer(exId) {
   if (_rtnTimers[exId]) { clearInterval(_rtnTimers[exId]); delete _rtnTimers[exId]; }
   delete _rtnTimerRemaining[exId];
+  delete _rtnTimerEndsAt[exId];
   const band = document.getElementById('rtn-tband-' + exId);
   if (band) band.style.display = 'none';
   if (_pipExId === exId) { _pipExId = null; _updatePip(); }
@@ -1882,6 +1903,7 @@ function cancelRtnSession() {
   Object.values(_rtnTimers).forEach(clearInterval);
   _rtnTimers = {};
   _rtnTimerRemaining = {};
+  _rtnTimerEndsAt = {};
   if (_rtnChrono) { clearInterval(_rtnChrono); _rtnChrono = null; }
   _rtnExpandedEx = new Set();
   _pipExId = null; _updatePip();
@@ -1921,6 +1943,7 @@ function finishRtnSession() {
   Object.values(_rtnTimers).forEach(clearInterval);
   _rtnTimers = {};
   _rtnTimerRemaining = {};
+  _rtnTimerEndsAt = {};
   if (_rtnChrono) { clearInterval(_rtnChrono); _rtnChrono = null; }
   _rtnExpandedEx = new Set();
   _pipExId = null; _updatePip();

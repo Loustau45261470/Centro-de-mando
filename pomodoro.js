@@ -15,7 +15,8 @@ const Pomodoro = (() => {
   let cfg = loadCfg();
   let phase = 'idle';          // 'idle' | 'study' | 'break' | 'done'
   let cycle = 1;               // bloque de estudio actual (1..cfg.cycles)
-  let remaining = 0;           // segundos restantes del bloque
+  let remaining = 0;           // segundos restantes del bloque (derivado de phaseEndsAt, no se decrementa a mano)
+  let phaseEndsAt = 0;         // timestamp ms absoluto de fin del bloque actual — la cuenta real vive acá
   let paused = false;
   let timer = null;
   let container = null;
@@ -86,13 +87,19 @@ const Pomodoro = (() => {
   }
 
   // ── Timer ──
+  // La cuenta se recalcula siempre desde phaseEndsAt (timestamp absoluto), nunca
+  // decrementando de a 1 por tick — el navegador achica/pausa setInterval en pestañas
+  // en segundo plano, y decrementar por tick hacía que el estudio/descanso se
+  // "estirara" cuando el usuario miraba otra pestaña o app. Con timestamp absoluto,
+  // aunque el tick llegue tarde o salteado, el tiempo mostrado sigue siendo el real.
+  function syncRemaining() { remaining = Math.max(0, Math.ceil((phaseEndsAt - Date.now()) / 1000)); }
   function startTick() { stopTick(); timer = setInterval(tick, 1000); }
   function stopTick() { if (timer) { clearInterval(timer); timer = null; } }
 
   function tick() {
     if (paused) return;
-    remaining--;
-    if (remaining < 0) { advance(); return; }
+    syncRemaining();
+    if (remaining <= 0) { advance(); return; }
     render();
   }
 
@@ -104,14 +111,14 @@ const Pomodoro = (() => {
       sessionBlocks++; sessionMinutes += cfg.study;
       renderHistory();
       if (cycle < cfg.cycles) {
-        phase = 'break'; remaining = cfg.brk * 60;
+        phase = 'break'; remaining = cfg.brk * 60; phaseEndsAt = Date.now() + remaining * 1000;
         announce('☕ Descanso — bloque ' + cycle + ' completo', 'Study block complete, sir. Take a break.');
       } else {
         finish();
         return;
       }
     } else if (phase === 'break') {
-      cycle++; phase = 'study'; remaining = cfg.study * 60;
+      cycle++; phase = 'study'; remaining = cfg.study * 60; phaseEndsAt = Date.now() + remaining * 1000;
       announce('📚 Estudio — ciclo ' + cycle + '/' + cfg.cycles, 'Break over, sir. Back to work.');
     }
     render();
@@ -127,6 +134,7 @@ const Pomodoro = (() => {
     if (phase !== 'study' && phase !== 'break') return;
     if (phase === 'study') {
       // Bloque de estudio cortado antes de tiempo: registra el tiempo real transcurrido (no el bloque completo).
+      syncRemaining();
       const elapsedMin = Math.floor((cfg.study * 60 - remaining) / 60);
       if (elapsedMin >= 1) {
         const today = typeof getActiveDate === 'function' ? getActiveDate() : new Date().toISOString().slice(0, 10);
@@ -152,16 +160,26 @@ const Pomodoro = (() => {
   }
   function start() {
     saveCfg();
-    phase = 'study'; cycle = 1; remaining = cfg.study * 60; paused = false;
+    phase = 'study'; cycle = 1; remaining = cfg.study * 60; phaseEndsAt = Date.now() + remaining * 1000; paused = false;
     sessionBlocks = 0; sessionMinutes = 0; sessionEarly = false;
     startTick(); render();
     markHabitDay('partial');
   }
-  function togglePause() { if (phase !== 'study' && phase !== 'break') return; paused = !paused; render(); }
+  function togglePause() {
+    if (phase !== 'study' && phase !== 'break') return;
+    if (!paused) { syncRemaining(); paused = true; }
+    else { phaseEndsAt = Date.now() + remaining * 1000; paused = false; }
+    render();
+  }
   function reset() { stopTick(); phase = 'idle'; cycle = 1; remaining = 0; paused = false; render(); }
   // Al cerrar el overlay: cortar el intervalo (no dejar timer corriendo en background).
-  function pauseOnHide() { if ((phase === 'study' || phase === 'break') && !paused) { paused = true; render(); } stopTick(); }
+  function pauseOnHide() { if ((phase === 'study' || phase === 'break') && !paused) { syncRemaining(); paused = true; render(); } stopTick(); }
   function onShow() { if ((phase === 'study' || phase === 'break') && !timer) startTick(); render(); renderHistory(); }
+  // Al volver a la pestaña: recalcular al toque en vez de esperar al próximo tick
+  // (que el navegador puede demorar bastante si venía de estar en segundo plano).
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && (phase === 'study' || phase === 'break') && !paused) tick();
+  });
 
   // ── Render ──
   const fmt = s => { const m = Math.floor(Math.max(0, s) / 60), ss = Math.max(0, s) % 60; return String(m).padStart(2, '0') + ':' + String(ss).padStart(2, '0'); };
