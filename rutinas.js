@@ -1839,6 +1839,11 @@ function startRtnTimerBand(exId, secs) {
   // el usuario miraba otra pestaña o la app. Con timestamp absoluto, aunque el tick llegue
   // tarde o salteado, el tiempo mostrado y el aviso de fin siguen siendo el real.
   _rtnTimers[exId] = setInterval(() => _rtnTimerTick(exId, _exName), 1000);
+  // Aviso preciso vía Worker (llega aunque la pestaña esté de fondo o el celular con
+  // otra app). El aviso local (arriba) ya cubre el caso con la pestaña activa.
+  if (typeof _schedulePushAlarm === 'function') {
+    _schedulePushAlarm('rtn-' + exId, secs, '⏱ ¡Descanso terminado!', _exName ? `Seguí con ${_exName}` : 'Retomá la rutina', 'rtn-timer');
+  }
 }
 
 function _rtnTimerTick(exId, exName) {
@@ -1848,6 +1853,7 @@ function _rtnTimerTick(exId, exName) {
   if (!d || !b) { clearInterval(_rtnTimers[exId]); delete _rtnTimers[exId]; return; }
   if (_rtnTimerRemaining[exId] <= 0) {
     clearInterval(_rtnTimers[exId]); delete _rtnTimers[exId];
+    if (typeof _cancelPushAlarm === 'function') _cancelPushAlarm('rtn-' + exId); // ya se anunció en vivo, no duplicar
     d.textContent = '¡Listo!';
     b.classList.add('done');
     showToast('⏱ ¡Descansaste! Seguí con la próxima serie.');
@@ -1887,12 +1893,17 @@ function adjustRtnTimer(exId, delta) {
   const b = document.getElementById('rtn-tband-' + exId);
   if (b) b.classList.remove('done');
   if (_pipExId === exId) _updatePip();
+  if (typeof _schedulePushAlarm === 'function') {
+    const ex = sessExInfo(exId);
+    _schedulePushAlarm('rtn-' + exId, _rtnTimerRemaining[exId], '⏱ ¡Descanso terminado!', ex?.name ? `Seguí con ${ex.name}` : 'Retomá la rutina', 'rtn-timer');
+  }
 }
 
 function skipRtnTimer(exId) {
   if (_rtnTimers[exId]) { clearInterval(_rtnTimers[exId]); delete _rtnTimers[exId]; }
   delete _rtnTimerRemaining[exId];
   delete _rtnTimerEndsAt[exId];
+  if (typeof _cancelPushAlarm === 'function') _cancelPushAlarm('rtn-' + exId);
   const band = document.getElementById('rtn-tband-' + exId);
   if (band) band.style.display = 'none';
   if (_pipExId === exId) { _pipExId = null; _updatePip(); }
@@ -1901,6 +1912,7 @@ function skipRtnTimer(exId) {
 
 function cancelRtnSession() {
   Object.values(_rtnTimers).forEach(clearInterval);
+  if (typeof _cancelPushAlarm === 'function') Object.keys(_rtnTimers).forEach(exId => _cancelPushAlarm('rtn-' + exId));
   _rtnTimers = {};
   _rtnTimerRemaining = {};
   _rtnTimerEndsAt = {};
@@ -1941,6 +1953,7 @@ function finishRtnSession() {
     S.exerciseHistory[libId].push({ date, routineId, sets: cleanSets });
   });
   Object.values(_rtnTimers).forEach(clearInterval);
+  if (typeof _cancelPushAlarm === 'function') Object.keys(_rtnTimers).forEach(exId => _cancelPushAlarm('rtn-' + exId));
   _rtnTimers = {};
   _rtnTimerRemaining = {};
   _rtnTimerEndsAt = {};

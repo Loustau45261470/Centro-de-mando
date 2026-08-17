@@ -17,6 +17,7 @@ El monolito `index.html` se separó en varios archivos para aligerarlo. NO volve
 - `jarvis-*.js` — módulos de JARVIS: `jarvis-voice.js` (TTS/ElevenLabs), `jarvis-ears.js` (reconocimiento de voz), `jarvis-brain.js`, `jarvis-intel.js`, `jarvis-neural-fx.js`, `jarvis-agent.js`, `jarvis-core-stats.js`.
 - `login.js`, `theme-switcher.js`, `telemetry.js`, `command-palette.js`, `hud-ambient.js` — features sueltas.
 - `sw.js` — service worker (PWA). Su `SHELL` lista todos los archivos; al cambiar cualquier `.js`/`.css` hay que **bumpear `const CACHE`** (cache-first) para que el cambio llegue a los dispositivos.
+- `cf-worker/` — Cloudflare Worker aparte (Durable Object Alarm) que manda el push de Pomodoro/descanso de gym en el segundo exacto, aunque la pestaña esté de fondo. Deploy independiente del sitio (`cf-worker/README.md`), no lo empaqueta `sw.js`. Cliente en `app.js` (`_schedulePushAlarm`/`_cancelPushAlarm`), usado desde `pomodoro.js` y `rutinas.js`.
 
 Todos los `<script>` son clásicos (no módulos) → las funciones/vars top-level son globales y se comparten entre archivos.
 
