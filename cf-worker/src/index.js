@@ -64,24 +64,41 @@ export class TimerAlarm {
   }
 }
 
+// CORS: el Worker vive en otro origen que el sitio (loustau45261470.github.io),
+// así que el navegador exige preflight (OPTIONS) + el header en cada respuesta.
+// El gate real es el Bearer token, no el origin — '*' no relaja nada de fondo.
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'content-type, authorization',
+};
+const withCors = res => {
+  const h = new Headers(res.headers);
+  Object.entries(CORS_HEADERS).forEach(([k, v]) => h.set(k, v));
+  return new Response(res.body, { status: res.status, headers: h });
+};
+
 export default {
   async fetch(request, env) {
+    if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS_HEADERS });
+
     const auth = request.headers.get('Authorization');
     if (auth !== `Bearer ${env.WORKER_SECRET}`) {
-      return new Response('unauthorized', { status: 401 });
+      return withCors(new Response('unauthorized', { status: 401 }));
     }
     const url = new URL(request.url);
     const m = url.pathname.match(/^\/(schedule|cancel)\/([a-zA-Z0-9_-]+)$/);
-    if (!m || request.method !== 'POST') return new Response('not found', { status: 404 });
+    if (!m || request.method !== 'POST') return withCors(new Response('not found', { status: 404 }));
     const [, action, id] = m;
 
     const bodyText = action === 'schedule' ? await request.text() : '';
     const doId = env.TIMER.idFromName(id);
     const stub = env.TIMER.get(doId);
-    return stub.fetch(`https://do/${action}`, {
+    const res = await stub.fetch(`https://do/${action}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: bodyText || undefined,
     });
+    return withCors(res);
   },
 };
