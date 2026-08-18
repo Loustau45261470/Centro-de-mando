@@ -39,14 +39,34 @@ const Tenencias = (() => {
     ${liquidezRow(d)}`;
   }
 
+  function rendimientoBanner(t) {
+    const ppc = num(t.ppc);
+    if (ppc == null) return '';
+    const rp = num(t.rendimientoPct);
+    const rm = num(t.rendimientoMonto);
+    const gana = rp != null && rp >= 0;
+    const cls = gana ? 'text-ok' : 'text-danger';
+    const label = gana ? '¡Estás ganando!' : 'Estás perdiendo';
+    const aprox = t.ppcConfianza === 'aproximada'
+      ? ` <span class="ten-ppc-approx" title="Estimado — el historial de operaciones no cierra exacto para este activo">⚠</span>`
+      : '';
+    return `<div class="ten-rend ${cls}">${esc(label)} ${rp != null ? pct(rp) : '—'} (${money(rm, 0)})${aprox}</div>`;
+  }
+
   function detalleFila(t) {
     const disponible = num(t.cantidad) != null && num(t.comprometido) != null ? num(t.cantidad) - num(t.comprometido) : null;
+    const ppc = num(t.ppc);
+    const aprox = ppc != null && t.ppcConfianza === 'aproximada'
+      ? ` <span class="ten-ppc-approx" title="Estimado — el historial de operaciones no cierra exacto para este activo">⚠</span>`
+      : '';
     return `<div class="ten-detail">
+      ${rendimientoBanner(t)}
       <div class="ten-detail-grid">
         <div class="ten-detail-item"><span class="ten-detail-lbl">Cantidad</span><span class="mono">${num(t.cantidad)?.toLocaleString('es-AR') ?? '—'}</span></div>
         <div class="ten-detail-item"><span class="ten-detail-lbl">Comprometido</span><span class="mono">${num(t.comprometido)?.toLocaleString('es-AR') ?? '0'}</span></div>
         <div class="ten-detail-item"><span class="ten-detail-lbl">Disponible p/ operar</span><span class="mono">${disponible?.toLocaleString('es-AR') ?? '—'}</span></div>
         <div class="ten-detail-item"><span class="ten-detail-lbl">Precio actual</span><span class="mono">${money(t.precio, 4)}</span></div>
+        ${ppc != null ? `<div class="ten-detail-item"><span class="ten-detail-lbl">PPC</span><span class="mono">${money(ppc, 4)}${aprox}</span></div>` : ''}
         <div class="ten-detail-item"><span class="ten-detail-lbl">Valorizado</span><span class="mono">${money(t.valorizado, 0)}</span></div>
         <div class="ten-detail-item"><span class="ten-detail-lbl">Var. último día hábil</span><span class="mono ${varCls(t.variacionDiariaPct)}">${pct(t.variacionDiariaPct)}</span></div>
         <div class="ten-detail-item"><span class="ten-detail-lbl">Variación semanal</span><span class="mono ${varCls(t.variacionPct)}">${t.variacionPct == null ? 'Sin dato aún' : pct(t.variacionPct)}</span></div>

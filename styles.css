@@ -5276,6 +5276,8 @@ input:focus, select:focus, textarea:focus {
 .ten-num { text-align: right; }
 .ten-val { font-weight: 700; }
 .ten-detail { padding: 10px 14px 14px; background: rgba(34,197,94,.03); border-bottom: 1px solid rgba(255,255,255,.04); }
+.ten-rend { font-size: var(--fs-13); font-weight: 700; margin-bottom: 10px; }
+.ten-ppc-approx { cursor: help; opacity: .75; font-weight: 400; }
 .ten-detail-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .ten-detail-item { display: flex; flex-direction: column; gap: 2px; }
 .ten-detail-lbl { font-size: 11px; color: var(--text-ter, #8b93a7); text-transform: uppercase; letter-spacing: .04em; }
