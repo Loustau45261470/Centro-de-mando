@@ -5282,6 +5282,13 @@ input:focus, select:focus, textarea:focus {
 .ten-detail-item { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .ten-detail-item .mono { overflow-wrap: anywhere; }
 .ten-detail-lbl { font-size: 11px; color: var(--text-ter, #8b93a7); text-transform: uppercase; letter-spacing: .04em; }
+.ten-lotes { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.06); }
+.ten-lotes-lbl { font-size: 11px; color: var(--text-ter, #8b93a7); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+.ten-lotes-list { display: flex; flex-direction: column; gap: 4px; }
+.ten-lote-item { display: flex; justify-content: space-between; gap: 10px; font-size: var(--fs-13); padding: 3px 0; }
+.ten-lote-fecha { color: var(--text-ter, #8b93a7); flex: 0 0 auto; }
+.ten-lote-cant { flex: 1; text-align: right; }
+.ten-lote-precio { flex: 0 0 auto; min-width: 70px; text-align: right; }
 @media (max-width: 900px) {
   .ten-row { grid-template-columns: 1.4fr .8fr .8fr .9fr; padding: 8px 10px; }
   .ten-detail-grid { grid-template-columns: repeat(2, 1fr); }

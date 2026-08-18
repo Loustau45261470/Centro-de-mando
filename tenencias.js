@@ -50,6 +50,25 @@ const Tenencias = (() => {
     return `<div class="ten-rend ${cls}">${esc(label)} ${pct(rp)}${montoTxt}</div>`;
   }
 
+  function fechaCorta(s) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s ?? ''));
+    return m ? `${m[3]}/${m[2]}/${m[1].slice(2)}` : esc(s);
+  }
+
+  function historialLotes(t) {
+    const lotes = Array.isArray(t.lotes) ? t.lotes : [];
+    if (!lotes.length) return '';
+    const filas = lotes.map(lo => `<div class="ten-lote-item">
+        <span class="mono ten-lote-fecha">${fechaCorta(lo.fecha)}</span>
+        <span class="mono ten-lote-cant">${num(lo.cantidad)?.toLocaleString('es-AR') ?? '—'}</span>
+        <span class="mono ten-lote-precio">${money(lo.precio, 4)}</span>
+      </div>`).join('');
+    return `<div class="ten-lotes">
+      <div class="ten-lotes-lbl">Historial de compras</div>
+      <div class="ten-lotes-list">${filas}</div>
+    </div>`;
+  }
+
   function detalleFila(t) {
     const disponible = num(t.cantidad) != null && num(t.comprometido) != null ? num(t.cantidad) - num(t.comprometido) : null;
     const ppc = num(t.ppc);
@@ -68,6 +87,7 @@ const Tenencias = (() => {
         <div class="ten-detail-item"><span class="ten-detail-lbl">Var. último día hábil</span><span class="mono ${varCls(t.variacionDiariaPct)}">${pct(t.variacionDiariaPct)}</span></div>
         <div class="ten-detail-item"><span class="ten-detail-lbl">Variación semanal</span><span class="mono ${varCls(t.variacionPct)}">${t.variacionPct == null ? 'Sin dato aún' : pct(t.variacionPct)}</span></div>
       </div>
+      ${historialLotes(t)}
     </div>`;
   }
 
