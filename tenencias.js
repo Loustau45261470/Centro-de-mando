@@ -18,7 +18,6 @@ const Tenencias = (() => {
   const money = (v, dec) => { const n = num(v); return n == null ? '—' : '$' + n.toLocaleString('es-AR', { maximumFractionDigits: dec ?? 2 }); };
   const varCls = v => { const n = num(v); return n == null ? 'text-ter' : n > 0 ? 'text-ok' : n < 0 ? 'text-danger' : 'text-ter'; };
 
-  let _data = null;
   let _openSimbolo = null;
 
   function liquidezRow(d) {
@@ -58,7 +57,7 @@ const Tenencias = (() => {
   function fila(t) {
     const abierto = _openSimbolo === t.simbolo;
     return `<div class="ten-row-wrap">
-      <div class="ten-row ${abierto ? 'ten-row-active' : ''}" data-simbolo="${esc(t.simbolo)}">
+      <div class="ten-row ${abierto ? 'ten-row-active' : ''}" data-simbolo="${esc(t.simbolo)}" tabindex="0" role="button" aria-expanded="${abierto}">
         <div class="ten-row-main">
           <span class="mono bold ten-sim">${esc(t.simbolo)}</span>
           <span class="ten-tipo">${esc(t.tipo)}</span>
@@ -85,15 +84,20 @@ const Tenencias = (() => {
   }
 
   function render(body, d) {
-    _data = d;
     const gen = d.generado ? new Date(d.generado) : null;
     const meta = `${gen ? 'Actualizado el ' + gen.toLocaleDateString('es-AR') + ' ' + gen.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : ''} · rutina semanal IOL (lunes 8:00)`;
     body.innerHTML = `<div class="ci-meta">${meta}</div>${header(d)}${tabla(d)}`;
+    const toggle = sim => {
+      _openSimbolo = _openSimbolo === sim ? null : sim;
+      render(body, d);
+    };
     body.querySelectorAll('.ten-row[data-simbolo]').forEach(row => {
-      row.addEventListener('click', () => {
-        const sim = row.dataset.simbolo;
-        _openSimbolo = _openSimbolo === sim ? null : sim;
-        render(body, _data);
+      row.addEventListener('click', () => toggle(row.dataset.simbolo));
+      row.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          toggle(row.dataset.simbolo);
+        }
       });
     });
   }
@@ -107,10 +111,23 @@ const Tenencias = (() => {
     const bx = body.querySelector('#ten-body');
     fetch(URL_JSON, { cache: 'no-store' })
       .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-      .then(d => render(bx, d))
-      .catch(() => {
-        bx.innerHTML = `<div class="empty-state">Todavía no hay tenencias disponibles.<br>
-          La rutina corre los lunes a las 8:00 y publica la posición acá automáticamente.</div>`;
+      .then(d => {
+        try {
+          render(bx, d);
+        } catch (e) {
+          console.error('[tenencias]', e);
+          bx.innerHTML = `<div class="empty-state">Los datos de tenencias tienen un formato inesperado.<br>
+            Revisá la consola para más detalle.</div>`;
+        }
+      })
+      .catch(e => {
+        console.error('[tenencias]', e);
+        const es404 = /^HTTP 404/.test(String(e && e.message));
+        bx.innerHTML = es404
+          ? `<div class="empty-state">Todavía no hay tenencias disponibles.<br>
+              La rutina corre los lunes a las 8:00 y publica la posición acá automáticamente.</div>`
+          : `<div class="empty-state">No se pudieron cargar las tenencias.<br>
+              Revisá la conexión o intentá de nuevo más tarde.</div>`;
       });
   }
 
