@@ -1,0 +1,35 @@
+{
+  "generado": "2026-08-18T15:59:00Z",
+  "tenencias": [
+    {"simbolo": "IBM", "descripcion": "Cedear Int.Business Machines (Ibm)", "tipo": "CEDEARS", "cantidad": 5, "comprometido": 0, "precio": 24420, "precioAnterior": null, "variacionPct": null, "variacionDiariaPct": -1.01, "valorizado": 122100},
+    {"simbolo": "WMT", "descripcion": "Cedear Walmart Inc.", "tipo": "CEDEARS", "cantidad": 15, "comprometido": 0, "precio": 10150, "precioAnterior": null, "variacionPct": null, "variacionDiariaPct": 0.49, "valorizado": 152250},
+    {"simbolo": "GOOGL", "descripcion": "Cedear Alphabet Inc. Cl. A", "tipo": "CEDEARS", "cantidad": 30, "comprometido": 0, "precio": 9360, "precioAnterior": null, "variacionPct": null, "variacionDiariaPct": -0.31, "valorizado": 280800},
+    {"simbolo": "MELI", "descripcion": "Cedear Mercadolibre Inc.", "tipo": "CEDEARS", "cantidad": 10, "comprometido": 0, "precio": 23860, "precioAnterior": null, "variacionPct": null, "variacionDiariaPct": -1.24, "valorizado": 238600},
+    {"simbolo": "META", "descripcion": "Cedear Facebook, Inc.", "tipo": "CEDEARS", "cantidad": 10, "comprometido": 0, "precio": 36520, "precioAnterior": null, "variacionPct": null, "variacionDiariaPct": -5.68, "valorizado": 365200},
+    {"simbolo": "AMZN", "descripcion": "Cedear Amazon.Com, Inc", "tipo": "CEDEARS", "cantidad": 100, "comprometido": 0, "precio": 2852.5, "precioAnterior": null, "variacionPct": null, "variacionDiariaPct": -0.69, "valorizado": 285250},
+    {"simbolo": "NVDA", "descripcion": "Cedear Nvidia Corporation", "tipo": "CEDEARS", "cantidad": 15, "comprometido": 0, "precio": 14480, "precioAnterior": null, "variacionPct": null, "variacionDiariaPct": -1.89, "valorizado": 217200},
+    {"simbolo": "V", "descripcion": "Cedear Visa Inc", "tipo": "CEDEARS", "cantidad": 10, "comprometido": 0, "precio": 31980, "precioAnterior": null, "variacionPct": null, "variacionDiariaPct": 0.69, "valorizado": 319800},
+    {"simbolo": "MA", "descripcion": "Cedear Mastercard Inc.", "tipo": "CEDEARS", "cantidad": 10, "comprometido": 0, "precio": 27500, "precioAnterior": null, "variacionPct": null, "variacionDiariaPct": 1.32, "valorizado": 275000},
+    {"simbolo": "SPY", "descripcion": "Cedear Spdr S&P 500", "tipo": "CEDEARS", "cantidad": 45, "comprometido": 0, "precio": 20250, "precioAnterior": null, "variacionPct": null, "variacionDiariaPct": -0.73, "valorizado": 911250},
+    {"simbolo": "NU", "descripcion": "Cedear Nu Holdings Ltd/Cayman", "tipo": "CEDEARS", "cantidad": 25, "comprometido": 0, "precio": 11430, "precioAnterior": null, "variacionPct": null, "variacionDiariaPct": -4.35, "valorizado": 285750},
+    {"simbolo": "ETHA", "descripcion": "Cedear Ishares Ethereum Tr Etf", "tipo": "CEDEARS", "cantidad": 25, "comprometido": 0, "precio": 4562.5, "precioAnterior": null, "variacionPct": null, "variacionDiariaPct": 2.70, "valorizado": 114062.5},
+    {"simbolo": "GLD", "descripcion": "Cedear Etf Spdr Gold Trust", "tipo": "CEDEARS", "cantidad": 50, "comprometido": 0, "precio": 12670, "precioAnterior": null, "variacionPct": null, "variacionDiariaPct": 0.07, "valorizado": 633500},
+    {"simbolo": "IBIT", "descripcion": "Cedear Ishares Bitcoin Tr (Ibi)", "tipo": "CEDEARS", "cantidad": 20, "comprometido": 0, "precio": 5805, "precioAnterior": null, "variacionPct": null, "variacionDiariaPct": 3.29, "valorizado": 116100},
+    {"simbolo": "T15E7", "descripcion": "Bono Tesoro Nac Cap V.15/01/27", "tipo": "TIT. PUBLICOS", "cantidad": 200000, "comprometido": 0, "precio": 1.4505, "precioAnterior": null, "variacionPct": null, "variacionDiariaPct": -0.17, "valorizado": 290100},
+    {"simbolo": "SLV", "descripcion": "Cedear Etf Ishares Silver Trust", "tipo": "CEDEARS", "cantidad": 10, "comprometido": 0, "precio": 15240, "precioAnterior": null, "variacionPct": null, "variacionDiariaPct": -0.78, "valorizado": 152400},
+    {"simbolo": "SMH", "descripcion": "Cedear Van Eck Vectors Etf Tru", "tipo": "CEDEARS", "cantidad": 25, "comprometido": 0, "precio": 17960, "precioAnterior": null, "variacionPct": null, "variacionDiariaPct": -2.86, "valorizado": 449000},
+    {"simbolo": "S30O6", "descripcion": "Letras Del Tesoro Cap $ V 30/10/2026", "tipo": "Letras", "cantidad": 400000, "comprometido": 0, "precio": 1.2895, "precioAnterior": null, "variacionPct": null, "variacionDiariaPct": 0.02, "valorizado": 515800},
+    {"simbolo": "T30A7", "descripcion": "Bono Tesoro Nac Cap V.30/04/27", "tipo": "TIT. PUBLICOS", "cantidad": 150000, "comprometido": 0, "precio": 1.31248, "precioAnterior": null, "variacionPct": null, "variacionDiariaPct": -0.15, "valorizado": 196872},
+    {"simbolo": "S30N6", "descripcion": "Letra Tesoro Nacional Capitalizable 30/11/26", "tipo": "Letras", "cantidad": 400000, "comprometido": 0, "precio": 1.21019, "precioAnterior": null, "variacionPct": null, "variacionDiariaPct": -0.02, "valorizado": 484076},
+    {"simbolo": "COPX", "descripcion": "Cedear Global X Copper Miners Etf", "tipo": "CEDEARS", "cantidad": 10, "comprometido": 0, "precio": 9635, "precioAnterior": null, "variacionPct": null, "variacionDiariaPct": 0.15, "valorizado": 96350}
+  ],
+  "totales": {
+    "valorizado": 6501460.5,
+    "variacionPct": null
+  },
+  "liquidez": {
+    "ars_disponible": 0,
+    "ars_comprometido": 249650.45,
+    "usd_disponible": 2.98
+  }
+}
