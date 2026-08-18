@@ -56,15 +56,27 @@ const Tenencias = (() => {
   }
 
   function historialLotes(t) {
-    const lotes = Array.isArray(t.lotes) ? t.lotes : [];
-    if (!lotes.length) return '';
-    const filas = lotes.map(lo => `<div class="ten-lote-item">
+    const lotesValidos = (Array.isArray(t.lotes) ? t.lotes : []).filter(lo => lo && typeof lo === 'object');
+    if (!lotesValidos.length) return '';
+    // Agrupa lotes de la misma fecha y mismo precio (partes de una misma orden) sumando cantidad.
+    const agrupados = [];
+    for (const lo of lotesValidos) {
+      const prev = agrupados.find(g => g.fecha === lo.fecha && num(g.precio) === num(lo.precio));
+      if (prev) prev.cantidad = (num(prev.cantidad) ?? 0) + (num(lo.cantidad) ?? 0);
+      else agrupados.push({ fecha: lo.fecha, cantidad: lo.cantidad, precio: lo.precio });
+    }
+    const filas = agrupados.map(lo => `<div class="ten-lote-item">
         <span class="mono ten-lote-fecha">${fechaCorta(lo.fecha)}</span>
         <span class="mono ten-lote-cant">${num(lo.cantidad)?.toLocaleString('es-AR') ?? '—'}</span>
-        <span class="mono ten-lote-precio">${money(lo.precio, 4)}</span>
+        <span class="mono ten-lote-precio">${num(lo.precio) ? money(lo.precio, 4) : '—'}</span>
       </div>`).join('');
     return `<div class="ten-lotes">
       <div class="ten-lotes-lbl">Historial de compras</div>
+      <div class="ten-lote-item ten-lote-hdr">
+        <span class="ten-lote-fecha">Fecha</span>
+        <span class="ten-lote-cant">Cantidad</span>
+        <span class="ten-lote-precio">Precio</span>
+      </div>
       <div class="ten-lotes-list">${filas}</div>
     </div>`;
   }

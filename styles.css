@@ -5289,6 +5289,7 @@ input:focus, select:focus, textarea:focus {
 .ten-lote-fecha { color: var(--text-ter, #8b93a7); flex: 0 0 auto; }
 .ten-lote-cant { flex: 1; text-align: right; }
 .ten-lote-precio { flex: 0 0 auto; min-width: 70px; text-align: right; }
+.ten-lote-hdr { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-ter, #8b93a7); border-bottom: 1px solid rgba(255,255,255,.1); padding-bottom: 5px; margin-bottom: 2px; }
 @media (max-width: 900px) {
   .ten-row { grid-template-columns: 1.4fr .8fr .8fr .9fr; padding: 8px 10px; }
   .ten-detail-grid { grid-template-columns: repeat(2, 1fr); }
