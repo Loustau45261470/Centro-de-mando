@@ -15,7 +15,7 @@ const Tenencias = (() => {
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   const num = v => (v == null || isNaN(v)) ? null : Number(v);
   const pct = v => { const n = num(v); return n == null ? '—' : (n > 0 ? '+' : '') + n.toFixed(2) + '%'; };
-  const money = (v, dec) => { const n = num(v); return n == null ? '—' : '$' + n.toLocaleString('es-AR', { maximumFractionDigits: dec ?? 2 }); };
+  const money = (v, dec) => { const n = num(v); if (n == null) return '—'; const neg = n < 0; return (neg ? '-$' : '$') + Math.abs(n).toLocaleString('es-AR', { maximumFractionDigits: dec ?? 2 }); };
   const varCls = v => { const n = num(v); return n == null ? 'text-ter' : n > 0 ? 'text-ok' : n < 0 ? 'text-danger' : 'text-ter'; };
 
   let _openSimbolo = null;
@@ -41,23 +41,20 @@ const Tenencias = (() => {
 
   function rendimientoBanner(t) {
     const ppc = num(t.ppc);
-    if (ppc == null) return '';
     const rp = num(t.rendimientoPct);
+    if (ppc == null || rp == null) return '';
     const rm = num(t.rendimientoMonto);
-    const gana = rp != null && rp >= 0;
-    const cls = gana ? 'text-ok' : 'text-danger';
-    const label = gana ? '¡Estás ganando!' : 'Estás perdiendo';
-    const aprox = t.ppcConfianza === 'aproximada'
-      ? ` <span class="ten-ppc-approx" title="Estimado — el historial de operaciones no cierra exacto para este activo">⚠</span>`
-      : '';
-    return `<div class="ten-rend ${cls}">${esc(label)} ${rp != null ? pct(rp) : '—'} (${money(rm, 0)})${aprox}</div>`;
+    const cls = rp > 0 ? 'text-ok' : rp < 0 ? 'text-danger' : 'text-ter';
+    const label = rp > 0 ? '¡Estás ganando!' : rp < 0 ? 'Estás perdiendo' : 'Sin cambio';
+    const montoTxt = rm != null ? ` (${money(rm, 0)})` : '';
+    return `<div class="ten-rend ${cls}">${esc(label)} ${pct(rp)}${montoTxt}</div>`;
   }
 
   function detalleFila(t) {
     const disponible = num(t.cantidad) != null && num(t.comprometido) != null ? num(t.cantidad) - num(t.comprometido) : null;
     const ppc = num(t.ppc);
     const aprox = ppc != null && t.ppcConfianza === 'aproximada'
-      ? ` <span class="ten-ppc-approx" title="Estimado — el historial de operaciones no cierra exacto para este activo">⚠</span>`
+      ? ` <span class="ten-ppc-approx" title="Estimado — el historial de operaciones no cierra exacto para este activo" aria-label="PPC estimado">⚠</span>`
       : '';
     return `<div class="ten-detail">
       ${rendimientoBanner(t)}
