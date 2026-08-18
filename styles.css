@@ -5437,6 +5437,10 @@ input:focus, select:focus, textarea:focus {
 #ov-pomo-hist .pomo-log-head {
   display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px;
 }
+
+/* Tabs de pane (overlay-core.css .plov-pane) — movida acá porque overlay-core.css
+   se sirve sin ?v= y no garantiza que los dispositivos reciban el CSS nuevo. */
+.plov-pane[hidden] { display: none; }
 #ov-pomo-hist .pomo-log-title {
   font-size: var(--fs-12-5); font-weight: 800; letter-spacing: .15em;
   text-transform: uppercase; color: #8BA5C0;
