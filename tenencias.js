@@ -30,15 +30,16 @@ const Tenencias = (() => {
     </div>`;
   }
 
+  // Solo el texto cualitativo — el número (%, monto) ya se ve en la fila
+  // compacta (rendimientoCompacto) que queda visible arriba mientras el
+  // detalle está expandido; no repetirlo acá.
   function rendimientoBanner(t) {
     const ppc = num(t.ppc);
     const rp = num(t.rendimientoPct);
     if (ppc == null || rp == null) return '';
-    const rm = num(t.rendimientoMonto);
     const cls = rp > 0 ? 'text-ok' : rp < 0 ? 'text-danger' : 'text-ter';
     const label = rp > 0 ? '¡Estás ganando!' : rp < 0 ? 'Estás perdiendo' : 'Sin cambio';
-    const montoTxt = rm != null ? ` (${money(rm, 0)})` : '';
-    return `<div class="ten-rend ${cls}">${esc(label)} ${pct(rp)}${montoTxt}</div>`;
+    return `<div class="ten-rend ${cls}">${esc(label)}</div>`;
   }
 
   // Versión compacta del banner de ganancia/pérdida para mostrar en la fila
@@ -49,7 +50,7 @@ const Tenencias = (() => {
     if (ppc == null || rp == null) return `<span class="mono col-r ten-num text-ter">—</span>`;
     const rm = num(t.rendimientoMonto);
     const cls = rp > 0 ? 'text-ok' : rp < 0 ? 'text-danger' : 'text-ter';
-    const montoTxt = rm != null ? ` (${money(rm, 0)})` : '';
+    const montoTxt = rm != null ? `<span class="ten-num-monto"> (${money(rm, 0)})</span>` : '';
     return `<span class="mono col-r ten-num ${cls}">${pct(rp)}${montoTxt}</span>`;
   }
 
@@ -131,11 +132,15 @@ const Tenencias = (() => {
     </div>`;
   }
 
-  // Agrupa la lista en "CEDEARs y acciones" (tipo CEDEARS) y "Bonos y letras"
-  // (TIT. PUBLICOS / Letras); cada grupo ordenado por valorizado descendente.
+  // Agrupa la lista en "CEDEARs y acciones" (CEDEARS/ACCIONES), "Bonos y letras"
+  // (TIT.PUBLICOS/LETRAS/ONS) y "Otros" (cualquier tipo que no matchea los
+  // anteriores, incl. null/undefined) — así ninguna fila desaparece nunca,
+  // aunque siga sumando al total del header. Match normalizado (trim+upper)
+  // para tolerar variaciones de capitalización/espaciado del JSON de origen.
+  const normTipo = tipo => String(tipo ?? '').trim().toUpperCase();
   const GRUPOS = [
-    { titulo: 'CEDEARs y acciones', match: tipo => tipo === 'CEDEARS' },
-    { titulo: 'Bonos y letras', match: tipo => tipo === 'TIT. PUBLICOS' || tipo === 'Letras' }
+    { titulo: 'CEDEARs y acciones', match: tipo => normTipo(tipo) === 'CEDEARS' || normTipo(tipo) === 'ACCIONES' },
+    { titulo: 'Bonos y letras', match: tipo => ['TIT. PUBLICOS', 'TIT.PUBLICOS', 'LETRAS', 'ONS'].includes(normTipo(tipo)) }
   ];
 
   function hdrRow() {
@@ -153,14 +158,19 @@ const Tenencias = (() => {
     const todas = (d.tenencias || []);
     const totalVal = num((d.totales || {}).valorizado);
     const porOrden = t => (num(t.valorizado) ?? 0);
-    const grupos = GRUPOS.map(g => ({
-      titulo: g.titulo,
-      rows: todas.filter(t => g.match(t.tipo)).sort((a, b) => porOrden(b) - porOrden(a))
-    })).filter(g => g.rows.length);
-    if (!grupos.length) {
+    const matcheadas = new Set();
+    const grupos = GRUPOS.map(g => {
+      const rows = todas.filter(t => g.match(t.tipo)).sort((a, b) => porOrden(b) - porOrden(a));
+      rows.forEach(t => matcheadas.add(t));
+      return { titulo: g.titulo, rows };
+    });
+    const otros = todas.filter(t => !matcheadas.has(t)).sort((a, b) => porOrden(b) - porOrden(a));
+    if (otros.length) grupos.push({ titulo: 'Otros', rows: otros });
+    const gruposConDatos = grupos.filter(g => g.rows.length);
+    if (!gruposConDatos.length) {
       return `<div class="card ten-card"><div class="empty-state">Sin tenencias en cartera</div></div>`;
     }
-    return grupos.map(g => `<div class="card ten-card">
+    return gruposConDatos.map(g => `<div class="card ten-card">
       <div class="ten-grupo-lbl">${esc(g.titulo)}</div>
       ${hdrRow()}
       ${g.rows.map(t => fila(t, totalVal)).join('')}
