@@ -97,7 +97,7 @@ const Tenencias = (() => {
     </div>`;
   }
 
-  function detalleFila(t) {
+  function detalleFila(t, totalVal) {
     // "Disponible p/ operar" sigue calculado con comprometido internamente,
     // aunque el campo comprometido ya no se muestra por separado en la grilla.
     const disponible = num(t.cantidad) != null && num(t.comprometido) != null ? num(t.cantidad) - num(t.comprometido) : null;
@@ -105,6 +105,8 @@ const Tenencias = (() => {
     const aprox = ppc != null && t.ppcConfianza === 'aproximada'
       ? ` <span class="ten-ppc-approx" title="Estimado — el historial de operaciones no cierra exacto para este activo" aria-label="Precio promedio de compra estimado">⚠</span>`
       : '';
+    const v = num(t.valorizado);
+    const pctCarteraTxt = v == null || !totalVal ? '—' : `${((v / totalVal) * 100).toFixed(1)}%`;
     return `<div class="ten-detail">
       ${rendimientoBanner(t)}
       <div class="ten-detail-grid">
@@ -113,6 +115,7 @@ const Tenencias = (() => {
         <div class="ten-detail-item"><span class="ten-detail-lbl">Precio actual</span><span class="mono">${money(t.precio, 4)}</span></div>
         ${ppc != null ? `<div class="ten-detail-item"><span class="ten-detail-lbl">Precio promedio de compra</span><span class="mono">${money(ppc, 4)}${aprox}</span></div>` : ''}
         <div class="ten-detail-item"><span class="ten-detail-lbl">Valorizado</span><span class="mono">${money(t.valorizado, 0)}</span></div>
+        <div class="ten-detail-item"><span class="ten-detail-lbl">% de la cartera</span><span class="mono">${pctCarteraTxt}</span></div>
         <div class="ten-detail-item"><span class="ten-detail-lbl">Var. último día hábil</span><span class="mono ${varCls(t.variacionDiariaPct)}">${pct(t.variacionDiariaPct)}</span></div>
         <div class="ten-detail-item"><span class="ten-detail-lbl">Variación semanal</span><span class="mono ${varCls(t.variacionPct)}">${t.variacionPct == null ? 'Sin dato aún' : pct(t.variacionPct)}</span></div>
       </div>
@@ -134,7 +137,7 @@ const Tenencias = (() => {
         <span class="mono col-r ten-num ten-val">${money(t.valorizado, 0)}</span>
         ${pctCartera(t, totalVal)}
       </div>
-      ${abierto ? detalleFila(t) : ''}
+      ${abierto ? detalleFila(t, totalVal) : ''}
     </div>`;
   }
 

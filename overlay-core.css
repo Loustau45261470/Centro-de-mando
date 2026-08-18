@@ -45,6 +45,7 @@
   transition: background .18s, border-color .18s, color .18s, transform .18s;
 }
 .cm-ov-close:hover { background: rgba(255,51,88,.14); border-color: var(--danger); color: #fff; transform: rotate(90deg); }
+.cm-ov-close:focus-visible { outline: 2px solid var(--danger); outline-offset: 2px; }
 .cm-ov-body { flex: 1; overflow-y: auto; padding: 8px 2px; }
 .cm-ov-body::-webkit-scrollbar { width: 0; }
 /* Host de contenido reubicado: la card existente ocupa todo el ancho, sin margen extra */
@@ -75,6 +76,7 @@
   padding: 10px; border-radius: 9px; transition: color .2s;
 }
 .plov-tab.on { color: #fff; text-shadow: 0 0 12px color-mix(in oklab, var(--cm-accent) 70%, transparent); }
+.plov-tab:focus-visible { outline: 2px solid var(--cm-accent); outline-offset: 2px; }
 .plov-tab-ink {
   position: absolute; z-index: 1; top: 4px; bottom: 4px; left: 4px; width: calc(50% - 6px); border-radius: 9px;
   background: linear-gradient(150deg, color-mix(in oklab, var(--cm-accent) 60%, transparent), color-mix(in oklab, var(--cm-accent) 28%, transparent));
