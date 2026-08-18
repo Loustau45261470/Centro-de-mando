@@ -114,14 +114,28 @@ const CarteraInversion = (() => {
 
   function renderInto(bx) {
     bx.innerHTML = `<div class="empty-state">Cargando análisis…</div>`;
-    fetch(URL_JSON, { cache: 'no-store' })
+    return fetch(URL_JSON, { cache: 'no-store' })
       .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-      .then(d => render(bx, d))
-      .catch(() => {
-        bx.innerHTML = `<div class="empty-state">Todavía no hay análisis disponible.<br>
-          La routine corre el 1° de cada mes a las 8:00 y publica el informe acá automáticamente.</div>
-          <div id="sgc-proyecciones"></div>`;
-        if (window.SGC) SGC.renderProyecciones(document.getElementById('sgc-proyecciones'));
+      .then(d => {
+        try {
+          render(bx, d);
+        } catch (e) {
+          console.error('[cartera]', e);
+          bx.innerHTML = `<div class="empty-state">El análisis mensual tiene un formato inesperado.<br>
+            Revisá la consola para más detalle.</div>`;
+        }
+      })
+      .catch(e => {
+        console.error('[cartera]', e);
+        const es404 = /^HTTP 404/.test(String(e && e.message));
+        bx.innerHTML = es404
+          ? `<div class="empty-state">Todavía no hay análisis disponible.<br>
+              La routine corre el 1° de cada mes a las 8:00 y publica el informe acá automáticamente.</div>
+              <div id="sgc-proyecciones"></div>`
+          : `<div class="empty-state">No se pudo cargar el análisis.<br>
+              Revisá la conexión o intentá de nuevo más tarde.</div>`;
+        if (es404 && window.SGC) SGC.renderProyecciones(document.getElementById('sgc-proyecciones'));
+        throw e;
       });
   }
 
