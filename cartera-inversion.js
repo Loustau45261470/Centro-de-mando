@@ -56,7 +56,7 @@ const CarteraInversion = (() => {
   function topRendimiento(d) {
     const t = d.top || {};
     const col = (lbl, arr) => `<div class="ci-top-col"><div class="ci-top-lbl">${lbl}</div>${(arr || []).map((s, i) =>
-      `<div class="ci-top-item"><span class="ci-top-rank">${i + 1}</span><span class="mono bold">${esc(s)}</span></div>`).join('') || '<div class="text-ter">—</div>'}</div>`;
+      `<div class="ci-top-item"><span class="ci-top-rank mono">${i + 1}</span><span class="mono bold">${esc(s)}</span></div>`).join('') || '<div class="text-ter">—</div>'}</div>`;
     return `<div class="card ci-card">
       <div class="card-title">🏆 Top 3 · rendimiento</div>
       <div class="ci-top-grid">${col('3 meses', t['3m'])}${col('6 meses', t['6m'])}${col('12 meses', t['12m'])}</div>

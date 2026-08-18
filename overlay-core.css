@@ -74,7 +74,7 @@
   font-family: var(--sans); font-size: var(--fs-14); font-weight: 700; color: var(--ts);
   padding: 10px; border-radius: 9px; transition: color .2s;
 }
-.plov-tab.on { color: #fff; }
+.plov-tab.on { color: #fff; text-shadow: 0 0 12px color-mix(in oklab, var(--cm-accent) 70%, transparent); }
 .plov-tab-ink {
   position: absolute; z-index: 1; top: 4px; bottom: 4px; left: 4px; width: calc(50% - 6px); border-radius: 9px;
   background: linear-gradient(150deg, color-mix(in oklab, var(--cm-accent) 60%, transparent), color-mix(in oklab, var(--cm-accent) 28%, transparent));
