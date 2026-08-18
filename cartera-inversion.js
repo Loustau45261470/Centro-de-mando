@@ -1,9 +1,13 @@
 'use strict';
 // ════════════════════════════════════════════════════════════════════════
-// CARTERA DE INVERSIÓN — overlay de solo lectura sobre CMOverlay.
-// Muestra el análisis mensual de CEDEARs que genera la routine cloud
-// (agente IOL) el 1° de cada mes commiteando data/cartera/latest.json.
-// No escribe estado: la única fuente es ese JSON servido por GitHub Pages.
+// CARTERA DE INVERSIÓN — pestaña "Análisis mensual" del overlay unificado
+// de Cartera (ver cartera-overlay.js). Muestra el análisis mensual de
+// CEDEARs que genera la routine cloud (agente IOL) el 1° de cada mes
+// commiteando data/cartera/latest.json. No escribe estado: la única
+// fuente es ese JSON servido por GitHub Pages. No construye su propio
+// overlay: expone renderInto(container) para que cartera-overlay.js la
+// monte dentro de su pane. Distinto de Tenencias (tenencias.js) — la foto
+// real de la cartera IOL, sin picks ni proyecciones.
 // ════════════════════════════════════════════════════════════════════════
 
 const CarteraInversion = (() => {
@@ -108,12 +112,8 @@ const CarteraInversion = (() => {
     if (window.SGC) SGC.renderProyecciones(document.getElementById('sgc-proyecciones'), d);
   }
 
-  function open() {
-    if (typeof CMOverlay === 'undefined') return;
-    const { overlay, body } = CMOverlay.build({ id: 'ov-cartera', accent: '#22C55E' });
-    body.innerHTML = `<div class="cm-ov-head"><div class="cm-ov-eyebrow">FINANZAS · CARTERA</div><div class="cm-ov-title">Cartera de inversión</div></div><div class="ci-body" id="ci-body"><div class="empty-state">Cargando análisis…</div></div>`;
-    CMOverlay.open(overlay);
-    const bx = body.querySelector('#ci-body');
+  function renderInto(bx) {
+    bx.innerHTML = `<div class="empty-state">Cargando análisis…</div>`;
     fetch(URL_JSON, { cache: 'no-store' })
       .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(d => render(bx, d))
@@ -125,6 +125,6 @@ const CarteraInversion = (() => {
       });
   }
 
-  return { open };
+  return { renderInto };
 })();
 window.CarteraInversion = CarteraInversion;
