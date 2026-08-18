@@ -5271,7 +5271,7 @@ input:focus, select:focus, textarea:focus {
 .ten-row-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .ten-sim { font-size: var(--fs-14); }
 .ten-tipo { font-size: 11px; color: var(--text-ter, #8b93a7); text-transform: uppercase; letter-spacing: .04em; }
-.ten-num { text-align: right; }
+.ten-num { text-align: right; min-width: 0; overflow-wrap: anywhere; }
 .ten-val { font-weight: 700; }
 .ten-detail { padding: 10px 14px 14px; background: rgba(34,197,94,.03); border-bottom: 1px solid rgba(255,255,255,.04); }
 .ten-rend { font-size: var(--fs-13); font-weight: 700; margin-bottom: 10px; }
@@ -5291,6 +5291,7 @@ input:focus, select:focus, textarea:focus {
 @media (max-width: 900px) {
   .ten-row { grid-template-columns: 1.2fr .7fr .7fr .8fr .8fr .5fr; padding: 8px 10px; }
   .ten-detail-grid { grid-template-columns: repeat(2, 1fr); }
+  .ten-num-monto { display: none; }
 }
 
 /* ═══════════════ POMODORO (Sesión de estudio) ═══════════════ */
