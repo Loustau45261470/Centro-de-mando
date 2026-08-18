@@ -5260,11 +5260,9 @@ input:focus, select:focus, textarea:focus {
 .ten-hero-lbl { font-size: var(--fs-12-5); text-transform: uppercase; letter-spacing: .06em; color: var(--text-ter, #8b93a7); }
 .ten-hero-num { font-size: 28px; font-weight: 700; line-height: 1.25; margin-top: 2px; }
 .ten-hero-var { font-size: var(--fs-13); margin-top: 4px; }
-.ten-liq { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.ten-liq-item { background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.06); border-radius: 10px; padding: 8px 10px; text-align: center; }
-.ten-liq-lbl { display: block; font-size: var(--fs-12-5); color: var(--text-ter, #8b93a7); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 3px; }
-.ten-card { margin: 0; padding: 6px 0; }
-.ten-row { display: grid; grid-template-columns: 1.6fr .8fr .9fr 1fr; gap: 6px; padding: 9px 14px; font-size: var(--fs-13); border-bottom: 1px solid rgba(255,255,255,.04); align-items: center; cursor: pointer; transition: background .15s; }
+.ten-card { margin: 0 0 14px; padding: 6px 0; }
+.ten-grupo-lbl { font-size: var(--fs-13); font-weight: 700; padding: 8px 14px 4px; color: var(--text-ter, #8b93a7); text-transform: uppercase; letter-spacing: .04em; }
+.ten-row { display: grid; grid-template-columns: 1.3fr .7fr .7fr .9fr .9fr .6fr; gap: 6px; padding: 9px 14px; font-size: var(--fs-13); border-bottom: 1px solid rgba(255,255,255,.04); align-items: center; cursor: pointer; transition: background .15s; }
 .ten-row:hover { background: rgba(255,255,255,.03); }
 .ten-hdr { font-size: var(--fs-12-5); text-transform: uppercase; letter-spacing: .06em; color: var(--text-ter, #8b93a7); border-bottom: 1px solid rgba(255,255,255,.1); cursor: default; }
 .ten-hdr:hover { background: none; }
@@ -5291,9 +5289,8 @@ input:focus, select:focus, textarea:focus {
 .ten-lote-precio { flex: 0 0 auto; min-width: 70px; text-align: right; }
 .ten-lote-hdr { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-ter, #8b93a7); border-bottom: 1px solid rgba(255,255,255,.1); padding-bottom: 5px; margin-bottom: 2px; }
 @media (max-width: 900px) {
-  .ten-row { grid-template-columns: 1.4fr .8fr .8fr .9fr; padding: 8px 10px; }
+  .ten-row { grid-template-columns: 1.2fr .7fr .7fr .8fr .8fr .5fr; padding: 8px 10px; }
   .ten-detail-grid { grid-template-columns: repeat(2, 1fr); }
-  .ten-liq { grid-template-columns: 1fr; }
 }
 
 /* ═══════════════ POMODORO (Sesión de estudio) ═══════════════ */
