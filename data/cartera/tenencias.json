@@ -1,5 +1,5 @@
 {
-  "generado": "2026-08-18T16:20:00Z",
+  "generado": "2026-08-18T18:00:00Z",
   "tenencias": [
     {
       "simbolo": "SPY",
@@ -8,14 +8,31 @@
       "cantidad": 45,
       "comprometido": 0,
       "precio": 20280,
-      "precioAnterior": 20250,
-      "variacionPct": 0.15,
+      "precioAnterior": 20280,
+      "variacionPct": 0.0,
       "variacionDiariaPct": -0.58,
       "valorizado": 912600,
       "ppc": 18817.333333,
       "ppcConfianza": "alta",
       "rendimientoPct": 7.77,
-      "rendimientoMonto": 65820.0
+      "rendimientoMonto": 65820.0,
+      "lotes": [
+        {
+          "fecha": "2026-08-18",
+          "cantidad": 6.0,
+          "precio": 20230.0
+        },
+        {
+          "fecha": "2026-06-01",
+          "cantidad": 26.0,
+          "precio": 0.0
+        },
+        {
+          "fecha": "2026-05-26",
+          "cantidad": 13.0,
+          "precio": 55800.0
+        }
+      ]
     },
     {
       "simbolo": "GLD",
@@ -24,14 +41,41 @@
       "cantidad": 50,
       "comprometido": 0,
       "precio": 12680,
-      "precioAnterior": 12670,
-      "variacionPct": 0.08,
+      "precioAnterior": 12680,
+      "variacionPct": 0.0,
       "variacionDiariaPct": 0.15,
       "valorizado": 634000,
-      "ppc": 12326.151631,
+      "ppc": 12072.45283,
       "ppcConfianza": "aproximada",
-      "rendimientoPct": 2.87,
-      "rendimientoMonto": 17692.42
+      "rendimientoPct": 5.03,
+      "rendimientoMonto": 30377.36,
+      "lotes": [
+        {
+          "fecha": "2025-12-29",
+          "cantidad": 10.0,
+          "precio": 12210.0
+        },
+        {
+          "fecha": "2025-12-18",
+          "cantidad": 1.0,
+          "precio": 12330.0
+        },
+        {
+          "fecha": "2025-12-18",
+          "cantidad": 7.0,
+          "precio": 12330.0
+        },
+        {
+          "fecha": "2025-12-18",
+          "cantidad": 25.0,
+          "precio": 12320.0
+        },
+        {
+          "fecha": "2025-11-18",
+          "cantidad": 10.0,
+          "precio": 11110.0
+        }
+      ]
     },
     {
       "simbolo": "S30O6",
@@ -40,14 +84,26 @@
       "cantidad": 400000,
       "comprometido": 0,
       "precio": 1.2894999999999999,
-      "precioAnterior": 1.2895,
-      "variacionPct": -0.0,
+      "precioAnterior": 1.2894999999999999,
+      "variacionPct": 0.0,
       "variacionDiariaPct": 0.02,
       "valorizado": 515800.0,
       "ppc": 1.27099,
       "ppcConfianza": "alta",
       "rendimientoPct": 1.46,
-      "rendimientoMonto": 7404.0
+      "rendimientoMonto": 7404.0,
+      "lotes": [
+        {
+          "fecha": "2026-07-31",
+          "cantidad": 200000.0,
+          "precio": 127.801
+        },
+        {
+          "fecha": "2026-07-08",
+          "cantidad": 200000.0,
+          "precio": 126.397
+        }
+      ]
     },
     {
       "simbolo": "S30N6",
@@ -56,14 +112,31 @@
       "cantidad": 400000,
       "comprometido": 0,
       "precio": 1.2095,
-      "precioAnterior": 1.21019,
-      "variacionPct": -0.06,
+      "precioAnterior": 1.2095,
+      "variacionPct": 0.0,
       "variacionDiariaPct": -0.07,
       "valorizado": 483800.0,
       "ppc": 1.19665,
       "ppcConfianza": "alta",
       "rendimientoPct": 1.07,
-      "rendimientoMonto": 5140.0
+      "rendimientoMonto": 5140.0,
+      "lotes": [
+        {
+          "fecha": "2026-07-31",
+          "cantidad": 100000.0,
+          "precio": 119.95
+        },
+        {
+          "fecha": "2026-07-31",
+          "cantidad": 100000.0,
+          "precio": 119.95
+        },
+        {
+          "fecha": "2026-07-08",
+          "cantidad": 200000.0,
+          "precio": 119.38
+        }
+      ]
     },
     {
       "simbolo": "SMH",
@@ -72,14 +145,21 @@
       "cantidad": 25,
       "comprometido": 0,
       "precio": 17990,
-      "precioAnterior": 17960,
-      "variacionPct": 0.17,
+      "precioAnterior": 17990,
+      "variacionPct": 0.0,
       "variacionDiariaPct": -2.7,
       "valorizado": 449750,
       "ppc": 17880.0,
       "ppcConfianza": "alta",
       "rendimientoPct": 0.62,
-      "rendimientoMonto": 2750.0
+      "rendimientoMonto": 2750.0,
+      "lotes": [
+        {
+          "fecha": "2026-05-26",
+          "cantidad": 25.0,
+          "precio": 17880.0
+        }
+      ]
     },
     {
       "simbolo": "META",
@@ -88,14 +168,31 @@
       "cantidad": 10,
       "comprometido": 0,
       "precio": 36340,
-      "precioAnterior": 36520,
-      "variacionPct": -0.49,
+      "precioAnterior": 36340,
+      "variacionPct": 0.0,
       "variacionDiariaPct": -6.14,
       "valorizado": 363400,
       "ppc": 37388.0,
       "ppcConfianza": "alta",
       "rendimientoPct": -2.8,
-      "rendimientoMonto": -10480.0
+      "rendimientoMonto": -10480.0,
+      "lotes": [
+        {
+          "fecha": "2026-08-18",
+          "cantidad": 3.0,
+          "precio": 36380.0
+        },
+        {
+          "fecha": "2026-05-26",
+          "cantidad": 1.0,
+          "precio": 37820.0
+        },
+        {
+          "fecha": "2026-05-26",
+          "cantidad": 6.0,
+          "precio": 37820.0
+        }
+      ]
     },
     {
       "simbolo": "V",
@@ -104,14 +201,26 @@
       "cantidad": 10,
       "comprometido": 0,
       "precio": 32020,
-      "precioAnterior": 31980,
-      "variacionPct": 0.13,
+      "precioAnterior": 32020,
+      "variacionPct": 0.0,
       "variacionDiariaPct": 0.81,
       "valorizado": 320200,
       "ppc": 27780.0,
       "ppcConfianza": "alta",
       "rendimientoPct": 15.26,
-      "rendimientoMonto": 42400.0
+      "rendimientoMonto": 42400.0,
+      "lotes": [
+        {
+          "fecha": "2026-01-13",
+          "cantidad": 5.0,
+          "precio": 27780.0
+        },
+        {
+          "fecha": "2026-01-13",
+          "cantidad": 5.0,
+          "precio": 27780.0
+        }
+      ]
     },
     {
       "simbolo": "T15E7",
@@ -120,14 +229,21 @@
       "cantidad": 200000,
       "comprometido": 0,
       "precio": 1.45047,
-      "precioAnterior": 1.4505,
-      "variacionPct": -0.0,
+      "precioAnterior": 1.45047,
+      "variacionPct": 0.0,
       "variacionDiariaPct": -0.17,
       "valorizado": 290094.0,
       "ppc": 1.4395,
       "ppcConfianza": "alta",
       "rendimientoPct": 0.76,
-      "rendimientoMonto": 2194.0
+      "rendimientoMonto": 2194.0,
+      "lotes": [
+        {
+          "fecha": "2026-08-07",
+          "cantidad": 200000.0,
+          "precio": 143.95
+        }
+      ]
     },
     {
       "simbolo": "NU",
@@ -136,14 +252,36 @@
       "cantidad": 25,
       "comprometido": 0,
       "precio": 11490,
-      "precioAnterior": 11430,
-      "variacionPct": 0.52,
+      "precioAnterior": 11490,
+      "variacionPct": 0.0,
       "variacionDiariaPct": -3.84,
       "valorizado": 287250,
       "ppc": 12354.0,
       "ppcConfianza": "alta",
       "rendimientoPct": -6.99,
-      "rendimientoMonto": -21600.0
+      "rendimientoMonto": -21600.0,
+      "lotes": [
+        {
+          "fecha": "2026-08-18",
+          "cantidad": 10.0,
+          "precio": 11450.0
+        },
+        {
+          "fecha": "2026-01-13",
+          "cantidad": 5.0,
+          "precio": 12680.0
+        },
+        {
+          "fecha": "2026-01-12",
+          "cantidad": 5.0,
+          "precio": 13080.0
+        },
+        {
+          "fecha": "2026-01-12",
+          "cantidad": 5.0,
+          "precio": 13110.0
+        }
+      ]
     },
     {
       "simbolo": "AMZN",
@@ -152,14 +290,21 @@
       "cantidad": 100,
       "comprometido": 0,
       "precio": 2870,
-      "precioAnterior": 2852.5,
-      "variacionPct": 0.61,
+      "precioAnterior": 2870,
+      "variacionPct": 0.0,
       "variacionDiariaPct": -0.08,
       "valorizado": 287000,
-      "ppc": 2713.227635,
+      "ppc": 2710.0,
       "ppcConfianza": "aproximada",
-      "rendimientoPct": 5.78,
-      "rendimientoMonto": 15677.24
+      "rendimientoPct": 5.9,
+      "rendimientoMonto": 16000.0,
+      "lotes": [
+        {
+          "fecha": "2026-05-26",
+          "cantidad": 100.0,
+          "precio": 2710.0
+        }
+      ]
     },
     {
       "simbolo": "GOOGL",
@@ -168,14 +313,41 @@
       "cantidad": 30,
       "comprometido": 0,
       "precio": 9385,
-      "precioAnterior": 9360,
-      "variacionPct": 0.27,
+      "precioAnterior": 9385,
+      "variacionPct": 0.0,
       "variacionDiariaPct": -0.05,
       "valorizado": 281550,
-      "ppc": 8095.067959,
+      "ppc": 7905.882353,
       "ppcConfianza": "aproximada",
-      "rendimientoPct": 15.93,
-      "rendimientoMonto": 38697.96
+      "rendimientoPct": 18.71,
+      "rendimientoMonto": 44373.53,
+      "lotes": [
+        {
+          "fecha": "2026-02-11",
+          "cantidad": 5.0,
+          "precio": 7940.0
+        },
+        {
+          "fecha": "2026-02-10",
+          "cantidad": 9.0,
+          "precio": 8095.0
+        },
+        {
+          "fecha": "2026-02-10",
+          "cantidad": 25.0,
+          "precio": 8095.0
+        },
+        {
+          "fecha": "2026-02-10",
+          "cantidad": 10.0,
+          "precio": 8100.0
+        },
+        {
+          "fecha": "2025-07-01",
+          "cantidad": 2.0,
+          "precio": 3635.0
+        }
+      ]
     },
     {
       "simbolo": "MA",
@@ -184,14 +356,26 @@
       "cantidad": 10,
       "comprometido": 0,
       "precio": 27540,
-      "precioAnterior": 27500,
-      "variacionPct": 0.15,
+      "precioAnterior": 27540,
+      "variacionPct": 0.0,
       "variacionDiariaPct": 1.47,
       "valorizado": 275400,
       "ppc": 25040.0,
       "ppcConfianza": "alta",
       "rendimientoPct": 9.98,
-      "rendimientoMonto": 25000.0
+      "rendimientoMonto": 25000.0,
+      "lotes": [
+        {
+          "fecha": "2026-01-13",
+          "cantidad": 5.0,
+          "precio": 24960.0
+        },
+        {
+          "fecha": "2026-01-13",
+          "cantidad": 5.0,
+          "precio": 25120.0
+        }
+      ]
     },
     {
       "simbolo": "MELI",
@@ -200,14 +384,36 @@
       "cantidad": 10,
       "comprometido": 0,
       "precio": 23810,
-      "precioAnterior": 23860,
-      "variacionPct": -0.21,
+      "precioAnterior": 23810,
+      "variacionPct": 0.0,
       "variacionDiariaPct": -1.44,
       "valorizado": 238100,
       "ppc": 25716.0,
       "ppcConfianza": "alta",
       "rendimientoPct": -7.41,
-      "rendimientoMonto": -19060.0
+      "rendimientoMonto": -19060.0,
+      "lotes": [
+        {
+          "fecha": "2026-08-18",
+          "cantidad": 2.0,
+          "precio": 23810.0
+        },
+        {
+          "fecha": "2026-02-03",
+          "cantidad": 1.0,
+          "precio": 25900.0
+        },
+        {
+          "fecha": "2026-02-03",
+          "cantidad": 2.0,
+          "precio": 25920.0
+        },
+        {
+          "fecha": "2026-01-13",
+          "cantidad": 5.0,
+          "precio": 26360.0
+        }
+      ]
     },
     {
       "simbolo": "NVDA",
@@ -216,14 +422,26 @@
       "cantidad": 15,
       "comprometido": 0,
       "precio": 14500,
-      "precioAnterior": 14480,
-      "variacionPct": 0.14,
+      "precioAnterior": 14500,
+      "variacionPct": 0.0,
       "variacionDiariaPct": -1.76,
       "valorizado": 217500,
       "ppc": 13496.0,
       "ppcConfianza": "alta",
       "rendimientoPct": 7.44,
-      "rendimientoMonto": 15060.0
+      "rendimientoMonto": 15060.0,
+      "lotes": [
+        {
+          "fecha": "2026-08-18",
+          "cantidad": 3.0,
+          "precio": 14440.0
+        },
+        {
+          "fecha": "2026-05-26",
+          "cantidad": 12.0,
+          "precio": 13260.0
+        }
+      ]
     },
     {
       "simbolo": "T30A7",
@@ -232,14 +450,21 @@
       "cantidad": 150000,
       "comprometido": 0,
       "precio": 1.31182,
-      "precioAnterior": 1.31248,
-      "variacionPct": -0.05,
+      "precioAnterior": 1.31182,
+      "variacionPct": 0.0,
       "variacionDiariaPct": -0.2,
       "valorizado": 196773.0,
       "ppc": 1.3075,
       "ppcConfianza": "alta",
       "rendimientoPct": 0.33,
-      "rendimientoMonto": 648.0
+      "rendimientoMonto": 648.0,
+      "lotes": [
+        {
+          "fecha": "2026-08-07",
+          "cantidad": 150000.0,
+          "precio": 130.75
+        }
+      ]
     },
     {
       "simbolo": "SLV",
@@ -248,14 +473,21 @@
       "cantidad": 10,
       "comprometido": 0,
       "precio": 15250,
-      "precioAnterior": 15240,
-      "variacionPct": 0.07,
+      "precioAnterior": 15250,
+      "variacionPct": 0.0,
       "variacionDiariaPct": -0.71,
       "valorizado": 152500,
-      "ppc": 18475.811966,
+      "ppc": 15360.0,
       "ppcConfianza": "alta",
-      "rendimientoPct": -17.46,
-      "rendimientoMonto": -32258.12
+      "rendimientoPct": -0.72,
+      "rendimientoMonto": -1100.0,
+      "lotes": [
+        {
+          "fecha": "2025-12-18",
+          "cantidad": 10.0,
+          "precio": 15360.0
+        }
+      ]
     },
     {
       "simbolo": "WMT",
@@ -264,14 +496,21 @@
       "cantidad": 15,
       "comprometido": 0,
       "precio": 10140,
-      "precioAnterior": 10150,
-      "variacionPct": -0.1,
+      "precioAnterior": 10140,
+      "variacionPct": 0.0,
       "variacionDiariaPct": 0.39,
       "valorizado": 152100,
       "ppc": 9780.0,
       "ppcConfianza": "alta",
       "rendimientoPct": 3.68,
-      "rendimientoMonto": 5400.0
+      "rendimientoMonto": 5400.0,
+      "lotes": [
+        {
+          "fecha": "2026-05-26",
+          "cantidad": 15.0,
+          "precio": 9780.0
+        }
+      ]
     },
     {
       "simbolo": "IBM",
@@ -280,14 +519,26 @@
       "cantidad": 5,
       "comprometido": 0,
       "precio": 24580,
-      "precioAnterior": 24420,
-      "variacionPct": 0.66,
+      "precioAnterior": 24580,
+      "variacionPct": 0.0,
       "variacionDiariaPct": -0.36,
       "valorizado": 122900,
       "ppc": 24768.0,
       "ppcConfianza": "alta",
       "rendimientoPct": -0.76,
-      "rendimientoMonto": -940.0
+      "rendimientoMonto": -940.0,
+      "lotes": [
+        {
+          "fecha": "2026-08-18",
+          "cantidad": 1.0,
+          "precio": 24360.0
+        },
+        {
+          "fecha": "2026-05-26",
+          "cantidad": 4.0,
+          "precio": 24870.0
+        }
+      ]
     },
     {
       "simbolo": "IBIT",
@@ -296,14 +547,41 @@
       "cantidad": 20,
       "comprometido": 0,
       "precio": 5815,
-      "precioAnterior": 5805,
-      "variacionPct": 0.17,
+      "precioAnterior": 5815,
+      "variacionPct": 0.0,
       "variacionDiariaPct": 3.46,
       "valorizado": 116300,
       "ppc": 7090.0,
       "ppcConfianza": "alta",
       "rendimientoPct": -17.98,
-      "rendimientoMonto": -25500.0
+      "rendimientoMonto": -25500.0,
+      "lotes": [
+        {
+          "fecha": "2026-02-03",
+          "cantidad": 2.0,
+          "precio": 6505.0
+        },
+        {
+          "fecha": "2026-02-03",
+          "cantidad": 3.0,
+          "precio": 6530.0
+        },
+        {
+          "fecha": "2026-02-02",
+          "cantidad": 5.0,
+          "precio": 6670.0
+        },
+        {
+          "fecha": "2026-01-26",
+          "cantidad": 5.0,
+          "precio": 7580.0
+        },
+        {
+          "fecha": "2026-01-26",
+          "cantidad": 5.0,
+          "precio": 7590.0
+        }
+      ]
     },
     {
       "simbolo": "ETHA",
@@ -312,14 +590,31 @@
       "cantidad": 25,
       "comprometido": 0,
       "precio": 4555,
-      "precioAnterior": 4562.5,
-      "variacionPct": -0.16,
+      "precioAnterior": 4555,
+      "variacionPct": 0.0,
       "variacionDiariaPct": 2.53,
       "valorizado": 113875,
-      "ppc": 6922.47076,
+      "ppc": 7366.666667,
       "ppcConfianza": "aproximada",
-      "rendimientoPct": -34.2,
-      "rendimientoMonto": -59186.77
+      "rendimientoPct": -38.17,
+      "rendimientoMonto": -70291.67,
+      "lotes": [
+        {
+          "fecha": "2026-01-09",
+          "cantidad": 2.0,
+          "precio": 7150.0
+        },
+        {
+          "fecha": "2026-01-07",
+          "cantidad": 5.0,
+          "precio": 7300.0
+        },
+        {
+          "fecha": "2026-01-07",
+          "cantidad": 20.0,
+          "precio": 7405.0
+        }
+      ]
     },
     {
       "simbolo": "COPX",
@@ -328,14 +623,21 @@
       "cantidad": 10,
       "comprometido": 0,
       "precio": 9675,
-      "precioAnterior": 9635,
-      "variacionPct": 0.42,
+      "precioAnterior": 9675,
+      "variacionPct": 0.0,
       "variacionDiariaPct": 0.57,
       "valorizado": 96750,
-      "ppc": 9958.666667,
+      "ppc": 10690.0,
       "ppcConfianza": "alta",
-      "rendimientoPct": -2.85,
-      "rendimientoMonto": -2836.67
+      "rendimientoPct": -9.49,
+      "rendimientoMonto": -10150.0,
+      "lotes": [
+        {
+          "fecha": "2026-01-29",
+          "cantidad": 10.0,
+          "precio": 10690.0
+        }
+      ]
     }
   ],
   "totales": {
