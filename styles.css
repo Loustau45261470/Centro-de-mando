@@ -5311,6 +5311,7 @@ input:focus, select:focus, textarea:focus {
 .ten-tipo { font-size: 11px; color: var(--ts); text-transform: uppercase; letter-spacing: .05em; opacity: .8; }
 .ten-num { text-align: right; min-width: 0; overflow-wrap: anywhere; }
 .ten-num-sec { font-size: var(--fs-12-5); font-weight: 600; opacity: .8; }
+.ten-num-sec.text-danger, .ten-num-sec.text-ok { opacity: 1; }
 .ten-num-rend { font-weight: 800; font-size: var(--fs-14); }
 .ten-val { font-weight: 700; color: var(--tp); }
 .ten-detail { padding: 12px 14px 16px; background: rgba(120,150,220,.03); border-bottom: 1px solid rgba(255,255,255,.04); }
@@ -5352,6 +5353,7 @@ input:focus, select:focus, textarea:focus {
 @media (max-width: 480px) {
   .ten-row { grid-template-columns: 1.3fr .85fr .95fr; gap: 6px; padding: 11px 10px; min-height: 44px; }
   .ten-row > :nth-child(2), .ten-row > :nth-child(3), .ten-row > :nth-child(6) { display: none; }
+  .ten-hdr .col-r { min-width: 0; overflow-wrap: anywhere; }
 }
 @media (prefers-reduced-motion: reduce) {
   .ten-detail-grid, .ten-lotes { animation: none !important; }

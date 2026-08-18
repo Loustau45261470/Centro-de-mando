@@ -199,6 +199,8 @@ const Tenencias = (() => {
     const toggle = sim => {
       _openSimbolo = _openSimbolo === sim ? null : sim;
       render(body, d);
+      const restored = body.querySelector(`.ten-row[data-simbolo="${CSS.escape(sim)}"]`);
+      if (restored) restored.focus();
     };
     body.querySelectorAll('.ten-row[data-simbolo]').forEach(row => {
       row.addEventListener('click', () => toggle(row.dataset.simbolo));
