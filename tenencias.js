@@ -21,23 +21,13 @@ const Tenencias = (() => {
 
   let _openSimbolo = null;
 
-  function liquidezRow(d) {
-    const l = d.liquidez || {};
-    return `<div class="ten-liq">
-      <div class="ten-liq-item"><span class="ten-liq-lbl">ARS disponible</span><span class="mono">${money(l.ars_disponible, 0)}</span></div>
-      <div class="ten-liq-item"><span class="ten-liq-lbl">ARS comprometido</span><span class="mono text-ter">${money(l.ars_comprometido, 0)}</span></div>
-      <div class="ten-liq-item"><span class="ten-liq-lbl">USD disponible</span><span class="mono">u$s ${num(l.usd_disponible)?.toFixed(2) ?? '—'}</span></div>
-    </div>`;
-  }
-
   function header(d) {
     const t = d.totales || {};
     return `<div class="ten-hero">
       <div class="ten-hero-lbl">Valorizado total</div>
       <div class="ten-hero-num mono">${money(t.valorizado, 0)}</div>
       <div class="ten-hero-var mono ${varCls(t.variacionPct)}">${t.variacionPct == null ? 'Sin variación semanal registrada aún' : pct(t.variacionPct) + ' desde la última actualización'}</div>
-    </div>
-    ${liquidezRow(d)}`;
+    </div>`;
   }
 
   function rendimientoBanner(t) {
@@ -49,6 +39,24 @@ const Tenencias = (() => {
     const label = rp > 0 ? '¡Estás ganando!' : rp < 0 ? 'Estás perdiendo' : 'Sin cambio';
     const montoTxt = rm != null ? ` (${money(rm, 0)})` : '';
     return `<div class="ten-rend ${cls}">${esc(label)} ${pct(rp)}${montoTxt}</div>`;
+  }
+
+  // Versión compacta del banner de ganancia/pérdida para mostrar en la fila
+  // de la lista (mismo criterio de colores/null que rendimientoBanner).
+  function rendimientoCompacto(t) {
+    const ppc = num(t.ppc);
+    const rp = num(t.rendimientoPct);
+    if (ppc == null || rp == null) return `<span class="mono col-r ten-num text-ter">—</span>`;
+    const rm = num(t.rendimientoMonto);
+    const cls = rp > 0 ? 'text-ok' : rp < 0 ? 'text-danger' : 'text-ter';
+    const montoTxt = rm != null ? ` (${money(rm, 0)})` : '';
+    return `<span class="mono col-r ten-num ${cls}">${pct(rp)}${montoTxt}</span>`;
+  }
+
+  function pctCartera(t, totalVal) {
+    const v = num(t.valorizado);
+    if (v == null || !totalVal) return `<span class="mono col-r ten-num text-ter">—</span>`;
+    return `<span class="mono col-r ten-num">${((v / totalVal) * 100).toFixed(1)}%</span>`;
   }
 
   function fechaCorta(s) {
@@ -76,26 +84,27 @@ const Tenencias = (() => {
       <div class="ten-lote-item ten-lote-hdr">
         <span class="ten-lote-fecha">Fecha</span>
         <span class="ten-lote-cant">Cantidad</span>
-        <span class="ten-lote-precio">Precio</span>
+        <span class="ten-lote-precio">Precio unitario</span>
       </div>
       <div class="ten-lotes-list">${filas}</div>
     </div>`;
   }
 
   function detalleFila(t) {
+    // "Disponible p/ operar" sigue calculado con comprometido internamente,
+    // aunque el campo comprometido ya no se muestra por separado en la grilla.
     const disponible = num(t.cantidad) != null && num(t.comprometido) != null ? num(t.cantidad) - num(t.comprometido) : null;
     const ppc = num(t.ppc);
     const aprox = ppc != null && t.ppcConfianza === 'aproximada'
-      ? ` <span class="ten-ppc-approx" title="Estimado — el historial de operaciones no cierra exacto para este activo" aria-label="PPC estimado">⚠</span>`
+      ? ` <span class="ten-ppc-approx" title="Estimado — el historial de operaciones no cierra exacto para este activo" aria-label="Precio promedio de compra estimado">⚠</span>`
       : '';
     return `<div class="ten-detail">
       ${rendimientoBanner(t)}
       <div class="ten-detail-grid">
         <div class="ten-detail-item"><span class="ten-detail-lbl">Cantidad</span><span class="mono">${num(t.cantidad)?.toLocaleString('es-AR') ?? '—'}</span></div>
-        <div class="ten-detail-item"><span class="ten-detail-lbl">Comprometido</span><span class="mono">${num(t.comprometido)?.toLocaleString('es-AR') ?? '0'}</span></div>
         <div class="ten-detail-item"><span class="ten-detail-lbl">Disponible p/ operar</span><span class="mono">${disponible?.toLocaleString('es-AR') ?? '—'}</span></div>
         <div class="ten-detail-item"><span class="ten-detail-lbl">Precio actual</span><span class="mono">${money(t.precio, 4)}</span></div>
-        ${ppc != null ? `<div class="ten-detail-item"><span class="ten-detail-lbl">PPC</span><span class="mono">${money(ppc, 4)}${aprox}</span></div>` : ''}
+        ${ppc != null ? `<div class="ten-detail-item"><span class="ten-detail-lbl">Precio promedio de compra</span><span class="mono">${money(ppc, 4)}${aprox}</span></div>` : ''}
         <div class="ten-detail-item"><span class="ten-detail-lbl">Valorizado</span><span class="mono">${money(t.valorizado, 0)}</span></div>
         <div class="ten-detail-item"><span class="ten-detail-lbl">Var. último día hábil</span><span class="mono ${varCls(t.variacionDiariaPct)}">${pct(t.variacionDiariaPct)}</span></div>
         <div class="ten-detail-item"><span class="ten-detail-lbl">Variación semanal</span><span class="mono ${varCls(t.variacionPct)}">${t.variacionPct == null ? 'Sin dato aún' : pct(t.variacionPct)}</span></div>
@@ -104,7 +113,7 @@ const Tenencias = (() => {
     </div>`;
   }
 
-  function fila(t) {
+  function fila(t, totalVal) {
     const abierto = _openSimbolo === t.simbolo;
     return `<div class="ten-row-wrap">
       <div class="ten-row ${abierto ? 'ten-row-active' : ''}" data-simbolo="${esc(t.simbolo)}" tabindex="0" role="button" aria-expanded="${abierto}">
@@ -114,23 +123,48 @@ const Tenencias = (() => {
         </div>
         <span class="mono col-r ten-num ${varCls(t.variacionDiariaPct)}">${pct(t.variacionDiariaPct)}</span>
         <span class="mono col-r ten-num ${varCls(t.variacionPct)}">${t.variacionPct == null ? '—' : pct(t.variacionPct)}</span>
+        ${rendimientoCompacto(t)}
         <span class="mono col-r ten-num ten-val">${money(t.valorizado, 0)}</span>
+        ${pctCartera(t, totalVal)}
       </div>
       ${abierto ? detalleFila(t) : ''}
     </div>`;
   }
 
-  function tabla(d) {
-    const rows = (d.tenencias || []).slice().sort((a, b) => (num(b.valorizado) ?? 0) - (num(a.valorizado) ?? 0));
-    return `<div class="card ten-card">
-      <div class="ten-row ten-hdr">
+  // Agrupa la lista en "CEDEARs y acciones" (tipo CEDEARS) y "Bonos y letras"
+  // (TIT. PUBLICOS / Letras); cada grupo ordenado por valorizado descendente.
+  const GRUPOS = [
+    { titulo: 'CEDEARs y acciones', match: tipo => tipo === 'CEDEARS' },
+    { titulo: 'Bonos y letras', match: tipo => tipo === 'TIT. PUBLICOS' || tipo === 'Letras' }
+  ];
+
+  function hdrRow() {
+    return `<div class="ten-row ten-hdr">
         <div class="ten-row-main"><span>Símbolo</span></div>
         <span class="col-r">Día hábil</span>
         <span class="col-r">Semanal</span>
+        <span class="col-r">Rendimiento</span>
         <span class="col-r">Valorizado</span>
-      </div>
-      ${rows.map(fila).join('') || '<div class="empty-state">Sin tenencias en cartera</div>'}
-    </div>`;
+        <span class="col-r">% cartera</span>
+      </div>`;
+  }
+
+  function tabla(d) {
+    const todas = (d.tenencias || []);
+    const totalVal = num((d.totales || {}).valorizado);
+    const porOrden = t => (num(t.valorizado) ?? 0);
+    const grupos = GRUPOS.map(g => ({
+      titulo: g.titulo,
+      rows: todas.filter(t => g.match(t.tipo)).sort((a, b) => porOrden(b) - porOrden(a))
+    })).filter(g => g.rows.length);
+    if (!grupos.length) {
+      return `<div class="card ten-card"><div class="empty-state">Sin tenencias en cartera</div></div>`;
+    }
+    return grupos.map(g => `<div class="card ten-card">
+      <div class="ten-grupo-lbl">${esc(g.titulo)}</div>
+      ${hdrRow()}
+      ${g.rows.map(t => fila(t, totalVal)).join('')}
+    </div>`).join('');
   }
 
   function render(body, d) {
