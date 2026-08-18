@@ -47,17 +47,23 @@ const Tenencias = (() => {
   function rendimientoCompacto(t) {
     const ppc = num(t.ppc);
     const rp = num(t.rendimientoPct);
-    if (ppc == null || rp == null) return `<span class="mono col-r ten-num text-ter">—</span>`;
+    if (ppc == null || rp == null) return `<span class="mono col-r ten-num ten-num-rend text-ter">—</span>`;
     const rm = num(t.rendimientoMonto);
     const cls = rp > 0 ? 'text-ok' : rp < 0 ? 'text-danger' : 'text-ter';
     const montoTxt = rm != null ? `<span class="ten-num-monto"> (${money(rm, 0)})</span>` : '';
-    return `<span class="mono col-r ten-num ${cls}">${pct(rp)}${montoTxt}</span>`;
+    return `<span class="mono col-r ten-num ten-num-rend ${cls}">${pct(rp)}${montoTxt}</span>`;
+  }
+
+  // Clase de "mood" para la fila entera (borde/fondo sutil) según ganancia/pérdida.
+  function rowMoodCls(t) {
+    const rp = num(t.rendimientoPct);
+    return rp == null ? '' : rp > 0 ? 'ten-row-gain' : rp < 0 ? 'ten-row-loss' : '';
   }
 
   function pctCartera(t, totalVal) {
     const v = num(t.valorizado);
-    if (v == null || !totalVal) return `<span class="mono col-r ten-num text-ter">—</span>`;
-    return `<span class="mono col-r ten-num">${((v / totalVal) * 100).toFixed(1)}%</span>`;
+    if (v == null || !totalVal) return `<span class="mono col-r ten-num ten-num-sec text-ter">—</span>`;
+    return `<span class="mono col-r ten-num ten-num-sec">${((v / totalVal) * 100).toFixed(1)}%</span>`;
   }
 
   function fechaCorta(s) {
@@ -117,13 +123,13 @@ const Tenencias = (() => {
   function fila(t, totalVal) {
     const abierto = _openSimbolo === t.simbolo;
     return `<div class="ten-row-wrap">
-      <div class="ten-row ${abierto ? 'ten-row-active' : ''}" data-simbolo="${esc(t.simbolo)}" tabindex="0" role="button" aria-expanded="${abierto}">
+      <div class="ten-row ${abierto ? 'ten-row-active' : ''} ${rowMoodCls(t)}" data-simbolo="${esc(t.simbolo)}" tabindex="0" role="button" aria-expanded="${abierto}">
         <div class="ten-row-main">
           <span class="mono bold ten-sim">${esc(t.simbolo)}</span>
           <span class="ten-tipo">${esc(t.tipo)}</span>
         </div>
-        <span class="mono col-r ten-num ${varCls(t.variacionDiariaPct)}">${pct(t.variacionDiariaPct)}</span>
-        <span class="mono col-r ten-num ${varCls(t.variacionPct)}">${t.variacionPct == null ? '—' : pct(t.variacionPct)}</span>
+        <span class="mono col-r ten-num ten-num-sec ${varCls(t.variacionDiariaPct)}">${pct(t.variacionDiariaPct)}</span>
+        <span class="mono col-r ten-num ten-num-sec ${varCls(t.variacionPct)}">${t.variacionPct == null ? '—' : pct(t.variacionPct)}</span>
         ${rendimientoCompacto(t)}
         <span class="mono col-r ten-num ten-val">${money(t.valorizado, 0)}</span>
         ${pctCartera(t, totalVal)}
@@ -154,6 +160,12 @@ const Tenencias = (() => {
       </div>`;
   }
 
+  function grupoLbl(titulo, rows, totalVal) {
+    const suma = rows.reduce((a, t) => a + (num(t.valorizado) ?? 0), 0);
+    const pctTxt = totalVal ? `<span class="ten-grupo-pct">· <b class="mono">${((suma / totalVal) * 100).toFixed(0)}%</b> cartera</span>` : '';
+    return `<div class="sec-label ten-grupo-lbl">${esc(titulo)} ${pctTxt}</div>`;
+  }
+
   function tabla(d) {
     const todas = (d.tenencias || []);
     const totalVal = num((d.totales || {}).valorizado);
@@ -171,7 +183,7 @@ const Tenencias = (() => {
       return `<div class="card ten-card"><div class="empty-state">Sin tenencias en cartera</div></div>`;
     }
     return gruposConDatos.map(g => `<div class="card ten-card">
-      <div class="ten-grupo-lbl">${esc(g.titulo)}</div>
+      ${grupoLbl(g.titulo, g.rows, totalVal)}
       ${hdrRow()}
       ${g.rows.map(t => fila(t, totalVal)).join('')}
     </div>`).join('');
