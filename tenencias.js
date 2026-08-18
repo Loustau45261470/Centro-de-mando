@@ -1,12 +1,13 @@
 'use strict';
 // ════════════════════════════════════════════════════════════════════════
-// MIS TENENCIAS — overlay de solo lectura sobre CMOverlay.
-// Muestra las posiciones REALES de la cartera IOL de Tobías, generadas por
-// una routine cloud semanal (lunes 8:00 ART) que commitea
-// data/cartera/tenencias.json. No escribe estado: la única fuente es ese
-// JSON servido por GitHub Pages. Distinto de CarteraInversion (análisis
-// mensual de CEDEARs con predicciones) — este overlay es la foto real de
-// lo que hay en la cuenta, sin picks ni proyecciones.
+// MIS TENENCIAS — pestaña "Mis tenencias" (default) del overlay unificado
+// de Cartera (ver cartera-overlay.js). Muestra las posiciones REALES de la
+// cartera IOL de Tobías, generadas por una routine cloud semanal (lunes
+// 8:00 ART) que commitea data/cartera/tenencias.json. No escribe estado:
+// la única fuente es ese JSON servido por GitHub Pages. No construye su
+// propio overlay: expone renderInto(container) para que cartera-overlay.js
+// la monte dentro de su pane. Distinto de CarteraInversion
+// (cartera-inversion.js, análisis mensual de CEDEARs con predicciones).
 // ════════════════════════════════════════════════════════════════════════
 
 const Tenencias = (() => {
@@ -151,13 +152,9 @@ const Tenencias = (() => {
     });
   }
 
-  function open() {
-    if (typeof CMOverlay === 'undefined') return;
+  function renderInto(bx) {
     _openSimbolo = null;
-    const { overlay, body } = CMOverlay.build({ id: 'ov-tenencias', accent: '#22C55E' });
-    body.innerHTML = `<div class="cm-ov-head"><div class="cm-ov-eyebrow">FINANZAS · CARTERA</div><div class="cm-ov-title">Mis tenencias</div></div><div class="ci-body" id="ten-body"><div class="empty-state">Cargando tenencias…</div></div>`;
-    CMOverlay.open(overlay);
-    const bx = body.querySelector('#ten-body');
+    bx.innerHTML = `<div class="empty-state">Cargando tenencias…</div>`;
     fetch(URL_JSON, { cache: 'no-store' })
       .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(d => {
@@ -180,6 +177,6 @@ const Tenencias = (() => {
       });
   }
 
-  return { open };
+  return { renderInto };
 })();
 window.Tenencias = Tenencias;

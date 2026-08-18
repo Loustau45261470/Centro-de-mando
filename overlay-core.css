@@ -82,8 +82,10 @@
   box-shadow: inset 0 1px 0 rgba(255,255,255,.2), 0 0 18px -6px color-mix(in oklab, var(--cm-accent) 90%, transparent);
   transition: left .28s var(--ease-out-expo);
 }
-.plov-tabs[data-on="semana"] .plov-tab-ink { left: 50%; }
+.plov-tabs[data-on="semana"] .plov-tab-ink,
+.plov-tabs[data-on="analisis"] .plov-tab-ink { left: 50%; }
 .plov-pane { animation: cm-panel-in .3s var(--ease-out-expo) both; }
+.plov-pane[hidden] { display: none; }
 .plov-sub { font-family: var(--mono); font-size: var(--fs-12-5); letter-spacing: 1.5px; text-transform: uppercase; color: var(--ts); margin: 4px 2px 9px; }
 .plov-sub::before { content: '▸'; color: var(--cm-accent); margin-right: 6px; }
 .plov-list { display: block; }
