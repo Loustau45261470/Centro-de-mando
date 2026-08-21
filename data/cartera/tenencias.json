@@ -637,8 +637,8 @@
     "variacionPct": 1.18
   },
   "liquidez": {
-    "ars_disponible": 0,
-    "ars_comprometido": 0,
+    "ars_disponible": 88326.17,
+    "ars_comprometido": 485107.05,
     "usd_disponible": 2.98
   }
 }
