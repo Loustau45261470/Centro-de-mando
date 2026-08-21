@@ -176,7 +176,9 @@ const Tenencias = (() => {
   const ORDEN_CMP = {
     valorizado: (a, b) => (num(b.valorizado) ?? 0) - (num(a.valorizado) ?? 0),
     rendimiento: (a, b) => {
-      const ra = num(a.rendimientoPct), rb = num(b.rendimientoPct);
+      const ppcA = num(a.ppc), ppcB = num(b.ppc);
+      const ra = ppcA == null ? null : num(a.rendimientoPct);
+      const rb = ppcB == null ? null : num(b.rendimientoPct);
       if (ra == null && rb == null) return 0;
       if (ra == null) return 1;
       if (rb == null) return -1;
@@ -186,8 +188,8 @@ const Tenencias = (() => {
 
   function ordenControl() {
     return `<div class="ten-orden-chips" role="group" aria-label="Ordenar por">
-      <button type="button" class="ten-orden-chip ${_orden === 'valorizado' ? 'on' : ''}" data-orden="valorizado">Valorizado</button>
-      <button type="button" class="ten-orden-chip ${_orden === 'rendimiento' ? 'on' : ''}" data-orden="rendimiento">Rendimiento</button>
+      <button type="button" class="ten-orden-chip ${_orden === 'valorizado' ? 'on' : ''}" data-orden="valorizado" aria-pressed="${_orden === 'valorizado'}">Valorizado</button>
+      <button type="button" class="ten-orden-chip ${_orden === 'rendimiento' ? 'on' : ''}" data-orden="rendimiento" aria-pressed="${_orden === 'rendimiento'}">Rendimiento</button>
     </div>`;
   }
 
@@ -238,6 +240,7 @@ const Tenencias = (() => {
         if (_orden === btn.dataset.orden) return;
         _orden = btn.dataset.orden;
         render(body, d);
+        body.querySelector('.ten-orden-chip[data-orden="' + _orden + '"]')?.focus();
       });
     });
   }
