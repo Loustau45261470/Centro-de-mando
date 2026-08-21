@@ -3,109 +3,9 @@
   "mes": "2026-08",
   "cedears": [
     {
-      "simbolo": "IBM",
-      "cantidad": 4,
-      "precio": 23480,
-      "precioMesAnterior": 30700,
-      "variacionPct": -23.52,
-      "rend3m": 1.78,
-      "rend6m": -25.22,
-      "rend12m": 3.10
-    },
-    {
-      "simbolo": "MSFT",
-      "cantidad": 7,
-      "precio": 24380,
-      "precioMesAnterior": 20670,
-      "variacionPct": 17.95,
-      "rend3m": 19.69,
-      "rend6m": 15.65,
-      "rend12m": 2.12
-    },
-    {
-      "simbolo": "WMT",
-      "cantidad": 15,
-      "precio": 9770,
-      "precioMesAnterior": 9950,
-      "variacionPct": -1.81,
-      "rend3m": -11.34,
-      "rend6m": -4.87,
-      "rend12m": 30.44
-    },
-    {
-      "simbolo": "GOOGL",
-      "cantidad": 30,
-      "precio": 9700,
-      "precioMesAnterior": 9805,
-      "variacionPct": -1.07,
-      "rend3m": -2.17,
-      "rend6m": 9.73,
-      "rend12m": 118.71
-    },
-    {
-      "simbolo": "MELI",
-      "cantidad": 8,
-      "precio": 24680,
-      "precioMesAnterior": 23290,
-      "variacionPct": 5.97,
-      "rend3m": 10.18,
-      "rend6m": -7.36,
-      "rend12m": -9.10
-    },
-    {
-      "simbolo": "META",
-      "cantidad": 7,
-      "precio": 36640,
-      "precioMesAnterior": 38740,
-      "variacionPct": -5.42,
-      "rend3m": -4.23,
-      "rend6m": -17.18,
-      "rend12m": -14.14
-    },
-    {
-      "simbolo": "AMZN",
-      "cantidad": 100,
-      "precio": 2957.5,
-      "precioMesAnterior": 2685,
-      "variacionPct": 10.15,
-      "rend3m": 7.35,
-      "rend6m": 17.13,
-      "rend12m": 44.62
-    },
-    {
-      "simbolo": "NVDA",
-      "cantidad": 12,
-      "precio": 13220,
-      "precioMesAnterior": 12910,
-      "variacionPct": 2.40,
-      "rend3m": 5.76,
-      "rend6m": 13.18,
-      "rend12m": 33.94
-    },
-    {
-      "simbolo": "V",
-      "cantidad": 10,
-      "precio": 32000,
-      "precioMesAnterior": 31460,
-      "variacionPct": 1.72,
-      "rend3m": 16.36,
-      "rend6m": 15.27,
-      "rend12m": 24.27
-    },
-    {
-      "simbolo": "MA",
-      "cantidad": 10,
-      "precio": 27420,
-      "precioMesAnterior": 25440,
-      "variacionPct": 7.78,
-      "rend3m": 20.00,
-      "rend6m": 9.07,
-      "rend12m": 18.70
-    },
-    {
       "simbolo": "SPY",
-      "cantidad": 39,
-      "precio": 19670,
+      "cantidad": 50,
+      "precio": 20300,
       "precioMesAnterior": 19800,
       "variacionPct": -0.66,
       "rend3m": 9.09,
@@ -113,29 +13,9 @@
       "rend12m": 37.91
     },
     {
-      "simbolo": "NU",
-      "cantidad": 15,
-      "precio": 11300,
-      "precioMesAnterior": 10740,
-      "variacionPct": 5.21,
-      "rend3m": 4.15,
-      "rend6m": -16.30,
-      "rend12m": 36.97
-    },
-    {
-      "simbolo": "ETHA",
-      "cantidad": 25,
-      "precio": 4452.5,
-      "precioMesAnterior": 4100,
-      "variacionPct": 8.60,
-      "rend3m": -13.21,
-      "rend6m": -15.59,
-      "rend12m": -38.76
-    },
-    {
       "simbolo": "GLD",
       "cantidad": 50,
-      "precio": 11750,
+      "precio": 13490,
       "precioMesAnterior": 12150,
       "variacionPct": -3.29,
       "rend3m": -7.19,
@@ -143,19 +23,99 @@
       "rend12m": 38.72
     },
     {
-      "simbolo": "IBIT",
-      "cantidad": 20,
-      "precio": 5635,
-      "precioMesAnterior": 5635,
-      "variacionPct": 0.00,
-      "rend3m": -13.17,
-      "rend6m": -15.39,
-      "rend12m": -35.97
+      "simbolo": "SPGI",
+      "cantidad": 25,
+      "precio": 15230,
+      "precioMesAnterior": null,
+      "variacionPct": null,
+      "rend3m": null,
+      "rend6m": null,
+      "rend12m": null
+    },
+    {
+      "simbolo": "META",
+      "cantidad": 10,
+      "precio": 36500,
+      "precioMesAnterior": 38740,
+      "variacionPct": -5.42,
+      "rend3m": -4.23,
+      "rend6m": -17.18,
+      "rend12m": -14.14
+    },
+    {
+      "simbolo": "V",
+      "cantidad": 10,
+      "precio": 32680,
+      "precioMesAnterior": 31460,
+      "variacionPct": 1.72,
+      "rend3m": 16.36,
+      "rend6m": 15.27,
+      "rend12m": 24.27
+    },
+    {
+      "simbolo": "NU",
+      "cantidad": 25,
+      "precio": 11680,
+      "precioMesAnterior": 10740,
+      "variacionPct": 5.21,
+      "rend3m": 4.15,
+      "rend6m": -16.3,
+      "rend12m": 36.97
+    },
+    {
+      "simbolo": "AMZN",
+      "cantidad": 100,
+      "precio": 2867.5,
+      "precioMesAnterior": 2685,
+      "variacionPct": 10.15,
+      "rend3m": 7.35,
+      "rend6m": 17.13,
+      "rend12m": 44.62
+    },
+    {
+      "simbolo": "GOOGL",
+      "cantidad": 30,
+      "precio": 9480,
+      "precioMesAnterior": 9805,
+      "variacionPct": -1.07,
+      "rend3m": -2.17,
+      "rend6m": 9.73,
+      "rend12m": 118.71
+    },
+    {
+      "simbolo": "MA",
+      "cantidad": 10,
+      "precio": 27880,
+      "precioMesAnterior": 25440,
+      "variacionPct": 7.78,
+      "rend3m": 20.0,
+      "rend6m": 9.07,
+      "rend12m": 18.7
+    },
+    {
+      "simbolo": "MELI",
+      "cantidad": 10,
+      "precio": 25580,
+      "precioMesAnterior": 23290,
+      "variacionPct": 5.97,
+      "rend3m": 10.18,
+      "rend6m": -7.36,
+      "rend12m": -9.1
+    },
+    {
+      "simbolo": "NVDA",
+      "cantidad": 15,
+      "precio": 14280,
+      "precioMesAnterior": 12910,
+      "variacionPct": 2.4,
+      "rend3m": 5.76,
+      "rend6m": 13.18,
+      "rend12m": 33.94
     },
     {
       "simbolo": "SLV",
       "cantidad": 10,
-      "precio": 13750,
+      "precio": 16660,
       "precioMesAnterior": 14860,
       "variacionPct": -7.47,
       "rend3m": -17.42,
@@ -163,19 +123,39 @@
       "rend12m": 79.74
     },
     {
-      "simbolo": "SMH",
+      "simbolo": "ETHA",
       "cantidad": 25,
-      "precio": 17110,
-      "precioMesAnterior": 19280,
-      "variacionPct": -11.26,
-      "rend3m": 12.49,
-      "rend6m": 40.02,
-      "rend12m": 119.64
+      "precio": 5755,
+      "precioMesAnterior": 4100,
+      "variacionPct": 8.6,
+      "rend3m": -13.21,
+      "rend6m": -15.59,
+      "rend12m": -38.76
+    },
+    {
+      "simbolo": "IBIT",
+      "cantidad": 20,
+      "precio": 6905,
+      "precioMesAnterior": 5635,
+      "variacionPct": 0.0,
+      "rend3m": -13.17,
+      "rend6m": -15.39,
+      "rend12m": -35.97
+    },
+    {
+      "simbolo": "IBM",
+      "cantidad": 5,
+      "precio": 25020,
+      "precioMesAnterior": 30700,
+      "variacionPct": -23.52,
+      "rend3m": 1.78,
+      "rend6m": -25.22,
+      "rend12m": 3.1
     },
     {
       "simbolo": "COPX",
       "cantidad": 10,
-      "precio": 8890,
+      "precio": 10730,
       "precioMesAnterior": 8840,
       "variacionPct": 0.57,
       "rend3m": 4.22,
@@ -184,53 +164,184 @@
     }
   ],
   "top": {
-    "3m": ["MA", "MSFT", "V"],
-    "6m": ["SMH", "AMZN", "V"],
-    "12m": ["SMH", "GOOGL", "SLV"]
+    "3m": [
+      "MA",
+      "MSFT",
+      "V"
+    ],
+    "6m": [
+      "SMH",
+      "AMZN",
+      "V"
+    ],
+    "12m": [
+      "SMH",
+      "GOOGL",
+      "SLV"
+    ]
   },
   "evaluacion": {
     "mesEvaluado": "2026-07",
     "mejoresPredichas": [
-      {"simbolo": "SMH", "estPct": 8.5, "variacionReal": -11.26, "acerto": false},
-      {"simbolo": "GOOGL", "estPct": 5.5, "variacionReal": -1.07, "acerto": false},
-      {"simbolo": "NU", "estPct": 7.0, "variacionReal": 5.21, "acerto": true}
+      {
+        "simbolo": "SMH",
+        "estPct": 8.5,
+        "variacionReal": -11.26,
+        "acerto": false
+      },
+      {
+        "simbolo": "GOOGL",
+        "estPct": 5.5,
+        "variacionReal": -1.07,
+        "acerto": false
+      },
+      {
+        "simbolo": "NU",
+        "estPct": 7.0,
+        "variacionReal": 5.21,
+        "acerto": true
+      }
     ],
     "peoresPredichas": [
-      {"simbolo": "ETHA", "estPct": -7.5, "variacionReal": 8.60, "acerto": false},
-      {"simbolo": "IBIT", "estPct": -5.5, "variacionReal": 0.00, "acerto": false},
-      {"simbolo": "SLV", "estPct": -3.5, "variacionReal": -7.47, "acerto": true}
+      {
+        "simbolo": "ETHA",
+        "estPct": -7.5,
+        "variacionReal": 8.6,
+        "acerto": false
+      },
+      {
+        "simbolo": "IBIT",
+        "estPct": -5.5,
+        "variacionReal": 0.0,
+        "acerto": false
+      },
+      {
+        "simbolo": "SLV",
+        "estPct": -3.5,
+        "variacionReal": -7.47,
+        "acerto": true
+      }
     ],
     "picks": [
-      {"simbolo": "AAPL", "estPct": 5.0, "precioInicial": 24380, "precioFinal": 24370, "variacionPct": -0.04, "subio": false},
-      {"simbolo": "JPM", "estPct": 4.0, "precioInicial": 35100, "precioFinal": 37060, "variacionPct": 5.58, "subio": true},
-      {"simbolo": "XOM", "estPct": 3.0, "precioInicial": 21600, "precioFinal": 24510, "variacionPct": 13.47, "subio": true},
-      {"simbolo": "PYPL", "estPct": 6.5, "precioInicial": 8890, "precioFinal": 11280, "variacionPct": 26.88, "subio": true},
-      {"simbolo": "AMD", "estPct": 9.0, "precioInicial": 83350, "precioFinal": 75100, "variacionPct": -9.90, "subio": false}
+      {
+        "simbolo": "AAPL",
+        "estPct": 5.0,
+        "precioInicial": 24380,
+        "precioFinal": 24370,
+        "variacionPct": -0.04,
+        "subio": false
+      },
+      {
+        "simbolo": "JPM",
+        "estPct": 4.0,
+        "precioInicial": 35100,
+        "precioFinal": 37060,
+        "variacionPct": 5.58,
+        "subio": true
+      },
+      {
+        "simbolo": "XOM",
+        "estPct": 3.0,
+        "precioInicial": 21600,
+        "precioFinal": 24510,
+        "variacionPct": 13.47,
+        "subio": true
+      },
+      {
+        "simbolo": "PYPL",
+        "estPct": 6.5,
+        "precioInicial": 8890,
+        "precioFinal": 11280,
+        "variacionPct": 26.88,
+        "subio": true
+      },
+      {
+        "simbolo": "AMD",
+        "estPct": 9.0,
+        "precioInicial": 83350,
+        "precioFinal": 75100,
+        "variacionPct": -9.9,
+        "subio": false
+      }
     ],
     "scorePicks": "3/5",
     "scoreMejores": "1/3",
     "scorePeores": "1/3",
     "historicoScores": [
-      {"mes": "2026-07", "picks": "3/5", "mejores": "1/3", "peores": "1/3"}
+      {
+        "mes": "2026-07",
+        "picks": "3/5",
+        "mejores": "1/3",
+        "peores": "1/3"
+      }
     ]
   },
   "prediccion": {
     "mejores": [
-      {"simbolo": "MSFT", "estPct": 6.5, "razon": "Momentum sostenido en los 4 horizontes: +17.95% mensual, +19.69% a 3m y +15.65% a 6m."},
-      {"simbolo": "AMZN", "estPct": 5.0, "razon": "Rendimiento positivo y estable en todos los plazos, con +44.62% a 12m."},
-      {"simbolo": "MA", "estPct": 6.0, "razon": "Mayor impulso de 3 meses de la cartera (+20%) tras una suba mensual de +7.78%."}
+      {
+        "simbolo": "MSFT",
+        "estPct": 6.5,
+        "razon": "Momentum sostenido en los 4 horizontes: +17.95% mensual, +19.69% a 3m y +15.65% a 6m."
+      },
+      {
+        "simbolo": "AMZN",
+        "estPct": 5.0,
+        "razon": "Rendimiento positivo y estable en todos los plazos, con +44.62% a 12m."
+      },
+      {
+        "simbolo": "MA",
+        "estPct": 6.0,
+        "razon": "Mayor impulso de 3 meses de la cartera (+20%) tras una suba mensual de +7.78%."
+      }
     ],
     "peores": [
-      {"simbolo": "META", "estPct": -4.0, "razon": "Único CEDEAR negativo en los 4 horizontes analizados: mensual, 3m, 6m y 12m."},
-      {"simbolo": "SMH", "estPct": -5.0, "razon": "Corrección de -11.26% este mes tras el rally de +119.64% a 12m; semis digiriendo ganancias."},
-      {"simbolo": "SLV", "estPct": -3.5, "razon": "Segunda peor variación mensual (-7.47%) con tendencia negativa a 3m y 6m pese al fuerte 12m."}
+      {
+        "simbolo": "META",
+        "estPct": -4.0,
+        "razon": "Único CEDEAR negativo en los 4 horizontes analizados: mensual, 3m, 6m y 12m."
+      },
+      {
+        "simbolo": "SMH",
+        "estPct": -5.0,
+        "razon": "Corrección de -11.26% este mes tras el rally de +119.64% a 12m; semis digiriendo ganancias."
+      },
+      {
+        "simbolo": "SLV",
+        "estPct": -3.5,
+        "razon": "Segunda peor variación mensual (-7.47%) con tendencia negativa a 3m y 6m pese al fuerte 12m."
+      }
     ],
     "picks": [
-      {"simbolo": "ORCL", "precio": 68350, "estPct": 5.5, "razon": "Demanda sostenida de infraestructura cloud/IA como catalizador de resultados trimestrales."},
-      {"simbolo": "TSLA", "precio": 32760, "estPct": 6.0, "razon": "Narrativa de robotaxi y recuperación de entregas como catalizador de corto plazo."},
-      {"simbolo": "JPM", "precio": 37060, "estPct": 4.0, "razon": "Sector bancario sigue beneficiado por tasas altas tras un julio positivo (+5.58%)."},
-      {"simbolo": "COST", "precio": 31340, "estPct": 3.0, "razon": "Retail defensivo con poder de fijación de precios e ingresos resilientes."},
-      {"simbolo": "INTC", "precio": 28440, "estPct": 7.0, "razon": "Optionality de turnaround en su negocio de foundries, valuación castigada con potencial de re-rating."}
+      {
+        "simbolo": "ORCL",
+        "precio": 68350,
+        "estPct": 5.5,
+        "razon": "Demanda sostenida de infraestructura cloud/IA como catalizador de resultados trimestrales."
+      },
+      {
+        "simbolo": "TSLA",
+        "precio": 32760,
+        "estPct": 6.0,
+        "razon": "Narrativa de robotaxi y recuperación de entregas como catalizador de corto plazo."
+      },
+      {
+        "simbolo": "JPM",
+        "precio": 37060,
+        "estPct": 4.0,
+        "razon": "Sector bancario sigue beneficiado por tasas altas tras un julio positivo (+5.58%)."
+      },
+      {
+        "simbolo": "COST",
+        "precio": 31340,
+        "estPct": 3.0,
+        "razon": "Retail defensivo con poder de fijación de precios e ingresos resilientes."
+      },
+      {
+        "simbolo": "INTC",
+        "precio": 28440,
+        "estPct": 7.0,
+        "razon": "Optionality de turnaround en su negocio de foundries, valuación castigada con potencial de re-rating."
+      }
     ]
   }
 }
