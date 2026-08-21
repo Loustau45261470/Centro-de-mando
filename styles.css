@@ -5283,6 +5283,16 @@ input:focus, select:focus, textarea:focus {
 .ten-hero-lbl { font-family: var(--mono); font-size: var(--fs-12-5); text-transform: uppercase; letter-spacing: .14em; color: var(--ts); opacity: .85; }
 .ten-hero-num { font-size: 36px; font-weight: 800; letter-spacing: -.03em; line-height: 1.2; margin-top: 4px; color: var(--hud-bright); text-shadow: 0 0 18px var(--hud-dim), 0 0 36px rgba(56,189,248,.12); }
 .ten-hero-var { font-size: var(--fs-13); font-weight: 600; margin-top: 7px; }
+.ten-orden-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+.ten-orden-chip {
+  font-family: var(--sans); font-size: var(--fs-12-5); font-weight: 700; padding: 6px 12px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--card); color: var(--ts); cursor: pointer;
+  transition: background .18s var(--ease-out-quart), border-color .18s var(--ease-out-quart), color .18s var(--ease-out-quart);
+}
+.ten-orden-chip.on { background: color-mix(in srgb, var(--c-finanzas) 22%, transparent); border-color: var(--c-finanzas); color: var(--tp); }
+.ten-orden-chip:hover { border-color: var(--border-h); }
+.ten-orden-chip:focus-visible { outline: 2px solid var(--c-finanzas); outline-offset: 2px; border-radius: 999px; }
+@media (prefers-reduced-motion: reduce) { .ten-orden-chip { transition: none; } }
 .ten-card { margin: 0 0 14px; padding: 6px 0; }
 .ten-card .sec-label.ten-grupo-lbl { margin: 6px 14px 8px; color: var(--ts); }
 .ten-grupo-pct { color: var(--ts); font-weight: 600; text-transform: none; opacity: .85; margin-left: 2px; }

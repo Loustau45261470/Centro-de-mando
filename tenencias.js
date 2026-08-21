@@ -20,6 +20,7 @@ const Tenencias = (() => {
   const varCls = v => { const n = num(v); return n == null ? 'text-ter' : n > 0 ? 'text-ok' : n < 0 ? 'text-danger' : 'text-ter'; };
 
   let _openSimbolo = null;
+  let _orden = 'valorizado'; // 'valorizado' | 'rendimiento'
 
   function header(d) {
     const t = d.totales || {};
@@ -169,23 +170,44 @@ const Tenencias = (() => {
     return `<div class="sec-label ten-grupo-lbl">${esc(titulo)} ${pctTxt}</div>`;
   }
 
+  // Comparador de orden dentro de cada grupo. 'rendimiento' manda las
+  // posiciones sin PPC calculable (rendimientoPct null) al final del grupo,
+  // nunca al principio ni mezcladas con las que sí tienen dato.
+  const ORDEN_CMP = {
+    valorizado: (a, b) => (num(b.valorizado) ?? 0) - (num(a.valorizado) ?? 0),
+    rendimiento: (a, b) => {
+      const ra = num(a.rendimientoPct), rb = num(b.rendimientoPct);
+      if (ra == null && rb == null) return 0;
+      if (ra == null) return 1;
+      if (rb == null) return -1;
+      return rb - ra;
+    }
+  };
+
+  function ordenControl() {
+    return `<div class="ten-orden-chips" role="group" aria-label="Ordenar por">
+      <button type="button" class="ten-orden-chip ${_orden === 'valorizado' ? 'on' : ''}" data-orden="valorizado">Valorizado</button>
+      <button type="button" class="ten-orden-chip ${_orden === 'rendimiento' ? 'on' : ''}" data-orden="rendimiento">Rendimiento</button>
+    </div>`;
+  }
+
   function tabla(d) {
     const todas = (d.tenencias || []);
     const totalVal = num((d.totales || {}).valorizado);
-    const porOrden = t => (num(t.valorizado) ?? 0);
+    const cmp = ORDEN_CMP[_orden] || ORDEN_CMP.valorizado;
     const matcheadas = new Set();
     const grupos = GRUPOS.map(g => {
-      const rows = todas.filter(t => g.match(t.tipo)).sort((a, b) => porOrden(b) - porOrden(a));
+      const rows = todas.filter(t => g.match(t.tipo)).sort(cmp);
       rows.forEach(t => matcheadas.add(t));
       return { titulo: g.titulo, rows };
     });
-    const otros = todas.filter(t => !matcheadas.has(t)).sort((a, b) => porOrden(b) - porOrden(a));
+    const otros = todas.filter(t => !matcheadas.has(t)).sort(cmp);
     if (otros.length) grupos.push({ titulo: 'Otros', rows: otros });
     const gruposConDatos = grupos.filter(g => g.rows.length);
     if (!gruposConDatos.length) {
-      return `<div class="card ten-card"><div class="empty-state">Sin tenencias en cartera</div></div>`;
+      return `${ordenControl()}<div class="card ten-card"><div class="empty-state">Sin tenencias en cartera</div></div>`;
     }
-    return gruposConDatos.map(g => `<div class="card ten-card">
+    return ordenControl() + gruposConDatos.map(g => `<div class="card ten-card">
       ${grupoLbl(g.titulo, g.rows, totalVal)}
       ${hdrRow()}
       ${g.rows.map(t => fila(t, totalVal)).join('')}
@@ -211,10 +233,18 @@ const Tenencias = (() => {
         }
       });
     });
+    body.querySelectorAll('.ten-orden-chip[data-orden]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (_orden === btn.dataset.orden) return;
+        _orden = btn.dataset.orden;
+        render(body, d);
+      });
+    });
   }
 
   function renderInto(bx) {
     _openSimbolo = null;
+    _orden = 'valorizado';
     bx.innerHTML = `<div class="empty-state">Cargando tenencias…</div>`;
     fetch(URL_JSON, { cache: 'no-store' })
       .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
