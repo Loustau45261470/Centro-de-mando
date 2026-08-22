@@ -3042,6 +3042,10 @@ function renderSleepTracker() {
   if (notesEl) notesEl.value = entry.notes || '';
 
   _renderWellnessStrips();
+
+  // "Ver historial →" solo si hay al menos un día con datos de bienestar
+  const histBtn = document.getElementById('verBienestarHistBtn');
+  if (histBtn) histBtn.style.display = Object.keys(S.sleepLog).some(d => _wbHasAny(S.sleepLog[d])) ? '' : 'none';
 }
 
 // Franjas de 14 días: una fila por métrica, un cuadrito por día. La intensidad
@@ -3096,6 +3100,194 @@ function _renderWellnessStrips() {
       <span>Sueño 7 días: <b>${avg7 !== null ? avg7 + 'h' : '—'}</b> promedio</span>
       <span><b>${inRng}</b> de ${last7.length || 0} noches en rango 7-9h</span>
     </div>`;
+}
+
+// ── Historial de Bienestar (overlay) — mismo patrón día/semana/mes que el
+// historial de Sesión de estudio (pomodoro.js): pulso hoy/7días/mes, gráfico
+// de barras por bucket, bitácora agrupada por día. Selector de métrica propio
+// (horas de sueño + las 5 métricas de WELLNESS_METRICS).
+const WB_METRICS = [
+  { id: 'hours', label: 'Sueño', unit: 'h', color: '#7C8EE8' },
+  ...WELLNESS_METRICS.map(m => ({ id: m.id, label: m.label, unit: '/5', color: m.color })),
+];
+let _wbHistContainer = null;
+let _wbHistView   = 'day';   // 'day' | 'week' | 'month'
+let _wbHistMetric = 'hours';
+let _wbHistChart  = null;
+
+const _wbAddDias = (iso, n) => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+
+function _wbVal(entry, metricId) {
+  if (!entry) return null;
+  if (metricId === 'hours') {
+    let h = entry.hours ?? null;
+    if (entry.bedtime && entry.waketime) { const c = _sleepCalcHours(entry.bedtime, entry.waketime); if (c !== null) h = c; }
+    return h;
+  }
+  const v = entry.wellness && entry.wellness[metricId];
+  return v > 0 ? v : null;
+}
+function _wbHasAny(entry) { return WB_METRICS.some(m => _wbVal(entry, m.id) !== null); }
+function _wbAvg(dates, metricId) {
+  const vals = dates.map(d => _wbVal(S.sleepLog[d], metricId)).filter(v => v !== null);
+  return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+}
+function _wbFmt(val, metric) {
+  if (val === null || val === undefined) return '—';
+  return metric.unit === 'h' ? val.toFixed(1) + '<span class="u">h</span>' : val.toFixed(1) + '<span class="u">/5</span>';
+}
+const _wbPlain = (val, metric) => _wbFmt(val, metric).replace(/<\/?span[^>]*>/g, '');
+
+function mountBienestarHistory(el) { _wbHistContainer = el; renderBienestarHistory(); }
+function setBienestarHistView(v)   { _wbHistView = v; renderBienestarHistory(); }
+function setBienestarHistMetric(id) { _wbHistMetric = id; renderBienestarHistory(); }
+
+function renderBienestarHistory() {
+  const el = _wbHistContainer;
+  if (!el) return;
+  if (_wbHistChart) { _wbHistChart.destroy(); _wbHistChart = null; }
+  const log = S.sleepLog || {};
+  const allDates = Object.keys(log).filter(d => _wbHasAny(log[d])).sort();
+  const metric = WB_METRICS.find(m => m.id === _wbHistMetric) || WB_METRICS[0];
+
+  const metricsRow = `<div class="wb-metrics">${WB_METRICS.map(m =>
+    `<button class="${m.id === metric.id ? 'active' : ''}" style="--c:${m.color}" onclick="setBienestarHistMetric('${m.id}')">${m.label}</button>`
+  ).join('')}</div>`;
+
+  if (!allDates.length) {
+    el.innerHTML = metricsRow + `<div class="wb-empty">
+      <div class="wb-empty-ico">🌿</div>
+      <div class="wb-empty-t">Sin registros todavía</div>
+      <div class="wb-empty-s">Cargá tu sueño y bienestar del día y acá vas a ver tu historial.</div>
+    </div>`;
+    return;
+  }
+
+  const today = getActiveDate();
+
+  // ── Pulso: hoy / 7 días / este mes, hoy como héroe ──
+  const hoyVal   = _wbVal(log[today], metric.id);
+  const semDesde = _wbAddDias(today, -6);
+  const semDates = allDates.filter(d => d >= semDesde && d <= today);
+  const mesPref  = today.slice(0, 7);
+  const mesDates = allDates.filter(d => d.slice(0, 7) === mesPref);
+  const pulseCell = (val, n, lbl, hero) => `<div class="wb-pulse-cell${hero ? ' is-hero' : ''}">
+    <div class="wb-pulse-lbl">${lbl}</div>
+    <div class="wb-pulse-val"${val !== null ? ` style="color:${metric.color}"` : ''}>${_wbFmt(val, metric)}</div>
+    <div class="wb-pulse-sub">${n} día${n === 1 ? '' : 's'} registrado${n === 1 ? '' : 's'}</div>
+  </div>`;
+  const pulseHtml = `<div class="wb-pulse">
+    ${pulseCell(hoyVal, hoyVal !== null ? 1 : 0, 'Hoy', true)}
+    ${pulseCell(_wbAvg(semDates, metric.id), semDates.length, '7 días', false)}
+    ${pulseCell(_wbAvg(mesDates, metric.id), mesDates.length, 'Este mes', false)}
+  </div>`;
+
+  // ── Módulo de tendencia: mismos buckets que muestran las barras ──
+  let labels = [], data = [];
+  if (_wbHistView === 'day') {
+    for (let i = 13; i >= 0; i--) {
+      const d = _wbAddDias(today, -i);
+      labels.push(d.slice(8, 10) + '/' + d.slice(5, 7));
+      data.push(_wbVal(log[d], metric.id));
+    }
+  } else if (_wbHistView === 'week') {
+    for (let w = 7; w >= 0; w--) {
+      const desde = _wbAddDias(today, -7 * (w + 1) + 1), hasta = _wbAddDias(today, -7 * w);
+      const es = allDates.filter(d => d >= desde && d <= hasta);
+      labels.push(desde.slice(8, 10) + '/' + desde.slice(5, 7));
+      data.push(_wbAvg(es, metric.id));
+    }
+  } else {
+    const now = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const pref = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+      const es = allDates.filter(dd => dd.slice(0, 7) === pref);
+      labels.push(typeof CAL_MONTHS !== 'undefined' ? CAL_MONTHS[d.getMonth()].slice(0, 3) : pref.slice(5, 7));
+      data.push(_wbAvg(es, metric.id));
+    }
+  }
+  const vals = data.filter(v => v !== null);
+  const avgVal   = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+  const vistaLbl = { day: 'día', week: 'semana', month: 'mes' }[_wbHistView];
+
+  const modHtml = `<div class="wb-mod">
+    <div class="wb-mod-head">
+      <div class="wb-mod-title">${metric.label} por ${vistaLbl}</div>
+      <div class="wb-seg">
+        <button class="${_wbHistView === 'day' ? 'active' : ''}" onclick="setBienestarHistView('day')">Día</button>
+        <button class="${_wbHistView === 'week' ? 'active' : ''}" onclick="setBienestarHistView('week')">Semana</button>
+        <button class="${_wbHistView === 'month' ? 'active' : ''}" onclick="setBienestarHistView('month')">Mes</button>
+      </div>
+    </div>
+    <div class="wb-chart"><canvas id="wb-hist-canvas"></canvas></div>
+    <div class="wb-mod-foot">
+      <span class="wb-avg"><b>${avgVal !== null ? _wbPlain(avgVal, metric) : '—'}</b> promedio por ${vistaLbl}</span>
+    </div>
+  </div>`;
+
+  // ── Bitácora: agrupada por día, más nuevo primero ──
+  const ayer  = _wbAddDias(today, -1);
+  const dayLbl = d => d === today ? 'Hoy' : d === ayer ? 'Ayer' : (typeof fmtDate === 'function' ? fmtDate(d) : d);
+  const days  = allDates.slice().reverse();
+  const dayBlock = d => {
+    const entry    = log[d] || {};
+    const hoursVal = _wbVal(entry, 'hours');
+    const chips = WELLNESS_METRICS.map(m => {
+      const v = entry.wellness && entry.wellness[m.id];
+      if (!v) return '';
+      return `<span class="wb-chip" style="--c:${m.color}" title="${m.label}: ${v}/5 — ${WELLNESS_LABELS[v]}">${m.label} ${v}</span>`;
+    }).join('');
+    return `<div class="wb-day${d === today ? ' is-today' : ''}">
+        <span class="wb-day-lbl">${dayLbl(d)}</span>
+        <span class="wb-day-line"></span>
+        <span class="wb-day-tot">${hoursVal !== null ? hoursVal.toFixed(1) + 'h' : '—'}</span>
+      </div>
+      <div class="wb-chips-row">${chips || '<span class="wb-chip-empty">Sin métricas registradas</span>'}</div>`;
+  };
+  const logHtml = `<div class="wb-log-head">
+      <div class="wb-log-title">Bitácora</div>
+      <div class="wb-log-count">${days.length} día${days.length === 1 ? '' : 's'}</div>
+    </div>
+    <div class="wb-log" id="wb-log-scroll">${days.map(dayBlock).join('')}</div>`;
+
+  el.innerHTML = metricsRow + pulseHtml + modHtml + '<div class="wb-sep"></div>' + logHtml;
+
+  const logEl = document.getElementById('wb-log-scroll');
+  if (logEl && logEl.scrollHeight <= logEl.clientHeight) logEl.classList.add('is-short');
+
+  const canvas = document.getElementById('wb-hist-canvas');
+  if (!canvas || typeof Chart === 'undefined') return;
+  const _f = n => (typeof _cfs === 'function' ? _cfs(n) : n);
+  _wbHistChart = new Chart(canvas.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        backgroundColor: data.map((_, i) => i === data.length - 1 ? metric.color : metric.color + '57'),
+        hoverBackgroundColor: metric.color,
+        borderRadius: 5, maxBarThickness: 22
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: 'rgba(8,14,26,.94)', borderColor: metric.color + '59', borderWidth: 1,
+          titleColor: '#EDF4FF', bodyColor: '#8BA5C0', padding: 9, displayColors: false,
+          callbacks: { label: c => c.parsed.y === null ? 'Sin datos' : _wbPlain(c.parsed.y, metric) }
+        }
+      },
+      scales: {
+        x: { grid: { display: false }, border: { display: false },
+             ticks: { color: '#8BA5C0', font: { size: _f(11.5) }, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } },
+        y: { min: 0, max: metric.unit === '/5' ? 5 : undefined, grid: { color: 'rgba(255,255,255,.06)' }, border: { display: false },
+             ticks: { color: '#8BA5C0', font: { size: _f(11.5) }, maxTicksLimit: 4, callback: v => v + (metric.unit === 'h' ? 'h' : '') } }
+      }
+    }
+  });
 }
 
 // ════════════════════════════════════════════════════════
