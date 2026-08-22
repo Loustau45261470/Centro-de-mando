@@ -5622,6 +5622,7 @@ input:focus, select:focus, textarea:focus {
   color: #EDF4FF; background: color-mix(in oklab, var(--c, var(--pa)) 26%, transparent);
   border-color: color-mix(in oklab, var(--c, var(--pa)) 55%, transparent);
 }
+#ov-bienestar-hist-host .wb-metrics button:focus-visible { outline: 2px solid var(--pa); outline-offset: 2px; }
 
 #ov-bienestar-hist-host .wb-pulse {
   display: grid; grid-template-columns: 1.5fr 1fr 1fr;
