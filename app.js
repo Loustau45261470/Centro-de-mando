@@ -3046,6 +3046,9 @@ function renderSleepTracker() {
   // "Ver historial →" solo si hay al menos un día con datos de bienestar
   const histBtn = document.getElementById('verBienestarHistBtn');
   if (histBtn) histBtn.style.display = Object.keys(S.sleepLog).some(d => _wbHasAny(S.sleepLog[d])) ? '' : 'none';
+
+  // Si el overlay de historial está abierto (dato remoto entrante, JARVIS, etc.), refrescarlo en vivo
+  if (document.getElementById('ov-bienestar-hist')?.classList.contains('show')) renderBienestarHistory();
 }
 
 // Franjas de 14 días: una fila por métrica, un cuadrito por día. La intensidad
@@ -3107,7 +3110,7 @@ function _renderWellnessStrips() {
 // de barras por bucket, bitácora agrupada por día. Selector de métrica propio
 // (horas de sueño + las 5 métricas de WELLNESS_METRICS).
 const WB_METRICS = [
-  { id: 'hours', label: 'Sueño', unit: 'h', color: '#7C8EE8' },
+  { id: 'hours', label: 'Sueño', unit: 'h', color: '#5EEAD4' },
   ...WELLNESS_METRICS.map(m => ({ id: m.id, label: m.label, unit: '/5', color: m.color })),
 ];
 let _wbHistContainer = null;
@@ -3151,7 +3154,7 @@ function renderBienestarHistory() {
   const metric = WB_METRICS.find(m => m.id === _wbHistMetric) || WB_METRICS[0];
 
   const metricsRow = `<div class="wb-metrics">${WB_METRICS.map(m =>
-    `<button class="${m.id === metric.id ? 'active' : ''}" style="--c:${m.color}" onclick="setBienestarHistMetric('${m.id}')">${m.label}</button>`
+    `<button type="button" class="${m.id === metric.id ? 'active' : ''}" style="--c:${m.color}" aria-pressed="${m.id === metric.id}" onclick="setBienestarHistMetric('${m.id}')">${m.label}</button>`
   ).join('')}</div>`;
 
   if (!allDates.length) {
@@ -3176,10 +3179,12 @@ function renderBienestarHistory() {
     <div class="wb-pulse-val"${val !== null ? ` style="color:${metric.color}"` : ''}>${_wbFmt(val, metric)}</div>
     <div class="wb-pulse-sub">${n} día${n === 1 ? '' : 's'} registrado${n === 1 ? '' : 's'}</div>
   </div>`;
+  const nSem = semDates.filter(d => _wbVal(log[d], metric.id) !== null).length;
+  const nMes = mesDates.filter(d => _wbVal(log[d], metric.id) !== null).length;
   const pulseHtml = `<div class="wb-pulse">
     ${pulseCell(hoyVal, hoyVal !== null ? 1 : 0, 'Hoy', true)}
-    ${pulseCell(_wbAvg(semDates, metric.id), semDates.length, '7 días', false)}
-    ${pulseCell(_wbAvg(mesDates, metric.id), mesDates.length, 'Este mes', false)}
+    ${pulseCell(_wbAvg(semDates, metric.id), nSem, '7 días', false)}
+    ${pulseCell(_wbAvg(mesDates, metric.id), nMes, 'Este mes', false)}
   </div>`;
 
   // ── Módulo de tendencia: mismos buckets que muestran las barras ──
@@ -3215,9 +3220,9 @@ function renderBienestarHistory() {
     <div class="wb-mod-head">
       <div class="wb-mod-title">${metric.label} por ${vistaLbl}</div>
       <div class="wb-seg">
-        <button class="${_wbHistView === 'day' ? 'active' : ''}" onclick="setBienestarHistView('day')">Día</button>
-        <button class="${_wbHistView === 'week' ? 'active' : ''}" onclick="setBienestarHistView('week')">Semana</button>
-        <button class="${_wbHistView === 'month' ? 'active' : ''}" onclick="setBienestarHistView('month')">Mes</button>
+        <button type="button" class="${_wbHistView === 'day' ? 'active' : ''}" aria-pressed="${_wbHistView === 'day'}" onclick="setBienestarHistView('day')">Día</button>
+        <button type="button" class="${_wbHistView === 'week' ? 'active' : ''}" aria-pressed="${_wbHistView === 'week'}" onclick="setBienestarHistView('week')">Semana</button>
+        <button type="button" class="${_wbHistView === 'month' ? 'active' : ''}" aria-pressed="${_wbHistView === 'month'}" onclick="setBienestarHistView('month')">Mes</button>
       </div>
     </div>
     <div class="wb-chart"><canvas id="wb-hist-canvas"></canvas></div>

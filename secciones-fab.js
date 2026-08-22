@@ -126,7 +126,10 @@ window.openSesionEstudioOverlay = _sfOpenSesionEstudio;
 // ── Bienestar: overlay con historial día/semana/mes de sueño y métricas ──
 function _sfEnsureBienestarHist() {
   if (typeof CMOverlay === 'undefined') return null;
-  const { overlay, body } = CMOverlay.build({ id: 'ov-bienestar-hist', accent: '#7C8EE8' });
+  const { overlay, body } = CMOverlay.build({
+    id: 'ov-bienestar-hist', accent: '#7C8EE8',
+    onClose: () => { if (_wbHistChart) { _wbHistChart.destroy(); _wbHistChart = null; } },
+  });
   if (!overlay._sfBuilt) {
     body.innerHTML = `<div class="cm-ov-head"><div class="cm-ov-eyebrow">SALUD · BIENESTAR</div><div class="cm-ov-title">Historial de bienestar</div></div>
       <div class="cm-ov-host" id="ov-bienestar-hist-host"></div>`;
