@@ -123,6 +123,24 @@ function _sfOpenSesionEstudio() {
 }
 window.openSesionEstudioOverlay = _sfOpenSesionEstudio;
 
+// ── Bienestar: overlay con historial día/semana/mes de sueño y métricas ──
+function _sfEnsureBienestarHist() {
+  if (typeof CMOverlay === 'undefined') return null;
+  const { overlay, body } = CMOverlay.build({ id: 'ov-bienestar-hist', accent: '#7C8EE8' });
+  if (!overlay._sfBuilt) {
+    body.innerHTML = `<div class="cm-ov-head"><div class="cm-ov-eyebrow">SALUD · BIENESTAR</div><div class="cm-ov-title">Historial de bienestar</div></div>
+      <div class="cm-ov-host" id="ov-bienestar-hist-host"></div>`;
+    overlay._sfBuilt = true;
+    if (typeof mountBienestarHistory === 'function') mountBienestarHistory(document.getElementById('ov-bienestar-hist-host'));
+  }
+  return overlay;
+}
+function _sfOpenBienestarHist() {
+  const overlay = _sfEnsureBienestarHist();
+  if (overlay) { CMOverlay.open(overlay); if (typeof renderBienestarHistory === 'function') renderBienestarHistory(); }
+}
+window.openBienestarHistOverlay = _sfOpenBienestarHist;
+
 // ── Montaje ───────────────────────────────────────────────────────────────
 function _sfMount() {
   if (typeof CMSpeedDial === 'undefined') return;
@@ -177,6 +195,7 @@ function _sfMount() {
       proyItem('salud'),
       { icon: _SF_ICONS.gym, label: 'Entrenamiento', accent: '#F43F5E', onClick: openGym },
       { icon: _SF_ICONS.wellness, label: 'Dieta', accent: '#10E07C', onClick: openDieta },
+      { icon: _SF_ICONS.history, label: 'Historial de bienestar', accent: '#7C8EE8', onClick: _sfOpenBienestarHist },
       { icon: _SF_ICONS.notas, label: 'Notas', accent: '#10E07C', onClick: () => { if (typeof saludNotasOpen === 'function') saludNotasOpen(); } },
       remItem('salud'),
     ] },
@@ -205,6 +224,8 @@ function _sfMount() {
   _sfEnsureHistorial();
   // Arma el overlay de Sesión de estudio (Pomodoro + historial) desde el arranque.
   _sfEnsureSesionEstudio();
+  // Arma el overlay de Historial de bienestar desde el arranque.
+  _sfEnsureBienestarHist();
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _sfMount);
