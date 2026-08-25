@@ -83,15 +83,24 @@ function _adjacentQuarterId(periodId, dir) {
 
 function navQPeriod(dir) {
   const qo = S.quarterlyObjectives;
+  if (!qo || !Array.isArray(qo.periods) || !qo.periods.length) return;
   const current = qo.periods.find(p => p.id === qo.activePeriod) || qo.periods[0];
   const adj = _adjacentQuarterId(current.id, dir);
   if (!adj) return;
   let period = qo.periods.find(p => p.id === adj.id);
   if (!period) {
     period = { id: adj.id, label: _quarterLabel(adj.q, adj.yr), flat: false, note: null, objectives: [] };
-    qo.periods.push(period);
+    const insertAt = qo.periods.findIndex(p => {
+      const m = p.id.match(/^t([1-4])-(\d{4})$/);
+      if (!m) return false;
+      const yr = parseInt(m[2]), q = parseInt(m[1]);
+      return yr > adj.yr || (yr === adj.yr && q > adj.q);
+    });
+    if (insertAt === -1) qo.periods.push(period);
+    else qo.periods.splice(insertAt, 0, period);
   }
   qo.activePeriod = period.id;
+  Object.keys(_qobjActiveMonth).forEach(k => _qobjActiveMonth[k] = 'trim');
   saveState(); renderQuarterlyObjectives();
 }
 
@@ -134,8 +143,12 @@ function renderQObjForTab(tabName) {
   const months = _periodMonths(period.id);
 
   const ddId = `qobj-dd-${tabName}`;
+  const canNav = !!_adjacentQuarterId(period.id, 1);
+  const navBtn = (dir, label, title) => canNav
+    ? `<button class="btn btn-ghost btn-sm" onclick="navQPeriod(${dir})" title="${title}">${label}</button>`
+    : `<button class="btn btn-ghost btn-sm" disabled title="Este período no es un trimestre calendario">${label}</button>`;
   const dropdownHTML = `<div style="display:flex;align-items:center;gap:4px">
-    <button class="btn btn-ghost btn-sm" onclick="navQPeriod(-1)" title="Trimestre anterior">‹</button>
+    ${navBtn(-1, '‹', 'Trimestre anterior')}
     <div class="qobj-period-dropdown" id="${ddId}" style="margin-bottom:0">
       <button class="qobj-period-trigger" onclick="toggleQObjDropdown('${ddId}')">
         ${period.label}<span class="qobj-period-chevron">▾</span>
@@ -144,7 +157,7 @@ function renderQObjForTab(tabName) {
         ${qo.periods.map(p => `<button class="qobj-period-option${p.id===qo.activePeriod?' active':''}" onclick="selectQPeriod('${p.id}');closeQObjDropdown('${ddId}')">${p.label}</button>`).join('')}
       </div>
     </div>
-    <button class="btn btn-ghost btn-sm" onclick="navQPeriod(1)" title="Trimestre siguiente">›</button>
+    ${navBtn(1, '›', 'Trimestre siguiente')}
   </div>`;
 
   let monthTabsHTML = '';
