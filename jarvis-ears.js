@@ -775,8 +775,10 @@
   function _initInputs() {
     const g = document.getElementById('jarvis-gemini-key');
     const el = document.getElementById('jarvis-el-key');
+    const vy = document.getElementById('mi-voyage-key');
     if (g) g.value = localStorage.getItem('jarvis_gemini_key') || '';
     if (el) el.value = localStorage.getItem('jarvis_el_key') || '';
+    if (vy) vy.value = localStorage.getItem('voyage_api_key_v1') || '';
   }
   setTimeout(() => { _updateWakeBtn(); _initInputs(); }, 400);
 

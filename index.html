@@ -15,6 +15,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=DM+Sans:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&family=Manrope:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
@@ -25,6 +26,7 @@
 <link rel="stylesheet" href="overlay-core.css">
 <link rel="stylesheet" href="speed-dial.css?v=2">
 <link rel="stylesheet" href="proyectos-overlay.css?v=158">
+<link rel="stylesheet" href="mapa-ideas.css?v=1">
 </head>
 <body>
 
@@ -1736,7 +1738,7 @@
 </div>
 
 <script src="deadlines.js?v=3"></script>
-<script src="app.js?v=176"></script>
+<script src="app.js?v=177"></script>
 <script src="workspace.js?v=196"></script>
 <script src="abogacia.js?v=4"></script>
 <script src="correlativas.js?v=2"></script>
@@ -1746,6 +1748,7 @@
 <script src="recordatorios.js?v=8"></script>
 <script src="objetivos.js"></script>
 <script src="cursada.js?v=6"></script>
+<script src="mapa-ideas.js?v=1"></script>
 
 <script src="gamemode.js"></script>
 <script src="gamemode-ui.js"></script>
@@ -1786,7 +1789,7 @@
 <script src="fichero-personas.js"></script>
 <script src="pomodoro.js?v=7"></script>
 <script src="finales.js?v=5"></script>
-<script src="secciones-fab.js?v=9"></script>
+<script src="secciones-fab.js?v=10"></script>
 
 <script src="login.js"></script>
 
@@ -1869,6 +1872,10 @@
       <div style="display:flex;gap:6px">
         <input id="jarvis-el-key" type="password" placeholder="🔑 ElevenLabs API key (opcional)" onchange="JARVIS_EARS.saveKey('jarvis_el_key', this.value)" autocomplete="off" style="flex:1;min-width:0;padding:9px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:9px;font-size:var(--fs-12-5);color:inherit;font-family:var(--mono);box-sizing:border-box">
         <button type="button" title="Mostrar u ocultar la key" onclick="_toggleKeyVisible('jarvis-el-key', this)" style="flex:0 0 auto;padding:9px 11px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:9px;cursor:pointer;font-size:var(--fs-12-5);line-height:1">👁️</button>
+      </div>
+      <div style="display:flex;gap:6px">
+        <input id="mi-voyage-key" type="password" placeholder="🔑 Voyage AI API key (Mapa de Ideas)" onchange="JARVIS_EARS.saveKey('voyage_api_key_v1', this.value)" autocomplete="off" style="flex:1;min-width:0;padding:9px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:9px;font-size:var(--fs-12-5);color:inherit;font-family:var(--mono);box-sizing:border-box">
+        <button type="button" title="Mostrar u ocultar la key" onclick="_toggleKeyVisible('mi-voyage-key', this)" style="flex:0 0 auto;padding:9px 11px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:9px;cursor:pointer;font-size:var(--fs-12-5);line-height:1">👁️</button>
       </div>
       <div id="jarvis-el-usage" style="font-size:var(--fs-12-5);opacity:.4;padding:0 2px;font-family:var(--mono)"></div>
       <div id="jarvis-api-usage" style="font-size:var(--fs-12-5);opacity:.4;padding:0 2px;font-family:var(--mono)"></div>

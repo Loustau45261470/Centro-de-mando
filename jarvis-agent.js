@@ -435,7 +435,30 @@
         },
       },
     },
+    {
+      name: 'consultar_mapa_ideas',
+      description: 'Busca por similitud semántica en las notas personales del Mapa de Ideas de Tobías (sus opiniones, valores, teorías y posturas guardadas). Usar cuando la pregunta es sobre lo que él piensa/opina/cree en vez de dar una respuesta genérica — citá el contenido real de las notas que devuelve.',
+      input_schema: {
+        type: 'object',
+        properties: { pregunta: { type: 'string', description: 'La pregunta o tema a buscar en las ideas guardadas' } },
+        required: ['pregunta'],
+      },
+    },
   ];
+
+  // Modo debate (piloto, Mapa de Ideas): solo se ofrece a Jarvis si el toggle está ON.
+  const DEBATE_TOOL = {
+    name: 'debatir_postura',
+    description: 'Modo debate (piloto): argumenta EN CONTRA de una postura guardada por Tobías en el Mapa de Ideas, usando sus propias notas como restricción del argumento. Solo disponible si el Modo debate está activado.',
+    input_schema: {
+      type: 'object',
+      properties: { busqueda: { type: 'string', description: 'Texto o ID de la nota/postura a debatir' } },
+      required: ['busqueda'],
+    },
+  };
+  function _activeTools() {
+    return (typeof S !== 'undefined' && S.mapaIdeas && S.mapaIdeas.debateMode) ? TOOLS.concat(DEBATE_TOOL) : TOOLS;
+  }
 
   // Busca un nodo (proyecto o tarea) por texto parcial dentro del árbol REAL de la app (window.Proyectos),
   // no de una copia en localStorage — así lo que la tool lee/muta es lo mismo que ve la UI.
@@ -611,6 +634,17 @@
       return `Bienestar actualizado: ${done.join(', ')}.`;
     }
 
+    if (name === 'consultar_mapa_ideas') {
+      if (!window.MapaIdeas || !window.MapaIdeas.consultar) return 'Mapa de Ideas no disponible en esta vista.';
+      return window.MapaIdeas.consultar(input.pregunta).then(r => JSON.stringify(r));
+    }
+
+    if (name === 'debatir_postura') {
+      if (!S.mapaIdeas || !S.mapaIdeas.debateMode) return 'El Modo debate está desactivado — el usuario puede activarlo en el toggle de Mapa de Ideas si quiere que argumentes en contra.';
+      if (!window.MapaIdeas || !window.MapaIdeas.debatir) return 'Mapa de Ideas no disponible en esta vista.';
+      return JSON.stringify(window.MapaIdeas.debatir(input.busqueda));
+    }
+
     return `Tool "${name}" no reconocida.`;
   }
 
@@ -627,6 +661,7 @@ Instrucciones:
 - Tenés memoria persistente entre conversaciones: si el usuario te pide recordar algo usá remember; si pide olvidar algo usá forget; consultá tu memoria vía get_app_state o query_data antes de asumir que no sabés algo del usuario
 - Para preguntas sobre un período de tiempo o un dato específico (transacciones, metas, hábitos, peso, recordatorios, auditoría, memoria, cartera de inversión, capturas), usá query_data en vez de get_app_state
 - Podés consultar la cartera de inversión (CEDEARs) con query_data area 'cartera', y capturar una idea/nota rápida del usuario para su segundo cerebro con la tool capture
+- El usuario guarda sus propias opiniones/valores/posturas en el Mapa de Ideas: si pregunta algo sobre lo que piensa o cree, usá consultar_mapa_ideas y citá el contenido real de las notas encontradas en vez de responder genéricamente. Si tenés disponible debatir_postura (Modo debate activo) y el usuario pide que argumentes en contra de una postura suya, usala — si no está disponible, avisá que el Modo debate está desactivado
 - Confirmá brevemente lo que hiciste
 - Si hay un error o no podés hacer algo, explicalo en una frase`;
 
@@ -637,13 +672,11 @@ Instrucciones:
      Anthropic (content[] + stop_reason), de modo que _run, _exec y _sanitizeApiHist no
      se enteran de qué proveedor contestó.                                                */
 
-  let _toolsOAI = null;
   function _toolsOpenAI() {
-    if (!_toolsOAI) _toolsOAI = TOOLS.map(t => ({
+    return _activeTools().map(t => ({
       type: 'function',
       function: { name: t.name, description: t.description, parameters: t.input_schema },
     }));
-    return _toolsOAI;
   }
 
   // Anthropic → OpenAI. Diferencia clave: Anthropic mete todos los tool_result de un turno
@@ -732,7 +765,7 @@ Instrucciones:
         'anthropic-version': '2023-06-01',
         'anthropic-dangerous-direct-browser-access': 'true',
       },
-      body: JSON.stringify({ model: model || MODEL_FAST, max_tokens: 1024, system: sys, tools: TOOLS, messages: msgs }),
+      body: JSON.stringify({ model: model || MODEL_FAST, max_tokens: 1024, system: sys, tools: _activeTools(), messages: msgs }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -761,7 +794,7 @@ Instrucciones:
         for (const blk of data.content) {
           if (blk.type !== 'tool_use') continue;
           try {
-            const out = _exec(blk.name, blk.input);
+            const out = await _exec(blk.name, blk.input);
             results.push({ type: 'tool_result', tool_use_id: blk.id, content: out });
           } catch (e) {
             console.error('[agent] tool_use falló:', blk.name, e);

@@ -27,6 +27,7 @@ const _SF_ICONS = {
   fichero: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3.5" width="16" height="17" rx="2.4"/><path d="M4 8h16M4 16h16"/><circle cx="12" cy="12" r="1.8"/></svg>`,
   timer: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 13V9M12 5V3M9.5 3h5"/></svg>`,
   grad: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 2 9l10 5 10-5z"/><path d="M6 11v5c0 1.1 2.7 2.5 6 2.5s6-1.4 6-2.5v-5"/></svg>`,
+  mapaIdeas: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.6"/><circle cx="18" cy="6" r="2.6"/><circle cx="12" cy="18" r="2.6"/><path d="M8.2 7.4 10.4 16M15.8 7.4 13.6 16M8.6 6h6.8"/></svg>`,
 };
 
 // ── Presupuesto: overlay que aloja el presupuesto + las obligaciones recurrentes ──
@@ -168,6 +169,7 @@ function _sfMount() {
       { icon: _SF_ICONS.grad, label: 'Finales', accent: '#6B8EFF', onClick: () => { if (window.Finales) Finales.open(); } },
       { icon: _SF_ICONS.grad, label: 'Plan de carrera', accent: '#3B82F6', onClick: () => { if (window.Correlativas) Correlativas.open(); } },
       { icon: _SF_ICONS.proy, label: 'Proyectos', accent: '#38BDF8', onClick: () => { if (window.ProyectosOverlay) ProyectosOverlay.open('conocimiento'); } },
+      mapaIdeasItem,
       remItem('conocimiento'),
     ],
     observeEl: tabConoc,
@@ -186,6 +188,7 @@ function _sfMount() {
   // Historial de Seguimiento de Avance (Conocimiento): se abre desde el botón de la card.
   window.openLawMsHistorial = R({ id: 'ov-lawms', accent: '#3B82F6', eyebrow: 'CONOCIMIENTO · CARRERA', title: 'Seguimiento de avance', sourceId: 'lawms-hist-card' });
   const proyItem = tab => ({ icon: _SF_ICONS.proy, label: 'Proyectos', accent: '#38BDF8', onClick: () => { if (window.ProyectosOverlay) ProyectosOverlay.open(tab); } });
+  const mapaIdeasItem = { icon: _SF_ICONS.mapaIdeas, label: 'Mapa de ideas', accent: '#8B5CF6', onClick: () => { if (window.MapaIdeasUI) MapaIdeasUI.open(); } };
 
   const sections = [
     { tab: 'vida', accent: '#00D4FF', icon: _SF_ICONS.vida, name: 'Vida', items: [
@@ -211,7 +214,7 @@ function _sfMount() {
       { icon: _SF_ICONS.notas, label: 'Notas', accent: '#22C55E', onClick: () => { if (typeof finanzasNotasOpen === 'function') finanzasNotasOpen(); } },
       remItem('finanzas'),
     ] },
-    { tab: 'ia', accent: '#C4D0E4', icon: _SF_ICONS.ia, name: 'IA', items: [proyItem('ia'), remItem('ia')] },
+    { tab: 'ia', accent: '#C4D0E4', icon: _SF_ICONS.ia, name: 'IA', items: [proyItem('ia'), mapaIdeasItem, remItem('ia')] },
   ];
   sections.forEach(s => {
     const el = document.getElementById('tab-' + s.tab);
