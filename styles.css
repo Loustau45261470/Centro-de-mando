@@ -1204,7 +1204,7 @@ textarea { resize: vertical; min-height: 60px; }
   border-radius: 8px; cursor: pointer; transition: background .15s, transform .12s;
 }
 .plov-wk-btn:hover { background: color-mix(in srgb, var(--cm-accent, var(--accent)) 26%, transparent); transform: translateY(-1px); }
-.plov-wk-label { font-size: var(--fs-12-5); font-weight: 600; color: var(--tt); white-space: nowrap; min-width: 0; }
+.plov-wk-label { font-size: var(--fs-12-5); font-weight: 600; color: var(--tp); white-space: nowrap; min-width: 0; }
 .plov-wk-today {
   font-family: var(--mono); font-size: var(--fs-12); font-weight: 700; letter-spacing: .03em; white-space: nowrap;
   color: var(--ts); background: transparent; border: 1px solid color-mix(in srgb, var(--ts) 35%, transparent);
