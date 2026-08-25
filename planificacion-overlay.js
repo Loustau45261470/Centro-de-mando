@@ -35,14 +35,14 @@ function plannerOverlayOpen() {
       </div>
       <div class="plov-pane" id="plov-pane-semana" hidden>
         <div class="plov-sub plov-sub-row">Calendario semanal
-          <button class="plov-add" onclick="openPlanModal(getActiveDate(), null)">＋ Actividad</button>
+          <button class="plov-add" onclick="openPlanModal(_plovWeekAddDate(), null)">＋ Actividad</button>
         </div>
         <div class="plov-week-nav">
           <button class="plov-wk-btn" onclick="plovWeekShift(-7)" aria-label="Semana anterior">‹</button>
-          <span class="plov-wk-label" id="plov-wk-label"></span>
+          <span class="plov-wk-label" id="plov-wk-label" aria-live="polite" role="status"></span>
           <button class="plov-wk-btn" onclick="plovWeekShift(7)" aria-label="Semana siguiente">›</button>
           <button class="plov-wk-today" onclick="plovWeekToday()">Hoy</button>
-          <input type="month" class="plov-wk-month" id="plov-wk-month" onchange="plovWeekJumpToMonth(this.value)" aria-label="Saltar a mes y año">
+          <input type="month" class="plov-wk-month" id="plov-wk-month" onchange="plovWeekJumpToMonth(this.value)" aria-label="Saltar a mes y año" min="1970-01" max="2100-12">
         </div>
         <div class="plov-list" id="plov-list-semana"></div>
       </div>`;
@@ -68,9 +68,20 @@ function plovWeekJumpToMonth(value) {
   // día 1 de ese mes — criterio simple y consistente.
   if (!value) return;
   const [y, m] = value.split('-').map(Number);
-  if (!y || !m) return;
-  _plovWeekAnchor = localStr(new Date(y, m - 1, 1));
+  if (!(y >= 1970 && y <= 2100) || m < 1 || m > 12) return;
+  const d = new Date(2000, 0, 1);
+  d.setFullYear(y, m - 1, 1);
+  _plovWeekAnchor = localStr(d);
   plannerOverlayRender();
+}
+// Día a usar para "＋ Actividad" en la pestaña Semana: si hoy cae dentro de la
+// semana mostrada se usa hoy, si no el lunes de esa semana (evita crear la
+// actividad en una fecha fuera de lo que el usuario está viendo).
+function _plovWeekAddDate() {
+  const anchor = _plovWeekAnchorDate();
+  const dates = plannerWeekDates(anchor);
+  const today = getActiveDate();
+  return dates.includes(today) ? today : dates[0];
 }
 function _plovWeekLabel(anchor) {
   const dates = plannerWeekDates(anchor);
@@ -83,7 +94,7 @@ function _plovWeekLabel(anchor) {
 
 function plannerOverlayRender() {
   if (typeof buildDayCalendar !== 'function') return;
-  buildDayCalendar(document.getElementById('plov-list-dia'), getActiveDate());
+  if (_plovTab === 'dia') buildDayCalendar(document.getElementById('plov-list-dia'), getActiveDate());
   if (_plovTab === 'semana' && typeof buildWeekCalendar === 'function') {
     const anchor = _plovWeekAnchorDate();
     buildWeekCalendar(document.getElementById('plov-list-semana'), anchor);
