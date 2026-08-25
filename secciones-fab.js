@@ -156,6 +156,7 @@ function _sfMount() {
   const remItem = tab => ({ icon: _SF_ICONS.bell, label: 'Vencimientos', accent: '#7DD3FC', onClick: openRem(tab) });
   // Mismo overlay, abierto desde la card de la sección (no solo desde el abanico).
   window.openRemindersOverlay = tab => openRem(tab)();
+  const mapaIdeasItem = { icon: _SF_ICONS.mapaIdeas, label: 'Mapa de ideas', accent: '#8B5CF6', onClick: () => { if (window.MapaIdeasUI) MapaIdeasUI.open(); } };
 
   CMSpeedDial.create({
     id: 'sd-conocimiento',
@@ -188,7 +189,6 @@ function _sfMount() {
   // Historial de Seguimiento de Avance (Conocimiento): se abre desde el botón de la card.
   window.openLawMsHistorial = R({ id: 'ov-lawms', accent: '#3B82F6', eyebrow: 'CONOCIMIENTO · CARRERA', title: 'Seguimiento de avance', sourceId: 'lawms-hist-card' });
   const proyItem = tab => ({ icon: _SF_ICONS.proy, label: 'Proyectos', accent: '#38BDF8', onClick: () => { if (window.ProyectosOverlay) ProyectosOverlay.open(tab); } });
-  const mapaIdeasItem = { icon: _SF_ICONS.mapaIdeas, label: 'Mapa de ideas', accent: '#8B5CF6', onClick: () => { if (window.MapaIdeasUI) MapaIdeasUI.open(); } };
 
   const sections = [
     { tab: 'vida', accent: '#00D4FF', icon: _SF_ICONS.vida, name: 'Vida', items: [
