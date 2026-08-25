@@ -275,6 +275,7 @@ function renderHabitsCard(section) {
 
   const tabsHTML = habits.map(h =>
     `<button class="habit-tab-btn${h.id===_habitActiveId[section]?' active':''}"
+      data-id="${h.id}"
       onclick="setHabit('${section}','${h.id}')">
       ${h.emoji||'📌'} ${h.name}
     </button>`).join('');
@@ -303,6 +304,30 @@ function renderHabitsCard(section) {
     e.preventDefault();
     tabsEl.scrollLeft += e.deltaY;
   }, { passive: false });
+
+  if (tabsEl && typeof Sortable !== 'undefined') {
+    const existing = Sortable.get(tabsEl);
+    if (existing) existing.destroy();
+    Sortable.create(tabsEl, {
+      animation: 150,
+      onEnd: () => {
+        // Uses live state (not the render-time closure) to avoid re-entrant corruption.
+        const cur = _getHabits(section);
+        const newArr = [];
+        tabsEl.querySelectorAll('.habit-tab-btn[data-id]').forEach(el => {
+          const h = cur.find(x => x.id === el.dataset.id);
+          if (h) newArr.push(h);
+        });
+        if (Array.isArray(S.habitTrackers)) {
+          S.habitTrackers = newArr;
+        } else {
+          S.habitTrackers[section] = newArr;
+        }
+        saveState();
+        setTimeout(() => renderHabitsCard(section), 0);
+      }
+    });
+  }
 
   renderHabitCal(section);
 }
