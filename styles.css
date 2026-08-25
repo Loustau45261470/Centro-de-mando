@@ -1194,6 +1194,29 @@ textarea { resize: vertical; min-height: 60px; }
 }
 .plov-add:hover { background: color-mix(in srgb, var(--cm-accent, var(--accent)) 26%, transparent); transform: translateY(-1px); }
 
+/* ── Navegación de semana en la pestaña Semana del overlay de Planificación ── */
+.plov-week-nav { display: flex; align-items: center; gap: 8px; margin: 6px 0 10px; flex-wrap: wrap; }
+.plov-wk-btn {
+  width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+  font-size: var(--fs-15, 15px); font-weight: 700; color: var(--cm-accent, var(--accent));
+  background: color-mix(in srgb, var(--cm-accent, var(--accent)) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--cm-accent, var(--accent)) 40%, transparent);
+  border-radius: 8px; cursor: pointer; transition: background .15s, transform .12s;
+}
+.plov-wk-btn:hover { background: color-mix(in srgb, var(--cm-accent, var(--accent)) 26%, transparent); transform: translateY(-1px); }
+.plov-wk-label { font-size: var(--fs-12-5); font-weight: 600; color: var(--tt); white-space: nowrap; min-width: 0; }
+.plov-wk-today {
+  font-family: var(--mono); font-size: var(--fs-12); font-weight: 700; letter-spacing: .03em; white-space: nowrap;
+  color: var(--ts); background: transparent; border: 1px solid color-mix(in srgb, var(--ts) 35%, transparent);
+  border-radius: 99px; padding: 3px 10px; cursor: pointer; transition: background .15s;
+}
+.plov-wk-today:hover { background: color-mix(in srgb, var(--ts) 12%, transparent); }
+.plov-wk-month {
+  margin-left: auto; font-family: var(--mono); font-size: var(--fs-12-5); color: var(--tt);
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 8px; padding: 3px 8px; cursor: pointer;
+}
+
 /* ── Controles segmentados del modal de actividad ── */
 .seg { display: flex; gap: 6px; flex-wrap: wrap; }
 .seg button {
