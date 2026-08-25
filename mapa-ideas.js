@@ -33,14 +33,26 @@ function _miTitle(n) { const t = (n && n.texto || '').split('\n')[0].trim(); ret
 function _miFmtDate(ts) { try { return new Date(ts).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' }); } catch (e) { return ''; } }
 
 // ── Voyage AI: embeddings ───────────────────────────────────────────────
-async function _viEmbed(texts) {
+// Embeddings NUNCA viven en S.mapaIdeas (sync a Firestore) — se guardan aparte en
+// localStorage, indexados por noteId, y son recomputables si faltan.
+function _miEmbKey(id) { return 'mi_emb_' + id; }
+function _miGetEmbedding(id) {
+  try { const raw = localStorage.getItem(_miEmbKey(id)); return raw ? JSON.parse(raw) : null; } catch (e) { return null; }
+}
+function _miSetEmbedding(id, vec) {
+  try { localStorage.setItem(_miEmbKey(id), JSON.stringify(vec)); } catch (e) { console.warn('[mapa-ideas] no se pudo guardar embedding en localStorage:', e); }
+}
+function _miRemoveEmbedding(id) {
+  try { localStorage.removeItem(_miEmbKey(id)); } catch (e) {}
+}
+async function _viEmbed(texts, inputType = 'document') {
   const key = (localStorage.getItem('voyage_api_key_v1') || '').trim();
   if (!key) return null;
   try {
     const res = await fetch('https://api.voyageai.com/v1/embeddings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-      body: JSON.stringify({ input: texts, model: 'voyage-3-lite', input_type: 'document' }),
+      body: JSON.stringify({ input: texts, model: 'voyage-3-lite', input_type: inputType }),
     });
     if (!res.ok) { console.warn('[mapa-ideas] Voyage respondió', res.status); return null; }
     const data = await res.json();
@@ -116,15 +128,19 @@ function _miAcceptanceBias() {
   return { tagBoost: 0.02 + 0.08 * (sharedTagAccepts / accepted.length) };
 }
 function _miTopSimilarRanked(note, n) {
-  if (!note.embedding) return [];
+  const emb = _miGetEmbedding(note.id);
+  if (!emb) return [];
   const bias = _miAcceptanceBias();
   return _miNotes()
-    .filter(o => o.id !== note.id && o.embedding)
+    .filter(o => o.id !== note.id)
     .map(o => {
+      const oEmb = _miGetEmbedding(o.id);
+      if (!oEmb) return null;
       const shared = _miSharedTags(note, o);
-      const score = _miCos(note.embedding, o.embedding) + (shared ? bias.tagBoost : 0);
+      const score = _miCos(emb, oEmb) + (shared ? bias.tagBoost : 0);
       return { note: o, score, sharedTags: shared };
     })
+    .filter(Boolean)
     .sort((a, b) => b.score - a.score)
     .slice(0, n);
 }
@@ -150,10 +166,10 @@ function miCreateNote(texto, tagsStr) {
   texto = (texto || '').trim();
   if (!texto) return null;
   const tags = (tagsStr || '').split(',').map(t => t.trim()).filter(Boolean);
-  const note = { id: uid(), texto, tags, creado: Date.now(), editado: Date.now(), links: [], embedding: null, embeddingPending: true };
+  const note = { id: uid(), texto, tags, creado: Date.now(), editado: Date.now(), links: [], embeddingPending: true };
   S.mapaIdeas.notes.push(note);
   saveState();
-  _miProcessNote(note.id);
+  _miProcessNote(note.id).catch(e => console.warn('[mapa-ideas] pipeline post-guardado falló:', e));
   return note;
 }
 function miUpdateNote(id, texto, tagsStr) {
@@ -165,7 +181,7 @@ function miUpdateNote(id, texto, tagsStr) {
   n.embeddingPending = true;
   n._contradictionWarn = null;
   saveState();
-  _miProcessNote(id);
+  _miProcessNote(id).catch(e => console.warn('[mapa-ideas] pipeline post-guardado falló:', e));
 }
 function miDeleteNote(id) {
   const n = _miNotes().find(x => x.id === id); if (!n) return;
@@ -173,6 +189,7 @@ function miDeleteNote(id) {
   _miStripLinksTo(id);
   S.mapaIdeas.notes = _miNotes().filter(x => x.id !== id);
   S.mapaIdeas.notes.forEach(x => { if (x.links) x.links = x.links.filter(l => l !== id); });
+  _miRemoveEmbedding(id);
   saveState();
   _miView = 'list'; _miCurrentId = null;
   if (typeof showToast === 'function') showToast('Idea eliminada');
@@ -185,18 +202,24 @@ window.miDeleteNote = miDeleteNote;
 async function _miProcessNote(id) {
   const note = _miNotes().find(n => n.id === id); if (!note) return;
   const emb = await _viEmbed([note.texto]);
+  // El await puede haber cruzado un sync (merge3way/rescue/_applyRemoteState) que reasigna
+  // S entero — re-buscar la nota viva antes de mutarla, la referencia vieja puede ser huérfana.
+  const live = _miNotes().find(n => n.id === id); if (!live) return;
   if (emb && emb[0]) {
-    note.embedding = emb[0];
-    note.embeddingPending = false;
+    _miSetEmbedding(id, emb[0]);
+    live.embeddingPending = false;
     saveState();
-    const top = _miTopSimilarRanked(note, 6).filter(c => !_miAlreadyLinked(note, c.note.id)).slice(0, 3);
-    _miPending[note.id] = top;
-    _miCheckContradiction(note, top);
+    const top = _miTopSimilarRanked(live, 6).filter(c => !_miAlreadyLinked(live, c.note.id)).slice(0, 3);
+    _miPending[live.id] = top;
+    await _miCheckContradiction(live, top);
   } else {
-    note.embeddingPending = true;  // sin key o falló la llamada — reintenta en el próximo guardado/edición
+    live.embeddingPending = true;  // sin key o falló la llamada — reintenta en el próximo guardado/edición
     saveState();
   }
-  if (_miCurrentId === note.id && _miView === 'detail') _miRender();
+  // No pisar una captura rápida o edición en curso: el re-render recrearía el textarea y
+  // se perdería el texto no guardado del usuario.
+  if (_miQuickOpen || _miDetailMode === 'edit') return;
+  if (_miCurrentId === live.id && _miView === 'detail') _miRender();
   if (_miView === 'list') _miRender();
 }
 async function _miCheckContradiction(note, top) {
@@ -205,11 +228,13 @@ async function _miCheckContradiction(note, top) {
   const ans = await _miLLMJudge(
     `Idea A: "${note.texto}"\nIdea B: "${best.texto}"\n\n¿La Idea A contradice a la Idea B (son posturas opuestas sobre el mismo tema)? Respondé una sola palabra: si o no.`
   );
+  const live = _miNotes().find(n => n.id === note.id); if (!live) return;
   if (ans && /^s/i.test(ans)) {
-    note._contradictionWarn = best.id;
+    live._contradictionWarn = best.id;
     saveState();
     if (typeof showToast === 'function') showToast('⚠️ Posible contradicción con una idea guardada — revisala en Mapa de Ideas', 7000);
-    if (_miCurrentId === note.id) _miRender();
+    if (_miQuickOpen || _miDetailMode === 'edit') return;
+    if (_miCurrentId === live.id) _miRender();
   }
 }
 
@@ -243,18 +268,25 @@ window.miAcceptSuggestion = miAcceptSuggestion;
 window.miRejectSuggestion = miRejectSuggestion;
 
 // ── Idea del día: nota huérfana/poco conectada, una por día ─────────────
-function _miIdeaDelDia() {
-  const today = (typeof getActiveDate === 'function') ? getActiveDate() : new Date().toISOString().slice(0, 10);
+// Se calcula UNA vez al abrir el overlay (MapaIdeasUI.open), nunca dentro del render — el
+// render solo LEE. Usa la fecha real del reloj (no getActiveDate(), que es la fecha
+// navegable del planner y provocaba re-sorteos/writes al cambiar de día ahí).
+function _miIdeaDelDiaCompute() {
+  const today = new Date().toISOString().slice(0, 10);
   const st = S.mapaIdeas.lastIdeaDelDia;
-  if (st && st.date === today) return _miNotes().find(n => n.id === st.noteId) || null;
+  if (st && st.date === today) return;
   const degree = {};
   _miEdges().forEach(e => { degree[e.from] = (degree[e.from] || 0) + 1; degree[e.to] = (degree[e.to] || 0) + 1; });
   const candidates = _miNotes().filter(n => (degree[n.id] || 0) <= 1);
-  if (!candidates.length) return null;
+  if (!candidates.length) return;
   const pick = candidates[Math.floor(Math.random() * candidates.length)];
   S.mapaIdeas.lastIdeaDelDia = { date: today, noteId: pick.id };
   saveState();
-  return pick;
+}
+function _miIdeaDelDia() {
+  const st = S.mapaIdeas.lastIdeaDelDia;
+  if (!st) return null;
+  return _miNotes().find(n => n.id === st.noteId) || null;
 }
 
 // ── Búsqueda full-text client-side ──────────────────────────────────────
@@ -305,6 +337,9 @@ function _miAttachAutocomplete(ta, currentId) {
 }
 
 // ── Grafo (vis-network, standalone UMD por CDN — ver index.html) ────────
+function _miDestroyGraph() {
+  if (_miNetwork) { try { _miNetwork.destroy(); } catch (e) {} _miNetwork = null; }
+}
 function _miRenderGraph(host) {
   if (typeof vis === 'undefined') { host.innerHTML = '<div class="mi-empty">No se pudo cargar la librería del grafo (sin conexión).</div>'; return; }
   const notes = _miNotes();
@@ -314,7 +349,7 @@ function _miRenderGraph(host) {
     return { id: n.id, label: t.length > 26 ? t.slice(0, 26) + '…' : t, shape: 'dot', size: 9 + Math.min(9, (n.tags || []).length * 2) };
   }));
   const edges = new vis.DataSet(_miEdges().map(e => ({ from: e.from, to: e.to })));
-  if (_miNetwork) { try { _miNetwork.destroy(); } catch (e) {} _miNetwork = null; }
+  _miDestroyGraph();
   _miNetwork = new vis.Network(host, { nodes, edges }, {
     autoResize: true, height: '460px',
     nodes: {
@@ -330,8 +365,8 @@ function _miRenderGraph(host) {
 }
 
 // ── Navegación / render ──────────────────────────────────────────────────
-function miOpenNote(id) { _miCurrentId = id; _miView = 'detail'; _miDetailMode = 'view'; _miRender(); }
-function miBackToList() { _miView = 'list'; _miCurrentId = null; _miRender(); }
+function miOpenNote(id) { _miDestroyGraph(); _miCurrentId = id; _miView = 'detail'; _miDetailMode = 'view'; _miRender(); }
+function miBackToList() { _miDestroyGraph(); _miView = 'list'; _miCurrentId = null; _miRender(); }
 function miOpenGraph() { _miView = 'graph'; _miRender(); }
 function miEditNote(id) { _miCurrentId = id; _miDetailMode = 'edit'; _miRender(); }
 function miCancelEdit() { _miDetailMode = 'view'; _miRender(); }
@@ -473,6 +508,9 @@ function _miRender() {
   const ov = document.getElementById('mi-overlay'); if (!ov) return;
   const body = ov.querySelector('.cm-ov-body'); if (!body) return;
   _miEnsureState();
+  // El dropdown de autocompletado [[ vive en document.body (fixed) fuera del innerHTML que se
+  // va a reemplazar — si el textarea nunca emitió blur (ej. cierre con Esc/✕) queda huérfano.
+  document.querySelectorAll('.mi-autocomplete').forEach(b => b.remove());
 
   if (_miView === 'detail') {
     const note = _miNotes().find(n => n.id === _miCurrentId);
@@ -498,7 +536,15 @@ const MapaIdeasUI = {
   open() {
     if (typeof CMOverlay === 'undefined') return;
     _miEnsureState();
-    const { overlay } = CMOverlay.build({ id: 'mi-overlay', accent: MI_ACCENT, onClose: () => { _miView = 'list'; _miQuickOpen = false; } });
+    _miIdeaDelDiaCompute();
+    const { overlay } = CMOverlay.build({
+      id: 'mi-overlay', accent: MI_ACCENT,
+      onClose: () => {
+        _miView = 'list'; _miQuickOpen = false;
+        _miDestroyGraph();
+        document.querySelectorAll('.mi-autocomplete').forEach(b => b.remove());
+      },
+    });
     _miView = 'list'; _miCurrentId = null;
     _miRender();
     CMOverlay.open(overlay);
@@ -513,10 +559,12 @@ async function miConsultar(pregunta) {
   const notes = _miNotes();
   if (!notes.length) return { ok: true, resultados: [], msg: 'No hay notas guardadas en el Mapa de Ideas todavía.' };
   let scored = null;
-  const qEmb = await _viEmbed([pregunta || '']);
+  let byEmbedding = false;
+  const qEmb = await _viEmbed([pregunta || ''], 'query');
   if (qEmb && qEmb[0]) {
     const v = qEmb[0];
-    scored = notes.filter(n => n.embedding).map(n => ({ n, score: _miCos(v, n.embedding) })).sort((a, b) => b.score - a.score);
+    scored = notes.map(n => { const e = _miGetEmbedding(n.id); return e ? { n, score: _miCos(v, e) } : null; }).filter(Boolean).sort((a, b) => b.score - a.score);
+    byEmbedding = true;
   }
   if (!scored || !scored.length) {
     const q = (pregunta || '').toLowerCase();
@@ -526,8 +574,9 @@ async function miConsultar(pregunta) {
       const score = words.reduce((s, w) => s + (t.includes(w) ? 1 : 0), 0);
       return { n, score };
     }).filter(x => x.score > 0).sort((a, b) => b.score - a.score);
+    byEmbedding = false;
   }
-  const top = scored.slice(0, 5);
+  const top = (byEmbedding ? scored.filter(x => x.score >= 0.55) : scored).slice(0, 5);
   if (!top.length) return { ok: true, resultados: [], msg: 'No encontré ninguna idea guardada relacionada con esa pregunta.' };
   return { ok: true, resultados: top.map(x => ({ id: x.n.id, texto: x.n.texto, tags: x.n.tags, score: Math.round(x.score * 100) / 100 })) };
 }
