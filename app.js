@@ -228,7 +228,14 @@ const DEFAULT_STATE = {
   // Fondos de compra (ver specs/fondos-de-compra.md)
   purchaseFunds: [],       // { id, name, emoji, monthlyAmount, accountId, condition, createdMonth }
   purchaseFundLog: {},     // { [fundId]: { 'YYYY-MM': { credited, met, txnId?, manual? } } }
-  purchaseFundSpends: []   // { id, fundId, date, desc, amount }
+  purchaseFundSpends: [],  // { id, fundId, date, desc, amount }
+  // Mapa de Ideas (ver specs/mapa-de-ideas.md)
+  mapaIdeas: {
+    notes: [],           // [{ id, texto, tags:[], creado, editado, links:[noteId] (sugerencias aceptadas), embedding:number[]|null, embeddingPending:bool }]
+    suggestionLog: [],   // [{ ts, noteId, targetId, score, sharedTags:bool, decision:'accept'|'reject' }] — últimos 30, few-shot del criterio de conexión
+    debateMode: false,   // Modo debate (piloto) — OFF por defecto hasta validarlo
+    lastIdeaDelDia: null // { date:'YYYY-MM-DD', noteId } — evita repetir la misma sugerencia el mismo día
+  }
 };
 
 let S = JSON.parse(JSON.stringify(DEFAULT_STATE));  // live state — precargado con defaults para que un click a una pestaña antes de que loadState() resuelva no crashee (ver fixes.json)

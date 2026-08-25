@@ -1,7 +1,7 @@
 // Centro de Mando — Service Worker
 // Maneja Web Push, clicks de notificación, y caché offline del app shell.
 
-const CACHE = 'cdm-shell-v270';
+const CACHE = 'cdm-shell-v271';
 const BASE  = '/Centro-de-mando/';
 const SHELL = [
   BASE,
@@ -11,6 +11,7 @@ const SHELL = [
   BASE + 'overlay-core.css',
   BASE + 'speed-dial.css',
   BASE + 'proyectos-overlay.css',
+  BASE + 'mapa-ideas.css',
   BASE + 'app.js',
   BASE + 'deadlines.js',
   BASE + 'workspace.js',
@@ -22,6 +23,7 @@ const SHELL = [
   BASE + 'recordatorios.js',
   BASE + 'objetivos.js',
   BASE + 'cursada.js',
+  BASE + 'mapa-ideas.js',
   BASE + 'overlay-core.js',
   BASE + 'speed-dial.js',
   BASE + 'proyectos-overlay.js',
@@ -61,6 +63,7 @@ const SHELL = [
   BASE + 'apple-touch-icon-180.png',
   'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js',
   'https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js',
+  'https://cdn.jsdelivr.net/npm/vis-network@9.1.9/standalone/umd/vis-network.min.js',
   'https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js',
   'https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js',
   'https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js',
