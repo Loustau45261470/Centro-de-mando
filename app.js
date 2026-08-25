@@ -231,7 +231,7 @@ const DEFAULT_STATE = {
   purchaseFundSpends: [],  // { id, fundId, date, desc, amount }
   // Mapa de Ideas (ver specs/mapa-de-ideas.md)
   mapaIdeas: {
-    notes: [],           // [{ id, texto, tags:[], creado, editado, links:[noteId] (sugerencias aceptadas), embedding:number[]|null, embeddingPending:bool }]
+    notes: [],           // [{ id, texto, tags:[], creado, editado, links:[noteId] (sugerencias aceptadas), embeddingPending:bool }] — el vector embedding NUNCA va acá (rompería el límite 1MiB de Firestore); vive en localStorage 'mi_emb_<id>' (ver mapa-ideas.js)
     suggestionLog: [],   // [{ ts, noteId, targetId, score, sharedTags:bool, decision:'accept'|'reject' }] — últimos 30, few-shot del criterio de conexión
     debateMode: false,   // Modo debate (piloto) — OFF por defecto hasta validarlo
     lastIdeaDelDia: null // { date:'YYYY-MM-DD', noteId } — evita repetir la misma sugerencia el mismo día

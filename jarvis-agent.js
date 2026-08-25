@@ -457,7 +457,12 @@
     },
   };
   function _activeTools() {
-    return (typeof S !== 'undefined' && S.mapaIdeas && S.mapaIdeas.debateMode) ? TOOLS.concat(DEBATE_TOOL) : TOOLS;
+    const on = typeof S !== 'undefined' && S.mapaIdeas && S.mapaIdeas.debateMode;
+    // Si el toggle se apagó a mitad de conversación pero apiHist ya tiene un tool_use de
+    // debatir_postura, hay que seguir declarando la tool — si no, la API rechaza el historial
+    // por referenciar una tool desconocida. La guarda real (no ejecutarla) vive en _exec.
+    const usedBefore = apiHist.some(m => Array.isArray(m.content) && m.content.some(b => b.type === 'tool_use' && b.name === 'debatir_postura'));
+    return (on || usedBefore) ? TOOLS.concat(DEBATE_TOOL) : TOOLS;
   }
 
   // Busca un nodo (proyecto o tarea) por texto parcial dentro del árbol REAL de la app (window.Proyectos),
