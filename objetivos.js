@@ -70,6 +70,31 @@ function deleteMonthlyGoal(tabName, monthKey, idx) {
   saveState(); _refreshMonthly(tabName);
 }
 
+function _quarterLabel(q, yr) { return `T${q} ${yr}`; }
+
+function _adjacentQuarterId(periodId, dir) {
+  const m = periodId.match(/^t([1-4])-(\d{4})$/);
+  if (!m) return null;
+  let q = parseInt(m[1]) + dir, yr = parseInt(m[2]);
+  if (q > 4) { q = 1; yr++; }
+  else if (q < 1) { q = 4; yr--; }
+  return { id: `t${q}-${yr}`, q, yr };
+}
+
+function navQPeriod(dir) {
+  const qo = S.quarterlyObjectives;
+  const current = qo.periods.find(p => p.id === qo.activePeriod) || qo.periods[0];
+  const adj = _adjacentQuarterId(current.id, dir);
+  if (!adj) return;
+  let period = qo.periods.find(p => p.id === adj.id);
+  if (!period) {
+    period = { id: adj.id, label: _quarterLabel(adj.q, adj.yr), flat: false, note: null, objectives: [] };
+    qo.periods.push(period);
+  }
+  qo.activePeriod = period.id;
+  saveState(); renderQuarterlyObjectives();
+}
+
 let _mgoalAddTab = null, _mgoalAddMonth = null;
 
 function openAddMonthlyGoal(tabName, monthKey) {
@@ -109,13 +134,17 @@ function renderQObjForTab(tabName) {
   const months = _periodMonths(period.id);
 
   const ddId = `qobj-dd-${tabName}`;
-  const dropdownHTML = `<div class="qobj-period-dropdown" id="${ddId}" style="margin-bottom:0">
-    <button class="qobj-period-trigger" onclick="toggleQObjDropdown('${ddId}')">
-      ${period.label}<span class="qobj-period-chevron">▾</span>
-    </button>
-    <div class="qobj-period-menu">
-      ${qo.periods.map(p => `<button class="qobj-period-option${p.id===qo.activePeriod?' active':''}" onclick="selectQPeriod('${p.id}');closeQObjDropdown('${ddId}')">${p.label}</button>`).join('')}
+  const dropdownHTML = `<div style="display:flex;align-items:center;gap:4px">
+    <button class="btn btn-ghost btn-sm" onclick="navQPeriod(-1)" title="Trimestre anterior">‹</button>
+    <div class="qobj-period-dropdown" id="${ddId}" style="margin-bottom:0">
+      <button class="qobj-period-trigger" onclick="toggleQObjDropdown('${ddId}')">
+        ${period.label}<span class="qobj-period-chevron">▾</span>
+      </button>
+      <div class="qobj-period-menu">
+        ${qo.periods.map(p => `<button class="qobj-period-option${p.id===qo.activePeriod?' active':''}" onclick="selectQPeriod('${p.id}');closeQObjDropdown('${ddId}')">${p.label}</button>`).join('')}
+      </div>
     </div>
+    <button class="btn btn-ghost btn-sm" onclick="navQPeriod(1)" title="Trimestre siguiente">›</button>
   </div>`;
 
   let monthTabsHTML = '';
