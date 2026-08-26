@@ -1091,6 +1091,7 @@
 </div>
 
 <!-- Add Wish -->
+<datalist id="wishCatList"></datalist>
 <div class="modal-overlay" id="modal-add-wish">
   <div class="modal">
     <div class="modal-handle"></div>
@@ -1104,18 +1105,7 @@
     </div>
     <div class="input-row">
       <div class="field" style="flex:1"><label>Categoría</label>
-        <select class="inp" id="wishCategory">
-          <option value="">— Sin categoría —</option>
-          <option value="Salud">🏥 Salud</option>
-          <option value="Ropa">👕 Ropa</option>
-          <option value="Comida">🍽️ Comida</option>
-          <option value="Deporte">🏋️ Deporte</option>
-          <option value="Tecnología">💻 Tecnología</option>
-          <option value="Hogar">🏠 Hogar</option>
-          <option value="Trabajo">💼 Trabajo</option>
-          <option value="Estudio">📚 Estudio</option>
-          <option value="Otros">📦 Otros</option>
-        </select>
+        <input class="inp" id="wishCategory" list="wishCatList" placeholder="Elegí o escribí una nueva…" autocomplete="off">
       </div>
       <div class="field" style="flex:1"><label>Prioridad</label>
         <select class="inp" id="wishPriority">
@@ -1437,18 +1427,7 @@
     </div>
     <div class="input-row">
       <div class="field" style="flex:1"><label>Categoría</label>
-        <select class="inp" id="editWishCategory">
-          <option value="">— Sin categoría —</option>
-          <option value="Salud">🏥 Salud</option>
-          <option value="Ropa">👕 Ropa</option>
-          <option value="Comida">🍽️ Comida</option>
-          <option value="Deporte">🏋️ Deporte</option>
-          <option value="Tecnología">💻 Tecnología</option>
-          <option value="Hogar">🏠 Hogar</option>
-          <option value="Trabajo">💼 Trabajo</option>
-          <option value="Estudio">📚 Estudio</option>
-          <option value="Otros">📦 Otros</option>
-        </select>
+        <input class="inp" id="editWishCategory" list="wishCatList" placeholder="Elegí o escribí una nueva…" autocomplete="off">
       </div>
       <div class="field" style="flex:1"><label>Prioridad</label>
         <select class="inp" id="editWishPriority">
