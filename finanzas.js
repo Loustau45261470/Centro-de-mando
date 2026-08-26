@@ -137,6 +137,7 @@ function renderWishlist() {
   const list=document.getElementById('wishList');
   const empty=document.getElementById('wishEmpty');
   const nw=calcNetWorth();
+  _populateWishCatDatalist();
   if (!S.wishlist.length) { list.innerHTML=''; empty.classList.remove('hidden'); return; }
   empty.classList.add('hidden');
 
@@ -224,6 +225,18 @@ function renderWishlist() {
   }
   list.innerHTML = html;
   renderWishTop5();
+}
+
+// Categorías: 9 predefinidas + cualquier categoría nueva ya usada en la wishlist
+// (el campo es de texto libre con autocompletado, así el usuario "crea" categorías
+// con solo escribir un nombre nuevo al agregar/editar un objetivo).
+const WISH_CAT_DEFAULTS = ['Salud','Ropa','Comida','Deporte','Tecnología','Hogar','Trabajo','Estudio','Otros'];
+function _populateWishCatDatalist() {
+  const dl = document.getElementById('wishCatList');
+  if (!dl) return;
+  const used = (S.wishlist || []).map(w => w.category).filter(Boolean);
+  const all = [...new Set([...WISH_CAT_DEFAULTS, ...used])].sort((a,b) => a.localeCompare(b, 'es'));
+  dl.innerHTML = all.map(c => `<option value="${String(c).replace(/&/g,'&amp;').replace(/"/g,'&quot;')}"></option>`).join('');
 }
 
 // Puntaje de adquisición (1–5). Si no está seteado, se deriva de la prioridad.
