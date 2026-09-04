@@ -35,6 +35,8 @@
   const nav  = tab => { const b=document.querySelector('.nav-btn[data-tab="'+tab+'"]'); if(b) b.click(); };
   const M    = id => { if (typeof openModal==='function') openModal(id); };
   const has  = f => typeof window[f]==='function';
+  // Fecha de hoy en hora local: toISOString() correría el día por zona horaria.
+  const _cmdkHoy = () => { const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
 
   const CMDS = [
     {ic:'◢', lbl:'Ir a Vida', cat:'Navegar', kw:'vida metas dia', run:()=>nav('vida')},
@@ -51,6 +53,10 @@
     {ic:'＋', lbl:'Nuevo hábito — Vida', cat:'Hábitos', kw:'habito vida', run:()=>{ if(has('openAddHabitFor')) openAddHabitFor('vida'); }},
     {ic:'＋', lbl:'Nuevo hábito — Salud', cat:'Hábitos', kw:'habito salud', run:()=>{ if(has('openAddHabitFor')) openAddHabitFor('salud'); }},
     {ic:'＋', lbl:'Nuevo hábito — Conocimiento', cat:'Hábitos', kw:'habito estudio', run:()=>{ if(has('openAddHabitFor')) openAddHabitFor('conocimiento'); }},
+    {ic:'▤', lbl:'Informe del mes', cat:'Informes', kw:'informe reporte mes mensual estadisticas graficos comparativa', run:()=>{ if(!window.CMInformes){ if(typeof showToast==='function') showToast('Informes no disponible'); return; } CMInformes.open(); }},
+    {ic:'▤', lbl:'Informe del trimestre', cat:'Informes', kw:'informe trimestre trimestral reporte', run:()=>{ if(!window.CMInformes){ if(typeof showToast==='function') showToast('Informes no disponible'); return; } CMInformes.open(window.CMInformesData ? CMInformesData.claveDe('T', _cmdkHoy()) : undefined); }},
+    {ic:'▤', lbl:'Informe del semestre', cat:'Informes', kw:'informe semestre semestral reporte', run:()=>{ if(!window.CMInformes){ if(typeof showToast==='function') showToast('Informes no disponible'); return; } CMInformes.open(window.CMInformesData ? CMInformesData.claveDe('S', _cmdkHoy()) : undefined); }},
+    {ic:'▤', lbl:'Informe del año', cat:'Informes', kw:'informe anio anual ano reporte balance', run:()=>{ if(!window.CMInformes){ if(typeof showToast==='function') showToast('Informes no disponible'); return; } CMInformes.open(window.CMInformesData ? CMInformesData.claveDe('A', _cmdkHoy()) : undefined); }},
     {ic:'⚡', lbl:'Briefing del sistema', cat:'INTEL', kw:'briefing informe resumen analisis intel como voy proyeccion', run:()=>{ nav('vida'); if(window.JARVIS_INTEL){ JARVIS_INTEL.renderCard(); setTimeout(()=>{ const c=document.querySelector('.intel-card'); if(c) c.scrollIntoView({behavior:'smooth',block:'start'}); },120); if(window.JARVIS_EARS_sayEN) JARVIS_EARS_sayEN(JARVIS_INTEL.briefing()); else if(window.JARVIS&&JARVIS.speak) JARVIS.speak(JARVIS_INTEL.briefing(),{dynamic:true}); } }},
     {ic:'🎙', lbl:'Activar / silenciar "Hey Jarvis"', cat:'JARVIS', kw:'jarvis voz wake escuchar microfono', run:()=>{ if(window.JARVIS_EARS) JARVIS_EARS.toggleWake(); }},
     {ic:'◑', lbl:'Tema: Bloomberg', cat:'Tema', kw:'tema bloomberg', run:()=>{ if(has('applyTheme')) applyTheme('bloomberg'); }},

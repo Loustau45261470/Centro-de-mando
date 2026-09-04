@@ -182,6 +182,27 @@
       "desc": "El onEnd de Sortable llamaba renderGoals() de forma sincrona; ese re-render hace Sortable.get(list).destroy() sobre la instancia cuyo onEnd estaba corriendo, y en SortableJS 1.15 destroy() ejecuta _onDrop() antes de _nulling(), disparando onEnd una SEGUNDA vez con el DOM ya reconstruido leido contra la closure del array viejo. Resultado: se persistia un orden que no era ni el viejo ni el nuevo, doble escritura a Firestore por arrastre y dos instancias de Sortable vivas sobre la misma lista. El fix son dos cosas juntas, en las DOS ramas de renderGoalList: leer el array vigente (const cur = S.goals[date]) en vez de la closure, y diferir el re-render con setTimeout(renderGoals, 0). NO volver a llamar renderGoals() sincrono dentro de onEnd.",
       "file": "app.js",
       "marker": "setTimeout(renderGoals, 0)"
+    },
+    {
+      "id": "informes-io-threshold-imposible",
+      "fecha": "2026-09-04",
+      "desc": "El observer de animacion de capitulos del informe usaba threshold 0.08. intersectionRatio se calcula sobre el area DEL PROPIO target, no del viewport: un capitulo mas alto que viewport/0.08 (~12,5 viewports) nunca puede alcanzar el umbral, y la regla CSS lo dejaba en opacity:0 para siempre. En 390px el capitulo Finanzas medía 15,6 viewports y quedaba en blanco de forma permanente por mas que se scrolleara. A 1440px no pasaba (grid de 3 columnas, ~4,9 viewports), por eso los reviews no lo vieron. Fix: threshold 0 + isIntersecting a secas. NO volver a poner un threshold > 0 en ese observer.",
+      "file": "informes.js",
+      "marker": "NO usar un threshold > 0"
+    },
+    {
+      "id": "informes-contenido-visible-por-defecto",
+      "fecha": "2026-09-04",
+      "desc": "Defecto de diseno detras del bug anterior: el estado por defecto de las tarjetas del informe era invisible (opacity:0) y dependia de que el JS corriera bien para hacerse visible. Ahora el JS agrega .inf-anim al capitulo recien cuando lo va a observar, y la regla que esconde esta scopeada a .inf-anim: si el observer no se monta, el contenido se ve igual. Verificado borrando IntersectionObserver del navegador antes de cargar.",
+      "file": "informes.css",
+      "marker": ".inf-capitulo.inf-anim:not(.inf-in)"
+    },
+    {
+      "id": "informes-null-vs-cero",
+      "fecha": "2026-09-04",
+      "desc": "Regla dura del motor de informes: una metrica da null (sin datos) SOLO si el periodo termina antes del primer registro de ESA metrica; si el registro ya existia y no hubo actividad, da 0, que es informacion real. Convivian dos convenciones contradictorias (helpers genericos decidian por 'la fuente tuvo algo alguna vez', fin_ingresos decidia por rango). Unificado en _conDatos(). No volver a decidir null mirando si el array completo esta vacio.",
+      "file": "informes-datos.js",
+      "marker": "function _conDatos"
     }
   ]
 }
