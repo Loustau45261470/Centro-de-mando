@@ -28,6 +28,7 @@ const _SF_ICONS = {
   timer: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 13V9M12 5V3M9.5 3h5"/></svg>`,
   grad: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 2 9l10 5 10-5z"/><path d="M6 11v5c0 1.1 2.7 2.5 6 2.5s6-1.4 6-2.5v-5"/></svg>`,
   mapaIdeas: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.6"/><circle cx="18" cy="6" r="2.6"/><circle cx="12" cy="18" r="2.6"/><path d="M8.2 7.4 10.4 16M15.8 7.4 13.6 16M8.6 6h6.8"/></svg>`,
+  informe: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="2.5"/><path d="M7.5 16v-3M12 16v-6M16.5 16v-4.5"/></svg>`,
 };
 
 // ── Presupuesto: overlay que aloja el presupuesto + las obligaciones recurrentes ──
@@ -156,6 +157,15 @@ function _sfMount() {
   const remItem = tab => ({ icon: _SF_ICONS.bell, label: 'Vencimientos', accent: '#7DD3FC', onClick: openRem(tab) });
   // Mismo overlay, abierto desde la card de la sección (no solo desde el abanico).
   window.openRemindersOverlay = tab => openRem(tab)();
+  // Informes: el mismo overlay transversal para todas las secciones; al abrirlo desde
+  // una sección salta a su capítulo, así el abanico lleva al dato de esa sección.
+  const openInformes = sec => () => {
+    if (!window.CMInformes) { if (typeof showToast === 'function') showToast('Informes no disponible'); return; }
+    CMInformes.open();
+    if (sec) setTimeout(() => { const c = document.getElementById('inf-sec-' + sec); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 260);
+  };
+  window.openInformesOverlay = openInformes(null);
+  const informeItem = sec => ({ icon: _SF_ICONS.informe, label: 'Informes', accent: '#38BDF8', onClick: openInformes(sec) });
   const mapaIdeasItem = { icon: _SF_ICONS.mapaIdeas, label: 'Mapa de ideas', accent: '#8B5CF6', onClick: () => { if (window.MapaIdeasUI) MapaIdeasUI.open(); } };
 
   CMSpeedDial.create({
@@ -171,6 +181,7 @@ function _sfMount() {
       { icon: _SF_ICONS.grad, label: 'Plan de carrera', accent: '#3B82F6', onClick: () => { if (window.Correlativas) Correlativas.open(); } },
       { icon: _SF_ICONS.proy, label: 'Proyectos', accent: '#38BDF8', onClick: () => { if (window.ProyectosOverlay) ProyectosOverlay.open('conocimiento'); } },
       mapaIdeasItem,
+      informeItem('conocimiento'),
       remItem('conocimiento'),
     ],
     observeEl: tabConoc,
@@ -195,6 +206,7 @@ function _sfMount() {
       proyItem('vida'),
       { icon: _SF_ICONS.planner, label: 'Planificación', accent: '#00D4FF', onClick: openPlanner },
       { icon: _SF_ICONS.fichero, label: 'Fichero', accent: '#5EEAD4', onClick: () => { if (typeof ficheroOpen === 'function') ficheroOpen(); } },
+      informeItem('vida'),
       remItem('vida'),
     ] },
     { tab: 'salud', accent: '#F43F5E', icon: _SF_ICONS.salud, name: 'Salud', items: [
@@ -203,6 +215,7 @@ function _sfMount() {
       { icon: _SF_ICONS.wellness, label: 'Dieta', accent: '#10E07C', onClick: openDieta },
       { icon: _SF_ICONS.history, label: 'Historial de bienestar', accent: '#7C8EE8', onClick: _sfOpenBienestarHist },
       { icon: _SF_ICONS.notas, label: 'Notas', accent: '#10E07C', onClick: () => { if (typeof saludNotasOpen === 'function') saludNotasOpen(); } },
+      informeItem('salud'),
       remItem('salud'),
     ] },
     { tab: 'finanzas', accent: '#22C55E', icon: _SF_ICONS.finanzas, name: 'Finanzas', items: [
@@ -212,9 +225,10 @@ function _sfMount() {
       { icon: _SF_ICONS.tenencias, label: 'Cartera', accent: '#22C55E', onClick: () => { if (window.CarteraOverlay) CarteraOverlay.open(); } },
       { icon: _SF_ICONS.history, label: 'Historial', accent: '#22C55E', onClick: _sfOpenHistorial },
       { icon: _SF_ICONS.notas, label: 'Notas', accent: '#22C55E', onClick: () => { if (typeof finanzasNotasOpen === 'function') finanzasNotasOpen(); } },
+      informeItem('finanzas'),
       remItem('finanzas'),
     ] },
-    { tab: 'ia', accent: '#C4D0E4', icon: _SF_ICONS.ia, name: 'IA', items: [proyItem('ia'), mapaIdeasItem, remItem('ia')] },
+    { tab: 'ia', accent: '#C4D0E4', icon: _SF_ICONS.ia, name: 'IA', items: [proyItem('ia'), mapaIdeasItem, informeItem('ia'), remItem('ia')] },
   ];
   sections.forEach(s => {
     const el = document.getElementById('tab-' + s.tab);
