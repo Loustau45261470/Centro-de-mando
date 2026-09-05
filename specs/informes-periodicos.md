@@ -1,5 +1,30 @@
 # Spec: Informes periódicos (mensual / trimestral / semestral / anual)
 
+> **REVISADO el 2026-09-05 tras el uso con datos reales.** El catálogo pasó de 85
+> métricas a **29** y varias decisiones de este spec quedaron sin efecto. El
+> documento que manda sobre lo que sigue es el addendum v2 (catálogo definitivo,
+> campos `fundamental` / `minGran` / `soloSnapshot` / `descripcion`, y el rediseño
+> de un capítulo por pantalla).
+>
+> Cambios que invalidan partes de este spec:
+> - **Se eliminaron las 20 métricas que ignoraban el período.** Tenían el `calc`
+>   sin `desde`/`hasta` y devolvían el acumulado actual para todo período, lo que
+>   hacía que los deltas midieran el crecimiento del total y no la actividad del
+>   período. Regla dura nueva: si una métrica no se puede atribuir a un período
+>   con una fecha real del dato, no entra.
+> - **Fuera las métricas de metas y objetivos.** El inventario original decía que
+>   "pueden aportar métricas propias"; eso contradecía la exclusión que el usuario
+>   ya había pedido y se revirtió.
+> - **Estacionalidad.** Lo que depende de mesas de examen o del cuatrimestre no se
+>   mide mes a mes (`minGran: 'T'`).
+> - **Pomodoro solo en Conocimiento**, nunca en Vida.
+> - **Highlights solo de métricas `fundamental`** (11), no de todas las destacadas.
+> - **"Finales aprobados" no es implementable**: `S.sgc.finales` guarda
+>   `{materia, fecha, tipo, done}` y `done` significa "ya lo rendiste", no si
+>   aprobaste. En su lugar entraron promedio de carrera y materias aprobadas, ambas
+>   `soloSnapshot`: construyen su historia desde el primer cierre y nunca se
+>   calculan hacia atrás.
+
 ## Objective
 
 Una superficie de informes dentro de Centro de Mando que, para un período foco elegido

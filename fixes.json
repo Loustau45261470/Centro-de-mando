@@ -27,7 +27,8 @@
       "fecha": "2026-07-13",
       "desc": "La tarea nueva del planner (vacía y auto-enfocada) se borraba en el primer blur, incluso si era un blur transitorio (tap que reenfocaba la casilla). Ahora el borrado por-vacía es diferido y se re-chequea: sólo elimina si la tarea sigue vacía Y el usuario ya no la tiene enfocada.",
       "file": "app.js",
-      "marker": "reenfocada o con texto"
+      "obsoleto": "2026-09-05",
+      "obsoletoMotivo": "El commit f764b82 reemplazo la creacion de tarea inline (vacia y auto-enfocada) por un modal de crear/editar actividad. El bug de borrado por blur transitorio ya no puede ocurrir porque ese flujo no existe. El marker ausente NO es una reversion: es codigo eliminado a proposito. No re-investigar."
     },
     {
       "id": "tts-cache-survives-sw-bump",

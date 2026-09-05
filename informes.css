@@ -194,10 +194,24 @@
 .inf-ia-skel span:nth-child(3) { width: 55%; }
 @keyframes inf-skel { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
-/* ── Grilla de tarjetas de métrica ── */
-.inf-metric-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+/* ── Grilla de tarjetas de métrica ──
+   2 tarjetas por fila en desktop (pedido explícito: "todo muy amontonado"),
+   1 columna hasta 899px. Más aire entre tarjetas y adentro que en la v1. */
+/* align-items:start — sin esto, Grid estira cada tarjeta al alto de la más alta
+   de su fila (ej. "Egresos" con desglose vs "Ingresos" sin desglose), dejando
+   huecos enormes debajo de las tarjetas más cortas. Cada una ocupa su alto real. */
+.inf-metric-grid { display: grid; grid-template-columns: 1fr; gap: 20px; align-items: start; }
+@media (min-width: 900px) {
+  .inf-metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 26px; }
+}
+/* Capítulo de una sola tarjeta (Vida queda con 2, IA con 1): no estirarla a lo
+   ancho de las dos columnas ni dejar un hueco enorme al lado — se angosta. */
+.inf-metric-grid-single { grid-template-columns: minmax(0, 1fr) !important; max-width: 480px; }
+@media (min-width: 900px) {
+  .inf-metric-grid-single { grid-template-columns: minmax(0, 520px) !important; }
+}
 .inf-metric-card {
-  border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--card); padding: 14px;
+  border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--card); padding: 20px;
   min-width: 0; overflow: hidden; transition: border-color .18s, background .18s;
   animation: inf-card-in .26s var(--ease-out-expo) both; animation-delay: var(--inf-delay, 0ms);
 }
@@ -207,12 +221,38 @@
 .inf-metric-card:hover { border-color: color-mix(in oklab, var(--cap-accent, var(--cm-accent)) 35%, var(--border)); }
 @keyframes inf-card-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 
-.inf-mc-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
-.inf-mc-lbl { font-size: var(--fs-12-5); color: var(--ts); letter-spacing: .3px; max-width: 55%; line-height: 1.35; }
-.inf-mc-valwrap { display: flex; align-items: baseline; gap: 5px; }
-.inf-mc-val { font-size: 22px; font-weight: 800; letter-spacing: -.02em; color: var(--tp); font-variant-numeric: tabular-nums; }
+.inf-mc-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 14px; }
+.inf-mc-titles { min-width: 0; max-width: 60%; }
+.inf-mc-lbl { font-size: var(--fs-13); color: var(--ts); letter-spacing: .3px; line-height: 1.35; font-weight: 600; }
+/* Línea de descripción: el cambio que ataca "no se entienden las métricas".
+   Tratamiento tipográfico secundario, texto plano legible, no un tooltip. */
+.inf-mc-desc { font-size: var(--fs-12); color: var(--ts); opacity: .82; line-height: 1.45; margin-top: 4px; }
+.inf-mc-valwrap { display: flex; align-items: baseline; gap: 5px; flex: none; }
+.inf-mc-val { font-size: 24px; font-weight: 800; letter-spacing: -.02em; color: var(--tp); font-variant-numeric: tabular-nums; }
 .inf-mc-unidad { font-size: var(--fs-12); color: var(--tt); }
 .inf-mc-valwrap.inf-sin-datos .inf-mc-val { color: var(--tt); font-weight: 600; }
+
+/* ── Resumen colapsado: valor + variación principal (intra-ventana del foco) ── */
+.inf-mc-summary {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  padding: 9px 0; margin-bottom: 10px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+}
+.inf-mc-summary-lbl { font-size: var(--fs-12); color: var(--tt); }
+.inf-mc-delta { font-size: var(--fs-13-5); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* ── Botón real que despliega las 4 ventanas — colapsado por defecto ── */
+.inf-mc-toggle {
+  display: flex; align-items: center; gap: 6px; width: 100%; margin-bottom: 4px;
+  font-family: var(--sans); font-size: var(--fs-12-5); font-weight: 600; color: var(--ts);
+  background: none; border: none; padding: 6px 2px; cursor: pointer; text-align: left;
+  transition: color .16s;
+}
+.inf-mc-toggle:hover { color: var(--tp); }
+.inf-mc-toggle:focus-visible { outline: 2px solid var(--cap-accent, var(--cm-accent)); outline-offset: 2px; border-radius: 6px; }
+.inf-mc-toggle-ico { width: 14px; height: 14px; flex: none; transition: transform .2s var(--ease-out-quart); }
+.inf-mc-toggle[aria-expanded="true"] .inf-mc-toggle-ico { transform: rotate(180deg); }
+.inf-matrix[hidden] { display: none; }
+.inf-matrix { margin-top: 6px; }
 
 /* ── Matriz de ventanas: grilla densa estilo terminal financiera ── */
 .inf-matrix { display: flex; flex-direction: column; font-family: var(--mono); }

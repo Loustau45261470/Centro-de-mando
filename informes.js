@@ -36,9 +36,9 @@ const CMInformes = (() => {
   let _overlay = null, _body = null;
   let _claveFoco = null;
   let _gran = 'M';
+  let _view = 'resumen';    // 'resumen' | id de sección — un capítulo por pantalla, lo marca el índice
   let _charts = [];        // instancias Chart.js vivas
   let _io = null;           // IntersectionObserver de capítulos (lazy charts)
-  let _navIo = null;        // IntersectionObserver del índice (capítulo visible)
   let _iaAbort = null;      // AbortController de la llamada IA en curso
   let _capIo = null;        // IntersectionObserver de la animación de entrada de capítulos
   let _iaOn = false;
@@ -89,6 +89,7 @@ const CMInformes = (() => {
     _gran = claveFoco ? (D.parseClave(claveFoco) || {}).gran || 'M' : 'M';
     _claveFoco = claveFoco || D.claveDe('M', _todayStr());
     _iaOn = _groqKeyDisponible();
+    _view = 'resumen';
 
     CMOverlay.open(overlay);
     _render();
@@ -109,7 +110,6 @@ const CMInformes = (() => {
   function _onClose() {
     _destroyCharts();
     if (_io) { _io.disconnect(); _io = null; }
-    if (_navIo) { _navIo.disconnect(); _navIo = null; }
     if (_capIo) { _capIo.disconnect(); _capIo = null; }
     if (_iaAbort) { _iaAbort.abort(); _iaAbort = null; }
     if (_onResize) { window.removeEventListener('resize', _onResize); _onResize = null; }
@@ -135,12 +135,13 @@ const CMInformes = (() => {
     _charts = [];
   }
 
-  // ── Render principal ──
+  // ── Render principal (cabecera + barra de control + índice). El contenido de
+  // la vista activa (resumen o un capítulo, nunca los cinco juntos) lo arma
+  // _renderContent(), que es la única que toca charts/IA de la vista saliente. ──
   function _render() {
     const D = window.CMInformesData;
     _destroyCharts();
     if (_io) { _io.disconnect(); _io = null; }
-    if (_navIo) { _navIo.disconnect(); _navIo = null; }
     if (_capIo) { _capIo.disconnect(); _capIo = null; }
     if (_iaAbort) { _iaAbort.abort(); _iaAbort = null; }
 
@@ -181,27 +182,70 @@ const CMInformes = (() => {
       </div>
       <div class="inf-layout">
         <nav class="inf-index" id="inf-index" aria-label="Índice del informe">
-          <a href="#inf-sec-resumen" class="inf-index-item on" data-target="inf-sec-resumen">Resumen</a>
-          ${SECCIONES.map(s => `<a href="#inf-sec-${s.id}" class="inf-index-item" data-target="inf-sec-${s.id}" style="--idx-accent:${s.accent}">${esc(s.label)}</a>`).join('')}
+          <a href="#" class="inf-index-item${_view === 'resumen' ? ' on' : ''}" data-view="resumen"${_view === 'resumen' ? ' aria-current="true"' : ''}>Resumen</a>
+          ${SECCIONES.map(s => `<a href="#" class="inf-index-item${_view === s.id ? ' on' : ''}" data-view="${s.id}"${_view === s.id ? ' aria-current="true"' : ''} style="--idx-accent:${s.accent}">${esc(s.label)}</a>`).join('')}
         </nav>
         <div class="inf-content" id="inf-content"></div>
       </div>`;
 
     _fillPeriodSelect(disponibles);
     _wireControlbar(disponibles);
-
-    const content = document.getElementById('inf-content');
-    content.appendChild(_buildResumen());
-    SECCIONES.forEach(s => content.appendChild(_buildCapitulo(s)));
-
-    _wireLazyCharts();
-    _wireIndexObserver();
-    _renderIaSlots();
+    _wireIndex();
+    _renderContent();
 
     _syncStickyOffset();
     if (_onResize) window.removeEventListener('resize', _onResize);
     _onResize = () => _syncStickyOffset();
     window.addEventListener('resize', _onResize);
+  }
+
+  // Un capítulo por pantalla: el índice cambia de vista en vez de scrollear.
+  function _wireIndex() {
+    const idx = document.getElementById('inf-index');
+    if (!idx) return;
+    const items = Array.from(idx.querySelectorAll('.inf-index-item'));
+    items.forEach(a => a.addEventListener('click', e => {
+      e.preventDefault();
+      const view = a.dataset.view;
+      if (view === _view) return;
+      _view = view;
+      items.forEach(x => {
+        const active = x === a;
+        x.classList.toggle('on', active);
+        if (active) x.setAttribute('aria-current', 'true'); else x.removeAttribute('aria-current');
+      });
+      _renderContent();
+    }));
+  }
+
+  // Arma SOLO la vista activa (resumen o un capítulo) dentro de #inf-content.
+  // Se llama al renderizar por primera vez, al cambiar de vista desde el índice
+  // y (indirectamente, vía _render) al cambiar de granularidad/período. Destruye
+  // los charts y desconecta los observers de la vista saliente antes de construir
+  // la entrante — es el único lugar donde vive contenido de capítulo a la vez.
+  function _renderContent() {
+    _destroyCharts();
+    if (_io) { _io.disconnect(); _io = null; }
+    if (_capIo) { _capIo.disconnect(); _capIo = null; }
+    if (_iaAbort) { _iaAbort.abort(); _iaAbort = null; }
+
+    const content = document.getElementById('inf-content');
+    if (!content) return;
+    content.innerHTML = '';
+
+    if (_view === 'resumen') {
+      content.appendChild(_buildResumen());
+    } else {
+      const seccion = SECCIONES.find(s => s.id === _view);
+      if (seccion) content.appendChild(_buildCapitulo(seccion));
+    }
+
+    _wireLazyCharts();
+    if (_view !== 'resumen') _renderIaSlot(_view);
+
+    // Cambiar de vista siempre vuelve arriba: nunca queda scrolleado a mitad
+    // del capítulo anterior.
+    if (_body) _body.scrollTop = 0;
   }
 
   function _safeCall(fn, args, fallback) {
@@ -243,7 +287,7 @@ const CMInformes = (() => {
       _iaOn = !_iaOn;
       iaBtn.classList.toggle('on', _iaOn);
       iaBtn.setAttribute('aria-pressed', String(_iaOn));
-      _renderIaSlots();
+      if (_view !== 'resumen') _renderIaSlot(_view);
     });
   }
 
@@ -296,8 +340,13 @@ const CMInformes = (() => {
     sec.style.setProperty('--cap-accent', seccion.accent);
     sec.setAttribute('aria-labelledby', `inf-sec-${seccion.id}-h`);
 
-    const metricas = (D.CATALOGO || []).filter(m => m.seccion === seccion.id);
+    const metricas = _metricasDeSeccion(seccion.id);
     const narrativa = _safeCall(D.narrativaSeccion, [seccion.id, _claveFoco], []);
+
+    // Un capítulo puede tener una sola tarjeta (IA queda con 1, Vida con 2): que
+    // no se vea roto ni estirado a lo ancho — la grilla de una sola tarjeta se
+    // angosta en vez de ocupar las dos columnas completas.
+    const gridClass = metricas.length === 1 ? 'inf-metric-grid inf-metric-grid-single' : 'inf-metric-grid';
 
     sec.innerHTML = `
       <h2 id="inf-sec-${seccion.id}-h" class="inf-sec-h">${esc(seccion.label)}</h2>
@@ -305,12 +354,27 @@ const CMInformes = (() => {
         ${(narrativa || []).length ? narrativa.map(n => `<p class="inf-frase inf-tono-${esc(n.tono || 'neutral')}">${esc(safeTxt(n.texto))}</p>`).join('') : `<p class="inf-frase inf-tono-neutral inf-frase-vacia">Sin narrativa suficiente para este capítulo.</p>`}
       </div>
       <div class="inf-ia-slot" id="inf-ia-${seccion.id}"></div>
-      ${metricas.length ? `<div class="inf-metric-grid" data-sec="${seccion.id}"></div>` : `<div class="inf-empty-mini">Este capítulo todavía no tiene métricas registradas.</div>`}
+      ${metricas.length ? `<div class="${gridClass}" data-sec="${seccion.id}"></div>` : `<div class="inf-empty-mini">Este capítulo todavía no tiene métricas registradas.</div>`}
     `;
 
     const grid = sec.querySelector('.inf-metric-grid');
     if (grid) metricas.forEach(m => grid.appendChild(_buildTarjetaMetrica(m, seccion)));
     return sec;
+  }
+
+  // Metricas del catálogo para una sección, respetando minGran ('T' = no se
+  // muestra con foco mensual). Usa seccionResumen() del motor si existe (ya
+  // filtra por minGran); si no, filtra acá mismo como resguardo — el addendum
+  // no fija el nombre exacto de esa función del lado del motor.
+  function _metricasDeSeccion(seccionId) {
+    const D = window.CMInformesData;
+    if (typeof D.seccionResumen === 'function') {
+      const r = _safeCall(D.seccionResumen, [seccionId, _claveFoco], null);
+      if (Array.isArray(r)) return r;
+    }
+    const cat = (D.CATALOGO || []).filter(m => m.seccion === seccionId);
+    if (_gran === 'M') return cat.filter(m => !m.minGran || m.minGran === 'M');
+    return cat;
   }
 
   // ── Tarjeta de métrica (matriz de ventanas + sparkline + desglose) ──
@@ -325,16 +389,28 @@ const CMInformes = (() => {
     const filaFoco = filas.find(f => f.clave === _claveFoco) || filas[filas.length - 1] || null;
     const valorPrincipal = filaFoco ? _safeCall(D.fmt, [filaFoco.valor, metrica.unidad], 'sin datos') : 'sin datos';
     const sinDatos = !filaFoco || filaFoco.valor === null || filaFoco.valor === undefined;
+    const matrixId = `inf-matrix-${esc(metrica.id)}`;
 
     card.innerHTML = `
       <div class="inf-mc-head">
-        <div class="inf-mc-lbl">${esc(metrica.label)}</div>
+        <div class="inf-mc-titles">
+          <div class="inf-mc-lbl">${esc(metrica.label)}</div>
+          ${metrica.descripcion ? `<div class="inf-mc-desc">${esc(metrica.descripcion)}</div>` : ''}
+        </div>
         <div class="inf-mc-valwrap${sinDatos ? ' inf-sin-datos' : ''}">
           <span class="inf-mc-val">${esc(safeTxt(valorPrincipal, 'sin datos'))}</span>
           <span class="inf-mc-unidad">${esc(metrica.unidad || '')}</span>
         </div>
       </div>
-      <div class="inf-matrix" role="table" aria-label="Matriz de ventanas de ${esc(metrica.label)}">
+      <div class="inf-mc-summary">
+        <span class="inf-mc-summary-lbl">${esc(_refLabelTexto(filaFoco ? filaFoco.dIntra : null))}</span>
+        ${_deltaResumenHtml(filaFoco ? filaFoco.dIntra : null)}
+      </div>
+      <button type="button" class="inf-mc-toggle" aria-expanded="false" aria-controls="${matrixId}">
+        <span class="inf-mc-toggle-txt">Ver comparación completa</span>
+        <svg class="inf-mc-toggle-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <div class="inf-matrix" id="${matrixId}" role="table" aria-label="Matriz de ventanas de ${esc(metrica.label)}" hidden>
         <div class="inf-matrix-head" role="row">
           <span role="columnheader">Ventana</span><span role="columnheader">Valor</span>
           <span role="columnheader" title="Variación contra la ventana anterior">Intra</span><span role="columnheader" title="Variación interanual: contra la misma ventana del año anterior">Interan.</span><span role="columnheader" title="Contra el promedio histórico">Prom</span>
@@ -344,6 +420,18 @@ const CMInformes = (() => {
       <div class="inf-mc-serie" data-metrica="${metrica.id}"></div>
       <div class="inf-mc-desglose" data-metrica="${metrica.id}"></div>
     `;
+
+    // Matriz colapsada por defecto: la tarjeta ya nace con la matriz "hidden" y
+    // el botón en aria-expanded="false" (arriba). El toggle es un <button> real:
+    // Enter/Espacio funcionan solos, no hace falta manejarlos a mano.
+    const toggleBtn = card.querySelector('.inf-mc-toggle');
+    const matrixEl = card.querySelector('.inf-matrix');
+    toggleBtn.addEventListener('click', () => {
+      const expanded = toggleBtn.getAttribute('aria-expanded') === 'true';
+      toggleBtn.setAttribute('aria-expanded', String(!expanded));
+      matrixEl.hidden = expanded;
+      toggleBtn.querySelector('.inf-mc-toggle-txt').textContent = expanded ? 'Ver comparación completa' : 'Ocultar detalle';
+    });
 
     // Serie desagregada (ventanas más finas que el foco): sparkline + micro-stats
     if (matriz && Array.isArray(matriz.serie) && matriz.serie.length) {
@@ -361,6 +449,35 @@ const CMInformes = (() => {
       }
     }
     return card;
+  }
+
+  // Etiqueta de la tarjeta colapsada: la referencia CONCRETA del delta ("vs
+  // Agosto 2026", "vs T2 2026", "vs 2025"), nunca jerga como "intra-ventana".
+  // safeTxt() ya filtra NaN/Infinity/undefined/null; acá además el string vacío.
+  function _refLabelTexto(d) {
+    const ref = d && d.refLabel ? safeTxt(d.refLabel, '') : '';
+    return ref ? `vs ${ref}` : 'vs período anterior';
+  }
+
+  // Resumen de la variación principal en la cabecera de la tarjeta (matriz
+  // colapsada). Mismo tratamiento visual de sin-dato/suprimido que la matriz:
+  // guion + title en desktop, texto completo en móvil.
+  function _deltaResumenHtml(d) {
+    if (!d) return `<span class="inf-mc-delta inf-d-tt">— sin dato comparable</span>`;
+    let cls = 'inf-d-tt';
+    if (d.estado === 'mejor') cls = 'inf-d-ok';
+    else if (d.estado === 'peor') cls = 'inf-d-danger';
+    else if (d.estado === 'nuevo') cls = 'inf-d-accent';
+    const texto = safeTxt(d.texto, '— sin dato comparable');
+    const abreviable = d.estado === 'sin-dato' || d.estado === 'suprimido';
+    if (abreviable) {
+      const full = esc(texto);
+      return `<span class="inf-mc-delta ${cls} inf-d-abbr" title="${full}" aria-label="Variación: ${full}">` +
+        `<span class="inf-delta-short" aria-hidden="true">—</span>` +
+        `<span class="inf-delta-full" aria-hidden="true">${full}</span>` +
+        `</span>`;
+    }
+    return `<span class="inf-mc-delta ${cls}">${esc(texto)}</span>`;
   }
 
   function _filaMatrizHtml(f, metrica) {
@@ -513,19 +630,24 @@ const CMInformes = (() => {
   // ── Lazy: instanciar charts cuando el capítulo/bloque entra en viewport ──
   function _wireLazyCharts() {
     const targets = Array.from(document.querySelectorAll('.inf-serie-block[data-lazy-chart], .inf-desglose-block[data-lazy-chart]'));
-    if (!targets.length) return;
-    if (!('IntersectionObserver' in window)) { targets.forEach(t => { if (t._lazyBuild) t._lazyBuild(); }); return; }
-    _io = new IntersectionObserver(entries => {
-      entries.forEach(entry => {
-        if (!entry.isIntersecting) return;
-        const t = entry.target;
-        if (t._lazyBuild && !t._lazyBuilt) { t._lazyBuilt = true; t._lazyBuild(); }
-        _io.unobserve(t);
-      });
-    }, { root: null, rootMargin: '200px' });
-    targets.forEach(t => _io.observe(t));
+    if (targets.length && ('IntersectionObserver' in window)) {
+      _io = new IntersectionObserver(entries => {
+        entries.forEach(entry => {
+          if (!entry.isIntersecting) return;
+          const t = entry.target;
+          if (t._lazyBuild && !t._lazyBuilt) { t._lazyBuilt = true; t._lazyBuild(); }
+          _io.unobserve(t);
+        });
+      }, { root: null, rootMargin: '200px' });
+      targets.forEach(t => _io.observe(t));
+    } else if (targets.length) {
+      targets.forEach(t => { if (t._lazyBuild) t._lazyBuild(); });
+    }
 
-    // Animación de entrada escalonada por capítulo visible (respeta reduced-motion)
+    // Animación de entrada escalonada por capítulo visible (respeta reduced-motion).
+    // Corre siempre, incluso si el capítulo no tiene ningún chart lazy (ej. IA con
+    // una sola tarjeta sin serie ni desglose) — antes salía temprano arriba y esos
+    // capítulos quedaban sin la marca .inf-anim ni el stagger de entrada.
     if (!_reducedMotion() && ('IntersectionObserver' in window)) {
       const caps = document.querySelectorAll('.inf-capitulo, .inf-resumen');
       _capIo = new IntersectionObserver(entries => {
@@ -547,26 +669,6 @@ const CMInformes = (() => {
     }
   }
 
-  // ── Índice lateral: marcar capítulo visible ──
-  function _wireIndexObserver() {
-    const idx = document.getElementById('inf-index');
-    const items = Array.from(idx.querySelectorAll('.inf-index-item'));
-    items.forEach(a => a.addEventListener('click', e => {
-      e.preventDefault();
-      const target = document.getElementById(a.dataset.target);
-      if (target) target.scrollIntoView({ behavior: _reducedMotion() ? 'auto' : 'smooth', block: 'start' });
-    }));
-    const sections = Array.from(document.querySelectorAll('.inf-section'));
-    if (!('IntersectionObserver' in window) || !sections.length) return;
-    _navIo = new IntersectionObserver(entries => {
-      entries.forEach(entry => {
-        if (!entry.isIntersecting) return;
-        items.forEach(a => a.classList.toggle('on', a.dataset.target === entry.target.id));
-      });
-    }, { root: _body, rootMargin: '-20% 0px -70% 0px', threshold: 0 });
-    sections.forEach(s => _navIo.observe(s));
-  }
-
   // ── Capa IA (Groq) ──
   function _groqKeyDisponible() {
     const key = _leerKey();
@@ -576,30 +678,30 @@ const CMInformes = (() => {
     try { return localStorage.getItem('agent_api_key_v1') || ''; } catch (e) { return ''; }
   }
 
-  function _renderIaSlots() {
+  // Un capítulo por pantalla: solo hay un slot de IA vivo (el de la vista activa).
+  function _renderIaSlot(seccionId) {
     if (_iaAbort) { _iaAbort.abort(); _iaAbort = null; }
-    SECCIONES.forEach(s => {
-      const slot = document.getElementById(`inf-ia-${s.id}`);
-      if (!slot) return;
-      if (!_iaOn) {
-        const key = _leerKey();
-        slot.innerHTML = key && !key.startsWith('gsk_')
-          ? `<div class="inf-ia-aviso">Análisis IA disponible con key de Groq (gratis).</div>`
-          : '';
-        return;
-      }
-      if (!_groqKeyDisponible()) {
-        slot.innerHTML = `<div class="inf-ia-aviso">Análisis IA disponible con key de Groq (gratis).</div>`;
-        return;
-      }
-      slot.innerHTML = `<div class="inf-ia-skel"><span></span><span></span><span></span></div>`;
-      _pedirAnalisisIa(s.id, slot);
-    });
+    const slot = document.getElementById(`inf-ia-${seccionId}`);
+    if (!slot) return;
+    if (!_iaOn) {
+      const key = _leerKey();
+      slot.innerHTML = key && !key.startsWith('gsk_')
+        ? `<div class="inf-ia-aviso">Análisis IA disponible con key de Groq (gratis).</div>`
+        : '';
+      return;
+    }
+    if (!_groqKeyDisponible()) {
+      slot.innerHTML = `<div class="inf-ia-aviso">Análisis IA disponible con key de Groq (gratis).</div>`;
+      return;
+    }
+    slot.innerHTML = `<div class="inf-ia-skel"><span></span><span></span><span></span></div>`;
+    _pedirAnalisisIa(seccionId, slot);
   }
 
   function _pedirAnalisisIa(seccionId, slot) {
     const D = window.CMInformesData;
-    const metricas = (D.CATALOGO || []).filter(m => m.seccion === seccionId && m.destacada);
+    // `fundamental` reemplazó a `destacada` como fuente de highlights/IA (addendum v2).
+    const metricas = (D.CATALOGO || []).filter(m => m.seccion === seccionId && m.fundamental);
     const payload = metricas.map(m => {
       const matriz = _safeCall(D.matriz, [m.id, _claveFoco], null);
       const filaFoco = matriz && Array.isArray(matriz.filas) ? matriz.filas.find(f => f.clave === _claveFoco) : null;
