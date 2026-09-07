@@ -1,5 +1,5 @@
 {
-  "generado": "2026-08-31T00:00:00Z",
+  "generado": "2026-09-07T11:15:50Z",
   "tenencias": [
     {
       "simbolo": "SPY",
@@ -7,15 +7,15 @@
       "tipo": "CEDEARS",
       "cantidad": 50,
       "comprometido": 0,
-      "precio": 20620,
-      "precioAnterior": 20400,
-      "variacionPct": 1.08,
-      "variacionDiariaPct": 0.09,
-      "valorizado": 1031000,
+      "precio": 20410,
+      "precioAnterior": 20620,
+      "variacionPct": -1.02,
+      "variacionDiariaPct": -0.39,
+      "valorizado": 1020500,
       "ppc": 18958.6,
       "ppcConfianza": "alta",
-      "rendimientoPct": 8.76,
-      "rendimientoMonto": 83070.0,
+      "rendimientoPct": 7.66,
+      "rendimientoMonto": 72570.0,
       "lotes": [
         {
           "fecha": "2026-08-21",
@@ -45,15 +45,15 @@
       "tipo": "CEDEARS",
       "cantidad": 50,
       "comprometido": 0,
-      "precio": 13140,
-      "precioAnterior": 13500,
-      "variacionPct": -2.67,
-      "variacionDiariaPct": -3.02,
-      "valorizado": 657000,
+      "precio": 12930,
+      "precioAnterior": 13140,
+      "variacionPct": -1.6,
+      "variacionDiariaPct": -0.91,
+      "valorizado": 646500,
       "ppc": 12072.452830188678,
       "ppcConfianza": "aproximada",
-      "rendimientoPct": 8.84,
-      "rendimientoMonto": 53377.36,
+      "rendimientoPct": 7.1,
+      "rendimientoMonto": 42877.36,
       "lotes": [
         {
           "fecha": "2025-12-29",
@@ -88,15 +88,15 @@
       "tipo": "Letras",
       "cantidad": 400000,
       "comprometido": 0,
-      "precio": 1.30022,
-      "precioAnterior": 1.29306,
-      "variacionPct": 0.55,
-      "variacionDiariaPct": 0.32,
-      "valorizado": 520088.0,
+      "precio": 1.307,
+      "precioAnterior": 1.30022,
+      "variacionPct": 0.52,
+      "variacionDiariaPct": 0.19,
+      "valorizado": 522800.0,
       "ppc": 1.27099,
       "ppcConfianza": "alta",
-      "rendimientoPct": 2.3,
-      "rendimientoMonto": 11692.0,
+      "rendimientoPct": 2.83,
+      "rendimientoMonto": 14404.0,
       "lotes": [
         {
           "fecha": "2026-07-31",
@@ -116,15 +116,15 @@
       "tipo": "Letras",
       "cantidad": 400000,
       "comprometido": 0,
-      "precio": 1.2188,
-      "precioAnterior": 1.21435,
-      "variacionPct": 0.37,
-      "variacionDiariaPct": 0.25,
-      "valorizado": 487520.0,
+      "precio": 1.2277,
+      "precioAnterior": 1.2188,
+      "variacionPct": 0.73,
+      "variacionDiariaPct": 0.22,
+      "valorizado": 491080.0,
       "ppc": 1.19665,
       "ppcConfianza": "alta",
-      "rendimientoPct": 1.85,
-      "rendimientoMonto": 8860.0,
+      "rendimientoPct": 2.59,
+      "rendimientoMonto": 12420.0,
       "lotes": [
         {
           "fecha": "2026-07-31",
@@ -144,53 +144,20 @@
       ]
     },
     {
-      "simbolo": "SPGI",
-      "descripcion": "Cedear S&P Global Inc.",
-      "tipo": "CEDEARS",
-      "cantidad": 25,
-      "comprometido": 0,
-      "precio": 15820,
-      "precioAnterior": 15290,
-      "variacionPct": 3.47,
-      "variacionDiariaPct": 1.86,
-      "valorizado": 395500,
-      "ppc": 15230.0,
-      "ppcConfianza": "alta",
-      "rendimientoPct": 3.87,
-      "rendimientoMonto": 14750.0,
-      "lotes": [
-        {
-          "fecha": "2026-08-21",
-          "cantidad": 10.0,
-          "precio": 15220.0
-        },
-        {
-          "fecha": "2026-08-21",
-          "cantidad": 10.0,
-          "precio": 15280.0
-        },
-        {
-          "fecha": "2026-08-21",
-          "cantidad": 5.0,
-          "precio": 15150.0
-        }
-      ]
-    },
-    {
       "simbolo": "META",
       "descripcion": "Cedear Facebook, Inc.",
       "tipo": "CEDEARS",
       "cantidad": 10,
       "comprometido": 0,
-      "precio": 38640,
-      "precioAnterior": 36540,
-      "variacionPct": 5.75,
-      "variacionDiariaPct": 1.52,
-      "valorizado": 386400,
+      "precio": 40800,
+      "precioAnterior": 38640,
+      "variacionPct": 5.59,
+      "variacionDiariaPct": 0.94,
+      "valorizado": 408000,
       "ppc": 37388.0,
       "ppcConfianza": "alta",
-      "rendimientoPct": 3.35,
-      "rendimientoMonto": 12520.0,
+      "rendimientoPct": 9.13,
+      "rendimientoMonto": 34120.0,
       "lotes": [
         {
           "fecha": "2026-08-18",
@@ -210,20 +177,53 @@
       ]
     },
     {
+      "simbolo": "SPGI",
+      "descripcion": "Cedear S&P Global Inc.",
+      "tipo": "CEDEARS",
+      "cantidad": 25,
+      "comprometido": 0,
+      "precio": 15600,
+      "precioAnterior": 15820,
+      "variacionPct": -1.39,
+      "variacionDiariaPct": -1.45,
+      "valorizado": 390000,
+      "ppc": 15230.0,
+      "ppcConfianza": "alta",
+      "rendimientoPct": 2.43,
+      "rendimientoMonto": 9250.0,
+      "lotes": [
+        {
+          "fecha": "2026-08-21",
+          "cantidad": 10.0,
+          "precio": 15220.0
+        },
+        {
+          "fecha": "2026-08-21",
+          "cantidad": 10.0,
+          "precio": 15280.0
+        },
+        {
+          "fecha": "2026-08-21",
+          "cantidad": 5.0,
+          "precio": 15150.0
+        }
+      ]
+    },
+    {
       "simbolo": "V",
       "descripcion": "Cedear Visa Inc",
       "tipo": "CEDEARS",
       "cantidad": 10,
       "comprometido": 0,
-      "precio": 34020,
-      "precioAnterior": 32900,
-      "variacionPct": 3.4,
-      "variacionDiariaPct": 0.88,
-      "valorizado": 340200,
+      "precio": 33100,
+      "precioAnterior": 34020,
+      "variacionPct": -2.7,
+      "variacionDiariaPct": -0.95,
+      "valorizado": 331000,
       "ppc": 27780.0,
       "ppcConfianza": "alta",
-      "rendimientoPct": 22.46,
-      "rendimientoMonto": 62400.0,
+      "rendimientoPct": 19.15,
+      "rendimientoMonto": 53200.0,
       "lotes": [
         {
           "fecha": "2026-01-13",
@@ -238,25 +238,40 @@
       ]
     },
     {
-      "simbolo": "AMZN",
-      "descripcion": "Cedear Amazon.Com, Inc",
+      "simbolo": "NU",
+      "descripcion": "Cedear Nu Holdings Ltd/Cayman",
       "tipo": "CEDEARS",
-      "cantidad": 100,
+      "cantidad": 25,
       "comprometido": 0,
-      "precio": 2980,
-      "precioAnterior": 2870,
-      "variacionPct": 3.83,
-      "variacionDiariaPct": 4.1,
-      "valorizado": 298000,
-      "ppc": 2710.0,
-      "ppcConfianza": "aproximada",
-      "rendimientoPct": 9.96,
-      "rendimientoMonto": 27000.0,
+      "precio": 12190,
+      "precioAnterior": 11500,
+      "variacionPct": 6.0,
+      "variacionDiariaPct": -1.77,
+      "valorizado": 304750,
+      "ppc": 12354.0,
+      "ppcConfianza": "alta",
+      "rendimientoPct": -1.33,
+      "rendimientoMonto": -4100.0,
       "lotes": [
         {
-          "fecha": "2026-05-26",
-          "cantidad": 100.0,
-          "precio": 2710.0
+          "fecha": "2026-08-18",
+          "cantidad": 10.0,
+          "precio": 11450.0
+        },
+        {
+          "fecha": "2026-01-13",
+          "cantidad": 5.0,
+          "precio": 12680.0
+        },
+        {
+          "fecha": "2026-01-12",
+          "cantidad": 5.0,
+          "precio": 13110.0
+        },
+        {
+          "fecha": "2026-01-12",
+          "cantidad": 5.0,
+          "precio": 13080.0
         }
       ]
     },
@@ -266,15 +281,15 @@
       "tipo": "TIT. PUBLICOS",
       "cantidad": 200000,
       "comprometido": 0,
-      "precio": 1.4645,
-      "precioAnterior": 1.4569999999999999,
-      "variacionPct": 0.51,
-      "variacionDiariaPct": 0.48,
-      "valorizado": 292900.0,
+      "precio": 1.4767,
+      "precioAnterior": 1.4645,
+      "variacionPct": 0.83,
+      "variacionDiariaPct": 0.19,
+      "valorizado": 295340.0,
       "ppc": 1.4394999999999998,
       "ppcConfianza": "alta",
-      "rendimientoPct": 1.74,
-      "rendimientoMonto": 5000.0,
+      "rendimientoPct": 2.58,
+      "rendimientoMonto": 7440.0,
       "lotes": [
         {
           "fecha": "2026-08-07",
@@ -284,30 +299,25 @@
       ]
     },
     {
-      "simbolo": "MA",
-      "descripcion": "Cedear Mastercard Inc.",
+      "simbolo": "AMZN",
+      "descripcion": "Cedear Amazon.Com, Inc",
       "tipo": "CEDEARS",
-      "cantidad": 10,
+      "cantidad": 100,
       "comprometido": 0,
-      "precio": 29000,
-      "precioAnterior": 27980,
-      "variacionPct": 3.65,
-      "variacionDiariaPct": 0.83,
-      "valorizado": 290000,
-      "ppc": 25040.0,
-      "ppcConfianza": "alta",
-      "rendimientoPct": 15.81,
-      "rendimientoMonto": 39600.0,
+      "precio": 2857.5,
+      "precioAnterior": 2980,
+      "variacionPct": -4.11,
+      "variacionDiariaPct": -0.08,
+      "valorizado": 285750.0,
+      "ppc": 2710.0,
+      "ppcConfianza": "aproximada",
+      "rendimientoPct": 5.44,
+      "rendimientoMonto": 14750.0,
       "lotes": [
         {
-          "fecha": "2026-01-13",
-          "cantidad": 5.0,
-          "precio": 25120.0
-        },
-        {
-          "fecha": "2026-01-13",
-          "cantidad": 5.0,
-          "precio": 24960.0
+          "fecha": "2026-05-26",
+          "cantidad": 100.0,
+          "precio": 2710.0
         }
       ]
     },
@@ -317,15 +327,15 @@
       "tipo": "CEDEARS",
       "cantidad": 30,
       "comprometido": 0,
-      "precio": 9610,
-      "precioAnterior": 9490,
-      "variacionPct": 1.26,
-      "variacionDiariaPct": 1.96,
-      "valorizado": 288300,
+      "precio": 9290,
+      "precioAnterior": 9610,
+      "variacionPct": -3.33,
+      "variacionDiariaPct": -1.05,
+      "valorizado": 278700,
       "ppc": 7905.882352941177,
       "ppcConfianza": "aproximada",
-      "rendimientoPct": 21.56,
-      "rendimientoMonto": 51123.53,
+      "rendimientoPct": 17.51,
+      "rendimientoMonto": 41523.53,
       "lotes": [
         {
           "fecha": "2026-02-11",
@@ -355,40 +365,30 @@
       ]
     },
     {
-      "simbolo": "NU",
-      "descripcion": "Cedear Nu Holdings Ltd/Cayman",
+      "simbolo": "MA",
+      "descripcion": "Cedear Mastercard Inc.",
       "tipo": "CEDEARS",
-      "cantidad": 25,
+      "cantidad": 10,
       "comprometido": 0,
-      "precio": 11500,
-      "precioAnterior": 11600,
-      "variacionPct": -0.86,
-      "variacionDiariaPct": -3.52,
-      "valorizado": 287500,
-      "ppc": 12354.0,
+      "precio": 26540,
+      "precioAnterior": 29000,
+      "variacionPct": -8.48,
+      "variacionDiariaPct": -5.75,
+      "valorizado": 265400,
+      "ppc": 25040.0,
       "ppcConfianza": "alta",
-      "rendimientoPct": -6.91,
-      "rendimientoMonto": -21350.0,
+      "rendimientoPct": 5.99,
+      "rendimientoMonto": 15000.0,
       "lotes": [
         {
-          "fecha": "2026-08-18",
-          "cantidad": 10.0,
-          "precio": 11450.0
+          "fecha": "2026-01-13",
+          "cantidad": 5.0,
+          "precio": 25120.0
         },
         {
           "fecha": "2026-01-13",
           "cantidad": 5.0,
-          "precio": 12680.0
-        },
-        {
-          "fecha": "2026-01-12",
-          "cantidad": 5.0,
-          "precio": 13110.0
-        },
-        {
-          "fecha": "2026-01-12",
-          "cantidad": 5.0,
-          "precio": 13080.0
+          "precio": 24960.0
         }
       ]
     },
@@ -398,15 +398,15 @@
       "tipo": "CEDEARS",
       "cantidad": 10,
       "comprometido": 0,
-      "precio": 26260,
-      "precioAnterior": 25500,
-      "variacionPct": 2.98,
-      "variacionDiariaPct": 2.02,
-      "valorizado": 262600,
+      "precio": 26180,
+      "precioAnterior": 26260,
+      "variacionPct": -0.3,
+      "variacionDiariaPct": -0.45,
+      "valorizado": 261800,
       "ppc": 25716.0,
       "ppcConfianza": "alta",
-      "rendimientoPct": 2.12,
-      "rendimientoMonto": 5440.0,
+      "rendimientoPct": 1.8,
+      "rendimientoMonto": 4640.0,
       "lotes": [
         {
           "fecha": "2026-08-18",
@@ -436,15 +436,15 @@
       "tipo": "CEDEARS",
       "cantidad": 15,
       "comprometido": 0,
-      "precio": 14540,
-      "precioAnterior": 14280,
-      "variacionPct": 1.82,
-      "variacionDiariaPct": -4.4,
-      "valorizado": 218100,
+      "precio": 15240,
+      "precioAnterior": 14540,
+      "variacionPct": 4.81,
+      "variacionDiariaPct": 0.72,
+      "valorizado": 228600,
       "ppc": 13496.0,
       "ppcConfianza": "alta",
-      "rendimientoPct": 7.74,
-      "rendimientoMonto": 15660.0,
+      "rendimientoPct": 12.92,
+      "rendimientoMonto": 26160.0,
       "lotes": [
         {
           "fecha": "2026-08-18",
@@ -464,15 +464,15 @@
       "tipo": "TIT. PUBLICOS",
       "cantidad": 150000,
       "comprometido": 0,
-      "precio": 1.3259,
-      "precioAnterior": 1.3194,
-      "variacionPct": 0.49,
-      "variacionDiariaPct": 0.5,
-      "valorizado": 198885.0,
+      "precio": 1.336,
+      "precioAnterior": 1.3259,
+      "variacionPct": 0.76,
+      "variacionDiariaPct": 0.18,
+      "valorizado": 200400.0,
       "ppc": 1.3075,
       "ppcConfianza": "alta",
-      "rendimientoPct": 1.41,
-      "rendimientoMonto": 2760.0,
+      "rendimientoPct": 2.18,
+      "rendimientoMonto": 4275.0,
       "lotes": [
         {
           "fecha": "2026-08-07",
@@ -487,15 +487,15 @@
       "tipo": "CEDEARS",
       "cantidad": 10,
       "comprometido": 0,
-      "precio": 16090,
-      "precioAnterior": 16680,
-      "variacionPct": -3.54,
-      "variacionDiariaPct": -4.11,
-      "valorizado": 160900,
+      "precio": 15790,
+      "precioAnterior": 16090,
+      "variacionPct": -1.86,
+      "variacionDiariaPct": -1.49,
+      "valorizado": 157900,
       "ppc": 15360.0,
       "ppcConfianza": "alta",
-      "rendimientoPct": 4.75,
-      "rendimientoMonto": 7300.0,
+      "rendimientoPct": 2.8,
+      "rendimientoMonto": 4300.0,
       "lotes": [
         {
           "fecha": "2025-12-18",
@@ -510,15 +510,15 @@
       "tipo": "CEDEARS",
       "cantidad": 25,
       "comprometido": 0,
-      "precio": 5895,
-      "precioAnterior": 5800,
-      "variacionPct": 1.64,
-      "variacionDiariaPct": -2.56,
-      "valorizado": 147375,
+      "precio": 5875,
+      "precioAnterior": 5895,
+      "variacionPct": -0.34,
+      "variacionDiariaPct": -2.65,
+      "valorizado": 146875,
       "ppc": 7366.666666666667,
       "ppcConfianza": "aproximada",
-      "rendimientoPct": -19.98,
-      "rendimientoMonto": -36791.67,
+      "rendimientoPct": -20.25,
+      "rendimientoMonto": -37291.67,
       "lotes": [
         {
           "fecha": "2026-01-09",
@@ -543,15 +543,15 @@
       "tipo": "CEDEARS",
       "cantidad": 20,
       "comprometido": 0,
-      "precio": 7035,
-      "precioAnterior": 6930,
-      "variacionPct": 1.52,
-      "variacionDiariaPct": -2.96,
-      "valorizado": 140700,
+      "precio": 7195,
+      "precioAnterior": 7035,
+      "variacionPct": 2.27,
+      "variacionDiariaPct": -1.9,
+      "valorizado": 143900,
       "ppc": 7090.0,
       "ppcConfianza": "alta",
-      "rendimientoPct": -0.78,
-      "rendimientoMonto": -1100.0,
+      "rendimientoPct": 1.48,
+      "rendimientoMonto": 2100.0,
       "lotes": [
         {
           "fecha": "2026-02-03",
@@ -586,15 +586,15 @@
       "tipo": "CEDEARS",
       "cantidad": 5,
       "comprometido": 0,
-      "precio": 25260,
-      "precioAnterior": 25080,
-      "variacionPct": 0.72,
-      "variacionDiariaPct": -0.55,
-      "valorizado": 126300,
+      "precio": 24890,
+      "precioAnterior": 25260,
+      "variacionPct": -1.46,
+      "variacionDiariaPct": 0.68,
+      "valorizado": 124450,
       "ppc": 24768.0,
       "ppcConfianza": "alta",
-      "rendimientoPct": 1.99,
-      "rendimientoMonto": 2460.0,
+      "rendimientoPct": 0.49,
+      "rendimientoMonto": 610.0,
       "lotes": [
         {
           "fecha": "2026-08-18",
@@ -614,15 +614,15 @@
       "tipo": "CEDEARS",
       "cantidad": 10,
       "comprometido": 0,
-      "precio": 10800,
-      "precioAnterior": 10740,
-      "variacionPct": 0.56,
-      "variacionDiariaPct": -1.81,
-      "valorizado": 108000,
+      "precio": 10250,
+      "precioAnterior": 10800,
+      "variacionPct": -5.09,
+      "variacionDiariaPct": -1.15,
+      "valorizado": 102500,
       "ppc": 10690.0,
       "ppcConfianza": "alta",
-      "rendimientoPct": 1.03,
-      "rendimientoMonto": 1100.0,
+      "rendimientoPct": -4.12,
+      "rendimientoMonto": -4400.0,
       "lotes": [
         {
           "fecha": "2026-01-29",
@@ -633,12 +633,12 @@
     }
   ],
   "totales": {
-    "valorizado": 6637268.0,
-    "variacionPct": 1.21
+    "valorizado": 6606245.0,
+    "variacionPct": -0.47
   },
   "liquidez": {
     "ars_disponible": 0,
     "ars_comprometido": 0,
-    "usd_disponible": 2.98
+    "usd_disponible": 3.22
   }
 }

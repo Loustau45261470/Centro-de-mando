@@ -5,7 +5,7 @@
     {
       "simbolo": "IBM",
       "cantidad": 5,
-      "precio": 24920,
+      "precio": 24890,
       "precioMesAnterior": 25260,
       "variacionPct": -1.35,
       "rend3m": -19.35,
@@ -15,7 +15,7 @@
     {
       "simbolo": "GOOGL",
       "cantidad": 30,
-      "precio": 9370,
+      "precio": 9290,
       "precioMesAnterior": 9610,
       "variacionPct": -2.5,
       "rend3m": -0.05,
@@ -25,7 +25,7 @@
     {
       "simbolo": "MELI",
       "cantidad": 10,
-      "precio": 25840,
+      "precio": 26180,
       "precioMesAnterior": 26260,
       "variacionPct": -1.6,
       "rend3m": 24.65,
@@ -35,7 +35,7 @@
     {
       "simbolo": "META",
       "cantidad": 10,
-      "precio": 38140,
+      "precio": 40800,
       "precioMesAnterior": 38640,
       "variacionPct": -1.29,
       "rend3m": -3.05,
@@ -45,7 +45,7 @@
     {
       "simbolo": "AMZN",
       "cantidad": 100,
-      "precio": 2895,
+      "precio": 2857.5,
       "precioMesAnterior": 2980,
       "variacionPct": -2.85,
       "rend3m": 10.08,
@@ -55,7 +55,7 @@
     {
       "simbolo": "NVDA",
       "cantidad": 15,
-      "precio": 14710,
+      "precio": 15240,
       "precioMesAnterior": 14540,
       "variacionPct": 1.17,
       "rend3m": 8.56,
@@ -65,7 +65,7 @@
     {
       "simbolo": "V",
       "cantidad": 10,
-      "precio": 33700,
+      "precio": 33100,
       "precioMesAnterior": 34020,
       "variacionPct": -0.94,
       "rend3m": 27.55,
@@ -75,7 +75,7 @@
     {
       "simbolo": "MA",
       "cantidad": 10,
-      "precio": 28600,
+      "precio": 26540,
       "precioMesAnterior": 29000,
       "variacionPct": -1.38,
       "rend3m": 31.56,
@@ -85,7 +85,7 @@
     {
       "simbolo": "SPY",
       "cantidad": 50,
-      "precio": 20460,
+      "precio": 20410,
       "precioMesAnterior": 20620,
       "variacionPct": -0.78,
       "rend3m": 7.12,
@@ -95,7 +95,7 @@
     {
       "simbolo": "SPGI",
       "cantidad": 25,
-      "precio": 15500,
+      "precio": 15600,
       "precioMesAnterior": 15820,
       "variacionPct": -2.02,
       "rend3m": 11.19,
@@ -105,7 +105,7 @@
     {
       "simbolo": "NU",
       "cantidad": 25,
-      "precio": 11620,
+      "precio": 12190,
       "precioMesAnterior": 11500,
       "variacionPct": 1.04,
       "rend3m": 31.45,
@@ -115,7 +115,7 @@
     {
       "simbolo": "ETHA",
       "cantidad": 25,
-      "precio": 5980,
+      "precio": 5875,
       "precioMesAnterior": 5895,
       "variacionPct": 1.44,
       "rend3m": 44.36,
@@ -125,7 +125,7 @@
     {
       "simbolo": "GLD",
       "cantidad": 50,
-      "precio": 13050,
+      "precio": 12930,
       "precioMesAnterior": 13140,
       "variacionPct": -0.68,
       "rend3m": 5.58,
@@ -135,7 +135,7 @@
     {
       "simbolo": "IBIT",
       "cantidad": 20,
-      "precio": 7140,
+      "precio": 7195,
       "precioMesAnterior": 7035,
       "variacionPct": 1.49,
       "rend3m": 26.93,
@@ -145,7 +145,7 @@
     {
       "simbolo": "SLV",
       "cantidad": 10,
-      "precio": 16010,
+      "precio": 15790,
       "precioMesAnterior": 16090,
       "variacionPct": -0.5,
       "rend3m": -4.25,
@@ -155,7 +155,7 @@
     {
       "simbolo": "COPX",
       "cantidad": 10,
-      "precio": 10570,
+      "precio": 10250,
       "precioMesAnterior": 10800,
       "variacionPct": -2.13,
       "rend3m": 8.19,
@@ -164,54 +164,190 @@
     }
   ],
   "top": {
-    "3m": ["ETHA", "MA", "NU"],
-    "6m": ["AMZN", "ETHA", "NVDA"],
-    "12m": ["SLV", "GOOGL", "NVDA"]
+    "3m": [
+      "ETHA",
+      "MA",
+      "NU"
+    ],
+    "6m": [
+      "AMZN",
+      "ETHA",
+      "NVDA"
+    ],
+    "12m": [
+      "SLV",
+      "GOOGL",
+      "NVDA"
+    ]
   },
   "evaluacion": {
     "mesEvaluado": "2026-08",
     "mejoresPredichas": [
-      {"simbolo": "MSFT", "estPct": 6.5, "variacionReal": 5.22, "acerto": true},
-      {"simbolo": "AMZN", "estPct": 5.0, "variacionReal": -2.85, "acerto": false},
-      {"simbolo": "MA", "estPct": 6.0, "variacionReal": -1.38, "acerto": false}
+      {
+        "simbolo": "MSFT",
+        "estPct": 6.5,
+        "variacionReal": 5.22,
+        "acerto": true
+      },
+      {
+        "simbolo": "AMZN",
+        "estPct": 5.0,
+        "variacionReal": -2.85,
+        "acerto": false
+      },
+      {
+        "simbolo": "MA",
+        "estPct": 6.0,
+        "variacionReal": -1.38,
+        "acerto": false
+      }
     ],
     "peoresPredichas": [
-      {"simbolo": "META", "estPct": -4.0, "variacionReal": -1.29, "acerto": false},
-      {"simbolo": "SMH", "estPct": -5.0, "variacionReal": 3.12, "acerto": false},
-      {"simbolo": "SLV", "estPct": -3.5, "variacionReal": -0.5, "acerto": false}
+      {
+        "simbolo": "META",
+        "estPct": -4.0,
+        "variacionReal": -1.29,
+        "acerto": false
+      },
+      {
+        "simbolo": "SMH",
+        "estPct": -5.0,
+        "variacionReal": 3.12,
+        "acerto": false
+      },
+      {
+        "simbolo": "SLV",
+        "estPct": -3.5,
+        "variacionReal": -0.5,
+        "acerto": false
+      }
     ],
     "picks": [
-      {"simbolo": "ORCL", "estPct": 5.5, "precioInicial": 68350, "precioFinal": 79500, "variacionPct": 16.31, "subio": true},
-      {"simbolo": "TSLA", "estPct": 6.0, "precioInicial": 32760, "precioFinal": 39240, "variacionPct": 19.78, "subio": true},
-      {"simbolo": "JPM", "estPct": 4.0, "precioInicial": 37060, "precioFinal": 37900, "variacionPct": 2.27, "subio": true},
-      {"simbolo": "COST", "estPct": 3.0, "precioInicial": 31340, "precioFinal": 31320, "variacionPct": -0.06, "subio": false},
-      {"simbolo": "INTC", "estPct": 7.0, "precioInicial": 28440, "precioFinal": 28640, "variacionPct": 0.7, "subio": true}
+      {
+        "simbolo": "ORCL",
+        "estPct": 5.5,
+        "precioInicial": 68350,
+        "precioFinal": 79500,
+        "variacionPct": 16.31,
+        "subio": true
+      },
+      {
+        "simbolo": "TSLA",
+        "estPct": 6.0,
+        "precioInicial": 32760,
+        "precioFinal": 39240,
+        "variacionPct": 19.78,
+        "subio": true
+      },
+      {
+        "simbolo": "JPM",
+        "estPct": 4.0,
+        "precioInicial": 37060,
+        "precioFinal": 37900,
+        "variacionPct": 2.27,
+        "subio": true
+      },
+      {
+        "simbolo": "COST",
+        "estPct": 3.0,
+        "precioInicial": 31340,
+        "precioFinal": 31320,
+        "variacionPct": -0.06,
+        "subio": false
+      },
+      {
+        "simbolo": "INTC",
+        "estPct": 7.0,
+        "precioInicial": 28440,
+        "precioFinal": 28640,
+        "variacionPct": 0.7,
+        "subio": true
+      }
     ],
     "scorePicks": "4/5",
     "scoreMejores": "1/3",
     "scorePeores": "0/3",
     "historicoScores": [
-      {"mes": "2026-07", "picks": "3/5", "mejores": "1/3", "peores": "1/3"},
-      {"mes": "2026-08", "picks": "4/5", "mejores": "1/3", "peores": "0/3"}
+      {
+        "mes": "2026-07",
+        "picks": "3/5",
+        "mejores": "1/3",
+        "peores": "1/3"
+      },
+      {
+        "mes": "2026-08",
+        "picks": "4/5",
+        "mejores": "1/3",
+        "peores": "0/3"
+      }
     ]
   },
   "prediccion": {
     "mejores": [
-      {"simbolo": "IBIT", "estPct": 5.5, "razon": "Mejor variación mensual de la cartera (+1.49%) y +26.93% a 3m; bitcoin con momentum de corto plazo pese a la caída de 12m."},
-      {"simbolo": "ETHA", "estPct": 6.0, "razon": "Mayor rendimiento a 3m de la cartera (+44.36%) y +32.89% a 6m; Ethereum sostiene el impulso cripto de corto plazo."},
-      {"simbolo": "NVDA", "estPct": 5.0, "razon": "Único CEDEAR con momentum positivo y sostenido en los 4 horizontes: mensual, 3m, 6m y 12m."}
+      {
+        "simbolo": "IBIT",
+        "estPct": 5.5,
+        "razon": "Mejor variación mensual de la cartera (+1.49%) y +26.93% a 3m; bitcoin con momentum de corto plazo pese a la caída de 12m."
+      },
+      {
+        "simbolo": "ETHA",
+        "estPct": 6.0,
+        "razon": "Mayor rendimiento a 3m de la cartera (+44.36%) y +32.89% a 6m; Ethereum sostiene el impulso cripto de corto plazo."
+      },
+      {
+        "simbolo": "NVDA",
+        "estPct": 5.0,
+        "razon": "Único CEDEAR con momentum positivo y sostenido en los 4 horizontes: mensual, 3m, 6m y 12m."
+      }
     ],
     "peores": [
-      {"simbolo": "AMZN", "estPct": -3.0, "razon": "Peor variación mensual de la cartera (-2.85%) tras la fuerte suba de 6m (+36.49%); posible toma de ganancias."},
-      {"simbolo": "GOOGL", "estPct": -2.5, "razon": "Estancamiento a 3m (-0.05%) y segunda peor variación mensual (-2.50%) tras el rally de +87.59% a 12m."},
-      {"simbolo": "COPX", "estPct": -2.0, "razon": "Tercera peor variación mensual (-2.13%), desacelerando frente al +8.19% a 3m y +7.80% a 6m."}
+      {
+        "simbolo": "AMZN",
+        "estPct": -3.0,
+        "razon": "Peor variación mensual de la cartera (-2.85%) tras la fuerte suba de 6m (+36.49%); posible toma de ganancias."
+      },
+      {
+        "simbolo": "GOOGL",
+        "estPct": -2.5,
+        "razon": "Estancamiento a 3m (-0.05%) y segunda peor variación mensual (-2.50%) tras el rally de +87.59% a 12m."
+      },
+      {
+        "simbolo": "COPX",
+        "estPct": -2.0,
+        "razon": "Tercera peor variación mensual (-2.13%), desacelerando frente al +8.19% a 3m y +7.80% a 6m."
+      }
     ],
     "picks": [
-      {"simbolo": "MSFT", "precio": 27000, "estPct": 5.0, "razon": "Subió +5.22% el mes pasado impulsada por su segmento cloud/IA; demanda de Azure como catalizador."},
-      {"simbolo": "AVGO", "precio": 15180, "estPct": 6.0, "razon": "Beneficiario directo del mismo ciclo de capex en IA/semiconductores que impulsa a NVDA en la cartera."},
-      {"simbolo": "WMT", "precio": 9325, "estPct": 2.5, "razon": "Retail defensivo con consumo resiliente, cobertura ante la volatilidad del resto de la cartera."},
-      {"simbolo": "KO", "precio": 28460, "estPct": 2.0, "razon": "Consumo defensivo de baja beta, históricamente estable en correcciones de mercado."},
-      {"simbolo": "DISN", "precio": 14270, "estPct": 3.5, "razon": "Recuperación de suscripciones de streaming y cartelera de estrenos como catalizador de corto plazo."}
+      {
+        "simbolo": "MSFT",
+        "precio": 27000,
+        "estPct": 5.0,
+        "razon": "Subió +5.22% el mes pasado impulsada por su segmento cloud/IA; demanda de Azure como catalizador."
+      },
+      {
+        "simbolo": "AVGO",
+        "precio": 15180,
+        "estPct": 6.0,
+        "razon": "Beneficiario directo del mismo ciclo de capex en IA/semiconductores que impulsa a NVDA en la cartera."
+      },
+      {
+        "simbolo": "WMT",
+        "precio": 9325,
+        "estPct": 2.5,
+        "razon": "Retail defensivo con consumo resiliente, cobertura ante la volatilidad del resto de la cartera."
+      },
+      {
+        "simbolo": "KO",
+        "precio": 28460,
+        "estPct": 2.0,
+        "razon": "Consumo defensivo de baja beta, históricamente estable en correcciones de mercado."
+      },
+      {
+        "simbolo": "DISN",
+        "precio": 14270,
+        "estPct": 3.5,
+        "razon": "Recuperación de suscripciones de streaming y cartelera de estrenos como catalizador de corto plazo."
+      }
     ]
   }
 }
