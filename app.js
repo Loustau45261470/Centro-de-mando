@@ -1991,9 +1991,11 @@ function plannerDeleteTask(date, id) {
 // (hecho) y el ✕ (borrar) actúan directo. Las tareas recurrentes llevan id compuesto.
 function plannerBlockHTML(date, t, hourPx, compact, lay) {
   const startMin = _timeToMin(t.time);
-  const endMin   = startMin + (t.duration || 30);
+  // El bloque no puede pasarse del final de la ventana visible (una meta a las 23:50
+  // dura 30 min por defecto y se desbordaria del track).
+  const endMin   = Math.min(startMin + (t.duration || 30), PCAL_END_MIN);
   const top    = ((startMin - PCAL_START_MIN) / 60) * hourPx;
-  const height = Math.max(((t.duration || 30) / 60) * hourPx, compact ? 22 : 34);
+  const height = Math.min(Math.max(((endMin - startMin) / 60) * hourPx, compact ? 22 : 34), ((PCAL_END_MIN - startMin) / 60) * hourPx);
   const cols   = (lay && lay.cols) || 1, col = (lay && lay.col) || 0;
   // Bloques solapados: cada uno toma su columna dentro del ancho del día.
   const pos = cols > 1
@@ -2013,7 +2015,7 @@ function plannerBlockHTML(date, t, hourPx, compact, lay) {
     style="top:${top}px;height:${height}px;${pos}--area-c:var(${colorVar})"
     ${isGoal ? '' : `onclick="openPlanModal('${escHtml(date)}','${rid}')"`} title="${escHtml(t.text)} · ${range} · ${label} · ${prioCfg.label}">
     <div class="pcal-head">
-      <label class="pcal-check" onclick="event.stopPropagation()"><input type="checkbox"${t.done ? ' checked' : ''} onchange="plannerToggleTask('${escHtml(date)}','${rid}')"></label>
+      <label class="pcal-check" onclick="event.stopPropagation()"><input type="checkbox" aria-label="Marcar como hecha: ${escHtml(t.text)}"${t.done ? ' checked' : ''} onchange="plannerToggleTask('${escHtml(date)}','${rid}')"></label>
       <div class="pcal-text">${escHtml(t.text) || '<span class="pcal-empty">Sin título</span>'}</div>
       ${isGoal ? '' : `<button class="pcal-del" onclick="event.stopPropagation();plannerDeleteTask('${escHtml(date)}','${rid}')" title="Eliminar" aria-label="Eliminar">✕</button>`}
     </div>
