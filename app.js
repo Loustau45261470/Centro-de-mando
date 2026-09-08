@@ -1749,25 +1749,47 @@ function plannerDayTasks(date) {
   return out;
 }
 
-// Ventana [start, start+duration) libre para esta fecha, ignorando la propia tarea (excludeId).
-function plannerRangeFree(date, startMin, durationMin, excludeId) {
-  const endMin = startMin + durationMin;
-  if (startMin < PCAL_START_MIN || endMin > PCAL_END_MIN) return false; // fuera de la ventana visible
-  return plannerDayTasks(date).every(t => {
-    if (t.id === excludeId) return true;
-    const s = _timeToMin(t.time), e = s + (t.duration || 30);
-    return endMin <= s || startMin >= e;
-  });
+// Metas del día con horario (S.goals) vistas como bloques del planner: una sola agenda.
+// Acá son de sólo lectura — se crean y editan en la card "Metas de hoy"; el check marca
+// la meta. Duración fija de 30 min porque la meta no tiene duración propia.
+const GOAL_PRIO_LEVEL = { high: 3, mid: 2, low: 1 };
+function plannerDayGoals(date) {
+  return ((S.goals && S.goals[date]) || [])
+    .filter(g => g.time)
+    .map(g => ({
+      id: 'g:' + g.id, _goal: g.id,
+      time: g.time, duration: 30, priority: GOAL_PRIO_LEVEL[g.priority] || 2,
+      area: null, text: g.text, done: !!g.done,
+    }));
 }
-// Máxima duración (min) que puede tener una tarea que arranca en startMin sin invadir la siguiente ya fijada.
-function plannerMaxDuration(date, startMin, excludeId) {
-  let limit = PCAL_END_MIN - startMin;
-  plannerDayTasks(date).forEach(t => {
-    if (t.id === excludeId) return;
-    const s = _timeToMin(t.time);
-    if (s >= startMin && s - startMin < limit) limit = s - startMin;
+// Todo lo que ocupa el día: actividades del planner + metas con horario.
+function plannerDayAgenda(date) { return plannerDayTasks(date).concat(plannerDayGoals(date)); }
+
+// Reparte en columnas los bloques que se pisan (estilo Google Calendar): agrupa por
+// clúster de solapamiento y le da a cada bloque su columna y el total de columnas.
+function _pcalLayout(tasks) {
+  const items = tasks
+    .map(t => ({ t, s: _timeToMin(t.time), e: _timeToMin(t.time) + (t.duration || 30) }))
+    .sort((a, b) => a.s - b.s || a.e - b.e);
+  let cluster = [], clusterEnd = -Infinity;
+  const flush = () => {
+    if (!cluster.length) return;
+    const colEnds = [];
+    cluster.forEach(it => {
+      let c = colEnds.findIndex(end => end <= it.s);
+      if (c < 0) { c = colEnds.length; colEnds.push(0); }
+      colEnds[c] = it.e; it.col = c;
+    });
+    cluster.forEach(it => { it.cols = colEnds.length; });
+    cluster = [];
+  };
+  items.forEach(it => {
+    if (it.s >= clusterEnd) { flush(); clusterEnd = it.e; }
+    else clusterEnd = Math.max(clusterEnd, it.e);
+    cluster.push(it);
   });
-  return Math.max(limit, 0);
+  flush();
+  return items;
 }
 // Tareas de una hora, ordenadas por prioridad desc (sort estable → respeta orden de creación en empate).
 function plannerHourTasks(date, h) {
@@ -1861,10 +1883,10 @@ function savePlanActivity() {
   if (!f.date) { showToast('Elegí una fecha'); return; }
   if (f.endMin <= f.startMin) { showToast('El fin debe ser posterior al inicio'); return; }
   if (f.repeat.freq === 'weekdays' && !f.repeat.byDays.length) { showToast('Elegí al menos un día'); return; }
-  const excludeId = _planEdit.mode === 'one' ? _planEdit.id
-    : _planEdit.mode === 'rec' ? _planEdit.recId + '@' + f.date : null;
-  if (!plannerRangeFree(f.date, f.startMin, f.duration, excludeId)) {
-    showToast('Ese horario se solapa o está fuera de 05:00–00:00'); return;
+  // Las actividades pueden solaparse a propósito (se dibujan lado a lado); sólo se exige
+  // que entren en la ventana visible del calendario.
+  if (f.startMin < PCAL_START_MIN || f.endMin > PCAL_END_MIN) {
+    showToast('El horario tiene que estar entre 05:00 y 00:00'); return;
   }
   const base = { text: f.text, area: f.area, priority: f.priority, time: _minToTime(f.startMin), duration: f.duration };
   const commit = () => { saveState(); renderDayPlanner(); closeModal('modal-plan-activity'); };
@@ -1942,6 +1964,7 @@ function _recDelete(recId, date) {
 }
 // Marcar "hecho": puntual escribe en la tarea; recurrente escribe la excepción por fecha.
 function plannerToggleTask(date, id) {
+  if (id.indexOf('g:') === 0) { toggleGoalById(date, id.slice(2)); return; }
   if (id.indexOf('@') >= 0) {
     const r = _recFind(id.split('@')[0]); if (!r) return;
     if (!r.exceptions) r.exceptions = {};
@@ -1956,6 +1979,7 @@ function plannerToggleTask(date, id) {
 }
 // Borrar desde el bloque: puntual directo; recurrente pregunta alcance (este día vs serie).
 function plannerDeleteTask(date, id) {
+  if (id.indexOf('g:') === 0) return;   // las metas se borran desde su propia card
   if (id.indexOf('@') >= 0) { _recDelete(id.split('@')[0], date).then(ok => { if (ok) renderDayPlanner(); }); return; }
   const p = getDayPlan(date);
   p.tasks = p.tasks.filter(x => x.id !== id);
@@ -1965,33 +1989,41 @@ function plannerDeleteTask(date, id) {
 // ── Bloque de calendario (relleno sólido por área, alto proporcional a la duración) ──
 // El bloque es de sólo lectura: se toca para abrir el modal de edición. Sólo el check
 // (hecho) y el ✕ (borrar) actúan directo. Las tareas recurrentes llevan id compuesto.
-function plannerBlockHTML(date, t, hourPx, compact) {
+function plannerBlockHTML(date, t, hourPx, compact, lay) {
   const startMin = _timeToMin(t.time);
   const endMin   = startMin + (t.duration || 30);
   const top    = ((startMin - PCAL_START_MIN) / 60) * hourPx;
   const height = Math.max(((t.duration || 30) / 60) * hourPx, compact ? 22 : 34);
+  const cols   = (lay && lay.cols) || 1, col = (lay && lay.col) || 0;
+  // Bloques solapados: cada uno toma su columna dentro del ancho del día.
+  const pos = cols > 1
+    ? `left:calc(2px + ${col} * (100% - 4px) / ${cols});width:calc((100% - 4px) / ${cols} - 2px);right:auto;`
+    : '';
+  const isGoal = !!t._goal;
   const area   = PLANNER_AREAS[t.area] ? t.area : 'vida';
   const areaCfg = PLANNER_AREAS[area];
   const prioCfg = PLANNER_PRIO[t.priority] || PLANNER_PRIO[2];
   const rid = escHtml(t.id);
   const range = `${t.time}–${_minToTimeDisp(endMin)}`;
+  const colorVar = isGoal ? '--hud' : areaCfg.cssVar;
+  const label = isGoal ? 'Meta' : areaCfg.label;
   // Vista previa minimalista: sólo título (hora/área/repetición/prioridad se ven al abrir la tarjeta).
   // El tooltip conserva el detalle para hover. El color del bloque ya comunica el área.
-  return `<div class="pcal-block${compact ? ' pcal-compact' : ''} prio-${t.priority}${t.done ? ' done' : ''}" data-id="${rid}"
-    style="top:${top}px;height:${height}px;--area-c:var(${areaCfg.cssVar})"
-    onclick="openPlanModal('${escHtml(date)}','${rid}')" title="${escHtml(t.text)} · ${range} · ${areaCfg.label} · ${prioCfg.label}">
+  return `<div class="pcal-block${compact ? ' pcal-compact' : ''}${isGoal ? ' pcal-goal' : ''} prio-${t.priority}${t.done ? ' done' : ''}" data-id="${rid}"
+    style="top:${top}px;height:${height}px;${pos}--area-c:var(${colorVar})"
+    ${isGoal ? '' : `onclick="openPlanModal('${escHtml(date)}','${rid}')"`} title="${escHtml(t.text)} · ${range} · ${label} · ${prioCfg.label}">
     <div class="pcal-head">
       <label class="pcal-check" onclick="event.stopPropagation()"><input type="checkbox"${t.done ? ' checked' : ''} onchange="plannerToggleTask('${escHtml(date)}','${rid}')"></label>
       <div class="pcal-text">${escHtml(t.text) || '<span class="pcal-empty">Sin título</span>'}</div>
-      <button class="pcal-del" onclick="event.stopPropagation();plannerDeleteTask('${escHtml(date)}','${rid}')" title="Eliminar" aria-label="Eliminar">✕</button>
+      ${isGoal ? '' : `<button class="pcal-del" onclick="event.stopPropagation();plannerDeleteTask('${escHtml(date)}','${rid}')" title="Eliminar" aria-label="Eliminar">✕</button>`}
     </div>
-    ${compact ? '' : `<div class="pcal-foot"><span class="pcal-prio-tag">${prioCfg.label}</span></div>`}
+    ${compact ? '' : `<div class="pcal-foot"><span class="pcal-prio-tag">${isGoal ? 'Meta · ' + prioCfg.label : prioCfg.label}</span></div>`}
   </div>`;
 }
 
 // ── Barra de progreso del día + resumen de pendientes por prioridad ──
 function plannerDaybarHTML(date) {
-  const tasks = plannerDayTasks(date);
+  const tasks = plannerDayAgenda(date);
   const total = tasks.length;
   const done  = tasks.filter(t => t.done).length;
   const pct   = total ? Math.round(done / total * 100) : 0;
@@ -2027,7 +2059,10 @@ function plannerTrackClick(e) {
 function plannerDayTrackHTML(date, hourPx, compact) {
   const hourLines = [];
   for (let m = PCAL_START_MIN; m < PCAL_END_MIN; m += 60) hourLines.push(`<div class="pcal-hourline" style="top:${((m - PCAL_START_MIN) / 60) * hourPx}px"></div>`);
-  const blocks = plannerDayTasks(date).map(t => plannerBlockHTML(date, t, hourPx, compact)).join('');
+  // Sólo lo que cae dentro de la ventana visible (una meta a las 03:00 no tiene dónde pintarse;
+  // sigue apareciendo en la lista del día y en su propia card).
+  const agenda = plannerDayAgenda(date).filter(t => { const m = _timeToMin(t.time); return m >= PCAL_START_MIN && m < PCAL_END_MIN; });
+  const blocks = _pcalLayout(agenda).map(it => plannerBlockHTML(date, it.t, hourPx, compact, it)).join('');
   return `<div class="pcal-track" data-date="${escHtml(date)}" data-hourpx="${hourPx}"
     style="height:${(PCAL_SPAN_MIN / 60) * hourPx}px" onclick="plannerTrackClick(event)">${hourLines.join('')}${blocks}</div>`;
 }
@@ -2042,23 +2077,25 @@ function plannerHourTicksHTML(hourPx) {
 // ── Lista simple del día (card standalone, pestaña Vida): solo actividades con horario, sin huecos vacíos ──
 function plannerListRowHTML(date, t) {
   const endMin  = _timeToMin(t.time) + (t.duration || 30);
+  const isGoal  = !!t._goal;
   const area    = PLANNER_AREAS[t.area] ? t.area : 'vida';
   const areaCfg = PLANNER_AREAS[area];
   const prioCfg = PLANNER_PRIO[t.priority] || PLANNER_PRIO[2];
   const rid     = escHtml(t.id);
-  const range   = `${t.time}–${_minToTimeDisp(endMin)}`;
-  return `<div class="pcal-row${t.done ? ' done' : ''}" data-id="${rid}"
-    style="--area-c:var(${areaCfg.cssVar})"
-    onclick="openPlanModal('${escHtml(date)}','${rid}')" title="${escHtml(t.text)} · ${areaCfg.label} · ${prioCfg.label}">
+  const range   = isGoal ? t.time : `${t.time}–${_minToTimeDisp(endMin)}`;
+  const label   = isGoal ? 'Meta' : areaCfg.label;
+  return `<div class="pcal-row${isGoal ? ' pcal-goal' : ''}${t.done ? ' done' : ''}" data-id="${rid}"
+    style="--area-c:var(${isGoal ? '--hud' : areaCfg.cssVar})"
+    ${isGoal ? '' : `onclick="openPlanModal('${escHtml(date)}','${rid}')"`} title="${escHtml(t.text)} · ${label} · ${prioCfg.label}">
     <span class="pcal-row-time">${range}</span>
     <label class="pcal-check" onclick="event.stopPropagation()"><input type="checkbox" aria-label="Marcar como hecha: ${escHtml(t.text)}"${t.done ? ' checked' : ''} onchange="plannerToggleTask('${escHtml(date)}','${rid}')"></label>
     <div class="pcal-text">${escHtml(t.text) || '<span class="pcal-empty">Sin título</span>'}</div>
-    <button class="pcal-del" onclick="event.stopPropagation();plannerDeleteTask('${escHtml(date)}','${rid}')" title="Eliminar" aria-label="Eliminar">✕</button>
+    ${isGoal ? '<span class="pcal-row-tag">Meta</span>' : `<button class="pcal-del" onclick="event.stopPropagation();plannerDeleteTask('${escHtml(date)}','${rid}')" title="Eliminar" aria-label="Eliminar">✕</button>`}
   </div>`;
 }
 function buildDayList(containerEl, date) {
   if (!containerEl) return;
-  const tasks = plannerDayTasks(date).slice().sort((a, b) => _timeToMin(a.time) - _timeToMin(b.time));
+  const tasks = plannerDayAgenda(date).sort((a, b) => _timeToMin(a.time) - _timeToMin(b.time));
   const body = tasks.length
     ? `<div class="pcal-list">${tasks.map(t => plannerListRowHTML(date, t)).join('')}</div>`
     : '<p class="empty-state">Sin actividades planificadas para hoy.</p>';
