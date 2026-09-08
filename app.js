@@ -1727,16 +1727,43 @@ function plannerRecOccursOn(r, date) {
     default:         return false;
   }
 }
+// ── Vínculo actividad ↔ hábito ──
+// Una actividad puede apuntar a un hábito ({ section, id }). Cuando lo hace, el "hecho" no
+// vive en la actividad sino en el hábito (S.habitTrackers[section][].days[fecha]): marcarlo
+// en el planner o en el calendario del hábito es exactamente lo mismo. Si el hábito se borró,
+// todo cae de nuevo en el done propio de la actividad.
+function _habitFind(link) {
+  if (!link || !link.section || !link.id || typeof _getHabits !== 'function') return null;
+  return (_getHabits(link.section) || []).find(h => h.id === link.id) || null;
+}
+function _habitDone(link, date) {          // true/false, o null si el hábito ya no existe
+  const h = _habitFind(link);
+  return h ? (h.days || {})[date] === 'done' : null;
+}
+function _habitSetDone(link, date, done) {
+  const h = _habitFind(link); if (!h) return false;
+  if (!h.days) h.days = {};
+  if (done) h.days[date] = 'done'; else delete h.days[date];
+  return true;
+}
+// Copia de la tarea con el done tomado del hábito (si está vinculada y el hábito existe).
+function _withHabitDone(t, date) {
+  if (!t.habit) return t;
+  const st = _habitDone(t.habit, date);
+  return st === null ? t : { ...t, done: st };
+}
+
 // Tareas concretas de una fecha = puntuales de S.dayPlan + ocurrencias de las reglas recurrentes.
 // Las ocurrencias virtuales llevan id compuesto 'r…@fecha' y campos _rec/_date para rutear acciones.
 function plannerDayTasks(date) {
-  const out = getDayPlan(date).tasks.slice();
+  const out = getDayPlan(date).tasks.map(t => _withHabitDone(t, date));
   _recStore().forEach(r => {
     if (!plannerRecOccursOn(r, date)) return;
     const ex = (r.exceptions || {})[date] || {};
     if (ex.deleted) return;
-    out.push({
+    out.push(_withHabitDone({
       id: r.id + '@' + date, _rec: r.id, _date: date,
+      habit:    ex.habit    !== undefined ? ex.habit    : r.habit,
       time:     ex.time     != null ? ex.time     : r.time,
       duration: ex.duration != null ? ex.duration : r.duration,
       priority: ex.priority != null ? ex.priority : r.priority,
@@ -1744,7 +1771,7 @@ function plannerDayTasks(date) {
       text:     ex.text     != null ? ex.text     : r.text,
       done:     !!ex.done,
       repeat:   r.repeat.freq,
-    });
+    }, date));
   });
   return out;
 }
@@ -1813,6 +1840,32 @@ function planPickPrio(v) { _pel('planPrio').value = v; _segSet('planPrioSeg', St
 function planPickFinMode(m) { _planFinMode = m; _segSet('planFinModeSeg', m); _pel('planDurWrap').hidden = m !== 'dur'; _pel('planEndWrap').hidden = m !== 'end'; }
 function planToggleWeekday(btn) { btn.classList.toggle('on'); }
 function planRepeatChanged() { _pel('planWeekdays').hidden = _pel('planRepeat').value !== 'weekdays'; }
+// Opciones del select de hábitos: todos los hábitos de las 5 secciones, agrupados por sección.
+// value = 'seccion:id' (o '' para ninguno).
+function _planHabitOptions(sel) {
+  let html = '<option value="">— Ninguno —</option>';
+  Object.keys(PLANNER_AREAS).forEach(sec => {
+    const hs = typeof _getHabits === 'function' ? (_getHabits(sec) || []) : [];
+    if (!hs.length) return;
+    html += `<optgroup label="${escHtml(PLANNER_AREAS[sec].label)}">` +
+      hs.map(h => `<option value="${escHtml(sec + ':' + h.id)}">${escHtml((h.emoji || '📌') + ' ' + h.name)}</option>`).join('') +
+      '</optgroup>';
+  });
+  const el = _pel('planHabit'); if (!el) return;
+  el.innerHTML = html;
+  el.value = sel || '';
+  if (el.value !== (sel || '')) el.value = '';   // el hábito vinculado ya no existe
+}
+// Al elegir un hábito: completa el título vacío con su nombre y alinea el área con su sección.
+function planHabitChanged() {
+  const v = _pel('planHabit').value;
+  if (!v) return;
+  const [sec, id] = v.split(':');
+  const h = _habitFind({ section: sec, id });
+  if (!h) return;
+  if (!_pel('planText').value.trim()) _pel('planText').value = h.name;
+  if (PLANNER_AREAS[sec]) planPickArea(sec);
+}
 
 function openPlanModal(date, id, presetTime) {
   date = date || getActiveDate();
@@ -1821,7 +1874,7 @@ function openPlanModal(date, id, presetTime) {
     const now = new Date();
     const startMin = presetTime != null ? _timeToMin(presetTime)
       : Math.max(PCAL_START_MIN, Math.min(PCAL_END_MIN - 30, Math.round((now.getHours() * 60 + now.getMinutes()) / 15) * 15));
-    src = { text: '', area: 'vida', priority: 2, time: _minToTime(startMin), duration: 30, repeat: { freq: 'none', byDays: [] } };
+    src = { text: '', area: 'vida', priority: 2, time: _minToTime(startMin), duration: 30, repeat: { freq: 'none', byDays: [] }, habit: null };
     _planEdit = { mode: 'create', date };
   } else if (id.indexOf('@') >= 0) {
     const r = _recFind(id.split('@')[0]); if (!r) return;
@@ -1829,12 +1882,12 @@ function openPlanModal(date, id, presetTime) {
     src = {
       text: ex.text != null ? ex.text : r.text, area: ex.area != null ? ex.area : r.area,
       priority: ex.priority != null ? ex.priority : r.priority, time: ex.time != null ? ex.time : r.time,
-      duration: ex.duration != null ? ex.duration : r.duration, repeat: r.repeat,
+      duration: ex.duration != null ? ex.duration : r.duration, repeat: r.repeat, habit: r.habit || null,
     };
     _planEdit = { mode: 'rec', date, recId: r.id };
   } else {
     const t = getDayPlan(date).tasks.find(x => x.id === id); if (!t) return;
-    src = { text: t.text, area: t.area || 'vida', priority: t.priority, time: t.time, duration: t.duration || 30, repeat: { freq: 'none', byDays: [] } };
+    src = { text: t.text, area: t.area || 'vida', priority: t.priority, time: t.time, duration: t.duration || 30, repeat: { freq: 'none', byDays: [] }, habit: t.habit || null };
     _planEdit = { mode: 'one', date, id };
   }
   _pel('planModalTitle').textContent = id ? 'Editar actividad' : 'Nueva actividad';
@@ -1843,6 +1896,7 @@ function openPlanModal(date, id, presetTime) {
   _pel('planRepeat').innerHTML = PLAN_REPEAT_OPTS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
   _pel('planWeekdays').innerHTML = PLAN_WEEKDAYS.map(([v, l]) => `<button type="button" data-v="${v}" onclick="planToggleWeekday(this)">${l}</button>`).join('');
   _pel('planText').value = src.text || '';
+  _planHabitOptions(src.habit ? src.habit.section + ':' + src.habit.id : '');
   _pel('planDate').value = date;
   _pel('planStart').value = src.time;
   const endMin = _timeToMin(src.time) + (src.duration || 30);
@@ -1870,10 +1924,12 @@ function _planReadForm() {
   const freq = _pel('planRepeat').value;
   const byDays = freq === 'weekdays'
     ? Array.from(_pel('planWeekdays').querySelectorAll('button.on')).map(b => parseInt(b.dataset.v, 10)) : [];
+  const hv = (_pel('planHabit') || {}).value || '';
   return {
     date: _pel('planDate').value, text: _pel('planText').value.trim(), area: _pel('planArea').value,
     priority: parseInt(_pel('planPrio').value, 10) || 2, startMin, endMin, duration: endMin - startMin,
     repeat: { freq, byDays },
+    habit: hv ? { section: hv.split(':')[0], id: hv.split(':')[1] } : null,
   };
 }
 
@@ -1888,7 +1944,7 @@ function savePlanActivity() {
   if (f.startMin < PCAL_START_MIN || f.endMin > PCAL_END_MIN) {
     showToast('El horario tiene que estar entre 05:00 y 00:00'); return;
   }
-  const base = { text: f.text, area: f.area, priority: f.priority, time: _minToTime(f.startMin), duration: f.duration };
+  const base = { text: f.text, area: f.area, priority: f.priority, time: _minToTime(f.startMin), duration: f.duration, habit: f.habit };
   const commit = () => { saveState(); renderDayPlanner(); closeModal('modal-plan-activity'); };
 
   if (_planEdit.mode === 'create') {
@@ -1963,8 +2019,29 @@ function _recDelete(recId, date) {
   });
 }
 // Marcar "hecho": puntual escribe en la tarea; recurrente escribe la excepción por fecha.
+// Vínculo de una actividad del planner (por id) con un hábito vivo, o null.
+function _plannerTaskHabit(date, id) {
+  let link = null;
+  if (id.indexOf('@') >= 0) {
+    const r = _recFind(id.split('@')[0]);
+    if (r) { const ex = (r.exceptions || {})[date] || {}; link = ex.habit !== undefined ? ex.habit : r.habit; }
+  } else {
+    const t = getDayPlan(date).tasks.find(x => x.id === id);
+    link = t ? t.habit : null;
+  }
+  return link && _habitFind(link) ? link : null;
+}
 function plannerToggleTask(date, id) {
   if (id.indexOf('g:') === 0) { toggleGoalById(date, id.slice(2)); return; }
+  const link = _plannerTaskHabit(date, id);
+  if (link) {   // el estado vive en el hábito: se marca ahí y se repintan ambas superficies
+    _habitSetDone(link, date, _habitDone(link, date) !== true);
+    saveState(); renderDayPlanner();
+    if (typeof renderHabitCal === 'function') renderHabitCal(link.section);
+    if (typeof buildTickerAlerts === 'function') buildTickerAlerts();
+    if (typeof checkAchievements === 'function') checkAchievements();
+    return;
+  }
   if (id.indexOf('@') >= 0) {
     const r = _recFind(id.split('@')[0]); if (!r) return;
     if (!r.exceptions) r.exceptions = {};
@@ -2002,6 +2079,7 @@ function plannerBlockHTML(date, t, hourPx, compact, lay) {
     ? `left:calc(2px + ${col} * (100% - 4px) / ${cols});width:calc((100% - 4px) / ${cols} - 2px);right:auto;`
     : '';
   const isGoal = !!t._goal;
+  const hIcon  = t.habit ? escHtml((_habitFind(t.habit) || {}).emoji || '📌') + ' ' : '';
   const area   = PLANNER_AREAS[t.area] ? t.area : 'vida';
   const areaCfg = PLANNER_AREAS[area];
   const prioCfg = PLANNER_PRIO[t.priority] || PLANNER_PRIO[2];
@@ -2013,10 +2091,10 @@ function plannerBlockHTML(date, t, hourPx, compact, lay) {
   // El tooltip conserva el detalle para hover. El color del bloque ya comunica el área.
   return `<div class="pcal-block${compact ? ' pcal-compact' : ''}${isGoal ? ' pcal-goal' : ''} prio-${t.priority}${t.done ? ' done' : ''}" data-id="${rid}"
     style="top:${top}px;height:${height}px;${pos}--area-c:var(${colorVar})"
-    ${isGoal ? '' : `onclick="openPlanModal('${escHtml(date)}','${rid}')"`} title="${escHtml(t.text)} · ${range} · ${label} · ${prioCfg.label}">
+    ${isGoal ? '' : `onclick="openPlanModal('${escHtml(date)}','${rid}')"`} title="${escHtml(t.text)} · ${range} · ${label} · ${prioCfg.label}${t.habit ? ' · Hábito' : ''}">
     <div class="pcal-head">
       <label class="pcal-check" onclick="event.stopPropagation()"><input type="checkbox" aria-label="Marcar como hecha: ${escHtml(t.text)}"${t.done ? ' checked' : ''} onchange="plannerToggleTask('${escHtml(date)}','${rid}')"></label>
-      <div class="pcal-text">${escHtml(t.text) || '<span class="pcal-empty">Sin título</span>'}</div>
+      <div class="pcal-text">${hIcon}${escHtml(t.text) || '<span class="pcal-empty">Sin título</span>'}</div>
       ${isGoal ? '' : `<button class="pcal-del" onclick="event.stopPropagation();plannerDeleteTask('${escHtml(date)}','${rid}')" title="Eliminar" aria-label="Eliminar">✕</button>`}
     </div>
     ${compact ? '' : `<div class="pcal-foot"><span class="pcal-prio-tag">${isGoal ? 'Meta · ' + prioCfg.label : prioCfg.label}</span></div>`}
@@ -2080,6 +2158,7 @@ function plannerHourTicksHTML(hourPx) {
 function plannerListRowHTML(date, t) {
   const endMin  = _timeToMin(t.time) + (t.duration || 30);
   const isGoal  = !!t._goal;
+  const hIcon   = t.habit ? escHtml((_habitFind(t.habit) || {}).emoji || '📌') + ' ' : '';
   const area    = PLANNER_AREAS[t.area] ? t.area : 'vida';
   const areaCfg = PLANNER_AREAS[area];
   const prioCfg = PLANNER_PRIO[t.priority] || PLANNER_PRIO[2];
@@ -2091,7 +2170,7 @@ function plannerListRowHTML(date, t) {
     ${isGoal ? '' : `onclick="openPlanModal('${escHtml(date)}','${rid}')"`} title="${escHtml(t.text)} · ${label} · ${prioCfg.label}">
     <span class="pcal-row-time">${range}</span>
     <label class="pcal-check" onclick="event.stopPropagation()"><input type="checkbox" aria-label="Marcar como hecha: ${escHtml(t.text)}"${t.done ? ' checked' : ''} onchange="plannerToggleTask('${escHtml(date)}','${rid}')"></label>
-    <div class="pcal-text">${escHtml(t.text) || '<span class="pcal-empty">Sin título</span>'}</div>
+    <div class="pcal-text">${hIcon}${escHtml(t.text) || '<span class="pcal-empty">Sin título</span>'}</div>
     ${isGoal ? '<span class="pcal-row-tag">Meta</span>' : `<button class="pcal-del" onclick="event.stopPropagation();plannerDeleteTask('${escHtml(date)}','${rid}')" title="Eliminar" aria-label="Eliminar">✕</button>`}
   </div>`;
 }

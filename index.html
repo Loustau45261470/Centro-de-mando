@@ -1249,6 +1249,9 @@
     <div class="modal-handle"></div>
     <div class="modal-title" id="planModalTitle">Nueva actividad</div>
     <div class="field"><label>Actividad</label><input class="inp" id="planText" placeholder="¿Qué vas a hacer?"></div>
+    <div class="field"><label>Hábito vinculado</label>
+      <select class="inp" id="planHabit" onchange="planHabitChanged()"></select>
+    </div>
     <div class="field"><label>Área</label>
       <div class="seg seg-area" id="planAreaSeg"></div>
       <input type="hidden" id="planArea" value="vida">
@@ -1718,11 +1721,11 @@
 </div>
 
 <script src="deadlines.js?v=3"></script>
-<script src="app.js?v=180"></script>
+<script src="app.js?v=181"></script>
 <script src="workspace.js?v=196"></script>
 <script src="abogacia.js?v=4"></script>
 <script src="correlativas.js?v=2"></script>
-<script src="habitos.js?v=2"></script>
+<script src="habitos.js?v=3"></script>
 <script src="rutinas.js"></script>
 <script src="finanzas.js"></script>
 <script src="recordatorios.js?v=8"></script>

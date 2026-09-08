@@ -592,6 +592,8 @@ function toggleHabitDay(section, habitId, ds) {
   else if (cur==='rest')    delete habit.days[ds];
   else                      habit.days[ds]='done';
   saveState(); renderHabitCal(section); checkAchievements();
+  // Las actividades del planner vinculadas a este hábito muestran su estado: repintar.
+  if (typeof renderDayPlanner === 'function') renderDayPlanner();
 }
 
 function _habitMonthNav(section, dir) {
