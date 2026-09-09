@@ -165,6 +165,7 @@ function gmHabitConsec(h) {
   for (let i = 0; i < 400; i++) {
     const st = map[localStr(dd)];
     if (st === 'done' || st === 'studied') { n++; started = true; }
+    else if (st === 'missed') break;
     else if (st !== 'rest') { if (started || i > 0) break; }
     dd.setDate(dd.getDate() - 1);
   }

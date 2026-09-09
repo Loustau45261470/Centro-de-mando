@@ -26,6 +26,7 @@ function renderEntrenamientoResumen() {
     const dd = new Date(y, m, today - i), ds = _dStr(dd.getFullYear(), dd.getMonth(), dd.getDate()), v = days[ds];
     if (v === 'done') dayStreak++;
     else if (v === 'rest') continue;
+    else if (v === 'missed') break;
     else { if (i === 0) continue; break; }
   }
   // Tira últimos 7 días

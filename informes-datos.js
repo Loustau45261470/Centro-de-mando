@@ -238,12 +238,34 @@
     if (!n) return null;
     return sum / n;
   }
+  // Fracción [0,1] de cumplimiento en [desde,hasta]: denominador = todos los días del
+  // período (sin contar 'rest'), acotado a no incluir futuro ni días anteriores a la
+  // primera clave registrada (evita castigar por registrar la verdad y evita mostrar
+  // 0% en períodos donde el hábito/calendario todavía no existía).
+  function _fraccionPeriodo(days, desde, hasta, doneVals) {
+    const primerKey = _primerObjDias(days);
+    if (!primerKey) return null;
+    const ini = desde > primerKey ? desde : primerKey;
+    const hoy = _hoyStr();
+    const fin = hasta < hoy ? hasta : hoy;
+    if (ini > fin) return null;
+    let num = 0, denom = 0, ds = ini, guard = 0;
+    while (ds <= fin && guard < 20000) {
+      const st = days[ds];
+      if (st !== 'rest') {
+        denom++;
+        if (doneVals.includes(st)) num += 1;
+        else if (st === 'partial') num += 0.5;
+      }
+      ds = _addDias(ds, 1);
+      guard++;
+    }
+    return denom ? (num / denom) : null;
+  }
   function _calendarioPct(calObj, desde, hasta, doneVals) {
     const days = (calObj && calObj.days) || {};
-    const dias = _clavesDia(days, desde, hasta);
-    if (!dias.length) return null;
-    const done = dias.filter(ds => doneVals.includes(days[ds])).length;
-    return Math.round((done / dias.length) * 1000) / 10;
+    const frac = _fraccionPeriodo(days, desde, hasta, doneVals);
+    return frac === null ? null : Math.round(frac * 1000) / 10;
   }
   function _rachaCalendario(calObj, doneVals) {
     const days = (calObj && calObj.days) || {};
@@ -260,21 +282,15 @@
     });
     return { actual, record };
   }
-  // Pct de cumplimiento genérico de habitTrackers[<sec>] (formato days: 'done'|'partial'|'rest')
+  // Pct de cumplimiento genérico de habitTrackers[<sec>] (formato days: 'done'|'partial'|'missed'|'rest')
   function _habitPct(section, desde, hasta) {
     const habitos = _arr(S.habitTrackers && S.habitTrackers[section]);
     if (!habitos.length) return null;
     let sumFrac = 0, n = 0;
     habitos.forEach(h => {
-      const dias = _clavesDia(h.days, desde, hasta);
-      if (!dias.length) return;
-      let score = 0;
-      dias.forEach(ds => {
-        const st = h.days[ds];
-        if (st === 'done' || st === 'studied') score += 1;
-        else if (st === 'partial') score += 0.5;
-      });
-      sumFrac += score / dias.length;
+      const frac = _fraccionPeriodo(h.days, desde, hasta, ['done', 'studied']);
+      if (frac === null) return;
+      sumFrac += frac;
       n++;
     });
     if (!n) return null;

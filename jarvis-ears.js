@@ -467,14 +467,15 @@
     if ((/\bhabito\b/.test(t) || /\bregistr/.test(t)) && window.PROY_VOICE) {
       let status = 'done';
       if (/\bparcial\b/.test(t)) status = 'partial';
+      else if (/\bincumpl\w*\b/.test(t) || /\bno\s+(lo\s+)?(hice|cumpl\w*|entren\w*|fui|pude)\b/.test(t) || /\bme\s+lo\s+salte[eé]\w*\b/.test(t) || /\bfalt[eé]\w*\b/.test(t)) status = 'missed';
       else if (/\bdescans/.test(t)) status = 'rest';
       const name = raw
         .replace(/\b(marc[aá]\w*|registr[aáeéó]\w*|complet[aá]\w*|anot[aá]\w*|tild[aá]\w*|pon[eé]\w*)\b/gi, ' ')
-        .replace(/\b(el|la|los|las|un|una|unos|unas|mi|mis|de|del|hoy|como|hecho|hecha|completo|completa|completado|completada|parcial|descanso|descans[eé]|h[aá]bito|h[aá]bitos)\b/gi, ' ')
+        .replace(/\b(el|la|los|las|un|una|unos|unas|mi|mis|de|del|hoy|como|hecho|hecha|completo|completa|completado|completada|parcial|incumpl[ií]\w*|incumplido|incumplida|no|lo|me|hice|cumpl[ií]\w*|entren[eé]\w*|fui|pude|salte[eé]\w*|falt[eé]\w*|descanso|descans[eé]|h[aá]bito|h[aá]bitos)\b/gi, ' ')
         .replace(/\s+/g, ' ').trim();
       const marked = PROY_VOICE.markHabit(name, status);
       if (marked) {
-        const w = status === 'partial' ? 'logged as partial' : status === 'rest' ? 'marked as a rest day' : 'marked as done';
+        const w = status === 'partial' ? 'logged as partial' : status === 'missed' ? 'marked as missed' : status === 'rest' ? 'marked as a rest day' : 'marked as done';
         _translateEN(marked).then(n => say(`"${n}" ${w} for today, sir.`, true));
       } else say(`I couldn't find a habit matching that, sir.`, true);
       return;

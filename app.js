@@ -1743,7 +1743,8 @@ function _habitDone(link, date) {          // true/false, o null si el hábito y
 function _habitSetDone(link, date, done) {
   const h = _habitFind(link); if (!h) return false;
   if (!h.days) h.days = {};
-  if (done) h.days[date] = 'done'; else delete h.days[date];
+  if (done) h.days[date] = 'done';
+  else if (h.days[date] === 'done' || h.days[date] === 'studied') delete h.days[date];
   return true;
 }
 // Copia de la tarea con el done tomado del hábito (si está vinculada y el hábito existe).

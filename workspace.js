@@ -632,9 +632,10 @@
       saveTree(best.tab, trees[best.tab]); renderProyectos(best.tab);
       return best.node.label;
     },
-    // Marca el día de hoy en un hábito por nombre (todas las secciones). status: 'done'|'partial'|'rest'
+    // Marca el día de hoy en un hábito por nombre (todas las secciones). status: 'done'|'partial'|'missed'|'rest'
     markHabit(query, status) {
-      status = status || 'done';
+      const VALID = ['done', 'partial', 'missed', 'rest'];
+      status = VALID.includes(status) ? status : 'done';
       const q = (query || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
       if (!q) return null;
       let best = null;

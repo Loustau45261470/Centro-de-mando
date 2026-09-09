@@ -254,7 +254,7 @@
     const habitsToday = [];
     TABS.forEach(sec => (S.habitTrackers?.[sec] || []).forEach(h => {
       const st = h.days?.[today];
-      habitsToday.push(`${st === 'done' ? '✓' : st === 'partial' ? '½' : st === 'rest' ? '—' : '○'} ${h.name}`);
+      habitsToday.push(`${st === 'done' ? '✓' : st === 'partial' ? '½' : st === 'missed' ? '✗' : st === 'rest' ? '—' : '○'} ${h.name}`);
     }));
 
     return {

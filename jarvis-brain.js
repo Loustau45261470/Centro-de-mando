@@ -91,6 +91,7 @@
       const v = (days || {})[ds];
       if (v === 'done' || v === 'partial') streak++;
       else if (v === 'rest') continue;
+      else if (v === 'missed') break;
       else { if (i === 0) continue; break; }
     }
     return streak;
@@ -192,9 +193,13 @@
             const days = h.days || {};
             const streak2 = _habitStreak(days, twoDaysAgo);
             if (streak2 >= 5) {
-              const atRisk = v => v !== 'done' && v !== 'partial' && v !== 'rest';
-              if (atRisk(days[today]) || atRisk(days[yesterday])) {
-                out.push(`⚠ Racha de ${h.name} en riesgo (era ${streak2}d)`);
+              if (days[today] === 'missed' || days[yesterday] === 'missed') {
+                out.push(`✗ Racha de ${h.name} cortada (era ${streak2}d)`);
+              } else {
+                const atRisk = v => v !== 'done' && v !== 'partial' && v !== 'rest';
+                if (atRisk(days[today]) || atRisk(days[yesterday])) {
+                  out.push(`⚠ Racha de ${h.name} en riesgo (era ${streak2}d)`);
+                }
               }
             }
           } catch (e) {}
@@ -545,7 +550,7 @@
     'complete_monthly_goal {search, section?(vida|finanzas|salud|conocimiento|ia)}',
     'add_project {tab, name}',
     'complete_task {search}',
-    'mark_habit {search, status?(done|partial|rest)}',
+    'mark_habit {search, status?(done|partial|missed|rest)}',
     'add_habit {section, name, emoji?}',
     'add_transaction {name, type(income|expense), amount, currency?, account?}',
     'add_wishlist {name, amount, currency?}',

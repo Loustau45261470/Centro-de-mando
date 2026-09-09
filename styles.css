@@ -1675,6 +1675,7 @@ textarea { resize: vertical; min-height: 60px; }
 .hm-cell { width:12px; height:12px; border-radius:3px; background:rgba(255,255,255,.05); }
 .hm-cell.done { background:var(--accent); }
 .hm-cell.partial { background:color-mix(in srgb, var(--accent) 45%, transparent); }
+.hm-cell.missed { background:rgba(244,63,94,.45); }
 .hm-cell.rest { background:rgba(255,255,255,.14); }
 .hm-cell.future { background:transparent; }
 .hm-legend { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:var(--fs-12-5); color:var(--tt); margin-top:10px; }
@@ -1716,12 +1717,12 @@ textarea { resize: vertical; min-height: 60px; }
   color:var(--tt); font-size:var(--fs-13);
 }
 .study-cal-dot.missed {
-  border-color:#FF0000; background:rgba(255,0,0,.28);
-  color:transparent; animation: dot-miss 1.2s ease-in-out infinite;
+  border-color:var(--danger); background:color-mix(in srgb, var(--danger) 55%, transparent);
+  color:#fff;
 }
-@keyframes dot-miss {
-  0%,100% { box-shadow:0 0 4px rgba(255,0,0,.5); }
-  50%     { box-shadow:0 0 20px rgba(255,0,0,1), 0 0 40px rgba(255,0,0,.5); }
+.study-cal-dot.unlogged {
+  border:1.5px dashed rgba(255,255,255,.22); background:transparent;
+  color:transparent;
 }
 .study-cal-dot.partial {
   background: linear-gradient(to right, var(--ok) 50%, var(--danger) 50%);
@@ -1731,13 +1732,17 @@ textarea { resize: vertical; min-height: 60px; }
 .study-cal-dot.future { opacity:.18; cursor:default; pointer-events:none; }
 
 .study-cal-stats {
-  display:flex; gap:0; margin-top:16px;
+  display:grid; grid-template-columns:repeat(5, 1fr); gap:0; margin-top:16px;
   padding-top:14px; border-top:1px solid var(--border);
 }
-.study-cal-stat { flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; }
-.study-cal-stat + .study-cal-stat { border-left:1px solid var(--border); }
+.study-cal-stat { min-width:0; display:flex; flex-direction:column; align-items:center; gap:3px; }
+.study-cal-stat:not(:first-child) { border-left:1px solid var(--border); }
 .study-cal-stat-num { font-size:30px; font-weight:800; letter-spacing:-.04em; line-height:1; }
 .study-cal-stat-label { font-size:var(--fs-12-5); font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--tt); }
+@media (max-width: 420px) {
+  .study-cal-stat-num { font-size:22px; }
+  .study-cal-stat-label { font-size:10px; letter-spacing:.03em; }
+}
 
 /* ── Realce HUD para estadísticas y barras (readouts mono + glow neón) ── */
 .study-cal-stat-num, .qobj-progress-num, .rtn-stats-bar .rtn-stat-val, #goalsDoneNum {
@@ -4982,6 +4987,7 @@ input:focus, select:focus, textarea:focus {
 .ent-day-dot { width: 100%; height: 30px; border-radius: 9px; background: rgba(120,150,220,.06); border: 1px solid var(--border); }
 .ent-day.ent-done .ent-day-dot { background: linear-gradient(180deg, var(--ent-accent), color-mix(in oklab, var(--ent-accent) 55%, #000)); border-color: color-mix(in oklab, var(--ent-accent) 60%, transparent); box-shadow: 0 0 14px -4px var(--ent-accent), inset 0 1px 0 rgba(255,255,255,.25); }
 .ent-day.ent-rest .ent-day-dot { background: rgba(120,150,220,.12); border-color: var(--border-h); }
+.ent-day.ent-missed .ent-day-dot { background: rgba(244,63,94,.35); border-color: rgba(244,63,94,.55); }
 .ent-day-lbl { font-family: var(--mono); font-size: var(--fs-12-5); color: var(--tt); }
 .ent-last { font-size: var(--fs-13); color: var(--ts); margin-bottom: 14px; }
 .ent-last b { color: var(--tp); }
