@@ -9,7 +9,10 @@
   const MODEL_SMART = 'claude-sonnet-5';
   const API_URL    = 'https://api.anthropic.com/v1/messages';
   // Groq: nivel gratuito con soporte de tools. Mismo modelo que ya usa jarvis-ears.js para la voz.
-  const MODEL_GROQ = 'llama-3.3-70b-versatile';
+  // 2026-09-09: Groq retiro llama-3.3-70b-versatile (404 model_not_found). Todos los modelos vivos
+  // de Groq razonan antes de responder, asi que las llamadas van con reasoning_effort 'low' y con
+  // presupuesto de tokens holgado — el razonamiento se descuenta de max_tokens y vacia el content.
+  const MODEL_GROQ = 'openai/gpt-oss-120b';
   const GROQ_URL   = 'https://api.groq.com/openai/v1/chat/completions';
   // El proveedor se deduce del prefijo de la key (igual que en jarvis-ears.js): gsk_ → Groq.
   function _isGroq() { return apiKey.startsWith('gsk_'); }
@@ -113,7 +116,7 @@
     el.className = 'agent-msg ' + role;
     let html = _fmt(text);
     if (role === 'assistant' && model) {
-      const label = model === MODEL_SMART ? '🧠 sonnet' : model === MODEL_GROQ ? '🦙 groq' : '⚡ haiku';
+      const label = model === MODEL_SMART ? '🧠 sonnet' : model === MODEL_GROQ ? '🤖 groq' : '⚡ haiku';
       html += ` <span style="opacity:.45;font-size:var(--fs-12-5)">${label}</span>`;
     }
     el.innerHTML = html;
@@ -738,7 +741,8 @@ Instrucciones:
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
       body: JSON.stringify({
         model: model || MODEL_GROQ,
-        max_tokens: 1024,
+        max_tokens: 2048,
+        reasoning_effort: 'low',
         messages: _histToOpenAI(msgs, SYS_STABLE + `\n\nFecha actual: ${today}.`),
         tools: _toolsOpenAI(),
       }),

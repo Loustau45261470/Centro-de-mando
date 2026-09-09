@@ -382,8 +382,9 @@
         const isGroq = key.startsWith('gsk_');
         url = isGroq ? 'https://api.groq.com/openai/v1/chat/completions' : 'https://openrouter.ai/api/v1/chat/completions';
         headers['Authorization'] = 'Bearer ' + key;
-        body = { model: isGroq ? 'llama-3.3-70b-versatile' : 'meta-llama/llama-3.3-70b-instruct:free',
-          messages: [{ role: 'system', content: sysT }, { role: 'user', content: text }], max_tokens: 300, temperature: 0 };
+        body = { model: isGroq ? 'openai/gpt-oss-120b' : 'meta-llama/llama-3.3-70b-instruct:free',
+          messages: [{ role: 'system', content: sysT }, { role: 'user', content: text }], max_tokens: isGroq ? 700 : 300, temperature: 0 };
+        if (isGroq) body.reasoning_effort = 'low';   // gpt-oss razona: sin techo holgado la traduccion vuelve vacia
         parse = d => d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
       } else {
         url = key.startsWith('AQ.')
@@ -662,10 +663,11 @@
       url = isGroq ? 'https://api.groq.com/openai/v1/chat/completions' : 'https://openrouter.ai/api/v1/chat/completions';
       headers['Authorization'] = 'Bearer ' + key;
       body = {
-        model: isGroq ? 'llama-3.3-70b-versatile' : 'meta-llama/llama-3.3-70b-instruct:free',
+        model: isGroq ? 'openai/gpt-oss-120b' : 'meta-llama/llama-3.3-70b-instruct:free',
         messages: [{ role: 'system', content: sys }, ..._convo.map(mm => ({ role: mm.role === 'model' ? 'assistant' : 'user', content: mm.text })), { role: 'user', content: question }],
-        max_tokens: 600, temperature: 0.2
+        max_tokens: isGroq ? 1400 : 600, temperature: 0.2
       };
+      if (isGroq) body.reasoning_effort = 'low';   // gpt-oss razona: sin techo holgado la respuesta vuelve vacia
       parse = d => d.choices?.[0]?.message?.content;
     } else {
       url = key.startsWith('AQ.')

@@ -68,7 +68,9 @@ async function _miLLMJudge(userText) {
     if (key.startsWith('gsk_')) {
       const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-        body: JSON.stringify({ model: 'llama-3.3-70b-versatile', max_tokens: 8, messages: [{ role: 'user', content: userText }] }),
+        // gpt-oss razona antes de responder y ese razonamiento se descuenta de max_tokens:
+        // con el techo viejo de 8 el content volvia vacio. El veredicto sigue siendo corto.
+        body: JSON.stringify({ model: 'openai/gpt-oss-120b', max_tokens: 512, reasoning_effort: 'low', messages: [{ role: 'user', content: userText }] }),
       });
       if (!res.ok) return null;
       const d = await res.json();
