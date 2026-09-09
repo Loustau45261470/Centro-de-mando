@@ -21,7 +21,7 @@ const CMInformes = (() => {
     { g: 'A', label: 'Año' },
   ];
   const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-  const MODEL = 'llama-3.3-70b-versatile';
+  const MODEL = 'openai/gpt-oss-120b';   // Groq retiro llama-3.3-70b-versatile el 2026-08-16
 
   // Íconos SVG estilo _SF_ICONS (stroke 1.6, currentColor)
   const ICO = {
@@ -726,6 +726,7 @@ const CMInformes = (() => {
       signal: ctrl.signal,
       body: JSON.stringify({
         model: MODEL,
+        reasoning_effort: 'low',
         messages: [
           { role: 'system', content: 'Sos un analista personal. Español rioplatense. Redactá 4 a 6 frases breves analizando estas métricas agregadas de un período. No inventes datos que no estén en el JSON. Sin consejos genéricos de autoayuda. Sin markdown.' },
           { role: 'user', content: JSON.stringify(payload) },
