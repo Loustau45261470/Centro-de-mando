@@ -30,10 +30,11 @@ function computeCalStreaks(calKey) {
     const d = new Date(today + 'T00:00:00');
     d.setDate(d.getDate() - i);
     const ds = d.toISOString().slice(0, 10);
-    if (isDone(ds))               current++;
-    else if (days[ds] === 'rest') { /* neutral */ }
-    else if (ds === today)        { /* not logged yet — don't break */ }
-    else                          break;
+    if (isDone(ds))                 current++;
+    else if (days[ds] === 'rest')   { /* neutral */ }
+    else if (days[ds] === 'missed') break;
+    else if (ds === today)          { /* not logged yet — don't break */ }
+    else                            break;
   }
 
   // Best streak: forward from first done day; rest=neutral, missed=reset
@@ -63,13 +64,14 @@ function renderHabitCalendar(calKey, wrapId, title, labelPlural, labelSingle) {
 
   const days = S[calKey].days;
   const isDone = ds => days[ds] === 'done' || days[ds] === 'studied';
-  let nDone = 0, nPartial = 0, nRest = 0, nMissed = 0;
+  let nDone = 0, nPartial = 0, nRest = 0, nMissed = 0, nUnlogged = 0;
   for (let d = 1; d <= daysInMonth; d++) {
     const ds = calDateStr(y, m, d);
-    if (isDone(ds))                nDone++;
+    if (isDone(ds))                  nDone++;
     else if (days[ds] === 'partial') nPartial++;
-    else if (days[ds] === 'rest')  nRest++;
-    else if (ds < today)           nMissed++;
+    else if (days[ds] === 'missed')  nMissed++;
+    else if (days[ds] === 'rest')    nRest++;
+    else if (ds < today)             nUnlogged++;
   }
   const nPoints = nDone + nPartial * 0.5;
 
@@ -145,8 +147,9 @@ function renderHabitCalendar(calKey, wrapId, title, labelPlural, labelSingle) {
     let dotCls = '', txt = '';
     if (isDone(ds))            { dotCls = 'studied'; txt = '✓'; }
     else if (st === 'partial') { dotCls = 'partial'; txt = '½'; }
+    else if (st === 'missed')  { dotCls = 'missed';  txt = '✗'; }
     else if (st === 'rest')    { dotCls = 'rest';    txt = '—'; }
-    else if (!isFuture)        { dotCls = 'missed'; }
+    else if (!isFuture)        { dotCls = 'unlogged'; }
     else                       { dotCls = 'future'; }
 
     let dayCls = '';
@@ -186,6 +189,10 @@ function renderHabitCalendar(calKey, wrapId, title, labelPlural, labelSingle) {
         <span class="study-cal-stat-label">Incumplidos</span>
       </div>
       <div class="study-cal-stat">
+        <span class="study-cal-stat-num" style="color:var(--tt)">${nUnlogged}</span>
+        <span class="study-cal-stat-label">Sin registro</span>
+      </div>
+      <div class="study-cal-stat">
         <span class="study-cal-stat-num" style="color:var(--accent)">${streaks.current}</span>
         <span class="study-cal-stat-label">🔥 Racha</span>
       </div>
@@ -207,10 +214,13 @@ function renderHabitCalendar(calKey, wrapId, title, labelPlural, labelSingle) {
         <div class="study-cal-legend-dot" style="background:linear-gradient(to right,var(--ok) 50%,var(--danger) 50%)"></div>Parcial (2 toques)
       </div>
       <div class="study-cal-legend-item">
-        <div class="study-cal-legend-dot" style="background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.3)"></div>Descanso (3 toques)
+        <div class="study-cal-legend-dot" style="background:rgba(244,63,94,.75);border:1px solid rgba(244,63,94,.9)"></div>Incumplido (3 toques)
       </div>
       <div class="study-cal-legend-item">
-        <div class="study-cal-legend-dot" style="background:rgba(244,63,94,.25);border:1px solid rgba(244,63,94,.6)"></div>Incumplido
+        <div class="study-cal-legend-dot" style="background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.3)"></div>Descanso (4 toques)
+      </div>
+      <div class="study-cal-legend-item">
+        <div class="study-cal-legend-dot" style="background:transparent;border:1.5px dashed rgba(255,255,255,.25)"></div>Sin registro
       </div>
     </div>
   </div>`;
@@ -360,13 +370,14 @@ function renderHabitCal(section) {
   const isDone = ds => days[ds] === 'done' || days[ds] === 'studied';
 
   // ── Stats (los días de descanso no cuentan en el denominador) ──
-  let nDone = 0, nPartial = 0, nMissed = 0, nRest = 0;
+  let nDone = 0, nPartial = 0, nMissed = 0, nRest = 0, nUnlogged = 0;
   for (let d = 1; d <= dim; d++) {
     const ds = calDateStr(y, m, d);
     if (isDone(ds))                nDone++;
     else if (days[ds]==='partial') nPartial++;
+    else if (days[ds]==='missed')  nMissed++;
     else if (days[ds]==='rest')    nRest++;
-    else if (!days[ds] && ds < today) nMissed++;
+    else if (!days[ds] && ds < today) nUnlogged++;
   }
   const nPoints = nDone + nPartial * 0.5;
   const denom   = Math.max(0, dim - nRest);   // mes menos descansos
@@ -377,9 +388,10 @@ function renderHabitCal(section) {
   for (let i = 0; i < 730; i++) {
     const d = new Date(today + 'T00:00:00'); d.setDate(d.getDate() - i);
     const ds = d.toISOString().slice(0, 10);
-    if (isDone(ds))            curStreak++;
-    else if (days[ds]==='rest') { /* neutral */ }
-    else if (ds === today)     { /* not yet logged */ }
+    if (isDone(ds))              curStreak++;
+    else if (days[ds]==='rest')  { /* neutral */ }
+    else if (days[ds]==='missed') break;
+    else if (ds === today)       { /* not yet logged */ }
     else break;
   }
 
@@ -442,8 +454,9 @@ function renderHabitCal(section) {
     let dotCls = '', txt = '';
     if (isDone(ds))           { dotCls='studied'; txt='✓'; }
     else if (st==='partial')  { dotCls='partial'; txt='½'; }
+    else if (st==='missed')   { dotCls='missed';  txt='✗'; }
     else if (st==='rest')     { dotCls='rest';    txt='—'; }
-    else if (!isFuture)       { dotCls='missed'; }
+    else if (!isFuture)       { dotCls='unlogged'; }
     else                      { dotCls='future'; }
     let dayCls = '';
     if (colIndex >= 5) dayCls += ' weekend';
@@ -484,8 +497,9 @@ function renderHabitCal(section) {
     <div class="study-cal-legend" style="margin-top:10px">
       <div class="study-cal-legend-item"><div class="study-cal-legend-dot" style="background:var(--accent)"></div>Hecho</div>
       <div class="study-cal-legend-item"><div class="study-cal-legend-dot" style="background:linear-gradient(to right,var(--ok) 50%,var(--danger) 50%)"></div>Parcial</div>
+      <div class="study-cal-legend-item"><div class="study-cal-legend-dot" style="background:rgba(244,63,94,.75);border:1px solid rgba(244,63,94,.9)"></div>Incumplido</div>
       <div class="study-cal-legend-item"><div class="study-cal-legend-dot" style="background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.22)"></div>Descanso</div>
-      <div class="study-cal-legend-item"><div class="study-cal-legend-dot" style="border:1.5px solid rgba(244,63,94,.55);background:rgba(244,63,94,.1)"></div>Sin marcar</div>
+      <div class="study-cal-legend-item"><div class="study-cal-legend-dot" style="background:transparent;border:1.5px dashed rgba(255,255,255,.25)"></div>Sin registro</div>
     </div>`;
 
   // ── Monthly chart (últimos 6 meses) ─────────────────
@@ -516,6 +530,7 @@ function _renderHabitHeatmap(section, habit, today) {
     if (ds > today)                cls += ' future';
     else if (isDone(ds))           cls += ' done';
     else if (days[ds] === 'partial') cls += ' partial';
+    else if (days[ds] === 'missed')  cls += ' missed';
     else if (days[ds] === 'rest')    cls += ' rest';
     cells += `<div class="${cls}" title="${ds}"></div>`;
     if (dayOfCol === 0) {
@@ -535,8 +550,9 @@ function _renderHabitHeatmap(section, habit, today) {
   <div class="hm-legend">
     <span><i class="dot" style="background:var(--accent)"></i>Hecho</span>
     <span><i class="dot" style="background:color-mix(in srgb,var(--accent) 45%,transparent)"></i>Parcial</span>
+    <span><i class="dot" style="background:rgba(244,63,94,.45)"></i>Incumplido</span>
     <span><i class="dot" style="background:rgba(255,255,255,.14)"></i>Descanso</span>
-    <span><i class="dot" style="background:rgba(255,255,255,.05)"></i>Sin marcar</span>
+    <span><i class="dot" style="background:rgba(255,255,255,.05)"></i>Sin registro</span>
   </div>`;
 }
 
@@ -587,8 +603,9 @@ function toggleHabitDay(section, habitId, ds) {
   const habit = _getHabits(section).find(h => h.id === habitId);
   if (!habit) return;
   const cur = habit.days[ds];
-  if (cur==='done')         habit.days[ds]='partial';
-  else if (cur==='partial') habit.days[ds]='rest';
+  if (cur==='done'||cur==='studied') habit.days[ds]='partial';
+  else if (cur==='partial') habit.days[ds]='missed';
+  else if (cur==='missed')  habit.days[ds]='rest';
   else if (cur==='rest')    delete habit.days[ds];
   else                      habit.days[ds]='done';
   saveState(); renderHabitCal(section); checkAchievements();
@@ -663,8 +680,9 @@ function cycleHabitDay(calKey, ds) {
   const st = S[calKey].days[ds];
   if (!st)                              S[calKey].days[ds] = 'done';
   else if (st==='done'||st==='studied') S[calKey].days[ds] = 'partial';
-  else if (st==='partial')              S[calKey].days[ds] = 'rest';
-  else                                  delete S[calKey].days[ds];
+  else if (st==='partial')              S[calKey].days[ds] = 'missed';
+  else if (st==='missed')               S[calKey].days[ds] = 'rest';
+  else                                   delete S[calKey].days[ds];
   saveState();
   const renderFns = { studyCalendar: renderStudyCalendar, workoutCalendar: renderWorkoutCalendar, financeCalendar: renderFinanceCalendar };
   if (renderFns[calKey]) renderFns[calKey]();
