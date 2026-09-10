@@ -96,3 +96,66 @@ Tobías quiere reservar plata todos los meses para compras futuras concretas (un
 - [ ] Dado un mes que quedó sin acreditar, cuando uso "forzar acreditación" desde el detalle, entonces el acumulado sube por ese monto y el mes queda marcado como acreditado manualmente; y cuando uso "anular" sobre un mes acreditado con acumulado suficiente, entonces el acumulado baja por ese monto.
 - [ ] Dado un fondo "sin condición" de $5.000/mes, cuando cierra cualquier mes, entonces acredita siempre.
 - [ ] Dado que borro el hábito al que apunta un fondo, cuando cierra el mes, entonces el fondo no acredita y la UI lo muestra como "condición rota".
+
+---
+
+# Addendum — Modo "devengo diario" (condición tipo 4)
+
+**Fecha:** 2026-09-10 · **Motivo:** el modo todo-o-nada contra umbral (`≥75%`) castiga todo el mes por una mala racha y no da refuerzo hasta el cierre. Este modo paga por día cumplido y premia la repetición, para que el estímulo sea inmediato y visible.
+
+## Alcance
+Se **agrega** un cuarto tipo de condición. Los tres existentes (`ninguna`, `habito`, `objetivo`) no cambian en nada: mismo cálculo, misma UI, mismo log.
+
+## Modelo
+
+`condition = { type:'diario', section, habitId, perDay, milestones:[{days,bonus},…] }`
+
+- `perDay`: ARS que suma cada día cumplido del hábito elegido.
+- `milestones`: hitos de racha, default `[{days:7,bonus:0},{days:14,bonus:0},{days:30,bonus:0}]` (montos los pone el usuario; un hito con `bonus:0` o `days:0` se ignora).
+- `monthlyAmount` **no se pide** en este modo: se deriva. El campo del modal se oculta y en su lugar se muestra el tope calculado.
+
+## Cálculo del devengado de un mes — `pfDailyEarned(fund, mk, upToToday)`
+
+Función **pura y derivada** de `habit.days`: se recalcula en cada render, nunca se lleva un contador incremental. Consecuencia buscada: marcar un día atrasado corrige el fondo solo, sin cron ni migración.
+
+Recorriendo los días 1..N del mes (o hasta `getActiveDate()` si `upToToday`):
+- `done` / `studied` → `+perDay`, la racha suma 1.
+- `partial` → `+perDay/2`, la racha suma 1.
+- `rest` → **no suma plata y no corta la racha** (descanso planificado ≠ fallar).
+- cualquier otro estado (incl. sin marcar y `failed`) → la racha vuelve a 0.
+
+**Racha continua entre meses:** el contador arranca con el arrastre de días consecutivos inmediatamente anteriores al día 1 del mes (mirando hacia atrás en `habit.days`, tope 400 días). El **bono se atribuye al mes en que se cruza el hito**.
+
+**Cada hito se paga como máximo una vez por mes** (no es una fábrica de dinero cortando y recomenzando rachas).
+
+**Tope de seguridad:** `earned = Math.min(earned, pfMonthlyCap(fund, mk))`, con
+`pfMonthlyCap(fund, mk) = perDay × díasDelMes(mk) + Σ bonus de todos los milestones`.
+
+## Presupuesto
+`_pfBudgetTotal(mk)` / `_pfBudgetRows(mk)` usan `pfMonthlyCap(fund, mk)` para los fondos diarios (en vez de `monthlyAmount`). Es deliberadamente conservador: el presupuesto reserva el máximo teórico, y cumplir menos días significa haber gastado menos de lo presupuestado, nunca más.
+
+## Acreditación y cierre de mes
+- El mes en curso **no** acredita ni genera transacción: se muestra en vivo como "ganado este mes" pero **no es gastable** hasta el cierre. Se mantiene la invariante contable de que la compra del fondo no es gasto porque el gasto ya se registró al acreditar.
+- Al cerrar el mes, `pfCatchUp()` acredita `pfDailyEarned(fund, mk, false)` como **una sola** transacción `Fondo: <nombre>` con fecha del último día del mes (nunca una por día). Si el devengado es 0, se registra `{credited:0, met:false}` sin transacción.
+- `_pfAppliesToMonth` → `true` en todos los meses. `_pfIsQuarterly` → `false`.
+- "Forzar" acredita el devengado real de ese mes (no un monto fijo); "Anular" funciona igual que hoy.
+- Hábito borrado → `pfConditionBroken` = true → no acredita (igual que el tipo `habito`).
+
+## UI — el estímulo inmediato (requisito central)
+En la fila del fondo (`.fund-row`) y en el detalle, para fondos diarios:
+- Barra de progreso del mes: `ganado / tope`, con el monto en ARS.
+- Racha actual con 🔥 y su número de días.
+- Próximo hito: "faltan N días para +$X" (o "todos los hitos del mes cobrados").
+- El pill de estado muestra el monto ganado en vivo en lugar de "Cumpliendo/No cumple".
+- Todo con clases y tokens existentes; barra accesible (`role="progressbar"` con `aria-valuenow/min/max` y `aria-label`).
+
+## Definition of Done (addendum)
+- [ ] Fondo diario de $700/día con hitos 7:+$1.500, 14:+$2.000, 30:+$4.000 sobre el hábito Entrenamientos. Con 12 días `done` de los cuales 8 son consecutivos → ganado = 12×700 + 1.500 = $9.900.
+- [ ] Un día `partial` en esa serie suma $350 y **no** corta la racha.
+- [ ] Un día `rest` en el medio de una racha de 5+3 la mantiene en 8, no la reinicia, y no suma plata.
+- [ ] Racha que se corta en el día 9 y vuelve a llegar a 7 dentro del mismo mes → el hito de 7 **no** se paga dos veces.
+- [ ] Días 28-31 de agosto cumplidos + días 1-3 de septiembre cumplidos → el hito de 7 días se paga en **septiembre**.
+- [ ] Al cerrar el mes se crea **una** transacción por el total devengado, y el acumulado del fondo sube en ese monto.
+- [ ] Marcar retroactivamente un día del mes en curso sube el ganado en vivo sin tocar nada más.
+- [ ] El presupuesto del mes lista el fondo diario por su tope (`perDay × días + Σ bonos`), no por `monthlyAmount`.
+- [ ] Los fondos con condición `ninguna` / `habito` / `objetivo` ya existentes siguen comportándose exactamente igual (sin migración de datos).
