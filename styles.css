@@ -5122,6 +5122,24 @@ input:focus, select:focus, textarea:focus {
   .fund-right { grid-column: 2; justify-self: start; }
 }
 
+/* ── Fondo "devengo diario" · estímulo inmediato (barra + racha + próximo hito) ── */
+.fund-daily { margin-top: 8px; max-width: 320px; }
+.fund-daily-bar-wrap {
+  height: 7px; border-radius: 4px; background: var(--border); overflow: hidden;
+}
+.fund-daily-bar-fill {
+  height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--warn), color-mix(in oklab, var(--warn) 70%, #fff));
+  transition: width .4s var(--ease-out-expo, ease);
+}
+.fund-daily-stats {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  margin-top: 5px; font-family: var(--mono); font-size: var(--fs-12-5);
+}
+.fund-daily-amt { color: var(--tp); font-weight: 600; }
+.fund-daily-cap { color: var(--ts); font-weight: 400; }
+.fund-daily-streak { color: var(--warn); font-weight: 600; white-space: nowrap; }
+.fund-daily-next { margin-top: 2px; font-size: var(--fs-12-5); color: var(--ts); }
+
 /* ════════════════════ RECORDATORIOS · notificación en sección ════════════════════ */
 .rnotif-card { --rn-accent: var(--hud, #38BDF8); }
 .rnotif-empty { font-size: var(--fs-13); color: var(--ts); padding: 6px 2px 10px; line-height: 1.5; }

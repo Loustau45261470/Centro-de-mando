@@ -211,6 +211,13 @@
       "desc": "Groq retiro llama-3.3-70b-versatile el 2026-08-16: toda llamada devolvia HTTP 404 model_not_found y JARVIS quedaba mudo. Estaba hardcodeado en jarvis-agent.js, jarvis-ears.js (x2), informes.js y mapa-ideas.js. Reemplazado por openai/gpt-oss-120b (verificado contra la API real: soporta tool calling). Todos los modelos vivos de Groq razonan antes de responder y ese razonamiento se descuenta de max_tokens, asi que cada llamada lleva reasoning_effort 'low' y techo de tokens holgado; con el max_tokens 8 original mapa-ideas volvia con content vacio. Al elegir modelo de Groq: confirmar que este en GET /openai/v1/models de la cuenta y probar con el max_tokens real del caso de uso.",
       "file": "jarvis-agent.js",
       "marker": "MODEL_GROQ = 'openai/gpt-oss-120b'"
+    },
+    {
+      "id": "fondos-diario-preselect-habito",
+      "fecha": "2026-09-10",
+      "desc": "Al editar un fondo de compra en modo devengo diario, _pfFillHabitSel no preseleccionaba el habito guardado (solo contemplaba condition.type=='habito', no 'diario'), asi que el select quedaba en la primera opcion de la lista y saveFund() la persistia: abrir Editar para cambiar el emoji re-vinculaba el fondo a OTRO habito sin ningun aviso, y a fin de mes pfCatchUp acreditaba plata calculada sobre el habito equivocado. El fix es contemplar ambos tipos en la preseleccion. Si este marker desaparece, revisar primero que editar un fondo diario no mueva su condicion.",
+      "file": "finanzas.js",
+      "marker": "cond.type === 'habito' || cond.type === 'diario'"
     }
   ]
 }

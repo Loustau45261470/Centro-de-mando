@@ -402,7 +402,7 @@ function pfAccumulated(fundId) {
 
 // ── Resolución de la condición ──
 function _pfFindHabit(cond) {
-  if (!cond || cond.type !== 'habito') return null;
+  if (!cond || (cond.type !== 'habito' && cond.type !== 'diario')) return null;
   const arr = (S.habitTrackers && S.habitTrackers[cond.section]) || [];
   return arr.find(h => h.id === cond.habitId) || null;
 }
@@ -418,7 +418,7 @@ function _pfFindGoal(cond) {
 function pfConditionBroken(fund) {
   const c = fund.condition;
   if (!c) return false;
-  if (c.type === 'habito')   return !_pfFindHabit(c);
+  if (c.type === 'habito' || c.type === 'diario') return !_pfFindHabit(c);
   if (c.type === 'objetivo') return !_pfFindGoal(c);
   return false;
 }
@@ -428,6 +428,10 @@ function pfConditionLabel(fund) {
   if (c.type === 'habito') {
     const h = _pfFindHabit(c);
     return h ? `${h.emoji || '📅'} ${h.name} ≥ ${+c.threshold || 0}%` : 'Hábito eliminado';
+  }
+  if (c.type === 'diario') {
+    const h = _pfFindHabit(c);
+    return h ? `${h.emoji || '📅'} ${h.name} · ${fmtMoney(+c.perDay || 0, 'ARS')}/día + rachas` : 'Hábito eliminado';
   }
   const g = _pfFindGoal(c);
   const scope = c.scope === 'trimestral' ? 'Objetivo trimestral' : 'Objetivo mensual';
@@ -469,6 +473,80 @@ function _pfAmountFor(fund) {
   return _pfIsQuarterly(fund) ? base * 3 : base;
 }
 
+// ── Modo diario: devengo por día cumplido + bonos de racha (specs addendum "devengo diario") ──
+// Hito válido: days > 0 y bonus > 0 (uno con cualquiera de los dos en 0/vacío se ignora,
+// tanto en el devengado como en el tope — así el tope siempre es alcanzable).
+function _pfValidMilestones(c) {
+  return ((c && c.milestones) || [])
+    .filter(m => (+m.days > 0) && (+m.bonus > 0))
+    .slice().sort((a, b) => (+a.days) - (+b.days));
+}
+// Tope de seguridad del mes: perDay × días del mes + Σ bonus de los hitos válidos.
+function pfMonthlyCap(fund, mk) {
+  const c = fund && fund.condition;
+  if (!c || c.type !== 'diario') return 0;
+  const perDay = +c.perDay || 0;
+  const bonusSum = _pfValidMilestones(c).reduce((s, m) => s + (+m.bonus || 0), 0);
+  return perDay * _pfDaysInMonth(mk) + bonusSum;
+}
+// Racha consecutiva arrastrada desde los días inmediatamente anteriores al día 1 del mes
+// (mirando hacia atrás en habit.days, tope 400 días). 'rest' no suma ni corta; cualquier
+// otro estado corta y detiene el arrastre.
+function _pfStreakCarryIn(habit, mk) {
+  const [y, m] = mk.split('-').map(Number);
+  const d = new Date(y, m - 1, 1);
+  let streak = 0;
+  for (let i = 0; i < 400; i++) {
+    d.setDate(d.getDate() - 1);
+    const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const st = habit.days ? habit.days[ds] : null;
+    if (st === 'done' || st === 'studied' || st === 'partial') { streak++; continue; }
+    if (st === 'rest') continue;
+    break;
+  }
+  return streak;
+}
+// Función pura y derivada de habit.days — se recalcula en cada render, nunca lleva contador
+// incremental persistido. upToToday=true corta en getActiveDate() (proyección del mes en curso).
+function pfDailyEarned(fund, mk, upToToday) {
+  const c = fund.condition;
+  const habit = _pfFindHabit(c);
+  const perDay = +(c && c.perDay) || 0;
+  const milestones = _pfValidMilestones(c);
+
+  let streak = habit ? _pfStreakCarryIn(habit, mk) : 0;
+  let maxStreak = streak; // racha más alta del mes (arrastre incluido) — define qué bonos se pagan
+  let earned = 0;
+
+  if (habit) {
+    const totalDays = _pfDaysInMonth(mk);
+    const today = getActiveDate();
+    for (let day = 1; day <= totalDays; day++) {
+      const ds = `${mk}-${String(day).padStart(2, '0')}`;
+      if (upToToday && ds > today) break;
+      const st = habit.days ? habit.days[ds] : null;
+      if (st === 'done' || st === 'studied') { earned += perDay; streak++; }
+      else if (st === 'partial') { earned += perDay / 2; streak++; }
+      else if (st === 'rest') { /* no suma, no corta */ }
+      else { streak = 0; }
+      if (streak > maxStreak) maxStreak = streak;
+    }
+  }
+
+  // Bonos de racha: se pagan todos los hitos con days <= maxStreak, uno por mes cada uno.
+  // Se renuevan cada mes (sin registro de "ya cruzado") — sostener la racha vuelve a pagarlos.
+  for (const ms of milestones) {
+    if (+ms.days <= maxStreak) earned += (+ms.bonus || 0);
+  }
+
+  earned = Math.min(earned, pfMonthlyCap(fund, mk));
+  let nextMilestone = null;
+  for (const ms of milestones) {
+    if (+ms.days > maxStreak) { nextMilestone = { days: +ms.days, bonus: +ms.bonus || 0, remaining: +ms.days - maxStreak }; break; }
+  }
+  return { earned, streak, maxStreak, nextMilestone, hasMilestones: milestones.length > 0 };
+}
+
 // Evalúa la condición del fondo para un mes. upToToday=true → proyección del mes en curso.
 function pfEvalMonth(fund, mk, upToToday) {
   if (pfConditionBroken(fund)) return { met:false, broken:true, pct:null };
@@ -478,6 +556,10 @@ function pfEvalMonth(fund, mk, upToToday) {
     const pct = _pfHabitPct(_pfFindHabit(c), mk, !!upToToday);
     return { met: pct !== null && pct >= (+c.threshold || 0), pct };
   }
+  if (c.type === 'diario') {
+    const d = pfDailyEarned(fund, mk, !!upToToday);
+    return { met: d.earned > 0, pct:null, earned: d.earned, streak: d.streak, nextMilestone: d.nextMilestone };
+  }
   const g = _pfFindGoal(c);
   return { met: !!(g && g.done), pct:null };
 }
@@ -485,8 +567,8 @@ function pfEvalMonth(fund, mk, upToToday) {
 // ── Acreditación ──
 // Acreditar registra el gasto fijo del mes (transacción con fecha del último día del mes)
 // y debita la cuenta asociada: por eso la compra posterior contra el fondo ya no es un gasto.
-function _pfCredit(fund, mk, manual) {
-  const amount = _pfAmountFor(fund);
+function _pfCredit(fund, mk, manual, amountOverride) {
+  const amount = amountOverride !== undefined ? amountOverride : _pfAmountFor(fund);
   const txn = { id:uid(), date:_pfLastDay(mk), name:`Fondo: ${fund.name}`, type:'expense', amount, currency:'ARS', accountId: fund.accountId || '' };
   if (fund.accountId) {
     const acc = S.accounts.find(a => a.id === fund.accountId);
@@ -511,7 +593,8 @@ function pfCatchUp() {
       if (log[mk] === undefined && _pfAppliesToMonth(fund, mk)) {
         const r = pfEvalMonth(fund, mk, false);
         if (!r.broken) {                      // condición rota → no acredita ni marca el mes
-          if (r.met) _pfCredit(fund, mk, false); else _pfMarkNotMet(fund, mk);
+          const isDaily = fund.condition && fund.condition.type === 'diario';
+          if (r.met) _pfCredit(fund, mk, false, isDaily ? r.earned : undefined); else _pfMarkNotMet(fund, mk);
           changed = true;
         }
       }
@@ -525,7 +608,13 @@ function pfForceCredit(fundId, mk) {
   const fund = _pfFund(fundId); if (!fund) return;
   const e = _pfLog(fundId)[mk];
   if (e && +e.credited > 0) { showToast('Ese mes ya está acreditado'); return; }
-  _pfCredit(fund, mk, true);
+  if (fund.condition && fund.condition.type === 'diario') {
+    const d = pfDailyEarned(fund, mk, false);
+    if (!(d.earned > 0)) { showToast('No hay nada devengado ese mes'); return; }
+    _pfCredit(fund, mk, true, d.earned);
+  } else {
+    _pfCredit(fund, mk, true);
+  }
   saveState(); renderFinanzasTab(); renderFundDetail();
   showToast('Acreditación forzada');
 }
@@ -559,6 +648,11 @@ function _pfStatusPill(fund) {
     return `<span class="pill pill-ghost" style="font-size:var(--fs-12-5)">${txt}</span>`;
   }
   if (!fund.condition) return '<span class="pill pill-ghost" style="font-size:var(--fs-12-5)">Sin condición</span>';
+  if (fund.condition.type === 'diario') {
+    const d = pfDailyEarned(fund, curMK, true);
+    const cls = d.earned > 0 ? 'pill-ok' : 'pill-warn';
+    return `<span class="pill ${cls}" style="font-size:var(--fs-12-5)">Ganado: ${fmtMoney(d.earned, 'ARS')}</span>`;
+  }
   const r = pfEvalMonth(fund, curMK, true);
   const pct = r.pct === null || r.pct === undefined ? '' : ` ${Math.round(r.pct)}%`;
   return r.met
@@ -580,15 +674,20 @@ function renderPurchaseFunds() {
   }
   if (empty) empty.classList.add('hidden');
   let total = 0;
+  const curMK = _pfMonthKey(new Date());
   list.innerHTML = S.purchaseFunds.map(f => {
     const acc = pfAccumulated(f.id);
     total += acc;
-    const per = _pfIsQuarterly(f) ? `${fmtMoney(+f.monthlyAmount || 0, 'ARS')}/mes · ×3 al cierre del trimestre` : `${fmtMoney(+f.monthlyAmount || 0, 'ARS')}/mes`;
+    const isDaily = f.condition && f.condition.type === 'diario';
+    const per = isDaily
+      ? `${fmtMoney(+f.condition.perDay || 0, 'ARS')}/día · tope ${fmtMoney(pfMonthlyCap(f, curMK), 'ARS')}/mes`
+      : (_pfIsQuarterly(f) ? `${fmtMoney(+f.monthlyAmount || 0, 'ARS')}/mes · ×3 al cierre del trimestre` : `${fmtMoney(+f.monthlyAmount || 0, 'ARS')}/mes`);
     return `<div class="fund-row">
       <span class="fund-tile" aria-hidden="true">${escHtml(f.emoji || '🪙')}</span>
       <div class="fund-main">
         <div class="fund-name">${escHtml(f.name)} ${_pfStatusPill(f)}</div>
         <div class="fund-meta">${per} · ${escHtml(pfConditionLabel(f))}</div>
+        ${_pfDailyWidgetHTML(f, curMK)}
       </div>
       <div class="fund-right">
         <span class="fund-acc">${fmtMoney(acc, 'ARS')}</span>
@@ -603,6 +702,29 @@ function renderPurchaseFunds() {
   if (totalEl) totalEl.textContent = fmtMoney(total, 'ARS');
 }
 
+// Widget del "estímulo inmediato" del modo diario: barra ganado/tope, racha, próximo hito.
+// '' si el fondo no es diario o su condición está rota (hábito borrado).
+function _pfDailyWidgetHTML(fund, mk) {
+  if (!fund.condition || fund.condition.type !== 'diario' || pfConditionBroken(fund)) return '';
+  const d = pfDailyEarned(fund, mk, true);
+  const cap = pfMonthlyCap(fund, mk);
+  const pct = cap > 0 ? Math.min(100, Math.round((d.earned / cap) * 100)) : 0;
+  const nextTxt = d.nextMilestone
+    ? `Faltan ${d.nextMilestone.remaining} día${d.nextMilestone.remaining === 1 ? '' : 's'} para +${fmtMoney(d.nextMilestone.bonus, 'ARS')}`
+    : (d.hasMilestones ? 'Todos los hitos del mes cobrados' : 'Sin hitos configurados');
+  const ariaLabel = `Ganado este mes: ${fmtMoney(d.earned, 'ARS')} de ${fmtMoney(cap, 'ARS')} tope`;
+  return `<div class="fund-daily">
+    <div class="fund-daily-bar-wrap" role="progressbar" aria-valuenow="${Math.round(d.earned)}" aria-valuemin="0" aria-valuemax="${Math.round(cap)}" aria-label="${escHtml(ariaLabel)}">
+      <div class="fund-daily-bar-fill" style="width:${pct}%"></div>
+    </div>
+    <div class="fund-daily-stats">
+      <span class="fund-daily-amt">${fmtMoney(d.earned, 'ARS')} <span class="fund-daily-cap">de ${fmtMoney(cap, 'ARS')}</span></span>
+      <span class="fund-daily-streak">🔥 ${d.streak} día${d.streak === 1 ? '' : 's'}</span>
+    </div>
+    <div class="fund-daily-next">${escHtml(nextTxt)}</div>
+  </div>`;
+}
+
 // ── Alta / edición de fondo ──
 let _pfEditId = null;
 
@@ -615,7 +737,7 @@ function _pfFillHabitSel(sel, cond) {
       `<option value="${sec}|${h.id}">${escHtml(h.emoji || '📅')} ${escHtml(h.name)}</option>`).join('') + '</optgroup>';
   }).join('');
   el.innerHTML = opts || '<option value="">— Sin hábitos —</option>';
-  if (cond && cond.type === 'habito') el.value = `${cond.section}|${cond.habitId}`;
+  if (cond && (cond.type === 'habito' || cond.type === 'diario')) el.value = `${cond.section}|${cond.habitId}`;
 }
 function _pfFillObjSel(cond) {
   const scope = document.getElementById('fundObjScope').value;
@@ -646,10 +768,22 @@ function _pfFillObjSel(cond) {
 }
 function pfToggleCondFields() {
   const t = document.getElementById('fundCondType').value;
-  document.getElementById('fundCondHabit').style.display = t === 'habito' ? '' : 'none';
-  document.getElementById('fundCondObj').style.display   = t === 'objetivo' ? '' : 'none';
+  document.getElementById('fundCondHabit').style.display  = t === 'habito' ? '' : 'none';
+  document.getElementById('fundCondObj').style.display    = t === 'objetivo' ? '' : 'none';
+  document.getElementById('fundCondDiario').style.display = t === 'diario' ? '' : 'none';
+  document.getElementById('fundAmountField').style.display = t === 'diario' ? 'none' : '';
+  document.getElementById('fundCapField').style.display     = t === 'diario' ? '' : 'none';
+  if (t === 'diario') pfUpdateDailyCap();
 }
 function pfObjScopeChanged() { _pfFillObjSel(null); }
+function pfUpdateDailyCap() {
+  const perDay = +document.getElementById('fundPerDay').value || 0;
+  const mk = _pfMonthKey(new Date());
+  const bonusSum = [1,2,3].reduce((s,n) => s + (+document.getElementById(`fundMs${n}Bonus`).value || 0), 0);
+  const cap = perDay * _pfDaysInMonth(mk) + bonusSum;
+  const el = document.getElementById('fundCapDisplay');
+  if (el) el.value = fmtMoney(cap, 'ARS');
+}
 
 function openFundModal(id) {
   _pfEnsure();
@@ -667,6 +801,14 @@ function openFundModal(id) {
   document.getElementById('fundObjScope').value = c && c.type === 'objetivo' ? c.scope : 'mensual';
   _pfFillHabitSel('fundHabitSel', c);
   _pfFillObjSel(c);
+  _pfFillHabitSel('fundDailyHabitSel', c);
+  document.getElementById('fundPerDay').value = c && c.type === 'diario' ? (+c.perDay || '') : '';
+  const msDefaults = [{days:7,bonus:0},{days:14,bonus:0},{days:30,bonus:0}];
+  const ms = c && c.type === 'diario' && Array.isArray(c.milestones) && c.milestones.length ? c.milestones : msDefaults;
+  [1,2,3].forEach((n,i) => {
+    document.getElementById(`fundMs${n}Days`).value = ms[i] ? (+ms[i].days || msDefaults[i].days) : msDefaults[i].days;
+    document.getElementById(`fundMs${n}Bonus`).value = ms[i] && +ms[i].bonus ? +ms[i].bonus : '';
+  });
   pfToggleCondFields();
   openModal('modal-fund');
 }
@@ -675,26 +817,40 @@ function saveFund() {
   _pfEnsure();
   const name = document.getElementById('fundName').value.trim();
   if (!name) { showToast('Escribe el nombre'); return; }
-  const monthlyAmount = +document.getElementById('fundAmount').value || 0;
-  if (monthlyAmount <= 0) { showToast('El monto mensual tiene que ser mayor a 0'); return; }
   const emoji = document.getElementById('fundEmoji').value.trim();
   const accountId = document.getElementById('fundAccount').value;
   const type = document.getElementById('fundCondType').value;
 
   let condition = null;
-  if (type === 'habito') {
-    const v = document.getElementById('fundHabitSel').value;
+  let monthlyAmount = 0;
+  if (type === 'diario') {
+    const v = document.getElementById('fundDailyHabitSel').value;
     if (!v) { showToast('Elegí un hábito para la condición'); return; }
     const [section, habitId] = v.split('|');
-    condition = { type:'habito', section, habitId, threshold: +document.getElementById('fundThreshold').value || 0 };
-  } else if (type === 'objetivo') {
-    const scope = document.getElementById('fundObjScope').value;
-    const v = document.getElementById('fundObjSel').value;
-    if (!v) { showToast('Elegí un objetivo para la condición'); return; }
-    const parts = v.split('|');
-    condition = scope === 'trimestral'
-      ? { type:'objetivo', scope, periodKey: parts[0], goalId: parts[1] }
-      : { type:'objetivo', scope, section: parts[0], periodKey: parts[1], goalId: parts[2] };
+    const perDay = +document.getElementById('fundPerDay').value || 0;
+    if (perDay <= 0) { showToast('El monto por día tiene que ser mayor a 0'); return; }
+    const milestones = [1,2,3].map(n => ({
+      days: +document.getElementById(`fundMs${n}Days`).value || 0,
+      bonus: +document.getElementById(`fundMs${n}Bonus`).value || 0
+    }));
+    condition = { type:'diario', section, habitId, perDay, milestones };
+  } else {
+    monthlyAmount = +document.getElementById('fundAmount').value || 0;
+    if (monthlyAmount <= 0) { showToast('El monto mensual tiene que ser mayor a 0'); return; }
+    if (type === 'habito') {
+      const v = document.getElementById('fundHabitSel').value;
+      if (!v) { showToast('Elegí un hábito para la condición'); return; }
+      const [section, habitId] = v.split('|');
+      condition = { type:'habito', section, habitId, threshold: +document.getElementById('fundThreshold').value || 0 };
+    } else if (type === 'objetivo') {
+      const scope = document.getElementById('fundObjScope').value;
+      const v = document.getElementById('fundObjSel').value;
+      if (!v) { showToast('Elegí un objetivo para la condición'); return; }
+      const parts = v.split('|');
+      condition = scope === 'trimestral'
+        ? { type:'objetivo', scope, periodKey: parts[0], goalId: parts[1] }
+        : { type:'objetivo', scope, section: parts[0], periodKey: parts[1], goalId: parts[2] };
+    }
   }
 
   if (_pfEditId) {
@@ -824,10 +980,11 @@ function renderFundDetail() {
         <span class="budget-total-num">${fmtMoney(pfAccumulated(f.id), 'ARS')}</span>
       </div>
       <div class="budget-total-sub">
-        <span>${fmtMoney(+f.monthlyAmount || 0, 'ARS')} / mes</span>
+        <span>${f.condition && f.condition.type === 'diario' ? `Tope: ${fmtMoney(pfMonthlyCap(f, _pfMonthKey(new Date())), 'ARS')} / mes` : `${fmtMoney(+f.monthlyAmount || 0, 'ARS')} / mes`}</span>
         <span>${escHtml(pfConditionLabel(f))}</span>
       </div>
     </div>
+    ${_pfDailyWidgetHTML(f, _pfMonthKey(new Date()))}
     <div class="budget-block-hdr">
       <span>Compras del fondo</span>
       <button class="btn btn-ghost btn-sm" onclick="openFundSpend('${f.id}')">+ Compra</button>
@@ -842,8 +999,11 @@ function _pfFundsOfMonth(mk) {
   _pfEnsure();
   return S.purchaseFunds.filter(f => !f.createdMonth || f.createdMonth <= mk);
 }
+function _pfFundBudgetAmount(f, mk) {
+  return f.condition && f.condition.type === 'diario' ? pfMonthlyCap(f, mk) : (+f.monthlyAmount || 0);
+}
 function _pfBudgetTotal(mk) {
-  return _pfFundsOfMonth(mk).reduce((s,f) => s + (+f.monthlyAmount || 0), 0);
+  return _pfFundsOfMonth(mk).reduce((s,f) => s + _pfFundBudgetAmount(f, mk), 0);
 }
 function _pfBudgetRows(mk) {
   return _pfFundsOfMonth(mk).map(f => `<div class="sub-row">
@@ -852,7 +1012,7 @@ function _pfBudgetRows(mk) {
         <div class="sub-detail">${escHtml(pfConditionLabel(f))}</div>
       </div>
       <div class="flex gap-8 items-center">
-        <span class="mono bold">${fmtMoney(+f.monthlyAmount || 0, 'ARS')}</span>
+        <span class="mono bold">${fmtMoney(_pfFundBudgetAmount(f, mk), 'ARS')}</span>
         <button class="btn btn-ghost btn-sm" onclick="openFundDetail('${f.id}')" style="font-size:var(--fs-12-5)">Detalle</button>
       </div>
     </div>`).join('');
