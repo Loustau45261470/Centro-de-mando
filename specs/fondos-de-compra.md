@@ -124,9 +124,11 @@ Recorriendo los días 1..N del mes (o hasta `getActiveDate()` si `upToToday`):
 - `rest` → **no suma plata y no corta la racha** (descanso planificado ≠ fallar).
 - cualquier otro estado (incl. sin marcar y `failed`) → la racha vuelve a 0.
 
-**Racha continua entre meses:** el contador arranca con el arrastre de días consecutivos inmediatamente anteriores al día 1 del mes (mirando hacia atrás en `habit.days`, tope 400 días). El **bono se atribuye al mes en que se cruza el hito**.
+**Racha continua entre meses:** el contador arranca con el arrastre de días consecutivos inmediatamente anteriores al día 1 del mes (mirando hacia atrás en `habit.days`, tope 400 días).
 
-**Cada hito se paga como máximo una vez por mes** (no es una fábrica de dinero cortando y recomenzando rachas).
+**Bonos de racha — regla definitiva (decidida 2026-09-10):** se lleva `maxStreak` = la racha más alta alcanzada en cualquier día de ese mes (contando el arrastre del mes anterior). Al cerrar el cálculo, se paga el bono de **cada hito con `days <= maxStreak`, una vez por mes**. Los bonos **se renuevan todos los meses**: sostener una racha viva vuelve a pagarlos, porque el objetivo del modo es premiar la repetición sostenida — que un mes perfecto pague menos que el anterior sería un incentivo invertido (cobrarías por cortar la racha). Corolario: no se lleva registro de hitos "ya cruzados" entre meses, y `nextMilestone` es simplemente el hito válido más chico con `days > maxStreak`.
+
+Un hito con `days <= 0` o `bonus <= 0` se ignora — tanto en el devengado como en `pfMonthlyCap`, que deben aplicar el mismo filtro para que el tope sea siempre alcanzable.
 
 **Tope de seguridad:** `earned = Math.min(earned, pfMonthlyCap(fund, mk))`, con
 `pfMonthlyCap(fund, mk) = perDay × díasDelMes(mk) + Σ bonus de todos los milestones`.
@@ -159,3 +161,7 @@ En la fila del fondo (`.fund-row`) y en el detalle, para fondos diarios:
 - [ ] Marcar retroactivamente un día del mes en curso sube el ganado en vivo sin tocar nada más.
 - [ ] El presupuesto del mes lista el fondo diario por su tope (`perDay × días + Σ bonos`), no por `monthlyAmount`.
 - [ ] Los fondos con condición `ninguna` / `habito` / `objetivo` ya existentes siguen comportándose exactamente igual (sin migración de datos).
+- [ ] Racha viva sostenida tres meses seguidos (hitos 7/14/30 con bonos $1.500/$2.000/$4.000): cada uno de los tres meses paga los $7.500 de bonos, no solo el primero.
+- [ ] Mes que arranca con la racha arrastrada ya por encima de todos los hitos (ej. entra con 45 días) → paga los tres bonos ese mes.
+- [ ] Un hito con el campo "días" vacío (`days:0`) no suma al tope del presupuesto ni se paga: el tope de la barra siempre es alcanzable.
+- [ ] Editar un fondo diario (cambiar solo el emoji) y guardar deja la condición apuntando **al mismo hábito** que antes.
