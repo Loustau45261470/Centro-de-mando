@@ -67,10 +67,12 @@ function _sfPopulateHistCatFilter() {
   sel.value = typeof txnHistCatFilter !== 'undefined' ? txnHistCatFilter : '';
   const sortSel = document.getElementById('txnHistSortSel');
   if (sortSel && typeof txnHistSort !== 'undefined') sortSel.value = txnHistSort;
+  const verdictSel = document.getElementById('txnHistVerdictSel');
+  if (verdictSel && typeof txnHistVerdictFilter !== 'undefined') verdictSel.value = txnHistVerdictFilter;
 }
 function _sfEnsureHistorial() {
   if (typeof CMOverlay === 'undefined') return null;
-  const { overlay, body } = CMOverlay.build({ id: 'ov-historial', accent: '#22C55E', onClose: () => { if (typeof txnHistCatFilter !== 'undefined') { txnHistCatFilter = ''; txnHistSort = 'date'; _sfPopulateHistCatFilter(); if (typeof renderActivity === 'function') renderActivity(); } } });
+  const { overlay, body } = CMOverlay.build({ id: 'ov-historial', accent: '#22C55E', onClose: () => { if (typeof txnHistCatFilter !== 'undefined') { txnHistCatFilter = ''; txnHistSort = 'date'; txnHistVerdictFilter = ''; _sfPopulateHistCatFilter(); if (typeof renderActivity === 'function') renderActivity(); } } });
   if (!overlay._sfBuilt) {
     body.innerHTML = `<div class="cm-ov-head"><div class="cm-ov-eyebrow">FINANZAS · HISTORIAL</div><div class="cm-ov-title">Historial de movimientos</div></div>
       <div class="txn-hist-filters">
@@ -80,6 +82,13 @@ function _sfEnsureHistorial() {
           <option value="date">Por fecha</option>
           <option value="amount">Monto: mayor a menor</option>
         </select>
+        <select class="txn-hist-cat-filter" id="txnHistVerdictSel" aria-label="Filtrar por veredicto del gasto" onchange="setTxnHistVerdict(this.value)">
+          <option value="">Todos los gastos</option>
+          <option value="good">👍 Valen la pena</option>
+          <option value="bad">👎 Recortables</option>
+          <option value="none">Sin clasificar</option>
+        </select>
+        <span class="txn-hist-bad-total" id="txnHistBadTotal" style="display:none"></span>
       </div>
       <div class="cm-ov-host" id="ov-historial-host"></div>`;
     overlay._sfBuilt = true;
