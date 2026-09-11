@@ -1636,6 +1636,20 @@ function setTxnHistCat(cat) { txnHistCatFilter = cat; renderActivity(); }
 // Orden de la lista del historial: 'date' (default, como se cargó) o 'amount' (mayor a menor).
 let txnHistSort = 'date';
 function setTxnHistSort(mode) { txnHistSort = mode; renderActivity(); }
+// Filtro por veredicto del gasto: '' (todos), 'good', 'bad' o 'none' (gastos sin clasificar).
+// Mismo ciclo de vida que txnHistCatFilter: vive solo mientras el overlay está abierto.
+let txnHistVerdictFilter = '';
+function setTxnHistVerdict(v) { txnHistVerdictFilter = v; renderActivity(); }
+
+// Veredicto de un gasto: 👍 vale la pena / 👎 recortable. Es transversal a la categoría
+// (un gasto de "Comida" puede ser cualquiera de los dos), por eso no vive en TXN_CATEGORIES.
+// Solo aplica a type==='expense'; volver a tocar el mismo pulgar lo deja sin clasificar.
+function toggleTxnVerdict(id, v) {
+  const txn = S.transactions.find(t => t.id === id);
+  if (!txn || txn.type !== 'expense') return;
+  if (txn.verdict === v) delete txn.verdict; else txn.verdict = v;
+  saveState(); renderActivity();
+}
 
 function getAvailableMonths() {
   const months = new Set();
@@ -1768,7 +1782,21 @@ function renderActivity() {
   S.accounts.forEach(a => accMap[a.id] = a);
 
   let filteredForList = txnHistCatFilter ? filtered.filter(t => t.category === txnHistCatFilter) : filtered;
+  if (txnHistVerdictFilter === 'none') filteredForList = filteredForList.filter(t => t.type === 'expense' && !t.verdict);
+  else if (txnHistVerdictFilter) filteredForList = filteredForList.filter(t => t.verdict === txnHistVerdictFilter);
   if (txnHistSort === 'amount') filteredForList = [...filteredForList].sort((a, b) => (+b.amount || 0) - (+a.amount || 0));
+
+  // Total recortable del mes: solo ARS (mismo criterio que getMonthlyExpenses) para no
+  // sumar monedas distintas en un solo número. Se calcula sobre `filtered` (el mes entero),
+  // no sobre la lista filtrada, así el número no cambia al filtrar por categoría.
+  const badTotEl = document.getElementById('txnHistBadTotal');
+  if (badTotEl) {
+    const badTot = filtered
+      .filter(t => t.type === 'expense' && t.verdict === 'bad' && t.currency === 'ARS')
+      .reduce((s, t) => s + (+t.amount || 0), 0);
+    badTotEl.style.display = badTot ? '' : 'none';
+    badTotEl.textContent = `👎 Recortable: ${fmtMoney(badTot, 'ARS')}`;
+  }
 
   const colHdr = document.getElementById('activityColHdr');
   if (!filteredForList.length) {
@@ -1784,6 +1812,12 @@ function renderActivity() {
         ? `<span style="font-size:var(--fs-12-5);padding:1px 7px;border-radius:99px;font-weight:700;background:${cat.color};border:1px solid ${cat.border};color:var(--ts);margin-left:4px">${escHtml(cat.icon)} ${escHtml(cat.label)}</span>`
         : '';
       const pendingBadge = t.pending ? `<span class="txn-pending-badge">⏳ Pendiente</span>` : '';
+      const verdictBtns = t.type === 'expense'
+        ? `<div class="txn-verdict">
+            <button class="txn-verdict-btn${t.verdict==='good'?' on':''}" onclick="toggleTxnVerdict('${t.id}','good')" title="Gasto que vale la pena" aria-label="Marcar como gasto que vale la pena" aria-pressed="${t.verdict==='good'}">👍</button>
+            <button class="txn-verdict-btn${t.verdict==='bad'?' on':''}" onclick="toggleTxnVerdict('${t.id}','bad')" title="Gasto recortable" aria-label="Marcar como gasto recortable" aria-pressed="${t.verdict==='bad'}">👎</button>
+          </div>`
+        : '';
       return `<div class="activity-row">
         <div class="act-icon" style="background:${t.type==='income'?'rgba(107,227,164,.1)':'rgba(255,107,107,.1)'}">${cat.icon||(t.type==='income'?'💚':'🔴')}</div>
         <div class="act-info">
@@ -1791,6 +1825,7 @@ function renderActivity() {
           <div class="act-date">${fmtDate(t.date)}${acc?` <span style="color:var(--ts)">· ${acc.icon||'🏦'} ${acc.name}</span>`:''}</div>
         </div>
         <div style="display:flex;align-items:center;gap:6px">
+          ${verdictBtns}
           <div class="act-amount ${t.type}">${t.type==='expense'?'-':'+'} ${fmtMoney(t.amount,t.currency)}</div>
           <div class="txn-actions"><button class="icon-btn" onclick="openEditTxn('${t.id}')" title="Editar"><svg viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button></div>
         </div>
@@ -1977,6 +2012,7 @@ function saveEditTxn() {
   txn.currency = document.getElementById('editTxnCurrency').value;
   txn.category = document.getElementById('editTxnCategory').value;
   txn.accountId= newAccountId;
+  if (txn.type !== 'expense') delete txn.verdict; // el veredicto solo existe para gastos
 
   // Cambio de mes destino: si difiere del mes actual del movimiento Y es un gasto, se refecha
   // al día 1 del nuevo mes y queda "pending" — el próximo render (applyPendingScheduledExpenses)

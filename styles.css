@@ -945,10 +945,30 @@ textarea { resize: vertical; min-height: 60px; }
 .txn-hist-filters { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .txn-hist-filters .txn-month-filter { flex: 1 1 auto; margin-bottom: 0; }
 .txn-hist-cat-filter {
-  flex: 0 0 auto; margin-bottom: 14px; padding: 6px 10px; font-size: var(--fs-12-5); font-weight: 600;
+  /* width:auto vence al select{width:100%} global: con tres filtros + el total recortable,
+     estirados a ancho completo ocupaban cuatro renglones antes de la primera fila. */
+  flex: 0 1 auto; width: auto; max-width: 100%; margin-bottom: 14px; padding: 6px 10px; font-size: var(--fs-12-5); font-weight: 600;
   background: rgba(255,255,255,.04); color: var(--ts); border: 1px solid var(--border);
   border-radius: 8px; cursor: pointer;
 }
+.txn-hist-bad-total {
+  flex: 0 0 auto; margin-bottom: 14px; padding: 6px 10px; font-size: var(--fs-12-5); font-weight: 800;
+  font-family: var(--mono); color: var(--danger); background: rgba(255,107,107,.1);
+  border: 1px solid rgba(255,107,107,.35); border-radius: 8px;
+}
+
+/* Pulgares de veredicto del gasto (👍 vale la pena / 👎 recortable).
+   Siempre visibles — a diferencia de .txn-actions no dependen del hover, porque
+   además de ser botones muestran información y tienen que servir en touch. */
+.txn-verdict { display:flex;gap:2px;flex-shrink:0; }
+.txn-verdict-btn {
+  background:none;border:1px solid transparent;border-radius:6px;cursor:pointer;
+  padding:2px 4px;line-height:1;font-size:var(--fs-12-5);
+  opacity:.25;filter:grayscale(1);transition:opacity .15s,filter .15s,background .15s;
+}
+.txn-verdict-btn:hover { opacity:.7;filter:grayscale(.3); }
+.txn-verdict-btn.on { opacity:1;filter:none;background:rgba(255,255,255,.07);border-color:var(--border); }
+.txn-verdict-btn:focus-visible { opacity:1;outline:2px solid var(--accent);outline-offset:1px; }
 
 .month-balance-row { display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.05); }
 .month-balance-row:last-child { border-bottom:none; }
