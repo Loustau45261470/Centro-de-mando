@@ -27,6 +27,9 @@
     .cmdk-item .ci-cat{font-family:var(--mono);font-size:var(--fs-12-5);letter-spacing:.1em;text-transform:uppercase;color:var(--tt);flex-shrink:0}
     .cmdk-item.sel{background:rgba(56,189,248,0.10);border-color:var(--hud-dim);box-shadow:inset 0 0 14px rgba(56,189,248,0.08)}
     .cmdk-item.sel .ci-lbl{color:var(--tp)}
+    .cmdk-item .ci-sub{font-family:var(--mono);font-size:var(--fs-12-5);color:var(--tt);flex-shrink:0;max-width:38%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .cmdk-sep{padding:10px 12px 4px;font-family:var(--mono);font-size:var(--fs-12-5);letter-spacing:.12em;text-transform:uppercase;color:var(--tt);border-top:1px solid var(--border);margin-top:4px}
+    .cmdk-sep:first-child{border-top:none;margin-top:0}
     .cmdk-empty{padding:22px;text-align:center;color:var(--tt);font-family:var(--mono);font-size:var(--fs-12-5)}`;
   document.head.appendChild(style);
 
@@ -66,7 +69,7 @@
     {ic:'◑', lbl:'Tema: Original', cat:'Tema', kw:'tema original normal clasico', run:()=>{ if(has('applyTheme')) applyTheme(''); }}
   ];
 
-  let open=false, sel=0, results=[];
+  let open=false, sel=0, results=[], sepLabels={};
   const overlay=document.createElement('div'); overlay.id='cmdk-overlay';
   overlay.innerHTML =
     '<div id="cmdk-panel">'+
@@ -81,7 +84,7 @@
   overlay.addEventListener('click', e=>{ if(e.target===overlay) closePalette(); });
 
   function build(q){
-    const nq=norm(q).trim(); results=[];
+    const nq=norm(q).trim(); results=[]; sepLabels={};
     if(nq) results.push({ic:'⌁', lbl:'Ejecutar: “'+esc(q.trim())+'”', cat:'JARVIS', run:()=>{ if(window.JARVIS_EARS) JARVIS_EARS.handleCommand(q.trim()); }});
     CMDS.map(c=>{
       if(!nq) return {c,s:0};
@@ -89,13 +92,27 @@
       if(hay.includes(nq)) return {c,s:2};
       return {c, s: nq.split(/\s+/).every(w=>hay.includes(w)) ? 1 : -1};
     }).filter(x=>x.s>=0).sort((a,b)=>b.s-a.s).forEach(x=>results.push(x.c));
+    // Resultados de datos (búsqueda global sobre S) — debajo de los comandos, agrupados
+    // por categoría con un separador. Best-effort: si CMBuscar no cargó o tira, la
+    // paleta se comporta exactamente igual que antes (solo comandos).
+    if(nq && window.CMBuscar && typeof CMBuscar.buscar==='function'){
+      try{
+        const hallados = CMBuscar.buscar(q, 30) || [];
+        let lastCat=null;
+        hallados.forEach(r=>{
+          if(r.seccion!==lastCat){ sepLabels[results.length]=r.seccion; lastCat=r.seccion; }
+          results.push({ic:'▸', lbl:r.titulo, cat:r.subtitulo||'', run:r.ir});
+        });
+      }catch(e){ console.warn('cmdk buscar', e); }
+    }
     sel=0; renderList();
   }
   function renderList(){
     if(!results.length){ list.innerHTML='<div class="cmdk-empty">Sin coincidencias</div>'; return; }
     list.innerHTML=results.map((c,i)=>
+      (sepLabels[i]!=null ? '<div class="cmdk-sep">'+esc(sepLabels[i])+'</div>' : '')+
       '<div class="cmdk-item'+(i===sel?' sel':'')+'" data-i="'+i+'">'+
-        '<span class="ci-ic">'+c.ic+'</span><span class="ci-lbl">'+c.lbl+'</span><span class="ci-cat">'+c.cat+'</span></div>').join('');
+        '<span class="ci-ic">'+esc(c.ic)+'</span><span class="ci-lbl">'+esc(c.lbl)+'</span><span class="ci-cat">'+esc(c.cat)+'</span></div>').join('');
     list.querySelectorAll('.cmdk-item').forEach(el=>{
       el.onmousemove=()=>{ const i=+el.dataset.i; if(i!==sel){ sel=i; paint(); } };
       el.onclick=()=>{ sel=+el.dataset.i; runSel(); };
@@ -108,7 +125,13 @@
     if(items[sel]) items[sel].scrollIntoView({block:'nearest'});
   }
   function runSel(){ const c=results[sel]; if(!c) return; closePalette(); try { c.run(); } catch(e){ console.warn('cmdk', e); } }
-  function openPalette(){ open=true; overlay.classList.add('open'); input.value=''; build(''); setTimeout(()=>input.focus(), 30); }
+  function openPalette(){
+    open=true; overlay.classList.add('open'); input.value='';
+    // Reconstruye el índice de datos una vez por apertura (no por tecla) para que
+    // ediciones sin cambio de cantidad de ítems (ej. renombrar una transacción) se vean.
+    if(window.CMBuscar && typeof CMBuscar.reindexar==='function'){ try{ CMBuscar.reindexar(); }catch(e){ console.warn('cmdk reindexar', e); } }
+    build(''); setTimeout(()=>input.focus(), 30);
+  }
   function closePalette(){ open=false; overlay.classList.remove('open'); }
 
   input.addEventListener('input', ()=>build(input.value));
