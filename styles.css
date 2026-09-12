@@ -1817,6 +1817,7 @@ textarea { resize: vertical; min-height: 60px; }
 .qobj-link-label { font-size:11px; color:var(--tt); font-family:var(--mono); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .qobj-link-bar-wrap { flex:1; max-width:110px; height:4px; background:var(--border); border-radius:2px; flex-shrink:0; }
 .qobj-link-bar { height:4px; background:var(--accent); border-radius:2px; transition:width .4s; }
+.qobj-link-bar.exceeded { background:var(--danger); }
 .qobj-link-picker { margin-bottom:14px; }
 .qobj-link-picker-title { font-size:var(--fs-12-5); font-weight:700; color:var(--sec); margin-bottom:6px; }
 .qobj-link-subj-list { max-height:180px; overflow-y:auto; border:1px solid var(--border); border-radius:8px; padding:6px 10px; }

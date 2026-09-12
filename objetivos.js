@@ -14,11 +14,25 @@ const _MONTH_SHORT = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct
 // categoría de objetivo → tab/sección (inverso de QOBJ_TAB_CATS)
 const QOBJ_CAT_TO_TAB = {};
 Object.entries(QOBJ_TAB_CATS).forEach(([tab, cats]) => cats.forEach(c => QOBJ_CAT_TO_TAB[c] = tab));
-// tabs con hábito enlazable (conocimiento usa materias de abogacía, no hábito)
-const QOBJ_TAB_HABIT_SECTION = { vida: 'vida', finanzas: 'finanzas', salud: 'salud', ia: 'ia' };
+// tabs con hábito enlazable (conocimiento usa materias de abogacía; finanzas usa su propio picker)
+const QOBJ_TAB_HABIT_SECTION = { vida: 'vida', salud: 'salud', ia: 'ia' };
 
-// ── Enlace de objetivos con hábitos / abogacía ──────────────────
-// o.link = null | {type:'habit', section, habitId} | {type:'law', subjects:[{yearId,subId}]}
+// Categorías de transacciones disponibles para enlazar (gasto/presupuesto)
+function _qobjTxnCats() {
+  if (typeof ensureTxnCategories === 'function') ensureTxnCategories();
+  return Object.entries(S.txnCategories || {});
+}
+function _qobjCatLabel(id) {
+  if (typeof ensureTxnCategories === 'function') ensureTxnCategories();
+  const c = (S.txnCategories || {})[id];
+  return c ? `${c.icon || ''} ${c.label}`.trim() : id;
+}
+
+// ── Enlace de objetivos con hábitos / abogacía / finanzas ────────
+// o.link = null
+//   | {type:'habit', section, habitId}
+//   | {type:'law', subjects:[{yearId,subId}]}
+//   | {type:'finance', metric:'patrimonio'|'cuenta'|'gasto'|'ingreso'|'presupuesto', accountId?, category?, target?}
 function _periodDateRange(periodId) {
   const months = _periodMonths(periodId);
   if (!months.length) return null;
@@ -56,10 +70,62 @@ function _lawLinkProgress(link) {
   return { label: `⚖ ${done}/${subs.length} finales`, pct: subs.length ? Math.round(done / subs.length * 100) : 0 };
 }
 
+function _financeLinkProgress(link, periodId) {
+  if (link.metric === 'patrimonio') {
+    const current = calcNetWorth();
+    const target = +link.target || 0;
+    const pct = target ? Math.round(current / target * 100) : 0;
+    return { label: `💰 Patrimonio · ${fmtMoney(current,'ARS')}/${fmtMoney(target,'ARS')}`, pct: Math.min(100, pct) };
+  }
+  if (link.metric === 'cuenta') {
+    const acc = (S.accounts || []).find(a => a.id === link.accountId);
+    if (!acc) return null;
+    const target = +link.target || 0;
+    const pct = target ? Math.round(acc.balance / target * 100) : 0;
+    return { label: `${acc.icon||'🏦'} ${acc.name} · ${fmtMoney(acc.balance,acc.currency)}/${fmtMoney(target,acc.currency)}`, pct: Math.min(100, pct) };
+  }
+  const range = _periodDateRange(periodId);
+  const inRange = t => !range || (t.date >= range[0] && t.date <= range[1]);
+  if (link.metric === 'gasto') {
+    const spent = (S.transactions || [])
+      .filter(t => t.type === 'expense' && t.category === link.category && t.currency === 'ARS' && inRange(t))
+      .reduce((s, t) => s + (+t.amount || 0), 0);
+    const target = +link.target || 0;
+    const pct = target ? Math.round(spent / target * 100) : 0;
+    return { label: `${_qobjCatLabel(link.category)} · ${fmtMoney(spent,'ARS')}/${fmtMoney(target,'ARS')} tope`, pct: Math.min(100, pct), exceeded: pct > 100 };
+  }
+  if (link.metric === 'ingreso') {
+    const total = (S.transactions || [])
+      .filter(t => t.type === 'income' && t.currency === 'ARS' && inRange(t))
+      .reduce((s, t) => s + (+t.amount || 0), 0);
+    const target = +link.target || 0;
+    const pct = target ? Math.round(total / target * 100) : 0;
+    return { label: `💚 Ingresos · ${fmtMoney(total,'ARS')}/${fmtMoney(target,'ARS')}`, pct: Math.min(100, pct) };
+  }
+  if (link.metric === 'presupuesto') {
+    const months = _periodMonths(periodId);
+    const monthKeys = months.length ? months : [_curMonthKey()];
+    let budgeted = 0;
+    monthKeys.forEach(mk => {
+      const b = (S.budgets || {})[mk];
+      if (!b) return;
+      (b.fixed || []).forEach(it => { if (it.category === link.category) budgeted += _budgetItemTotal(it); });
+      (b.reserved || []).forEach(it => { if (it.category === link.category) budgeted += (+it.amount || 0); });
+    });
+    const real = (S.transactions || [])
+      .filter(t => t.type === 'expense' && t.category === link.category && t.currency === 'ARS' && monthKeys.includes((t.date || '').slice(0,7)))
+      .reduce((s, t) => s + (+t.amount || 0), 0);
+    const pct = budgeted ? Math.round(real / budgeted * 100) : 0;
+    return { label: `${_qobjCatLabel(link.category)} · ${fmtMoney(real,'ARS')}/${fmtMoney(budgeted,'ARS')} presup.`, pct: Math.min(100, pct), exceeded: pct > 100 };
+  }
+  return null;
+}
+
 function qobjLinkProgress(periodId, link) {
   if (!link) return null;
-  if (link.type === 'habit') return _habitLinkProgress({ ...link, periodId });
-  if (link.type === 'law')   return _lawLinkProgress(link);
+  if (link.type === 'habit')   return _habitLinkProgress({ ...link, periodId });
+  if (link.type === 'law')     return _lawLinkProgress(link);
+  if (link.type === 'finance') return _financeLinkProgress(link, periodId);
   return null;
 }
 
@@ -68,8 +134,80 @@ function qobjLinkHTML(periodId, link) {
   if (!p) return '';
   return `<div class="qobj-link-progress">
     <span class="qobj-link-label">${p.label}</span>
-    <div class="qobj-link-bar-wrap"><div class="qobj-link-bar" style="width:${p.pct}%"></div></div>
+    <div class="qobj-link-bar-wrap"><div class="qobj-link-bar${p.exceeded?' exceeded':''}" style="width:${p.pct}%"></div></div>
   </div>`;
+}
+
+// Select de hábitos de una sección (usado por vida/salud/ia y por finanzas → hábito)
+function _qobjHabitSelectHTML(idPrefix, section, link) {
+  const habits = _getHabits(section);
+  const curId = (link && link.type === 'habit') ? link.habitId : '';
+  return `<select class="inp" id="${idPrefix}-habit" style="width:100%">
+    <option value="">Sin enlace</option>
+    ${habits.map(h => `<option value="${h.id}" ${h.id===curId?'selected':''}>${h.emoji||'📌'} ${h.name}</option>`).join('')}
+  </select>`;
+}
+
+// Sub-campos según la métrica financiera elegida (cuenta/categoría/monto meta o tope)
+function qobjFinanceSubFieldsHTML(idPrefix, metric, link) {
+  const accounts = S.accounts || [];
+  const cats = _qobjTxnCats();
+  const curAccount = (link && link.accountId) || '';
+  const curCat = (link && link.category) || '';
+  const curTarget = (link && link.target != null) ? link.target : '';
+  if (metric === 'cuenta') {
+    return `<select class="inp" id="${idPrefix}-fin-acc" style="width:100%;margin-bottom:8px">
+      ${accounts.map(a => `<option value="${a.id}" ${a.id===curAccount?'selected':''}>${a.icon||'🏦'} ${a.name}</option>`).join('')}
+    </select>
+    <input class="inp" type="number" id="${idPrefix}-fin-target" placeholder="Monto meta" value="${curTarget}" style="width:100%">`;
+  }
+  if (metric === 'gasto') {
+    return `<select class="inp" id="${idPrefix}-fin-cat" style="width:100%;margin-bottom:8px">
+      ${cats.map(([id,c]) => `<option value="${id}" ${id===curCat?'selected':''}>${c.icon||''} ${c.label}</option>`).join('')}
+    </select>
+    <input class="inp" type="number" id="${idPrefix}-fin-target" placeholder="Monto tope del trimestre" value="${curTarget}" style="width:100%">`;
+  }
+  if (metric === 'presupuesto') {
+    return `<select class="inp" id="${idPrefix}-fin-cat" style="width:100%">
+      ${cats.map(([id,c]) => `<option value="${id}" ${id===curCat?'selected':''}>${c.icon||''} ${c.label}</option>`).join('')}
+    </select>`;
+  }
+  if (metric === 'patrimonio' || metric === 'ingreso') {
+    return `<input class="inp" type="number" id="${idPrefix}-fin-target" placeholder="Monto meta" value="${curTarget}" style="width:100%">`;
+  }
+  return '';
+}
+
+function _qobjFinMetricChange(idPrefix) {
+  const metric = document.getElementById(`${idPrefix}-fin-metric`).value;
+  document.getElementById(`${idPrefix}-fin-sub`).innerHTML = qobjFinanceSubFieldsHTML(idPrefix, metric, null);
+}
+
+// Select de métrica + sus sub-campos (usado dentro del picker de finanzas)
+function qobjFinanceMetricHTML(idPrefix, link) {
+  const metric = (link && link.type === 'finance') ? link.metric : '';
+  const opt = (v, lbl) => `<option value="${v}" ${metric===v?'selected':''}>${lbl}</option>`;
+  return `<select class="inp" id="${idPrefix}-fin-metric" style="width:100%;margin-bottom:8px" onchange="_qobjFinMetricChange('${idPrefix}')">
+    <option value="">Elegí una métrica</option>
+    ${opt('patrimonio','💰 Patrimonio total')}
+    ${opt('cuenta','🏦 Una cuenta')}
+    ${opt('gasto','🔴 Gasto por categoría (tope)')}
+    ${opt('ingreso','💚 Ingresos del trimestre')}
+    ${opt('presupuesto','📋 Presupuesto de una categoría')}
+  </select>
+  <div id="${idPrefix}-fin-sub">${qobjFinanceSubFieldsHTML(idPrefix, metric, link)}</div>`;
+}
+
+// tab finanzas: primero elegís si enlazás a un hábito contable o a una métrica financiera
+function qobjFinanzasKindSubHTML(idPrefix, kind, link) {
+  if (kind === 'habit')   return _qobjHabitSelectHTML(idPrefix, 'finanzas', link);
+  if (kind === 'finance') return qobjFinanceMetricHTML(idPrefix, link);
+  return '';
+}
+
+function _qobjLinkKindChange(idPrefix) {
+  const kind = document.getElementById(`${idPrefix}-kind`).value;
+  document.getElementById(`${idPrefix}-kind-sub`).innerHTML = qobjFinanzasKindSubHTML(idPrefix, kind, null);
 }
 
 // HTML del selector de enlace dentro de los modales de agregar/editar
@@ -89,16 +227,23 @@ function qobjLinkPickerHTML(idPrefix, tabName, link) {
       <div class="qobj-link-subj-list">${rows || '<div class="empty-state" style="padding:8px 0">Sin materias cargadas</div>'}</div>
     </div>`;
   }
+  if (tabName === 'finanzas') {
+    const kind = link ? (link.type === 'finance' ? 'finance' : 'habit') : '';
+    return `<div class="qobj-link-picker">
+      <div class="qobj-link-picker-title">Enlazar a</div>
+      <select class="inp" id="${idPrefix}-kind" style="width:100%;margin-bottom:8px" onchange="_qobjLinkKindChange('${idPrefix}')">
+        <option value="">Sin enlace</option>
+        <option value="habit" ${kind==='habit'?'selected':''}>Hábito contable</option>
+        <option value="finance" ${kind==='finance'?'selected':''}>Métrica financiera</option>
+      </select>
+      <div id="${idPrefix}-kind-sub">${qobjFinanzasKindSubHTML(idPrefix, kind, link)}</div>
+    </div>`;
+  }
   const section = QOBJ_TAB_HABIT_SECTION[tabName];
   if (!section) return '';
-  const habits = _getHabits(section);
-  const curId = (link && link.type === 'habit') ? link.habitId : '';
   return `<div class="qobj-link-picker">
     <div class="qobj-link-picker-title">Enlazar a un hábito</div>
-    <select class="inp" id="${idPrefix}-habit" style="width:100%">
-      <option value="">Sin enlace</option>
-      ${habits.map(h => `<option value="${h.id}" ${h.id===curId?'selected':''}>${h.emoji||'📌'} ${h.name}</option>`).join('')}
-    </select>
+    ${_qobjHabitSelectHTML(idPrefix, section, link)}
   </div>`;
 }
 
@@ -107,6 +252,32 @@ function qobjReadLinkFromPicker(idPrefix, tabName) {
     const subjects = [...document.querySelectorAll(`[id^="${idPrefix}-subj-"]:checked`)]
       .map(el => ({ yearId: el.dataset.year, subId: el.dataset.sub }));
     return subjects.length ? { type: 'law', subjects } : null;
+  }
+  if (tabName === 'finanzas') {
+    const kindEl = document.getElementById(`${idPrefix}-kind`);
+    const kind = kindEl && kindEl.value;
+    if (kind === 'habit') {
+      const sel = document.getElementById(`${idPrefix}-habit`);
+      const habitId = sel && sel.value;
+      return habitId ? { type: 'habit', section: 'finanzas', habitId } : null;
+    }
+    if (kind === 'finance') {
+      const metric = document.getElementById(`${idPrefix}-fin-metric`)?.value;
+      if (!metric) return null;
+      const targetEl = document.getElementById(`${idPrefix}-fin-target`);
+      const target = targetEl ? (+targetEl.value || 0) : null;
+      if (metric === 'cuenta') {
+        const accountId = document.getElementById(`${idPrefix}-fin-acc`)?.value;
+        return accountId ? { type: 'finance', metric, accountId, target } : null;
+      }
+      if (metric === 'gasto' || metric === 'presupuesto') {
+        const category = document.getElementById(`${idPrefix}-fin-cat`)?.value;
+        if (!category) return null;
+        return metric === 'presupuesto' ? { type: 'finance', metric, category } : { type: 'finance', metric, category, target };
+      }
+      return { type: 'finance', metric, target };
+    }
+    return null;
   }
   const section = QOBJ_TAB_HABIT_SECTION[tabName];
   if (!section) return null;
