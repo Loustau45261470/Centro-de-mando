@@ -15,16 +15,21 @@ const habitCalState = {
   ia:              { year: new Date().getFullYear(), month: new Date().getMonth() },
 };
 
+// Etiqueta de cada calendario fijo en el mini festejo
+const CAL_CELEBRATE = {
+  studyCalendar:   { name: 'ESTUDIADO',  emoji: '📚' },
+  workoutCalendar: { name: 'ENTRENADO',  emoji: '🏋️' },
+  financeCalendar: { name: 'REGISTRADO', emoji: '📒' },
+};
+
 function calDateStr(y, m, d) {
   return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
 }
 
-function computeCalStreaks(calKey) {
-  const days = S[calKey].days;
-  const today = getActiveDate();
+// Racha actual de un mapa de días: hacia atrás desde hoy; hecho suma, descanso es neutro,
+// incumplido corta, y el día de hoy sin registrar no corta (todavía se puede cumplir).
+function habitCurrentStreak(days, today) {
   const isDone = ds => days[ds] === 'done' || days[ds] === 'studied';
-
-  // Current streak: backwards from today; done=count, rest=neutral, past-empty=stop
   let current = 0;
   for (let i = 0; i < 730; i++) {
     const d = new Date(today + 'T00:00:00');
@@ -36,6 +41,15 @@ function computeCalStreaks(calKey) {
     else if (ds === today)          { /* not logged yet — don't break */ }
     else                            break;
   }
+  return current;
+}
+
+function computeCalStreaks(calKey) {
+  const days = S[calKey].days;
+  const today = getActiveDate();
+  const isDone = ds => days[ds] === 'done' || days[ds] === 'studied';
+
+  const current = habitCurrentStreak(days, today);
 
   // Best streak: forward from first done day; rest=neutral, missed=reset
   const allDone = Object.keys(days).filter(isDone).sort();
@@ -158,7 +172,7 @@ function renderHabitCalendar(calKey, wrapId, title, labelPlural, labelSingle) {
 
     cells += `<div class="study-cal-day${dayCls}">
       <div class="study-cal-num">${d}</div>
-      <div class="study-cal-dot ${dotCls}" onclick="cycleHabitDay('${calKey}','${ds}')">${txt}</div>
+      <div class="study-cal-dot ${dotCls}" onclick="cycleHabitDay('${calKey}','${ds}',event)">${txt}</div>
     </div>`;
   }
 
@@ -384,16 +398,7 @@ function renderHabitCal(section) {
   const monthPct = denom ? Math.round(nPoints / denom * 100) : 0;
 
   // Current streak
-  let curStreak = 0;
-  for (let i = 0; i < 730; i++) {
-    const d = new Date(today + 'T00:00:00'); d.setDate(d.getDate() - i);
-    const ds = d.toISOString().slice(0, 10);
-    if (isDone(ds))              curStreak++;
-    else if (days[ds]==='rest')  { /* neutral */ }
-    else if (days[ds]==='missed') break;
-    else if (ds === today)       { /* not yet logged */ }
-    else break;
-  }
+  const curStreak = habitCurrentStreak(days, today);
 
   // Best streak
   const allDone = Object.keys(days).filter(isDone).sort();
@@ -464,7 +469,7 @@ function renderHabitCal(section) {
     cells += `<div class="study-cal-day${dayCls}">
       <div class="study-cal-num">${d}</div>
       <div class="study-cal-dot ${dotCls}"
-        ${!isFuture?`onclick="toggleHabitDay('${section}','${habit.id}','${ds}')"`:''}>${txt}</div>
+        ${!isFuture?`onclick="toggleHabitDay('${section}','${habit.id}','${ds}',event)"`:''}>${txt}</div>
     </div>`;
   }
 
@@ -599,7 +604,7 @@ function _renderHabitChart(section, habit) {
   });
 }
 
-function toggleHabitDay(section, habitId, ds) {
+function toggleHabitDay(section, habitId, ds, ev) {
   const habit = _getHabits(section).find(h => h.id === habitId);
   if (!habit) return;
   const cur = habit.days[ds];
@@ -609,6 +614,8 @@ function toggleHabitDay(section, habitId, ds) {
   else if (cur==='rest')    delete habit.days[ds];
   else                      habit.days[ds]='done';
   saveState(); renderHabitCal(section); checkAchievements();
+  if (habit.days[ds]==='done' && ds===getActiveDate() && typeof celebrateHabit==='function')
+    celebrateHabit(habit.name, habit.emoji, habitCurrentStreak(habit.days, ds), ev);
   // Las actividades del planner vinculadas a este hábito muestran su estado: repintar.
   if (typeof renderDayPlanner === 'function') renderDayPlanner();
 }
@@ -686,7 +693,7 @@ function deleteHabit(id) {
   });
 }
 
-function cycleHabitDay(calKey, ds) {
+function cycleHabitDay(calKey, ds, ev) {
   if (ds > getActiveDate() || !S[calKey]?.days) return;
   const st = S[calKey].days[ds];
   if (!st)                              S[calKey].days[ds] = 'done';
@@ -697,4 +704,6 @@ function cycleHabitDay(calKey, ds) {
   saveState();
   const renderFns = { studyCalendar: renderStudyCalendar, workoutCalendar: renderWorkoutCalendar, financeCalendar: renderFinanceCalendar };
   if (renderFns[calKey]) renderFns[calKey]();
+  if (S[calKey].days[ds]==='done' && ds===getActiveDate() && typeof celebrateHabit==='function')
+    celebrateHabit(CAL_CELEBRATE[calKey].name, CAL_CELEBRATE[calKey].emoji, habitCurrentStreak(S[calKey].days, ds), ev);
 }

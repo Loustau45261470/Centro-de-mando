@@ -2056,15 +2056,18 @@ function _plannerTaskHabit(date, id) {
   }
   return link && _habitFind(link) ? link : null;
 }
-function plannerToggleTask(date, id) {
+function plannerToggleTask(date, id, ev) {
   if (id.indexOf('g:') === 0) { toggleGoalById(date, id.slice(2)); return; }
   const link = _plannerTaskHabit(date, id);
   if (link) {   // el estado vive en el hábito: se marca ahí y se repintan ambas superficies
-    _habitSetDone(link, date, _habitDone(link, date) !== true);
+    const done = _habitDone(link, date) !== true;
+    _habitSetDone(link, date, done);
     saveState(); renderDayPlanner();
     if (typeof renderHabitCal === 'function') renderHabitCal(link.section);
     if (typeof buildTickerAlerts === 'function') buildTickerAlerts();
     if (typeof checkAchievements === 'function') checkAchievements();
+    const h = done && date === getActiveDate() ? _habitFind(link) : null;
+    if (h) celebrateHabit(h.name, h.emoji, habitCurrentStreak(h.days || {}, date), ev);
     return;
   }
   if (id.indexOf('@') >= 0) {
@@ -2118,7 +2121,7 @@ function plannerBlockHTML(date, t, hourPx, compact, lay) {
     style="top:${top}px;height:${height}px;${pos}--area-c:var(${colorVar})"
     ${isGoal ? '' : `onclick="openPlanModal('${escHtml(date)}','${rid}')"`} title="${escHtml(t.text)} · ${range} · ${label} · ${prioCfg.label}${t.habit ? ' · Hábito' : ''}">
     <div class="pcal-head">
-      <label class="pcal-check" onclick="event.stopPropagation()"><input type="checkbox" aria-label="Marcar como hecha: ${escHtml(t.text)}"${t.done ? ' checked' : ''} onchange="plannerToggleTask('${escHtml(date)}','${rid}')"></label>
+      <label class="pcal-check" onclick="event.stopPropagation()"><input type="checkbox" aria-label="Marcar como hecha: ${escHtml(t.text)}"${t.done ? ' checked' : ''} onchange="plannerToggleTask('${escHtml(date)}','${rid}',event)"></label>
       <div class="pcal-text">${hIcon}${escHtml(t.text) || '<span class="pcal-empty">Sin título</span>'}</div>
       ${isGoal ? '' : `<button class="pcal-del" onclick="event.stopPropagation();plannerDeleteTask('${escHtml(date)}','${rid}')" title="Eliminar" aria-label="Eliminar">✕</button>`}
     </div>
@@ -2194,7 +2197,7 @@ function plannerListRowHTML(date, t) {
     style="--area-c:var(${isGoal ? '--hud' : areaCfg.cssVar})"
     ${isGoal ? '' : `onclick="openPlanModal('${escHtml(date)}','${rid}')"`} title="${escHtml(t.text)} · ${label} · ${prioCfg.label}">
     <span class="pcal-row-time">${range}</span>
-    <label class="pcal-check" onclick="event.stopPropagation()"><input type="checkbox" aria-label="Marcar como hecha: ${escHtml(t.text)}"${t.done ? ' checked' : ''} onchange="plannerToggleTask('${escHtml(date)}','${rid}')"></label>
+    <label class="pcal-check" onclick="event.stopPropagation()"><input type="checkbox" aria-label="Marcar como hecha: ${escHtml(t.text)}"${t.done ? ' checked' : ''} onchange="plannerToggleTask('${escHtml(date)}','${rid}',event)"></label>
     <div class="pcal-text">${hIcon}${escHtml(t.text) || '<span class="pcal-empty">Sin título</span>'}</div>
     ${isGoal ? '<span class="pcal-row-tag">Meta</span>' : `<button class="pcal-del" onclick="event.stopPropagation();plannerDeleteTask('${escHtml(date)}','${rid}')" title="Eliminar" aria-label="Eliminar">✕</button>`}
   </div>`;
@@ -3811,7 +3814,7 @@ function renderAchievementsPanel() {
 // CELEBRATION EFFECTS  (Goals section — Vida tab)
 // ════════════════════════════════════════════════════════
 
-function showConfetti(duration = 4500) {
+function showConfetti(duration = 4500, count = 180) {
   const canvas = document.createElement('canvas');
   canvas.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:9999;';
   canvas.width  = window.innerWidth;
@@ -3821,7 +3824,7 @@ function showConfetti(duration = 4500) {
 
   const COLORS = ['#6BE3A4','#7C8EE8','#F2C063','#FF6B6B','#00D4FF','#22C55E','#FAFAFA','#F43F5E','#FFD700'];
   const SHAPES = ['rect','circle','tri'];
-  const N = 180;
+  const N = count;
 
   const pts = Array.from({length:N}, () => ({
     x:  Math.random() * canvas.width,
@@ -3887,6 +3890,43 @@ function showMissionBanner() {
   `;
   document.body.appendChild(el);
   setTimeout(() => el.remove(), 4000);
+}
+
+// Mini festejo al marcar un hábito: la versión corta del "¡MISIÓN CUMPLIDA!" de las metas
+// (chispas desde el control + confetti breve + cartel con la racha). Se dispara solo al marcar
+// el día activo — rellenar días viejos del calendario no lanza el show.
+function celebrateHabit(name, emoji, streak, ev) {
+  const el = ev && (ev.currentTarget || ev.target);
+  if (el && typeof el.getBoundingClientRect === 'function') {
+    const r = el.getBoundingClientRect();
+    if (r.width || r.height) showSparkle(r.left + r.width / 2, r.top + r.height / 2);
+  }
+  if (navigator.vibrate) { try { navigator.vibrate([18, 40, 26]); } catch (e) {} }
+  showConfetti(2000, 70);
+  setTimeout(() => showHabitBanner(name, emoji, streak), 90);
+}
+
+function showHabitBanner(name, emoji, streak) {
+  const el = document.createElement('div');
+  el.style.cssText = `
+    position:fixed; top:22%; left:50%; transform:translateX(-50%);
+    background:linear-gradient(135deg,rgba(107,227,164,.22),rgba(34,197,94,.18));
+    border:2px solid rgba(107,227,164,.55); border-radius:18px;
+    padding:14px 26px; text-align:center; pointer-events:none; z-index:10000;
+    backdrop-filter:blur(20px); box-shadow:0 0 50px rgba(107,227,164,.3),0 16px 50px rgba(0,0,0,.4);
+    animation:missionBanner 2.6s cubic-bezier(.22,1,.36,1) forwards;
+    max-width:min(88vw,420px);
+  `;
+  const sub = streak > 1
+    ? `🔥 ${streak} días seguidos`
+    : 'Un día más del lado correcto';
+  el.innerHTML = `
+    <div style="font-size:30px;line-height:1;margin-bottom:5px">${escHtml(emoji || '✅')}</div>
+    <div style="font-size:18px;font-weight:900;letter-spacing:.04em;color:#6BE3A4;text-shadow:0 0 26px rgba(107,227,164,.8)">${escHtml(name || 'HÁBITO HECHO')}</div>
+    <div style="font-size:var(--fs-14);color:rgba(255,255,255,.72);margin-top:4px;font-weight:700">${sub}</div>
+  `;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2700);
 }
 
 function showFireEffect() {
