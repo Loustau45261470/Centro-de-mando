@@ -439,6 +439,23 @@
       },
     },
     {
+      name: 'add_transaction',
+      description: 'Registra un gasto o ingreso financiero. Mostrá primero un resumen (monto, descripción, tipo, categoría, cuenta) y pedile confirmación explícita al usuario en el chat; llamá esta tool con confirm:true SOLO después de que confirme. Sin confirm:true la tool devuelve el resumen y NO inserta nada — un movimiento de plata nunca se carga solo.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          monto:       { type: 'number', description: 'Monto del movimiento, positivo' },
+          descripcion: { type: 'string', description: 'Descripción o comercio' },
+          tipo:        { type: 'string', enum: ['gasto','ingreso'] },
+          categoria:   { type: 'string', description: 'Nombre de la categoría tal como la tiene el usuario (opcional, no inventar una nueva)' },
+          cuenta:      { type: 'string', description: 'Nombre de la cuenta tal como la tiene el usuario (opcional)' },
+          fecha:       { type: 'string', description: 'Fecha YYYY-MM-DD (opcional, default hoy)' },
+          confirm:     { type: 'boolean', description: 'true solo tras confirmación explícita del usuario' },
+        },
+        required: ['monto','descripcion','tipo'],
+      },
+    },
+    {
       name: 'consultar_mapa_ideas',
       description: 'Busca por similitud semántica en las notas personales del Mapa de Ideas de Tobías (sus opiniones, valores, teorías y posturas guardadas). Usar cuando la pregunta es sobre lo que él piensa/opina/cree en vez de dar una respuesta genérica — citá el contenido real de las notas que devuelve.',
       input_schema: {
@@ -642,6 +659,71 @@
       return `Bienestar actualizado: ${done.join(', ')}.`;
     }
 
+    if (name === 'add_transaction') {
+      const MAX_MONTO = 50000000; // techo sano — un monto alucinado no puede entrar sin fricción
+      const monto = +input.monto;
+      if (!Number.isFinite(monto) || monto <= 0 || monto > MAX_MONTO) {
+        return `Monto inválido (${input.monto}). Tiene que ser un número positivo y razonable.`;
+      }
+      const tipo = input.tipo === 'ingreso' ? 'income' : 'expense';
+      const desc = (input.descripcion || '').toString().trim().slice(0, 200);
+      if (!desc) return 'Falta la descripción del movimiento.';
+      const date = (input.fecha || today).toString();
+      const norm = s => (s || '').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+
+      // Categoría y cuenta se resuelven SOLO contra lo que el usuario ya tiene cargado — nunca se inventa una nueva (ver MUST DO del ticket).
+      if (typeof ensureTxnCategories === 'function') ensureTxnCategories();
+      let categoryId = '';
+      if (input.categoria && S.txnCategories) {
+        const q = norm(input.categoria);
+        const entries = Object.entries(S.txnCategories);
+        const exact = entries.find(([id, c]) => norm(c.label) === q || norm(id) === q);
+        const partial = exact || entries.find(([id, c]) => norm(c.label).includes(q) || q.includes(norm(c.label)));
+        if (partial) categoryId = partial[0];
+      }
+      let accountId = '';
+      if (input.cuenta && Array.isArray(S.accounts)) {
+        const q = norm(input.cuenta);
+        const exact = S.accounts.find(a => norm(a.name) === q);
+        const found = exact || S.accounts.find(a => norm(a.name).includes(q) || q.includes(norm(a.name)));
+        if (found) accountId = found.id;
+      }
+
+      if (!input.confirm) {
+        const catLabel = categoryId ? S.txnCategories[categoryId].label
+          : (input.categoria ? `sin coincidencia ("${input.categoria}" no está entre tus categorías)` : 'sin categoría');
+        const acc = accountId ? S.accounts.find(a => a.id === accountId) : null;
+        const accLabel = acc ? acc.name
+          : (input.cuenta ? `sin coincidencia ("${input.cuenta}" no está entre tus cuentas)` : 'sin cuenta');
+        const montoFmt = typeof fmtMoney === 'function' ? fmtMoney(monto, 'ARS') : monto;
+        return `Entendí: ${tipo === 'income' ? 'ingreso' : 'gasto'} de ${montoFmt} — "${desc}" el ${date}. Categoría: ${catLabel}. Cuenta: ${accLabel}. ¿Confirmás que lo cargue?`;
+      }
+
+      const txn = { id: uid(), date, name: desc, type: tipo, amount: monto, currency: 'ARS', accountId, category: categoryId };
+      if (accountId) {
+        const acc = S.accounts.find(a => a.id === accountId);
+        if (acc) { acc.balance += tipo === 'income' ? monto : -monto; if (typeof snapshotNW === 'function') snapshotNW(); }
+      }
+      S.transactions.unshift(txn);
+      saveState();
+      if (typeof renderFinanzasTab === 'function') renderFinanzasTab();
+      // Deshacer: revierte el alta y el efecto sobre el saldo de la cuenta (ver undo.js).
+      if (window.CMUndo) window.CMUndo.registrar({
+        descripcion: (tipo === 'income' ? 'Ingreso' : 'Gasto') + ' agregado por voz',
+        deshacer: () => {
+          const i = S.transactions.findIndex(t => t.id === txn.id);
+          if (i !== -1) S.transactions.splice(i, 1);
+          if (accountId) {
+            const acc = S.accounts.find(a => a.id === accountId);
+            if (acc) { acc.balance -= tipo === 'income' ? monto : -monto; if (typeof snapshotNW === 'function') snapshotNW(); }
+          }
+          if (typeof renderFinanzasTab === 'function') renderFinanzasTab();
+        },
+      });
+      window.JARVIS_BRAIN && JARVIS_BRAIN.audit({ ts: Date.now(), source: 'chat', action: 'add_transaction', desc: `Agregó ${tipo === 'income' ? 'ingreso' : 'gasto'}: ${desc} (${monto})`, inverse: null });
+      return `${tipo === 'income' ? 'Ingreso' : 'Gasto'} de ${monto} ("${desc}") registrado para el ${date}.`;
+    }
+
     if (name === 'consultar_mapa_ideas') {
       if (!window.MapaIdeas || !window.MapaIdeas.consultar) return 'Mapa de Ideas no disponible en esta vista.';
       return window.MapaIdeas.consultar(input.pregunta).then(r => JSON.stringify(r));
@@ -665,7 +747,7 @@ El dashboard tiene: metas diarias, proyectos por sección (vida, finanzas, salud
 Instrucciones:
 - Si necesitás datos actuales, usá get_app_state primero
 - Cuando el usuario pida crear/modificar/eliminar algo, ejecutalo directamente con las tools
-- Los borrados (delete_project) requieren confirmación explícita del usuario antes de llamar la tool con confirm:true; si el usuario quiere deshacer/revertir la última acción, usá undo_last
+- Los borrados (delete_project) y registrar un gasto/ingreso (add_transaction) requieren confirmación explícita del usuario antes de llamar la tool con confirm:true; si el usuario quiere deshacer/revertir la última acción, usá undo_last
 - Tenés memoria persistente entre conversaciones: si el usuario te pide recordar algo usá remember; si pide olvidar algo usá forget; consultá tu memoria vía get_app_state o query_data antes de asumir que no sabés algo del usuario
 - Para preguntas sobre un período de tiempo o un dato específico (transacciones, metas, hábitos, peso, recordatorios, auditoría, memoria, cartera de inversión, capturas), usá query_data en vez de get_app_state
 - Podés consultar la cartera de inversión (CEDEARs) con query_data area 'cartera', y capturar una idea/nota rápida del usuario para su segundo cerebro con la tool capture
