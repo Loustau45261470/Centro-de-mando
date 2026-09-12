@@ -1,0 +1,45 @@
+{
+  "accounts": [
+    { "id": "acc-main", "name": "Cuenta Principal", "type": "bank", "balance": 850000, "currency": "ARS", "icon": "🏦" },
+    { "id": "acc-ahorro", "name": "Ahorro USD", "type": "invest", "balance": 1200, "currency": "USD", "icon": "💵" }
+  ],
+  "transactions": [
+    { "id": "txn-1", "date": "2026-08-05", "name": "Salario", "type": "income", "amount": 900000, "currency": "ARS", "accountId": "acc-main" },
+    { "id": "txn-2", "date": "2026-08-07", "name": "Alquiler", "type": "expense", "amount": 300000, "currency": "ARS", "accountId": "acc-main" },
+    { "id": "txn-3", "date": "2026-08-15", "name": "Supermercado", "type": "expense", "amount": 45000, "currency": "ARS", "accountId": "acc-main" },
+    { "id": "txn-4", "date": "2026-08-28", "name": "Freelance", "type": "income", "amount": 150000, "currency": "ARS", "accountId": "acc-main" },
+    { "id": "txn-5", "date": "2026-09-02", "name": "Gimnasio", "type": "expense", "amount": 20000, "currency": "ARS", "accountId": "acc-main" }
+  ],
+  "txnCategories": {},
+  "txnCategoriesSeeded": false,
+  "habitTrackers": {
+    "vida": [
+      { "id": "habit-lectura", "name": "Lectura", "emoji": "📚", "days": {
+        "2026-08-25": "done", "2026-08-26": "done", "2026-08-27": "missed",
+        "2026-08-28": "done", "2026-08-29": "partial", "2026-08-30": "done",
+        "2026-08-31": "rest", "2026-09-01": "done", "2026-09-02": "done"
+      } }
+    ],
+    "finanzas": [],
+    "salud": [],
+    "conocimiento": [],
+    "ia": []
+  },
+  "sleepLog": {
+    "2026-08-28": { "hours": 7.5, "feeling": 4 },
+    "2026-08-29": { "hours": 6, "feeling": 3 },
+    "2026-08-30": { "hours": 8, "feeling": 5 },
+    "2026-08-31": { "hours": 7, "feeling": 4 },
+    "2026-09-01": { "hours": 6.5, "feeling": 3 }
+  },
+  "workoutLog": {
+    "2026-08-27": {},
+    "2026-08-29": {}
+  },
+  "goals": {
+    "2026-08-30": [
+      { "id": "goal-1", "text": "Terminar el informe", "done": true, "priority": "high", "time": null, "period": "manana" },
+      { "id": "goal-2", "text": "Entrenar piernas", "done": false, "priority": "mid", "time": null, "period": "tarde" }
+    ]
+  }
+}

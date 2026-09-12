@@ -218,6 +218,13 @@
       "desc": "Al editar un fondo de compra en modo devengo diario, _pfFillHabitSel no preseleccionaba el habito guardado (solo contemplaba condition.type=='habito', no 'diario'), asi que el select quedaba en la primera opcion de la lista y saveFund() la persistia: abrir Editar para cambiar el emoji re-vinculaba el fondo a OTRO habito sin ningun aviso, y a fin de mes pfCatchUp acreditaba plata calculada sobre el habito equivocado. El fix es contemplar ambos tipos en la preseleccion. Si este marker desaparece, revisar primero que editar un fondo diario no mueva su condicion.",
       "file": "finanzas.js",
       "marker": "cond.type === 'habito' || cond.type === 'diario'"
+    },
+    {
+      "id": "sgc-ensurestate-tras-reasignacion-de-S",
+      "fecha": "2026-09-11",
+      "desc": "resolverProyecciones() tiraba TypeError si S se reasignaba (cambio remoto o loadState) mientras fetchCartera() estaba en vuelo: ensureState() habia mutado la referencia vieja de S. Encontrado por el harness de tests bajo carga paralela.",
+      "file": "sgc.js",
+      "marker": "S se REASIGNA entero al aplicar un cambio remoto"
     }
   ]
 }
