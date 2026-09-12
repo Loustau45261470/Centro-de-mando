@@ -217,6 +217,12 @@
       S[k] = fuera;
     });
     _cache[anio] = payload;
+    // Marcar el write como forzado ANTES de guardar: el sync trata un estado que
+    // encogio mucho como sospechoso (ver _fbDoSave: rama de rescate por conteo de
+    // items, y el merge 3-vias que ante cambio en ambos lados se queda con la nube).
+    // Sin esto, la nube devolveria lo recien archivado y el documento se re-infla.
+    // Es el mismo mecanismo que ya usan restaurarSnap() y restaurarBackup().
+    if (typeof _forceSaveOnce !== 'undefined') _forceSaveOnce = true;
     if (typeof saveState === 'function') saveState();
 
     const despues = medir();
