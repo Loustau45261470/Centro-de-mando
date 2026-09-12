@@ -21,7 +21,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-<link rel="stylesheet" href="styles.css?v=200">
+<link rel="stylesheet" href="styles.css?v=201">
 <link rel="stylesheet" href="gamemode.css">
 <link rel="stylesheet" href="overlay-core.css">
 <link rel="stylesheet" href="speed-dial.css?v=2">
@@ -1680,6 +1680,7 @@
       <option value="Vida">Vida</option>
       <option value="IA">IA</option>
     </select>
+    <div id="qobj-add-link-wrap"></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('modal-add-qobj')">Cancelar</button>
       <button class="btn btn-primary" onclick="saveNewQObj()">Agregar</button>
@@ -1697,6 +1698,7 @@
     <input class="inp" id="qobj-edit-text" placeholder="Objetivo..." style="margin-bottom:14px;width:100%">
     <input type="hidden" id="qobj-edit-period">
     <input type="hidden" id="qobj-edit-id">
+    <div id="qobj-edit-link-wrap"></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('modal-edit-qobj')">Cancelar</button>
       <button class="btn btn-primary" onclick="saveEditQObj()">Guardar</button>
@@ -1741,7 +1743,7 @@
 
 <script src="errores.js?v=1"></script>
 <script src="deadlines.js?v=3"></script>
-<script src="app.js?v=185"></script>
+<script src="app.js?v=186"></script>
 <script src="archivo.js?v=1"></script>
 <script src="undo.js?v=1"></script>
 <script src="workspace.js?v=197"></script>

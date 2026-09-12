@@ -11,6 +11,110 @@ const QOBJ_TAB_CATS = {
 
 const _MONTH_SHORT = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
+// categoría de objetivo → tab/sección (inverso de QOBJ_TAB_CATS)
+const QOBJ_CAT_TO_TAB = {};
+Object.entries(QOBJ_TAB_CATS).forEach(([tab, cats]) => cats.forEach(c => QOBJ_CAT_TO_TAB[c] = tab));
+// tabs con hábito enlazable (conocimiento usa materias de abogacía, no hábito)
+const QOBJ_TAB_HABIT_SECTION = { vida: 'vida', finanzas: 'finanzas', salud: 'salud', ia: 'ia' };
+
+// ── Enlace de objetivos con hábitos / abogacía ──────────────────
+// o.link = null | {type:'habit', section, habitId} | {type:'law', subjects:[{yearId,subId}]}
+function _periodDateRange(periodId) {
+  const months = _periodMonths(periodId);
+  if (!months.length) return null;
+  const [lyr, lmn] = months[months.length - 1].split('-');
+  const lastDay = new Date(parseInt(lyr), parseInt(lmn), 0).getDate();
+  return [months[0] + '-01', `${months[months.length - 1]}-${String(lastDay).padStart(2, '0')}`];
+}
+
+function _habitLinkProgress(link) {
+  const habit = (S.habitTrackers?.[link.section] || []).find(h => h.id === link.habitId);
+  if (!habit) return null;
+  const days = habit.days || {};
+  const today = getActiveDate();
+  const range = _periodDateRange(link.periodId);
+  let start = range ? range[0] : (Object.keys(days).sort()[0] || today);
+  let end = (range && range[1] < today) ? range[1] : today;
+  let done = 0, total = 0;
+  for (let d = new Date(start + 'T00:00:00'); d <= new Date(end + 'T00:00:00'); d.setDate(d.getDate() + 1)) {
+    const ds = d.toISOString().slice(0, 10);
+    const v = days[ds];
+    if (v === 'done' || v === 'studied') { done++; total++; }
+    else if (v !== 'rest') total++;
+  }
+  return { label: `${habit.emoji || '📌'} ${habit.name} · ${done}/${total} días`, pct: total ? Math.round(done / total * 100) : 0 };
+}
+
+function _lawLinkProgress(link) {
+  const years = S.lawProgress?.years || [];
+  const subs = link.subjects || [];
+  const done = subs.filter(s => {
+    const y = years.find(y => y.id === s.yearId);
+    const sub = y && y.subjects.find(x => x.id === s.subId);
+    return sub && sub.done;
+  }).length;
+  return { label: `⚖ ${done}/${subs.length} finales`, pct: subs.length ? Math.round(done / subs.length * 100) : 0 };
+}
+
+function qobjLinkProgress(periodId, link) {
+  if (!link) return null;
+  if (link.type === 'habit') return _habitLinkProgress({ ...link, periodId });
+  if (link.type === 'law')   return _lawLinkProgress(link);
+  return null;
+}
+
+function qobjLinkHTML(periodId, link) {
+  const p = qobjLinkProgress(periodId, link);
+  if (!p) return '';
+  return `<div class="qobj-link-progress">
+    <span class="qobj-link-label">${p.label}</span>
+    <div class="qobj-link-bar-wrap"><div class="qobj-link-bar" style="width:${p.pct}%"></div></div>
+  </div>`;
+}
+
+// HTML del selector de enlace dentro de los modales de agregar/editar
+function qobjLinkPickerHTML(idPrefix, tabName, link) {
+  if (tabName === 'conocimiento') {
+    const years = S.lawProgress?.years || [];
+    const checked = (yId, sId) => (link && link.type === 'law' && link.subjects.some(s => s.yearId === yId && s.subId === sId)) ? 'checked' : '';
+    const rows = years.map(y => `
+      <div class="qobj-link-year-label">${y.label}</div>
+      ${y.subjects.map(sub => `
+        <label class="qobj-link-subj-row">
+          <input type="checkbox" id="${idPrefix}-subj-${y.id}-${sub.id}" data-year="${y.id}" data-sub="${sub.id}" ${checked(y.id, sub.id)}>
+          <span>${sub.name}${sub.done ? ' ✓' : ''}</span>
+        </label>`).join('')}`).join('');
+    return `<div class="qobj-link-picker">
+      <div class="qobj-link-picker-title">Enlazar a finales de este trimestre</div>
+      <div class="qobj-link-subj-list">${rows || '<div class="empty-state" style="padding:8px 0">Sin materias cargadas</div>'}</div>
+    </div>`;
+  }
+  const section = QOBJ_TAB_HABIT_SECTION[tabName];
+  if (!section) return '';
+  const habits = _getHabits(section);
+  const curId = (link && link.type === 'habit') ? link.habitId : '';
+  return `<div class="qobj-link-picker">
+    <div class="qobj-link-picker-title">Enlazar a un hábito</div>
+    <select class="inp" id="${idPrefix}-habit" style="width:100%">
+      <option value="">Sin enlace</option>
+      ${habits.map(h => `<option value="${h.id}" ${h.id===curId?'selected':''}>${h.emoji||'📌'} ${h.name}</option>`).join('')}
+    </select>
+  </div>`;
+}
+
+function qobjReadLinkFromPicker(idPrefix, tabName) {
+  if (tabName === 'conocimiento') {
+    const subjects = [...document.querySelectorAll(`[id^="${idPrefix}-subj-"]:checked`)]
+      .map(el => ({ yearId: el.dataset.year, subId: el.dataset.sub }));
+    return subjects.length ? { type: 'law', subjects } : null;
+  }
+  const section = QOBJ_TAB_HABIT_SECTION[tabName];
+  if (!section) return null;
+  const sel = document.getElementById(`${idPrefix}-habit`);
+  const habitId = sel && sel.value;
+  return habitId ? { type: 'habit', section, habitId } : null;
+}
+
 function _periodMonths(periodId) {
   const m = periodId.match(/^t([1-4])-(\d{4})$/);
   if (!m) return [];
@@ -297,7 +401,10 @@ function toggleQObjCat(bodyId, rowEl) {
 function qobjItemHTML(periodId, o) {
   return `<div class="qobj-item${o.done?' done':''}">
     <input type="checkbox" ${o.done?'checked':''} onchange="toggleQObj('${periodId}',${o.id})">
-    <span class="qobj-item-text">${o.text}</span>
+    <div class="qobj-item-body">
+      <span class="qobj-item-text">${o.text}</span>
+      ${qobjLinkHTML(periodId, o.link)}
+    </div>
     <div class="qobj-item-actions">
       <button class="qobj-act-btn" onclick="openEditQObj('${periodId}',${o.id})" title="Editar">✎</button>
       <button class="qobj-act-btn" onclick="deleteQObj('${periodId}',${o.id})" title="Eliminar">✕</button>
@@ -341,13 +448,15 @@ function toggleQObj(periodId, objId) {
   }
 }
 
-let _qobjAddPeriod = null, _qobjAddCat = null;
+let _qobjAddPeriod = null, _qobjAddCat = null, _qobjAddTab = null;
 function openAddQObj(periodId, cat) {
   _qobjAddPeriod = periodId; _qobjAddCat = cat || null;
+  _qobjAddTab = cat ? QOBJ_CAT_TO_TAB[cat] : 'vida';
   document.getElementById('qobj-input-text').value = '';
   const catSel = document.getElementById('qobj-input-cat');
   if (cat) { catSel.value = cat; catSel.style.display = 'none'; }
   else catSel.style.display = 'block';
+  document.getElementById('qobj-add-link-wrap').innerHTML = qobjLinkPickerHTML('qobj-add', _qobjAddTab, null);
   openModal('modal-add-qobj');
 }
 function saveNewQObj() {
@@ -356,15 +465,19 @@ function saveNewQObj() {
   const period = S.quarterlyObjectives.periods.find(p=>p.id===_qobjAddPeriod);
   const nextId = period.objectives.length ? Math.max(...period.objectives.map(o=>o.id)) + 1 : 1;
   const cat = _qobjAddCat || (period.flat ? null : document.getElementById('qobj-input-cat').value);
-  period.objectives.push({ id: nextId, text, done: false, category: cat });
+  const link = qobjReadLinkFromPicker('qobj-add', _qobjAddTab);
+  period.objectives.push({ id: nextId, text, done: false, category: cat, link });
   saveState(); closeModal('modal-add-qobj'); renderQuarterlyObjectives();
 }
 
+let _qobjEditTab = null;
 function openEditQObj(periodId, objId) {
   const o = S.quarterlyObjectives.periods.find(p=>p.id===periodId).objectives.find(o=>o.id===objId);
   document.getElementById('qobj-edit-text').value = o.text;
   document.getElementById('qobj-edit-period').value = periodId;
   document.getElementById('qobj-edit-id').value = objId;
+  _qobjEditTab = o.category ? QOBJ_CAT_TO_TAB[o.category] : 'vida';
+  document.getElementById('qobj-edit-link-wrap').innerHTML = qobjLinkPickerHTML('qobj-edit', _qobjEditTab, o.link);
   openModal('modal-edit-qobj');
 }
 function saveEditQObj() {
@@ -374,6 +487,7 @@ function saveEditQObj() {
   const objId = parseInt(document.getElementById('qobj-edit-id').value);
   const o = S.quarterlyObjectives.periods.find(p=>p.id===periodId).objectives.find(o=>o.id===objId);
   o.text = text;
+  o.link = qobjReadLinkFromPicker('qobj-edit', _qobjEditTab);
   saveState(); closeModal('modal-edit-qobj'); renderQuarterlyObjectives();
 }
 

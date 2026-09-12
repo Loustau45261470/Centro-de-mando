@@ -318,7 +318,7 @@ async function _pwaInit() {
   }
   try {
     _swReg = await navigator.serviceWorker.register('./sw.js');
-    _swReg.update();   // forzar chequeo de versión nueva en cada carga
+    _swReg.update().catch(e => console.warn('[PWA] SW update failed:', e));   // forzar chequeo de versión nueva en cada carga
   } catch (e) { console.warn('[PWA] SW register failed:', e); }
 }
 
