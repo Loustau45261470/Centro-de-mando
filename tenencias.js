@@ -12,6 +12,14 @@
 
 const Tenencias = (() => {
   const URL_JSON = 'data/cartera/tenencias.json';
+  // Endpoint /cartera del Worker de push que ya existe (cf-worker/) — cartera IOL
+  // en vivo, cacheada ~15 min. Constante fácil de cambiar si el Worker se muda.
+  const URL_WORKER = 'https://cdm-push-worker.tobiasloustau11.workers.dev/cartera';
+  const WORKER_TIMEOUT_MS = 6000;
+  // Sin secret embebido: /cartera expone datos financieros, así que se gatea
+  // con el ID token de Firebase Auth (fresco, pedido en cada intento) en vez
+  // de un valor fijo que quedaría legible en este repo público. `_auth` es la
+  // instancia global de app.js (carga antes que este archivo — index.html).
 
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   const num = v => (v == null || isNaN(v)) ? null : Number(v);
@@ -216,13 +224,26 @@ const Tenencias = (() => {
     </div>`).join('');
   }
 
-  function render(body, d) {
+  // fuente: 'live' (Worker → IOL, recién consultado) o 'estatico' (JSON commiteado,
+  // último cierre de la rutina semanal). El usuario necesita saber cuál está viendo.
+  function metaFuente(d, fuente) {
     const gen = d.generado ? new Date(d.generado) : null;
-    const meta = `${gen ? 'Actualizado el ' + gen.toLocaleDateString('es-AR') + ' ' + gen.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : ''} · rutina semanal IOL (lunes 8:00)`;
-    body.innerHTML = `<div class="ci-meta">${meta}</div>${header(d)}${tabla(d)}`;
+    if (fuente === 'live') {
+      if (!gen) return 'En vivo · IOL';
+      const minutos = Math.max(0, Math.round((Date.now() - gen.getTime()) / 60000));
+      const hace = minutos < 1 ? 'hace instantes' : minutos < 60 ? `hace ${minutos} min` : `hace ${Math.round(minutos / 60)} h`;
+      return `En vivo · ${hace} · IOL`;
+    }
+    if (!gen) return 'Último cierre · rutina semanal IOL (lunes 8:00)';
+    return `Último cierre · ${gen.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })} · rutina semanal IOL (lunes 8:00)`;
+  }
+
+  function render(body, d, fuente) {
+    const meta = metaFuente(d, fuente || 'estatico');
+    body.innerHTML = `<div class="ci-meta">${esc(meta)}</div>${header(d)}${tabla(d)}`;
     const toggle = sim => {
       _openSimbolo = _openSimbolo === sim ? null : sim;
-      render(body, d);
+      render(body, d, fuente);
       const restored = body.querySelector(`.ten-row[data-simbolo="${CSS.escape(sim)}"]`);
       if (restored) restored.focus();
     };
@@ -239,21 +260,43 @@ const Tenencias = (() => {
       btn.addEventListener('click', () => {
         if (_orden === btn.dataset.orden) return;
         _orden = btn.dataset.orden;
-        render(body, d);
+        render(body, d, fuente);
         body.querySelector('.ten-orden-chip[data-orden="' + _orden + '"]')?.focus();
       });
     });
   }
 
-  function renderInto(bx) {
-    _openSimbolo = null;
-    _orden = 'valorizado';
-    bx.innerHTML = `<div class="empty-state">Cargando tenencias…</div>`;
-    fetch(URL_JSON, { cache: 'no-store' })
+  // Fetch con timeout corto — si el Worker está caído/lento no puede demorar
+  // la carga de la pestaña; a los WORKER_TIMEOUT_MS se aborta y cae al estático.
+  function fetchConTimeout(url, opts, ms) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), ms);
+    return fetch(url, { ...opts, signal: ctrl.signal }).finally(() => clearTimeout(t));
+  }
+
+  async function fetchWorker() {
+    // Sin sesión no hay token que mandar — directo al estático, ni vale la
+    // pena golpear el Worker (respondería 401 igual).
+    if (typeof _auth === 'undefined' || !_auth.currentUser) throw new Error('sin sesión de Firebase Auth');
+    const idToken = await _auth.currentUser.getIdToken();
+    const res = await fetchConTimeout(URL_WORKER, {
+      headers: { authorization: `Bearer ${idToken}` },
+      cache: 'no-store',
+    }, WORKER_TIMEOUT_MS);
+    if (!res.ok) {
+      let msg = 'worker HTTP ' + res.status;
+      try { const j = await res.json(); if (j && j.message) msg = j.message; } catch (_) { /* body no-JSON, nos quedamos con el status */ }
+      throw new Error(msg);
+    }
+    return res.json();
+  }
+
+  function fetchEstatico(bx) {
+    return fetch(URL_JSON, { cache: 'no-store' })
       .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(d => {
         try {
-          render(bx, d);
+          render(bx, d, 'estatico');
         } catch (e) {
           console.error('[tenencias]', e);
           bx.innerHTML = `<div class="empty-state">Los datos de tenencias tienen un formato inesperado.<br>
@@ -268,6 +311,29 @@ const Tenencias = (() => {
               La rutina corre los lunes a las 8:00 y publica la posición acá automáticamente.</div>`
           : `<div class="empty-state">No se pudieron cargar las tenencias.<br>
               Revisá la conexión o intentá de nuevo más tarde.</div>`;
+      });
+  }
+
+  // Intenta el Worker (cartera en vivo desde IOL); ante CUALQUIER falla (sin
+  // red, Worker caído, sin credenciales configuradas, timeout, formato
+  // inesperado) cae al JSON estático exactamente como funcionaba antes de
+  // este endpoint — la app nunca puede quedar peor que antes por su culpa.
+  function renderInto(bx) {
+    _openSimbolo = null;
+    _orden = 'valorizado';
+    bx.innerHTML = `<div class="empty-state">Cargando tenencias…</div>`;
+    fetchWorker()
+      .then(d => {
+        try {
+          render(bx, d, 'live');
+        } catch (e) {
+          console.warn('[tenencias] Worker devolvió un formato inesperado, cae a estático:', e);
+          return fetchEstatico(bx);
+        }
+      })
+      .catch(e => {
+        console.warn('[tenencias] Worker no disponible, cae a JSON estático:', e && e.message ? e.message : e);
+        return fetchEstatico(bx);
       });
   }
 
