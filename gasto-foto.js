@@ -329,7 +329,9 @@
     if (!fecha) { errEl.textContent = 'Falta la fecha.'; errEl.style.display = 'block'; return; }
 
     // Misma forma de txn que finanzas.js:577 / finanzas.js:2076.
-    const txn = { id: uid(), date: fecha, name: desc, type: tipo, amount: monto, currency: 'ARS', accountId, category: categoryId };
+    // desc sale de lo que el modelo leyo de la foto: se guarda como texto plano.
+    const descLimpia = String(desc).replace(/[<>]/g, '').slice(0, 200);
+    const txn = { id: uid(), date: fecha, name: descLimpia, type: tipo, amount: monto, currency: 'ARS', accountId, category: categoryId };
     if (accountId && typeof S !== 'undefined' && Array.isArray(S.accounts)) {
       const acc = S.accounts.find(a => a.id === accountId);
       if (acc) { acc.balance += tipo === 'income' ? monto : -monto; if (typeof snapshotNW === 'function') snapshotNW(); }

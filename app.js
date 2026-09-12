@@ -809,62 +809,20 @@ window.restaurarBackup = async function (fecha) {
   showToast('✅ Restaurado backup ' + id, 8000);
 };
 
-// ── Archivado manual por año (consola, 1 vez al año) ───────────────────────────
-// NOTA: superado por CMArchivo (archivo.js), que archiva TODAS las claves históricas,
-// verifica el archivo antes de podar y avisa solo cuando el documento se acerca al
-// techo. Esta versión se mantiene porque solo toca routineLog y ya fue usada.
-// archivarAno(2025)  → mueve entrenamientos de ese año a
-//                      appdata/archive_<año> y los quita del doc principal.
+// ── Archivado por año (consola) ───────────────────────────────────────────────
+// La implementación vive en CMArchivo (archivo.js): archiva TODAS las claves
+// históricas, verifica el archivo antes de podar y avisa solo cuando el documento
+// se acerca al techo de 1 MiB. Acá quedan los alias de consola de siempre.
+// archivarAno(2025)  → mueve lo de ese año a appdata/archive_<año>.
 // listarArchivos()   → lista los docs archive_* existentes.
+// espacio()          → qué clave ocupa lugar y qué años se pueden archivar.
 window.archivarAno = async function (year) {
-  year = parseInt(year, 10);
-  const actual = new Date().getFullYear();
-  if (!year || year >= actual) {
-    console.warn('[archivar] Año inválido: pasá un año anterior a ' + actual + ' (nunca el año en curso).');
-    return;
-  }
-  const yPref = String(year) + '-';  // date/fecha son 'YYYY-MM-DD'
-
-  // Entrenamientos: routineLog = { rtnId: [ { id, date, ... } ] }
-  const rlog = S.routineLog || {};
-  const rlogArch = {};
-  let rCount = 0;
-  Object.keys(rlog).forEach(rid => {
-    const dentro = (rlog[rid] || []).filter(e => String(e.date || '').startsWith(yPref));
-    if (dentro.length) { rlogArch[rid] = dentro; rCount += dentro.length; }
-  });
-
-  if (rCount === 0) {
-    console.log('[archivar] No hay datos de ' + year + ' para archivar.');
-    return;
-  }
-
-  const bytes = JSON.stringify({ routineLog: rlogArch }).length;
-  const kb = Math.round(bytes / 1024);
-  if (!confirm(
-    'Archivar ' + year + ':\n· ' + rCount + ' sesiones de entrenamiento\n' +
-    '≈ ' + kb + ' KB se moverán a archive_' + year + ' y se quitarán del documento principal.\n\n¿Continuar?'
-  )) { console.log('[archivar] Cancelado.'); return; }
-
-  // 1) Escribir PRIMERO el doc de archivo (write directo, fuera de _fbSave). Si falla, abortar sin tocar S.
-  try {
-    await _db.collection('appdata').doc('archive_' + year).set({
-      year, routineLog: rlogArch, archivedAt: Date.now()
-    });
-  } catch (e) {
-    console.error('[archivar] Falló el write del archivo, no se tocó ningún dato:', e.code || e.message);
-    return;
-  }
-
-  // 2) Solo tras éxito: quitar las entradas de S y guardar por el flujo normal.
-  Object.keys(rlogArch).forEach(rid => {
-    S.routineLog[rid] = (S.routineLog[rid] || []).filter(e => !String(e.date || '').startsWith(yPref));
-    if (S.routineLog[rid].length === 0) delete S.routineLog[rid];
-  });
-  saveState();
-
-  console.log('[archivar] ✅ ' + year + ' archivado en archive_' + year + ': ' +
-    rCount + ' entrenamientos movidos, ≈ ' + kb + ' KB liberados.');
+  // Delega en CMArchivo (archivo.js). La version original escribia el documento
+  // archive_<anio> con un .set() SIN merge y solo con routineLog: si CMArchivo ya
+  // habia archivado otras claves de ese mismo anio (movimientos, metas, sueno...),
+  // esta funcion las borraba del archivo sin aviso. Una sola semantica de escritura.
+  if (!window.CMArchivo) { console.warn('[archivar] archivo.js no esta cargado.'); return; }
+  return window.CMArchivo.archivar(year);
 };
 
 window.listarArchivos = async function () {

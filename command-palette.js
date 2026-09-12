@@ -48,6 +48,8 @@
     {ic:'◢', lbl:'Ir a Conocimiento', cat:'Navegar', kw:'conocimiento facultad estudio derecho', run:()=>nav('conocimiento')},
     {ic:'◢', lbl:'Ir a Inteligencia', cat:'Navegar', kw:'ia inteligencia', run:()=>nav('ia')},
     {ic:'＋', lbl:'Nueva meta — Hoy', cat:'Crear', kw:'meta objetivo dia tarea nueva', run:()=>M('modal-add-goal')},
+    {ic:'◉', lbl:'Revisión semanal', cat:'Crear', kw:'revision semanal semana cierre balance promesas ritual domingo',
+      run:()=>{ if (typeof abrirRevisionSemanal==='function') abrirRevisionSemanal(); else showToast('La revisión semanal no está disponible'); }},
     {ic:'＋', lbl:'Nueva meta — Mañana', cat:'Crear', kw:'meta manana tarea', run:()=>M('modal-add-goal-tom')},
     {ic:'＋', lbl:'Registrar movimiento', cat:'Finanzas', kw:'gasto ingreso transaccion movimiento plata', run:()=>{nav('finanzas');M('modal-add-txn');}},
     {ic:'＋', lbl:'Nueva cuenta', cat:'Finanzas', kw:'cuenta banco', run:()=>{nav('finanzas');M('modal-add-account');}},

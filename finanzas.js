@@ -1843,7 +1843,7 @@ function renderActivity() {
       return `<div class="activity-row">
         <div class="act-icon" style="background:${t.type==='income'?'rgba(107,227,164,.1)':'rgba(255,107,107,.1)'}">${cat.icon||(t.type==='income'?'💚':'🔴')}</div>
         <div class="act-info">
-          <div class="act-name" style="display:flex;align-items:center;flex-wrap:wrap;gap:2px">${t.name}${catBadge}${pendingBadge}</div>
+          <div class="act-name" style="display:flex;align-items:center;flex-wrap:wrap;gap:2px">${escHtml(t.name)}${catBadge}${pendingBadge}</div>
           <div class="act-date">${fmtDate(t.date)}${acc?` <span style="color:var(--ts)">· ${acc.icon||'🏦'} ${acc.name}</span>`:''}</div>
         </div>
         <div style="display:flex;align-items:center;gap:6px">

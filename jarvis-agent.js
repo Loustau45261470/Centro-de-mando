@@ -666,7 +666,9 @@
         return `Monto inválido (${input.monto}). Tiene que ser un número positivo y razonable.`;
       }
       const tipo = input.tipo === 'ingreso' ? 'income' : 'expense';
-      const desc = (input.descripcion || '').toString().trim().slice(0, 200);
+      // El texto lo genera un modelo: se guarda como texto plano. Aunque el sink
+      // escape al pintar, el dato viaja al estado y se sincroniza a todos los devices.
+      const desc = (input.descripcion || '').toString().replace(/[<>]/g, '').trim().slice(0, 200);
       if (!desc) return 'Falta la descripción del movimiento.';
       const date = (input.fecha || today).toString();
       const norm = s => (s || '').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
