@@ -229,6 +229,9 @@ const DEFAULT_STATE = {
   purchaseFunds: [],       // { id, name, emoji, monthlyAmount, accountId, condition, createdMonth }
   purchaseFundLog: {},     // { [fundId]: { 'YYYY-MM': { credited, met, txnId?, manual? } } }
   purchaseFundSpends: [],  // { id, fundId, date, desc, amount }
+  // Revisión semanal guiada: cierra la semana y siembra la siguiente.
+  // Clave de semana ISO (lunes primer día): { 'YYYY-Www': { hechaEl, promesas, nota, movidas, archivadas } }
+  revisionSemanal: {},
   // Mapa de Ideas (ver specs/mapa-de-ideas.md)
   mapaIdeas: {
     notes: [],           // [{ id, texto, tags:[], creado, editado, links:[noteId] (sugerencias aceptadas), embeddingPending:bool }] — el vector embedding NUNCA va acá (rompería el límite 1MiB de Firestore); vive en localStorage 'mi_emb_<id>' (ver mapa-ideas.js)
@@ -264,6 +267,40 @@ _db.enablePersistence({ synchronizeTabs: true })
    .catch(e => console.warn('[firestore] persistencia no disponible:', e.code));
 const _auth = firebase.auth();
 const _DOC  = () => _db.collection('appdata').doc('lifedash_v2');
+
+// ── Identidad del dispositivo (atribución de la última escritura) ─────────────
+// Solo informativo: viaja como campo aparte del doc (_dev), NUNCA dentro de `state`,
+// así no entra en el merge 3-vías ni cuenta contra el límite del estado.
+function _devNombreAuto() {
+  const ua = navigator.userAgent || '';
+  if (/iPhone/i.test(ua)) return 'iPhone';
+  if (/iPad/i.test(ua)) return 'iPad';
+  if (/Android/i.test(ua)) return 'Android';
+  if (/Macintosh/i.test(ua)) return 'Mac';
+  if (/Windows/i.test(ua)) return 'PC';
+  return 'Dispositivo';
+}
+function _devInfo() {
+  try {
+    let n = localStorage.getItem('cm_dispositivo');
+    if (!n) { n = _devNombreAuto(); localStorage.setItem('cm_dispositivo', n); }
+    return n;
+  } catch (e) { return _devNombreAuto(); }
+}
+// Renombrar este dispositivo: nombrarDispositivo('iPhone de Tobi')
+window.nombrarDispositivo = function (n) {
+  n = String(n || '').trim().slice(0, 24);
+  if (!n) { console.warn('[dispositivo] pasá un nombre'); return; }
+  try { localStorage.setItem('cm_dispositivo', n); } catch (e) {}
+  showToast('Este dispositivo ahora se llama "' + n + '"');
+  return n;
+};
+// Última escritura remota vista (la lee el ticker). No altera ninguna decisión de sync.
+window._ultimaEscritura = null;
+function _registrarEscritura(dev, savedAt) {
+  if (!savedAt) return;
+  window._ultimaEscritura = { dev: dev || null, savedAt, propio: dev === _devInfo() };
+}
 
 // ── PWA / Web Push ────────────────────────────────────────────────────────────
 let _swReg = null;
@@ -605,11 +642,29 @@ const _fbDoSave = async (opts = {}) => {
         log.unshift(rec); localStorage.setItem('_saveDiag', JSON.stringify(log.slice(0, 40)));
       } catch (e) {}
 
+      const _forzado = _forceSaveOnce;
       _forceSaveOnce = false;
+      const _stateStr = JSON.stringify(toSave);
+
+      // ── Guard de tamaño ──────────────────────────────────────────────
+      // Firestore rechaza cualquier documento de más de 1 MiB. Si el estado llega
+      // ahí, el set() falla ENTERO y se pierde todo lo cargado desde el último
+      // guardado. Frenar acá es mejor: el estado ya está en localStorage, queda
+      // marcado como pendiente, y el usuario ve por qué y cómo liberar espacio.
+      // forzarGuardado() lo saltea (borrados grandes legítimos).
+      const _TECHO = (window.CMArchivo && window.CMArchivo.BLOQUEO) || 1000000;
+      if (_stateStr.length > _TECHO && !_forzado) {
+        localStorage.setItem('_pendingCloudSave', '1');
+        console.error('[fbSave] BLOQUEADO: el estado pesa ' + Math.round(_stateStr.length / 1024) +
+                      ' KB y el límite de Firestore es 1024 KB. Archivá un año (CMArchivo) o forzarGuardado().');
+        showToast('⚠️ No se pudo guardar en la nube: el espacio está lleno. Tus datos siguen en este dispositivo.', 10000);
+        if (window.CMArchivo && typeof window.CMArchivo.alertaCritica === 'function') window.CMArchivo.alertaCritica();
+        return;
+      }
+
       const wid = Math.random().toString(36).slice(2);
       _lastWriteId = wid;
       const savedAt = Date.now();
-      const _stateStr = JSON.stringify(toSave);
       const _onWriteOk = () => {
         _lastSyncedSavedAt = savedAt;
         _lastSyncedState = JSON.parse(_stateStr);
@@ -618,7 +673,7 @@ const _fbDoSave = async (opts = {}) => {
         _saveSnap(_stateStr, savedAt);
       };
       try {
-        const _setP = _DOC().set({ state: _stateStr, _wid: wid, _savedAt: savedAt }, { merge: true });
+        const _setP = _DOC().set({ state: _stateStr, _wid: wid, _savedAt: savedAt, _dev: _devInfo() }, { merge: true });
         // La promesa del set() solo resuelve con el ack del servidor: si la red se cayó
         // entre el get y el set quedaría pendiente para siempre con el lock tomado,
         // bloqueando todos los saves siguientes. Timeout → liberar el lock y dejar la
@@ -755,6 +810,9 @@ window.restaurarBackup = async function (fecha) {
 };
 
 // ── Archivado manual por año (consola, 1 vez al año) ───────────────────────────
+// NOTA: superado por CMArchivo (archivo.js), que archiva TODAS las claves históricas,
+// verifica el archivo antes de podar y avisa solo cuando el documento se acerca al
+// techo. Esta versión se mantiene porque solo toca routineLog y ya fue usada.
 // archivarAno(2025)  → mueve entrenamientos de ese año a
 //                      appdata/archive_<año> y los quita del doc principal.
 // listarArchivos()   → lista los docs archive_* existentes.
@@ -834,6 +892,9 @@ function _reRenderAll() {
   if (tab === 'conocimiento') { renderLawProgress(); renderLawMilestones(); renderLawPlan(); renderTabHeader('conocimientoHeaderMeta'); if (window.Finales) Finales.renderPrincipal(); if (window.Cursada) Cursada.renderPrincipal(); }
   if (window.JARVIS_INTEL) JARVIS_INTEL.renderCard(tab);
   if (typeof renderProyectos === 'function') renderProyectos(tab);
+  if (tab === 'vida'     && typeof renderCorrelacionesCard === 'function') renderCorrelacionesCard();
+  if (tab === 'ia'       && typeof renderErroresCard === 'function')       renderErroresCard();
+  if (tab === 'finanzas' && typeof renderProyeccionCard === 'function')    renderProyeccionCard();
 }
 
 // ── Apply incoming remote state safely ───────────────────
@@ -872,6 +933,7 @@ function _applyRemoteState(raw, savedAt) {
 // ── Real-time Firestore listener ──────────────────────────
 function _startFirestoreSync() {
   _DOC().onSnapshot(snap => {
+    if (snap.exists) _registrarEscritura(snap.data()._dev, snap.data()._savedAt);  // solo informativo
     if (_fbSaveTid || _fbSaveInProgress) { window._snapDrops = (window._snapDrops || 0) + 1; return; }  // save en vuelo — descarta update remoto
     if (!snap.exists || !snap.data()?.state) return;
     if (snap.data()._wid && snap.data()._wid === _lastWriteId) return;  // eco propio
@@ -884,6 +946,7 @@ async function _syncOnFocus() {
   if (_fbSaveTid || _fbSaveInProgress) { window._snapDrops = (window._snapDrops || 0) + 1; return; }
   try {
     const snap = await _DOC().get();
+    if (snap.exists) _registrarEscritura(snap.data()._dev, snap.data()._savedAt);  // solo informativo
     if (!snap.exists || !snap.data()?.state) return;
     if (snap.data()._wid && snap.data()._wid === _lastWriteId) return;  // ya tenemos este estado
     _applyRemoteState(snap.data().state, snap.data()._savedAt);
@@ -1080,6 +1143,9 @@ function switchTab(tab, btn) {
   checkAchievements();
   if (typeof renderProyectos === 'function') renderProyectos(tab);
   renderReminders(tab);
+  if (tab === 'vida'     && typeof renderCorrelacionesCard === 'function') renderCorrelacionesCard();
+  if (tab === 'ia'       && typeof renderErroresCard === 'function')       renderErroresCard();
+  if (tab === 'finanzas' && typeof renderProyeccionCard === 'function')    renderProyeccionCard();
   requestAnimationFrame(() => { armScrollReveal(); _armTooltips(document.getElementById('tab-' + tab)); });
 }
 
@@ -3982,6 +4048,9 @@ chartsInited['ia']=false;
 buildTickerAlerts();
 // Activar media session con recordatorios próximos al cargar
 setTimeout(() => _msHub.showReminders(), 500);
+// Atajo del ícono de la app o algo compartido desde otra app: se aplica acá,
+// ya con sesión iniciada y el estado cargado (ver share-target.js).
+if (typeof aplicarAccionPendiente === 'function') aplicarAccionPendiente();
 }
 
 // ════════════════════════════════════════════════════════

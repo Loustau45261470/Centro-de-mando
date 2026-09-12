@@ -21,13 +21,14 @@
   const left = document.createElement('div'); left.id = 'ticker-left';
   left.innerHTML = '<span class="tk-dot"></span><span id="tk-time">--:--:--</span>';
   const right = document.createElement('div'); right.id = 'ticker-right';
-  right.innerHTML = '<span id="tk-sync" class="tk-ok">● SYNC</span><span id="tk-size" class="tk-dim">--</span>';
+  right.innerHTML = '<span id="tk-sync" class="tk-ok">● SYNC</span><span id="tk-size" class="tk-dim">--</span><span id="tk-dev" class="tk-dim" style="display:none"></span>';
   ticker.appendChild(left); ticker.appendChild(right);
 
   const p2 = n => String(n).padStart(2, '0');
   const elTime = left.querySelector('#tk-time');
   const elSync = right.querySelector('#tk-sync');
   const elSize = right.querySelector('#tk-size');
+  const elDev  = right.querySelector('#tk-dev');
 
   // Medidor de tamaño del doc Firestore (S se serializa a UN doc; límite duro 1 MiB).
   const DOC_LIMIT = 1048576;          // 1 MiB
@@ -54,11 +55,30 @@
     let pending = false; try { pending = !!_fbSaveTid; } catch (e) {}
     return pending ? { t: '◌ SYNC…', c: 'tk-save' } : { t: '● SYNC', c: 'tk-ok' };
   }
+  // Atribución de la última escritura: de qué dispositivo vino y hace cuánto.
+  // Sirve para diagnosticar un problema de sync entre celular y PC sin abrir la consola.
+  function hace(ms) {
+    const m = Math.floor(ms / 60000);
+    if (m < 1) return 'recién';
+    if (m < 60) return 'hace ' + m + 'm';
+    const h = Math.floor(m / 60);
+    if (h < 24) return 'hace ' + h + 'h';
+    return 'hace ' + Math.floor(h / 24) + 'd';
+  }
+  function escrituraInfo() {
+    const u = window._ultimaEscritura;
+    if (!u || !u.savedAt || !u.dev) return null;
+    if (u.propio) return null;          // fue este mismo dispositivo: no hay nada que aclarar
+    return u.dev + ' · ' + hace(Date.now() - u.savedAt);
+  }
   function tick() {
     const d = new Date();
     elTime.textContent = p2(d.getHours()) + ':' + p2(d.getMinutes()) + ':' + p2(d.getSeconds());
     const s = syncInfo();
     elSync.textContent = s.t; elSync.className = s.c;
+    const e = escrituraInfo();
+    elDev.textContent = e || '';
+    elDev.style.display = e ? '' : 'none';
     const b = docSize();
     elSize.textContent = b === null ? '…' : fmtBytes(b);
     elSize.className = (b !== null && b >= DOC_WARN) ? 'tk-save' : 'tk-dim';  // tk-save=var(--warn); tk-dim=var(--tt)

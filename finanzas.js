@@ -131,7 +131,15 @@ function addSubscription() {
   document.getElementById('subName').value=''; document.getElementById('subAmount').value='';
   showToast('Suscripción agregada');
 }
-function deleteSub(id) { S.subscriptions=S.subscriptions.filter(s=>s.id!==id); saveState(); renderSubscriptions(); buildTickerAlerts(); }
+function deleteSub(id) {
+  const idx = S.subscriptions.findIndex(s=>s.id===id);
+  const sub = idx > -1 ? S.subscriptions[idx] : null;
+  S.subscriptions=S.subscriptions.filter(s=>s.id!==id); saveState(); renderSubscriptions(); buildTickerAlerts();
+  if (window.CMUndo && sub) CMUndo.registrar({
+    descripcion: 'Suscripción eliminada',
+    deshacer: () => { S.subscriptions.splice(idx, 0, sub); renderSubscriptions(); buildTickerAlerts(); }
+  });
+}
 
 function renderWishlist() {
   const list=document.getElementById('wishList');
@@ -302,7 +310,15 @@ function addWish() {
   document.getElementById('wishNotes').value = '';
   showToast('Objetivo agregado');
 }
-function deleteWish(id) { S.wishlist=S.wishlist.filter(w=>w.id!==id); saveState(); renderWishlist(); }
+function deleteWish(id) {
+  const idx = S.wishlist.findIndex(w=>w.id===id);
+  const wish = idx > -1 ? S.wishlist[idx] : null;
+  S.wishlist=S.wishlist.filter(w=>w.id!==id); saveState(); renderWishlist();
+  if (window.CMUndo && wish) CMUndo.registrar({
+    descripcion: 'Objetivo eliminado',
+    deshacer: () => { S.wishlist.splice(idx, 0, wish); renderWishlist(); }
+  });
+}
 
 // ── Fixed Expenses ──
 function renderFixedExpenses() {
@@ -353,8 +369,14 @@ function addFixedExpense() {
 }
 
 function deleteFixedExpense(id) {
+  const idx = S.fixedExpenses.findIndex(e => e.id === id);
+  const exp = idx > -1 ? S.fixedExpenses[idx] : null;
   S.fixedExpenses = S.fixedExpenses.filter(e => e.id !== id);
   saveState(); renderFixedExpenses();
+  if (window.CMUndo && exp) CMUndo.registrar({
+    descripcion: 'Gasto fijo eliminado',
+    deshacer: () => { S.fixedExpenses.splice(idx, 0, exp); renderFixedExpenses(); }
+  });
 }
 
 function markFixedExpensePaid(id) {
@@ -2035,14 +2057,26 @@ function saveEditTxn() {
 
 function deleteTransaction(id) {
   if (!confirm('¿Eliminar este movimiento?')) return;
-  const txn = S.transactions.find(t=>t.id===id);
+  const idx = S.transactions.findIndex(t=>t.id===id);
+  const txn = idx > -1 ? S.transactions[idx] : null;
   if (txn && !txn.pending && txn.accountId) {
     const acc = S.accounts.find(a=>a.id===txn.accountId);
     if (acc) acc.balance -= txn.type==='income' ? txn.amount : -txn.amount;
   }
   S.transactions = S.transactions.filter(t=>t.id!==id);
   snapshotNW(); saveState(); renderFinanzasTab(); closeModal('modal-edit-txn');
-  showToast('Movimiento eliminado');
+  if (window.CMUndo && txn) CMUndo.registrar({
+    descripcion: 'Movimiento eliminado',
+    deshacer: () => {
+      S.transactions.splice(idx, 0, txn);
+      if (!txn.pending && txn.accountId) {
+        const acc = S.accounts.find(a=>a.id===txn.accountId);
+        if (acc) acc.balance += txn.type==='income' ? txn.amount : -txn.amount;
+      }
+      snapshotNW(); renderFinanzasTab();
+    }
+  });
+  else showToast('Movimiento eliminado');
 }
 
 function addTransaction() {

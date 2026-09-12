@@ -669,10 +669,21 @@ function deleteHabit(id) {
   if (!id || !confirm('¿Eliminar este hábito y todos sus registros?')) return;
   const arr = S.habitTrackers[section];
   if (!arr) return;
+  const idx = arr.findIndex(h => h.id===id);
+  const habit = idx > -1 ? arr[idx] : null;
+  const wasActive = _habitActiveId[section]===id;
   S.habitTrackers[section] = arr.filter(h => h.id!==id);
-  if (_habitActiveId[section]===id)
+  if (wasActive)
     _habitActiveId[section] = S.habitTrackers[section][0]?.id||null;
   saveState(); closeModal('modal-habit'); renderHabitsCard(section);
+  if (window.CMUndo && habit) CMUndo.registrar({
+    descripcion: 'Hábito eliminado',
+    deshacer: () => {
+      S.habitTrackers[section].splice(idx, 0, habit);
+      if (wasActive) _habitActiveId[section] = id;
+      renderHabitsCard(section);
+    }
+  });
 }
 
 function cycleHabitDay(calKey, ds) {
