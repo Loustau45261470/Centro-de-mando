@@ -225,6 +225,13 @@
       "desc": "resolverProyecciones() tiraba TypeError si S se reasignaba (cambio remoto o loadState) mientras fetchCartera() estaba en vuelo: ensureState() habia mutado la referencia vieja de S. Encontrado por el harness de tests bajo carga paralela.",
       "file": "sgc.js",
       "marker": "S se REASIGNA entero al aplicar un cambio remoto"
+    },
+    {
+      "id": "correlaciones-cache-sin-invalidacion-por-datos",
+      "fecha": "2026-09-11",
+      "desc": "La tarjeta Relaciones cacheaba por {ventana, dia activo} y nunca se invalidaba: quedaba congelada con el primer render de la sesion (vacio, porque al bootear no hay datos cruzados) y mostraba 'faltan N dias' toda la sesion aunque se cargaran datos. Se agrego una firma de datos barata (conteos + muestreo de los valores de hoy). Cubierto por tests/correlaciones.spec.js.",
+      "file": "correlaciones.js",
+      "marker": "c.firma === firma"
     }
   ]
 }
