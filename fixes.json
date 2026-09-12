@@ -232,6 +232,13 @@
       "desc": "La tarjeta Relaciones cacheaba por {ventana, dia activo} y nunca se invalidaba: quedaba congelada con el primer render de la sesion (vacio, porque al bootear no hay datos cruzados) y mostraba 'faltan N dias' toda la sesion aunque se cargaran datos. Se agrego una firma de datos barata (conteos + muestreo de los valores de hoy). Cubierto por tests/correlaciones.spec.js.",
       "file": "correlaciones.js",
       "marker": "c.firma === firma"
+    },
+    {
+      "id": "pwa-sw-update-unhandled-rejection",
+      "fecha": "2026-09-12",
+      "desc": "_pwaInit() llamaba _swReg.update() sin await ni .catch(): si ese fetch de sw.js fallaba (red inestable, hiccup de GitHub Pages), la promesa rechazada escapaba del try/catch de register() y quedaba como unhandledrejection, apareciendo en el log de errores.js como tipo 'promise' con 'Script .../sw.js load failed'. El register() de arriba SI esta protegido; el update() no. No quitar el .catch() de esa linea.",
+      "file": "app.js",
+      "marker": "_swReg.update().catch("
     }
   ]
 }
