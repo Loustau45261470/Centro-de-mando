@@ -319,15 +319,58 @@
     return { ventanaDias: ventanaDias, top: ok.slice(0, 5), todas: ok, mejorFaltante: mejorFaltante };
   }
 
-  // ── Caché por ventana: no recalcula salvo cambio de día activo o pedido explícito ──
+  // ── Caché por ventana ──────────────────────────────────────────────────────
+  // Cachear solo por {ventana, día} dejaba la tarjeta congelada con el primer
+  // render de la sesión: al arrancar la app todavía no hay datos cruzados, se
+  // cacheaba "faltan N días" y no se refrescaba nunca, aunque después se
+  // registrara el sueño o se completara el planner. La firma de datos resuelve
+  // eso sin recalcular de más. Barata a propósito: cuenta ítems, nunca
+  // JSON.stringify del estado (mismo criterio que busqueda-global.js).
+  function _firma() {
+    var st = ST(), n = 0;
+    function nKeys(o) { return (o && typeof o === 'object') ? Object.keys(o).length : 0; }
+    n += nKeys(st.sleepLog) * 3;
+    n += nKeys(st.dayPlan) * 5;
+    n += nKeys(st.goals) * 7;
+    n += nKeys(st.workoutCalendar && st.workoutCalendar.days) * 11;
+    n += nKeys(st.studyCalendar && st.studyCalendar.days) * 13;
+    n += nKeys(st.routineLog) * 17;
+    n += ((st.pomodoroHistory && st.pomodoroHistory.length) || 0) * 19;
+    n += ((st.transactions && st.transactions.length) || 0) * 23;
+    n += nKeys(st.dieta && st.dieta.log) * 29;
+    // Los hábitos cambian marcando un día dentro de cada tracker: contar los días
+    // marcados, no la cantidad de hábitos (que casi nunca cambia).
+    var ht = st.habitTrackers || {};
+    Object.keys(ht).forEach(function (sec) {
+      (ht[sec] || []).forEach(function (h) { n += nKeys(h && h.days) * 31; });
+    });
+    // Los valores del día en curso se editan sin cambiar ningún conteo (marcar un
+    // hábito ya marcado como 'partial', corregir las horas de sueño). Se muestrean
+    // aparte para que esas ediciones también invaliden la caché.
+    var hoy = _hoy();
+    var sl = (st.sleepLog || {})[hoy];
+    if (sl) n += Math.round((sl.hours || 0) * 10) + (sl.feeling || 0) * 37;
+    var dp = (st.dayPlan || {})[hoy];
+    if (dp && dp.tasks) n += dp.tasks.filter(function (t) { return t && t.done; }).length * 41;
+    var gs = (st.goals || {})[hoy];
+    if (gs) n += gs.filter(function (g) { return g && g.done; }).length * 43;
+    Object.keys(ht).forEach(function (sec) {
+      (ht[sec] || []).forEach(function (h) {
+        var v = h && h.days && h.days[hoy];
+        if (v) n += String(v).length * 47;
+      });
+    });
+    return n;
+  }
+
   var _cache = {};
   function calcular(ventanaDias, forzar) {
     ventanaDias = [30, 90, 365].indexOf(ventanaDias) !== -1 ? ventanaDias : 90;
-    var hoy = _hoy();
+    var hoy = _hoy(), firma = _firma();
     var c = _cache[ventanaDias];
-    if (!forzar && c && c.activeDate === hoy) return c.data;
+    if (!forzar && c && c.activeDate === hoy && c.firma === firma) return c.data;
     var data = calcularCorrelaciones(ventanaDias);
-    _cache[ventanaDias] = { activeDate: hoy, data: data };
+    _cache[ventanaDias] = { activeDate: hoy, firma: firma, data: data };
     return data;
   }
 
