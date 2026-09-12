@@ -59,6 +59,11 @@ const SGC = (() => {
   const fmtPct = v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
 
   function resolverProyecciones() {
+    // S se REASIGNA entero al aplicar un cambio remoto (_applyRemoteState) o al
+    // resolver loadState(). El ensureState() de init() mutó la referencia VIEJA:
+    // si eso pasó mientras fetchCartera() estaba en vuelo, S.sgc ya no existe y
+    // la línea de abajo tira TypeError. Re-asegurar acá cubre los 3 call sites.
+    ensureState();
     // proyecciones vencidas sin precio real → intentar resolver con el JSON del agente IOL
     let cambio = false;
     (S.sgc.proyecciones || []).forEach(p => {

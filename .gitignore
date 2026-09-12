@@ -1,5 +1,8 @@
 node_modules/
 .wrangler/
+playwright-report/
+test-results/
+blob-report/
 cf-worker/.dev.vars
 
 # Artefactos locales de verificación visual (auth bypass + screenshots) — nunca al repo
