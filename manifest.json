@@ -14,5 +14,36 @@
     { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
     { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
     { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
-  ]
+  ],
+  "shortcuts": [
+    {
+      "name": "Registrar gasto",
+      "short_name": "Gasto",
+      "url": "/Centro-de-mando/?accion=gasto",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Marcar hábito",
+      "short_name": "Hábito",
+      "url": "/Centro-de-mando/?accion=habito",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Abrir planner del día",
+      "short_name": "Planner",
+      "url": "/Centro-de-mando/?accion=planner",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Capturar idea",
+      "short_name": "Idea",
+      "url": "/Centro-de-mando/?accion=idea",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ],
+  "share_target": {
+    "action": "/Centro-de-mando/?compartido=1",
+    "method": "GET",
+    "params": { "title": "title", "text": "text", "url": "url" }
+  }
 }
