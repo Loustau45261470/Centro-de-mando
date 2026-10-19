@@ -3,19 +3,9 @@
   "mes": "2026-09",
   "cedears": [
     {
-      "simbolo": "IBM",
-      "cantidad": 5,
-      "precio": 24890,
-      "precioMesAnterior": 25260,
-      "variacionPct": -1.35,
-      "rend3m": -19.35,
-      "rend6m": 6.68,
-      "rend12m": 12.89
-    },
-    {
       "simbolo": "GOOGL",
       "cantidad": 30,
-      "precio": 9290,
+      "precio": 9530,
       "precioMesAnterior": 9610,
       "variacionPct": -2.5,
       "rend3m": -0.05,
@@ -24,8 +14,8 @@
     },
     {
       "simbolo": "MELI",
-      "cantidad": 10,
-      "precio": 26180,
+      "cantidad": 20,
+      "precio": 24740,
       "precioMesAnterior": 26260,
       "variacionPct": -1.6,
       "rend3m": 24.65,
@@ -35,7 +25,7 @@
     {
       "simbolo": "META",
       "cantidad": 10,
-      "precio": 40800,
+      "precio": 47680,
       "precioMesAnterior": 38640,
       "variacionPct": -1.29,
       "rend3m": -3.05,
@@ -45,7 +35,7 @@
     {
       "simbolo": "AMZN",
       "cantidad": 100,
-      "precio": 2857.5,
+      "precio": 2815,
       "precioMesAnterior": 2980,
       "variacionPct": -2.85,
       "rend3m": 10.08,
@@ -55,7 +45,7 @@
     {
       "simbolo": "NVDA",
       "cantidad": 15,
-      "precio": 15240,
+      "precio": 14510,
       "precioMesAnterior": 14540,
       "variacionPct": 1.17,
       "rend3m": 8.56,
@@ -65,7 +55,7 @@
     {
       "simbolo": "V",
       "cantidad": 10,
-      "precio": 33100,
+      "precio": 36200,
       "precioMesAnterior": 34020,
       "variacionPct": -0.94,
       "rend3m": 27.55,
@@ -75,7 +65,7 @@
     {
       "simbolo": "MA",
       "cantidad": 10,
-      "precio": 26540,
+      "precio": 30200,
       "precioMesAnterior": 29000,
       "variacionPct": -1.38,
       "rend3m": 31.56,
@@ -85,7 +75,7 @@
     {
       "simbolo": "SPY",
       "cantidad": 50,
-      "precio": 20410,
+      "precio": 20620,
       "precioMesAnterior": 20620,
       "variacionPct": -0.78,
       "rend3m": 7.12,
@@ -94,8 +84,8 @@
     },
     {
       "simbolo": "SPGI",
-      "cantidad": 25,
-      "precio": 15600,
+      "cantidad": 40,
+      "precio": 15420,
       "precioMesAnterior": 15820,
       "variacionPct": -2.02,
       "rend3m": 11.19,
@@ -104,8 +94,8 @@
     },
     {
       "simbolo": "NU",
-      "cantidad": 25,
-      "precio": 12190,
+      "cantidad": 50,
+      "precio": 11820,
       "precioMesAnterior": 11500,
       "variacionPct": 1.04,
       "rend3m": 31.45,
@@ -113,53 +103,13 @@
       "rend12m": 14.2
     },
     {
-      "simbolo": "ETHA",
-      "cantidad": 25,
-      "precio": 5875,
-      "precioMesAnterior": 5895,
-      "variacionPct": 1.44,
-      "rend3m": 44.36,
-      "rend6m": 32.89,
-      "rend12m": -32.12
-    },
-    {
-      "simbolo": "GLD",
-      "cantidad": 50,
-      "precio": 12930,
-      "precioMesAnterior": 13140,
-      "variacionPct": -0.68,
-      "rend3m": 5.58,
-      "rend6m": -8.93,
-      "rend12m": 45.81
-    },
-    {
-      "simbolo": "IBIT",
-      "cantidad": 20,
-      "precio": 7195,
-      "precioMesAnterior": 7035,
-      "variacionPct": 1.49,
-      "rend3m": 26.93,
-      "rend6m": 25.04,
-      "rend12m": -17.36
-    },
-    {
-      "simbolo": "SLV",
-      "cantidad": 10,
-      "precio": 15790,
-      "precioMesAnterior": 16090,
-      "variacionPct": -0.5,
-      "rend3m": -4.25,
-      "rend6m": -18.94,
-      "rend12m": 88.57
-    },
-    {
-      "simbolo": "COPX",
-      "cantidad": 10,
-      "precio": 10250,
-      "precioMesAnterior": 10800,
-      "variacionPct": -2.13,
-      "rend3m": 8.19,
-      "rend6m": 7.8,
+      "simbolo": "UBER",
+      "cantidad": 5,
+      "precio": 57050,
+      "precioMesAnterior": null,
+      "variacionPct": null,
+      "rend3m": null,
+      "rend6m": null,
       "rend12m": null
     }
   ],
