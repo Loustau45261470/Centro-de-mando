@@ -21,7 +21,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-<link rel="stylesheet" href="styles.css?v=203">
+<link rel="stylesheet" href="styles.css?v=204">
 <link rel="stylesheet" href="gamemode.css">
 <link rel="stylesheet" href="overlay-core.css">
 <link rel="stylesheet" href="speed-dial.css?v=2">
@@ -579,7 +579,10 @@
         <div class="card">
           <div class="card-title">
             💰 Patrimonio Neto
-            <button class="btn btn-ghost btn-sm" onclick="openModal('modal-add-account')">+ Cuenta</button>
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-ghost btn-sm" onclick="openMoveMoney()">Mover plata</button>
+              <button class="btn btn-ghost btn-sm" onclick="openModal('modal-add-account')">+ Cuenta</button>
+            </div>
           </div>
           <div class="nw-total" id="nwTotal">$0</div>
           <div class="nw-1pct" id="nw1pct">1% = $0</div>
@@ -962,6 +965,23 @@
   </div>
 </div>
 
+<!-- Mover plata entre cuentas (no es ingreso ni gasto) -->
+<div class="modal-overlay" id="modal-move-money" onclick="if(event.target===this)closeModal('modal-move-money')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Mover plata</div>
+    <div class="field"><label>De qué cuenta sale</label><select class="inp" id="moveFrom" onchange="updateMoveWarn()"></select></div>
+    <div class="field"><label>A qué cuenta entra</label><select class="inp" id="moveTo" onchange="updateMoveWarn()"></select></div>
+    <div class="field"><label>Monto</label><input class="inp" type="number" step="0.01" min="0" id="moveAmount" placeholder="0" oninput="updateMoveWarn()"></div>
+    <div class="field"><label>Nota (opcional)</label><input class="inp" id="moveNote" placeholder="Ej: le presté a Didi"></div>
+    <div class="move-warn" id="moveWarn" role="status" style="display:none"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-move-money')">Cancelar</button>
+      <button class="btn btn-primary" onclick="moverPlata()">Mover</button>
+    </div>
+  </div>
+</div>
+
 <!-- Add Account -->
 <div class="modal-overlay" id="modal-add-account">
   <div class="modal">
@@ -971,6 +991,7 @@
     <div class="field"><label>Tipo</label>
       <select class="inp" id="accType">
         <option value="bank">🏦 Cuenta bancaria</option>
+        <option value="cash">💵 Efectivo</option>
         <option value="invest">📈 Inversión / Acciones</option>
         <option value="prestamo">🤝 Préstamo</option>
         <option value="other">💼 Otro activo</option>
@@ -1187,6 +1208,7 @@
     <div class="field"><label>Tipo</label>
       <select class="inp" id="editAccType">
         <option value="bank">🏦 Cuenta bancaria</option>
+        <option value="cash">💵 Efectivo</option>
         <option value="invest">📈 Inversión / Acciones</option>
         <option value="prestamo">🤝 Préstamo</option>
         <option value="other">💼 Otro activo</option>
@@ -1751,7 +1773,7 @@
 
 <script src="errores.js?v=1"></script>
 <script src="deadlines.js?v=3"></script>
-<script src="app.js?v=186"></script>
+<script src="app.js?v=187"></script>
 <script src="archivo.js?v=1"></script>
 <script src="undo.js?v=1"></script>
 <script src="workspace.js?v=197"></script>
@@ -1759,7 +1781,7 @@
 <script src="correlativas.js?v=2"></script>
 <script src="habitos.js?v=6"></script>
 <script src="rutinas.js"></script>
-<script src="finanzas.js?v=5"></script>
+<script src="finanzas.js?v=6"></script>
 <script src="proyeccion-mes.js?v=1"></script>
 <script src="recordatorios.js?v=8"></script>
 <script src="objetivos.js"></script>

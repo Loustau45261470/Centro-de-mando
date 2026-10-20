@@ -34,6 +34,7 @@ const DEFAULT_STATE = {
   wishlist: [],     // [{ id, name, amount, currency }]
   nwHistory: [],       // [{ date, value }]
   accountHistory: [],  // [{ date, accountId, balance }] — poblado desde snapshotNW() en adelante, sin reconstrucción retroactiva
+  moves: [],           // [{ id, date, from, to, amount, note }] — "Mover plata" entre cuentas (no son ingresos ni gastos)
   fixedExpenses: [],   // [{ id, name, amount, currency, dayOfMonth }]
   fixedExpenseLog: {}, // { 'YYYY-MM': { [expId]: true } }
   budgets: {},         // { 'YYYY-MM': { fixed:[{id,name,category,unit,v1,v2,v3}], reserved:[{id,name,category,amount}] } }
@@ -3006,6 +3007,16 @@ function _nwHist() {
   const cutoff = c.toISOString().slice(0, 10);
   return all.filter(h => h.date > cutoff);
 }
+// Etiquetas del eje X: MM-DD en rangos cortos; "sep 26" (con año) si el rango abarca
+// más de un año calendario o más de 365 días (si no, MM-DD se repite entre años).
+const _NW_MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+function _nwLabels(hist) {
+  if (!hist.length) return [];
+  const a = hist[0].date, b = hist[hist.length - 1].date;
+  const dias = (Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 86400000;
+  if (!(dias > 365 || a.slice(0, 4) !== b.slice(0, 4))) return hist.map(h => h.date.slice(5));
+  return hist.map(h => _NW_MESES[+h.date.slice(5, 7) - 1] + ' ' + h.date.slice(2, 4));
+}
 function _renderNWRange() {
   const cur = _nwRangeGet();
   document.querySelectorAll('#nwRangeSeg button').forEach(b => {
@@ -3090,9 +3101,9 @@ function _renderNWScaleNote() {
 function initNWCharts() {
   // Pie
   const pieCtx=document.getElementById('nwPieChart').getContext('2d');
-  const types=['bank','invest','prestamo','other'];
-  const labels=['Cuentas','Inversión','Préstamo','Otros'];
-  const colors=['rgba(107,227,164,.7)','rgba(124,142,232,.7)','rgba(242,192,99,.7)','rgba(255,107,107,.7)'];
+  const types=['bank','cash','invest','prestamo','other'];
+  const labels=['Cuentas','Efectivo','Inversión','Préstamo','Otros'];
+  const colors=['rgba(107,227,164,.7)','rgba(94,200,229,.7)','rgba(124,142,232,.7)','rgba(242,192,99,.7)','rgba(255,107,107,.7)'];
   const data=types.map(t=>S.accounts.filter(a=>a.type===t).reduce((s,a)=>s+a.balance,0));
   nwPieInst=new Chart(pieCtx,{
     type:'doughnut',
@@ -3105,7 +3116,7 @@ function initNWCharts() {
   const accDatasets = _nwAccountDatasets(hist);
   nwLineInst=new Chart(lineCtx,{
     type:'line',
-    data:{ labels:hist.map(h=>h.date.slice(5)), datasets:[{ label:'Patrimonio total', data:hist.map(h=>h.value), borderColor:'rgba(107,227,164,.8)', backgroundColor:'rgba(107,227,164,.06)', tension:.3, pointRadius:3, fill:true }, ...accDatasets] },
+    data:{ labels:_nwLabels(hist), datasets:[{ label:'Patrimonio total', data:hist.map(h=>h.value), borderColor:'rgba(107,227,164,.8)', backgroundColor:'rgba(107,227,164,.06)', tension:.3, pointRadius:3, fill:true }, ...accDatasets] },
     options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display: accDatasets.length>0, position:'bottom', labels:{ font:{size:_cfs(13)}, boxWidth:10, color:'#C8D5E8' } } }, scales:_nwLineScales() }
   });
   renderAccountChartToggles();
@@ -3115,12 +3126,12 @@ function initNWCharts() {
 
 function updateNWCharts() {
   if (!nwPieInst||!nwLineInst) return;
-  const types=['bank','invest','prestamo','other'];
+  const types=['bank','cash','invest','prestamo','other'];
   nwPieInst.data.datasets[0].data=types.map(t=>S.accounts.filter(a=>a.type===t).reduce((s,a)=>s+a.balance,0));
   nwPieInst.update('none');
   const hist=_nwHist();
   const accDatasets = _nwAccountDatasets(hist);
-  nwLineInst.data.labels=hist.map(h=>h.date.slice(5));
+  nwLineInst.data.labels=_nwLabels(hist);
   nwLineInst.data.datasets=[{ label:'Patrimonio total', data:hist.map(h=>h.value), borderColor:'rgba(107,227,164,.8)', backgroundColor:'rgba(107,227,164,.06)', tension:.3, pointRadius:3, fill:true }, ...accDatasets];
   nwLineInst.options.plugins.legend.display = accDatasets.length>0;
   nwLineInst.options.scales = _nwLineScales();

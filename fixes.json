@@ -246,6 +246,13 @@
       "desc": "El grafico de patrimonio recortaba nwHistory a slice(-30) fijo (y accountHistory se podaba a 180 dias), asi que no se veia el historial real. Ahora un helper _nwHist() filtra por fecha segun el selector 1M/3M/6M/9M/12M/Todo (default Todo, persistido en localStorage) y lo usan initNWCharts y updateNWCharts; la poda de accountHistory sube a 400 dias. Cubierto por tests/nw-history.spec.js.",
       "file": "app.js",
       "marker": "function _nwHist()"
+    },
+    {
+      "id": "nw-eje-x-sin-anio",
+      "fecha": "2026-10-20",
+      "desc": "Con el rango Todo/12M el eje X del grafico de patrimonio usaba MM-DD, asi que las fechas se repetian entre anios y no se distinguia que anio era cada punto. Ahora _nwLabels() muestra 'sep 26' cuando el rango abarca mas de un anio calendario o mas de 365 dias; en rangos cortos queda MM-DD. Cubierto por tests/nw-history.spec.js.",
+      "file": "app.js",
+      "marker": "function _nwLabels("
     }
   ]
 }

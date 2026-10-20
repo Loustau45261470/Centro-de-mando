@@ -6041,3 +6041,6 @@ input:focus, select:focus, textarea:focus {
   .corr-btns { flex-wrap: wrap; }
   .corr-btn { flex: 1 1 30%; }
 }
+
+/* Mover plata: aviso cuando una cuenta queda en negativo */
+.move-warn { margin-top: 4px; padding: 8px 10px; border-radius: 8px; font-size: var(--fs-13); color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent); border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent); }
