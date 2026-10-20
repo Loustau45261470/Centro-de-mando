@@ -21,7 +21,11 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+<<<<<<< HEAD
 <link rel="stylesheet" href="styles.css?v=202">
+=======
+<link rel="stylesheet" href="styles.css?v=201">
+>>>>>>> 8341e1b (feat(finanzas): selector de rango 1M-12M-Todo en el grafico de patrimonio)
 <link rel="stylesheet" href="gamemode.css">
 <link rel="stylesheet" href="overlay-core.css">
 <link rel="stylesheet" href="speed-dial.css?v=2">
@@ -584,6 +588,14 @@
           <div class="nw-total" id="nwTotal">$0</div>
           <div class="nw-1pct" id="nw1pct">1% = $0</div>
           <div class="chart-wrap-tall"><canvas id="nwPieChart"></canvas></div>
+          <div class="seg seg-sm nw-range" id="nwRangeSeg" role="group" aria-label="Rango del gráfico de patrimonio">
+            <button type="button" data-range="1M" onclick="setNWRange('1M')">1M</button>
+            <button type="button" data-range="3M" onclick="setNWRange('3M')">3M</button>
+            <button type="button" data-range="6M" onclick="setNWRange('6M')">6M</button>
+            <button type="button" data-range="9M" onclick="setNWRange('9M')">9M</button>
+            <button type="button" data-range="12M" onclick="setNWRange('12M')">12M</button>
+            <button type="button" data-range="all" onclick="setNWRange('all')">Todo</button>
+          </div>
           <div class="chart-wrap"><canvas id="nwLineChart"></canvas></div>
           <div class="nw-scale-note" id="nwScaleNote" style="display:none"></div>
           <div class="nw-acc-toggles" id="nwAccountToggles"></div>
@@ -1751,7 +1763,7 @@
 <script src="correlativas.js?v=2"></script>
 <script src="habitos.js?v=6"></script>
 <script src="rutinas.js"></script>
-<script src="finanzas.js?v=4"></script>
+<script src="finanzas.js?v=5"></script>
 <script src="proyeccion-mes.js?v=1"></script>
 <script src="recordatorios.js?v=8"></script>
 <script src="objetivos.js"></script>

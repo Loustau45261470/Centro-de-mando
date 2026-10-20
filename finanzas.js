@@ -23,9 +23,9 @@ function snapshotNW() {
   });
   S.accountHistory.sort((a,b)=>a.date.localeCompare(b.date));
 
-  // Poda: solo se grafican los últimos 30 días, no hace falta acumular más de ~180
+  // Poda: el selector de rango del gráfico llega hasta 12M, así que se conservan ~400
   // días de historial por cuenta (evita inflar el documento único de Firestore).
-  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 180);
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 400);
   const cutoffStr = cutoff.toISOString().slice(0,10);
   S.accountHistory = S.accountHistory.filter(h => h.date >= cutoffStr);
 }
