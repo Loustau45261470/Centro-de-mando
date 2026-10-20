@@ -6044,3 +6044,25 @@ input:focus, select:focus, textarea:focus {
 
 /* Mover plata: aviso cuando una cuenta queda en negativo */
 .move-warn { margin-top: 4px; padding: 8px 10px; border-radius: 8px; font-size: var(--fs-13); color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent); border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent); }
+
+/* Crédito: tarjetas y utilización de cupo */
+.cc-empty { text-align: center; padding: 18px 8px; color: var(--ts); font-size: var(--fs-15); }
+.cc-empty p { margin: 0 0 12px; }
+.cc-total { display: flex; align-items: center; gap: 14px; padding: 4px 0 14px; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+.cc-ring { flex-shrink: 0; }
+.cc-ring-prog { stroke: var(--cc-c); transition: stroke-dashoffset .6s cubic-bezier(.16,1,.3,1); }
+.cc-ring-txt { fill: var(--cc-c); font-size: var(--fs-15); font-weight: 800; font-family: var(--mono); }
+.cc-ok { --cc-c: var(--ok); } .cc-warn { --cc-c: var(--warn); } .cc-danger { --cc-c: var(--danger); }
+.cc-row { padding: 10px 0; border-bottom: 1px solid var(--border); }
+.cc-row:last-child { border-bottom: 0; }
+.cc-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.cc-name { flex: 1; min-width: 0; font-weight: 700; color: var(--tp); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cc-pct { font-family: var(--mono); font-weight: 800; font-size: var(--fs-13); color: var(--cc-c); flex-shrink: 0; }
+.cc-bar { height: 8px; border-radius: 99px; background: rgba(255,255,255,.08); overflow: hidden; }
+.cc-bar i { display: block; height: 100%; border-radius: 99px; background: var(--cc-c); transition: width .5s; }
+.cc-nums { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: var(--fs-13); color: var(--ts); }
+.cc-nums b { color: var(--tp); font-family: var(--mono); font-weight: 700; }
+.cc-nums-total { flex: 1; min-width: 0; flex-direction: column; margin-top: 0; }
+.cc-meta { margin-top: 4px; font-size: var(--fs-12-5); color: var(--tt); }
+.cc-over { color: var(--danger); }
+.cc-danger .cc-avail { color: var(--danger); }
