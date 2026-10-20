@@ -2989,6 +2989,38 @@ const _NW_ACC_COLORS = [
   { border:'rgba(255,107,107,.85)', bg:'rgba(255,107,107,.08)' },
 ];
 
+// ── Rango del gráfico de patrimonio (1M/3M/6M/9M/12M/Todo) ──
+// Preferencia por dispositivo en localStorage (no va a Firestore). Default: Todo.
+const _NW_RANGE_KEY = 'cm_nw_range';
+const _NW_RANGES = { '1M': 30, '3M': 90, '6M': 180, '9M': 270, '12M': 365, 'all': 0 };
+function _nwRangeGet() {
+  try { const v = localStorage.getItem(_NW_RANGE_KEY); return v in _NW_RANGES ? v : 'all'; } catch (e) { return 'all'; }
+}
+// Puntos de nwHistory dentro del rango elegido (compartido por initNWCharts y updateNWCharts).
+function _nwHist() {
+  const all = Array.isArray(S.nwHistory) ? S.nwHistory : [];
+  const days = _NW_RANGES[_nwRangeGet()];
+  if (!days) return all;
+  const c = new Date(getActiveDate() + 'T00:00:00Z');
+  c.setUTCDate(c.getUTCDate() - days);
+  const cutoff = c.toISOString().slice(0, 10);
+  return all.filter(h => h.date > cutoff);
+}
+function _renderNWRange() {
+  const cur = _nwRangeGet();
+  document.querySelectorAll('#nwRangeSeg button').forEach(b => {
+    const on = b.dataset.range === cur;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+}
+function setNWRange(r) {
+  if (!(r in _NW_RANGES)) return;
+  try { localStorage.setItem(_NW_RANGE_KEY, r); } catch (e) {}
+  _renderNWRange();
+  updateNWCharts();
+}
+
 function renderAccountChartToggles() {
   const host = document.getElementById('nwAccountToggles');
   nwSelectedAccounts = nwSelectedAccounts.filter(id => S.accounts.some(a => a.id === id));
@@ -3069,7 +3101,7 @@ function initNWCharts() {
   });
   // Line
   const lineCtx=document.getElementById('nwLineChart').getContext('2d');
-  const hist=S.nwHistory.slice(-30);
+  const hist=_nwHist();
   const accDatasets = _nwAccountDatasets(hist);
   nwLineInst=new Chart(lineCtx,{
     type:'line',
@@ -3078,6 +3110,7 @@ function initNWCharts() {
   });
   renderAccountChartToggles();
   _renderNWScaleNote();
+  _renderNWRange();
 }
 
 function updateNWCharts() {
@@ -3085,7 +3118,7 @@ function updateNWCharts() {
   const types=['bank','invest','prestamo','other'];
   nwPieInst.data.datasets[0].data=types.map(t=>S.accounts.filter(a=>a.type===t).reduce((s,a)=>s+a.balance,0));
   nwPieInst.update('none');
-  const hist=S.nwHistory.slice(-30);
+  const hist=_nwHist();
   const accDatasets = _nwAccountDatasets(hist);
   nwLineInst.data.labels=hist.map(h=>h.date.slice(5));
   nwLineInst.data.datasets=[{ label:'Patrimonio total', data:hist.map(h=>h.value), borderColor:'rgba(107,227,164,.8)', backgroundColor:'rgba(107,227,164,.06)', tension:.3, pointRadius:3, fill:true }, ...accDatasets];

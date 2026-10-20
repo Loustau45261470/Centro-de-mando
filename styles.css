@@ -2007,6 +2007,10 @@ textarea { resize: vertical; min-height: 60px; }
 #tab-finanzas .chart-wrap-tall { padding: 0 14px 12px; margin-top: 0; height: 185px; }
 #tab-finanzas .chart-wrap      { padding: 0 14px 12px; margin-top: 0; height: 148px; }
 
+/* ══ SELECTOR DE RANGO DEL GRÁFICO DE PATRIMONIO ══ */
+.nw-range { padding: 0 14px 8px; gap: 4px; }
+.nw-range button { padding: 4px 10px; font-size: var(--fs-12-5); }
+
 /* ══ SELECTOR DE CUENTAS SUPERPUESTAS AL GRÁFICO DE PATRIMONIO ══ */
 .nw-acc-toggles { display: flex; flex-wrap: wrap; gap: 6px 10px; padding: 0 14px 10px; }
 .nw-acc-toggle {

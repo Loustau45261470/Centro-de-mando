@@ -234,11 +234,19 @@
       "marker": "c.firma === firma"
     },
     {
+<<<<<<< HEAD
       "id": "pwa-sw-update-unhandled-rejection",
       "fecha": "2026-09-12",
       "desc": "_pwaInit() llamaba _swReg.update() sin await ni .catch(): si ese fetch de sw.js fallaba (red inestable, hiccup de GitHub Pages), la promesa rechazada escapaba del try/catch de register() y quedaba como unhandledrejection, apareciendo en el log de errores.js como tipo 'promise' con 'Script .../sw.js load failed'. El register() de arriba SI esta protegido; el update() no. No quitar el .catch() de esa linea.",
       "file": "app.js",
       "marker": "_swReg.update().catch("
+=======
+      "id": "nw-grafico-recorte-fijo-30",
+      "fecha": "2026-10-20",
+      "desc": "El grafico de patrimonio recortaba nwHistory a slice(-30) fijo (y accountHistory se podaba a 180 dias), asi que no se veia el historial real. Ahora un helper _nwHist() filtra por fecha segun el selector 1M/3M/6M/9M/12M/Todo (default Todo, persistido en localStorage) y lo usan initNWCharts y updateNWCharts; la poda de accountHistory sube a 400 dias. Cubierto por tests/nw-history.spec.js.",
+      "file": "app.js",
+      "marker": "function _nwHist()"
+>>>>>>> 8341e1b (feat(finanzas): selector de rango 1M-12M-Todo en el grafico de patrimonio)
     }
   ]
 }
