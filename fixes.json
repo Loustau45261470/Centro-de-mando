@@ -253,6 +253,13 @@
       "desc": "Con el rango Todo/12M el eje X del grafico de patrimonio usaba MM-DD, asi que las fechas se repetian entre anios y no se distinguia que anio era cada punto. Ahora _nwLabels() muestra 'sep 26' cuando el rango abarca mas de un anio calendario o mas de 365 dias; en rangos cortos queda MM-DD. Cubierto por tests/nw-history.spec.js.",
       "file": "app.js",
       "marker": "function _nwLabels("
+    },
+    {
+      "id": "moves-sync-rescue",
+      "fecha": "2026-10-20",
+      "desc": "S.moves (Mover plata entre cuentas) no estaba en la lista de arrays con id de _rescueLocal: si la nube traia un estado sin un movimiento hecho en otro dispositivo, el merge lo descartaba. Ahora 'moves' se rescata por id igual que transactions. Cubierto por tests/moves-sync.spec.js.",
+      "file": "app.js",
+      "marker": "['transactions','moves','accounts'"
     }
   ]
 }
