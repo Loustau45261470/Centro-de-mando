@@ -434,7 +434,7 @@ function _rescueLocal(cloudObj, localObj) {
   // txnCategories: combina local + nube (no pierde categorías creadas offline)
   r.txnCategories = { ...(localObj.txnCategories||{}), ...(cloudObj.txnCategories||{}) };
   // Arrays con ID
-  ['transactions','accounts','subscriptions','orders','wishlist',
+  ['transactions','moves','accounts','subscriptions','orders','wishlist',
    'photos','finObjectives','fixedExpenses','lawMilestones','routines','exerciseLibrary',
    'bodyWeight','exercises'
   ].forEach(key => {
