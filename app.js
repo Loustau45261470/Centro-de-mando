@@ -1218,12 +1218,12 @@ function buildTickerAlerts() {
     const nowMs = now.getTime();
     const endToday = new Date(now); endToday.setHours(23, 59, 59, 999);
     // Suscripciones y pedidos ya tienen su propio bloque de ticker más abajo.
-    const DEADLINE_KINDS = ['proy', 'final', 'cursada', 'proyeccion'];
+    const DEADLINE_KINDS = ['proy', 'final', 'cursada', 'proyeccion', 'tarjeta'];
     CMDeadlines.collect(S, { now: nowMs, pastDays: 14 })
       .filter(d => DEADLINE_KINDS.includes(d.kind) && d.at <= endToday.getTime())
       .slice(0, 6)
       .forEach(d => alerts.push({
-        text: `${d.icon} ${d.title} · ${d.at <= nowMs ? 'ATRASADO' : d.allDay ? 'vence hoy' : d.time}`,
+        text: `${d.icon} ${d.title} · ${d.at <= nowMs ? 'ATRASADO' : d.allDay ? (d.kind === 'tarjeta' ? d.sub : 'vence hoy') : d.time}`,
         cls: d.at <= nowMs ? 'alert' : 'warn',
       }));
   }

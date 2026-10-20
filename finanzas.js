@@ -273,6 +273,57 @@ function _ccChargeHtml(ch) {
   </div>`;
 }
 
+// Calendario de pagos (etapa 6): 12 meses desde hoy. Solo muestra; no toca saldos ni crea gastos.
+// A pagar = cuotas que vencen ese mes y todavía no tienen pago automático. Gasto previsto = meses
+// futuros de compras con uso diferido que todavía no son un gasto real (el mes en curso ya lo es).
+function _ccCalendarHtml(today) {
+  const head = '<div class="cc-sec">Calendario de pagos</div>';
+  const charges = (S.cardCharges || []).filter(Boolean);
+  if (!window.CMTarjetas || !charges.length) {
+    return head + '<p class="cc-hint" id="cardCalendar">Cuando cargues compras con tarjeta, acá vas a ver cuánto pagás cada mes.</p>';
+  }
+  const y0 = +today.slice(0, 4), m0 = +today.slice(5, 7);
+  const byMonth = {}, months = [];
+  for (let i = 0; i < 12; i++) {
+    const idx = y0 * 12 + (m0 - 1) + i;
+    const mk = Math.floor(idx / 12) + '-' + String(idx % 12 + 1).padStart(2, '0');
+    months.push(mk); byMonth[mk] = { dues: [], cents: 0, planned: 0 };
+  }
+  const lastMk = months[11], ly = +lastMk.slice(0, 4), lm = +lastMk.slice(5, 7);
+  const end = lastMk + '-' + new Date(Date.UTC(ly, lm, 0)).getUTCDate();
+  const paidKeys = new Set((S.cardPayments || []).map(p => p && p.key));
+  (S.cards || []).forEach(card => CMTarjetas.dueTotals(card, charges, today, end).forEach(d => {
+    const m = byMonth[d.dueDate.slice(0, 7)];
+    if (!m || paidKeys.has(`auto:${card.id}:${d.dueDate}`)) return;
+    m.dues.push({ dueDate: d.dueDate, name: card.name, amount: d.amount });
+    m.cents += Math.round(d.amount * 100);
+  }));
+  const thisMonth = today.slice(0, 7);
+  charges.forEach(ch => CMTarjetas.expenseSchedule(ch).forEach(e => {
+    if (e.month > thisMonth && byMonth[e.month]) byMonth[e.month].planned += Math.round(e.amount * 100);
+  }));
+  const max = Math.max(...months.map(mk => byMonth[mk].cents));
+  const maxPlanned = Math.max(...months.map(mk => byMonth[mk].planned));
+  if (!max && !maxPlanned) {
+    return head + '<p class="cc-hint" id="cardCalendar">No tenés pagos pendientes en los próximos 12 meses.</p>' + _CC_CAL_NOTE;
+  }
+  const rows = months.map(mk => {
+    const m = byMonth[mk], total = m.cents / 100;
+    m.dues.sort((a, b) => (a.dueDate < b.dueDate ? -1 : a.dueDate > b.dueDate ? 1 : (a.name < b.name ? -1 : 1)));
+    const dues = m.dues.map(d => `<li class="cc-cal-due">${_ccDM(d.dueDate)} · ${escHtml(d.name)} · ${_ccPesos(d.amount)}</li>`).join('');
+    const pct = max ? Math.round(m.cents * 100 / max) : 0;
+    return `<div class="cc-cal-m" data-month="${mk}">
+      <div class="cc-cal-head"><span class="cc-cal-label">${_ccMonthLabel(mk)}</span>${m.cents
+        ? `<span class="cc-cal-total">A pagar <b>${_ccPesos(total)}</b></span>` : '<span class="cc-cal-none">Nada para pagar</span>'}</div>
+      <div class="cc-cal-bar" role="img" aria-label="${m.cents ? 'A pagar ' + _ccPesos(total) : 'Nada para pagar'}"><i style="width:${pct}%"></i></div>
+      ${dues ? `<ul class="cc-cal-dues">${dues}</ul>` : ''}
+      ${m.planned ? `<div class="cc-cal-exp">Gasto previsto: <b>${_ccPesos(m.planned / 100)}</b></div>` : ''}
+    </div>`;
+  }).join('');
+  return head + `<div id="cardCalendar">${rows}</div>` + _CC_CAL_NOTE;
+}
+const _CC_CAL_NOTE = `<p class="cc-hint cc-cal-note">El saldo inicial cargado sin fecha no figura acá: se paga con 'Registrar pago de resumen'.</p>`;
+
 function renderCredit() {
   const el = document.getElementById('creditBody');
   if (!el) return;
@@ -336,6 +387,7 @@ function renderCredit() {
       </div>
     </div>${rows}
     <div class="cc-actions"><button class="btn btn-ghost btn-sm" onclick="openCardPaymentModal()">Registrar pago de resumen</button></div>
+    ${_ccCalendarHtml(today)}
     <div class="cc-sec">Compras con tarjeta</div>
     <div id="cardChargeList">${chargesHtml}</div>`;
 }
