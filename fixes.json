@@ -267,6 +267,13 @@
       "desc": "S.cards (tarjetas de credito) es clave nueva de primer nivel: se agrega a la lista de arrays con id de _rescueLocal para que una tarjeta cargada en un dispositivo no se pierda si la nube trae un estado sin ella. Cubierto por tests/cards-sync.spec.js.",
       "file": "app.js",
       "marker": "'moves','cards','accounts'"
+    },
+    {
+      "id": "card-charges-sync-rescue",
+      "fecha": "2026-10-20",
+      "desc": "S.cardCharges (compras con tarjeta) y S.cardPayments (pagos de resumen) son claves nuevas de primer nivel: se agregan a la lista de arrays con id de _rescueLocal para que una compra o pago cargado en un dispositivo no se pierda si la nube trae un estado sin el. Cubierto por tests/tarjetas-sync.spec.js.",
+      "file": "app.js",
+      "marker": "'accounts','cardCharges','cardPayments'"
     }
   ]
 }

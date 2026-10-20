@@ -36,6 +36,8 @@ const DEFAULT_STATE = {
   accountHistory: [],  // [{ date, accountId, balance }] — poblado desde snapshotNW() en adelante, sin reconstrucción retroactiva
   moves: [],           // [{ id, date, from, to, amount, note }] — "Mover plata" entre cuentas (no son ingresos ni gastos)
   cards: [],           // [{ id, name, limit, closeDay, dueDay, openingUsed }] — tarjetas de crédito (openingUsed = saldo de apertura, sin impacto en gastos)
+  cardCharges: [],     // [{ id, cardId, date, amount, mode:'now1'|'deferred'|'nowInst'|'advance', installments, consumeMonths, category, name, toAccountId }] — compras con tarjeta (cálculo en tarjetas-motor.js)
+  cardPayments: [],    // [{ id, cardId, date, amount, accountId, kind:'auto'|'manual', key }] — pagos de resumen (key = statementKey)
   fixedExpenses: [],   // [{ id, name, amount, currency, dayOfMonth }]
   fixedExpenseLog: {}, // { 'YYYY-MM': { [expId]: true } }
   budgets: {},         // { 'YYYY-MM': { fixed:[{id,name,category,unit,v1,v2,v3}], reserved:[{id,name,category,amount}] } }
@@ -435,7 +437,7 @@ function _rescueLocal(cloudObj, localObj) {
   // txnCategories: combina local + nube (no pierde categorías creadas offline)
   r.txnCategories = { ...(localObj.txnCategories||{}), ...(cloudObj.txnCategories||{}) };
   // Arrays con ID
-  ['transactions','moves','cards','accounts','subscriptions','orders','wishlist',
+  ['transactions','moves','cards','accounts','cardCharges','cardPayments','subscriptions','orders','wishlist',
    'photos','finObjectives','fixedExpenses','lawMilestones','routines','exerciseLibrary',
    'bodyWeight','exercises'
   ].forEach(key => {
