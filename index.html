@@ -21,7 +21,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-<link rel="stylesheet" href="styles.css?v=205">
+<link rel="stylesheet" href="styles.css?v=207">
 <link rel="stylesheet" href="gamemode.css">
 <link rel="stylesheet" href="overlay-core.css">
 <link rel="stylesheet" href="speed-dial.css?v=2">
@@ -607,7 +607,10 @@
         <div class="card" id="credit-card">
           <div class="card-title">
             🪪 Crédito
-            <button class="btn btn-ghost btn-sm" onclick="openCardModal()">+ Tarjeta</button>
+            <span class="flex gap-8">
+              <button class="btn btn-ghost btn-sm" onclick="openCardChargeModal()">+ Compra</button>
+              <button class="btn btn-ghost btn-sm" onclick="openCardModal()">+ Tarjeta</button>
+            </span>
           </div>
           <div id="creditBody"></div>
         </div>
@@ -1001,10 +1004,60 @@
     <div class="field"><label>Día de cierre (1 a 31)</label><input class="inp" type="number" step="1" min="1" max="31" id="cardCloseDay" placeholder="Ej: 27"></div>
     <div class="field"><label>Día de vencimiento (1 a 31)</label><input class="inp" type="number" step="1" min="1" max="31" id="cardDueDay" placeholder="Ej: 10"></div>
     <div class="field"><label>Lo que ya usaste hoy (queda pendiente de pago)</label><input class="inp" type="number" step="0.01" min="0" id="cardOpeningUsed" placeholder="0"></div>
+    <div class="field"><label>Cuenta desde la que se paga el resumen</label><select class="inp" id="cardPayAccount"></select></div>
+    <div class="cc-hint" id="cardCycleNote" style="display:none">No se pueden cambiar mientras la tarjeta tenga compras cargadas. Borrá las compras o creá una tarjeta nueva.</div>
     <div class="move-warn" id="cardErr" role="alert"></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('modal-card')">Cancelar</button>
       <button class="btn btn-primary" onclick="saveCard()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Compra con tarjeta de crédito -->
+<div class="modal-overlay" id="modal-card-charge" onclick="if(event.target===this)closeModal('modal-card-charge')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Compra con tarjeta</div>
+    <div class="field"><label>Tarjeta</label><select class="inp" id="ccChCard" onchange="updateCardChargePreview()"></select></div>
+    <div class="field"><label>Fecha de la compra</label><input class="inp" type="date" id="ccChDate" oninput="updateCardChargePreview()"></div>
+    <div class="field"><label>Monto</label><input class="inp" type="number" step="0.01" min="0" id="ccChAmount" placeholder="0" oninput="updateCardChargePreview()"></div>
+    <div class="field"><label>Descripción</label><input class="inp" id="ccChName" maxlength="80" placeholder="Ej: alimento de las mascotas"></div>
+    <div class="field" id="ccChCategoryRow"><label>Categoría</label><select class="inp" id="ccChCategory"></select></div>
+    <div class="field"><label>Cómo se paga y se gasta</label><select class="inp" id="ccChMode" onchange="onCardChargeModeChange()">
+      <option value="now1">Consumo inmediato, 1 pago</option>
+      <option value="deferred">En cuotas, uso diferido</option>
+      <option value="nowInst">En cuotas, uso inmediato</option>
+      <option value="advance">Plata de un tercero con mi tarjeta</option>
+    </select><div class="cc-hint" id="ccChModeHint"></div></div>
+    <div class="field" id="ccChInstRow"><label>Cantidad de cuotas</label><input class="inp" type="number" step="1" min="1" id="ccChInst" oninput="updateCardChargePreview()"></div>
+    <div class="field" id="ccChMonthsRow"><label>Para cuántos meses rinde</label><input class="inp" type="number" step="1" min="1" id="ccChMonths" oninput="updateCardChargePreview()"></div>
+    <div class="field" id="ccChToAccRow"><label>Cuenta donde entra la plata</label><select class="inp" id="ccChToAcc" onchange="updateCardChargePreview()"></select></div>
+    <div class="cc-preview" id="ccChPreview" aria-live="polite"></div>
+    <div class="move-warn" id="ccChErr" role="alert"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-card-charge')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveCardCharge()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Pago de resumen de tarjeta (manual) -->
+<div class="modal-overlay" id="modal-card-payment" onclick="if(event.target===this)closeModal('modal-card-payment')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Registrar pago de resumen</div>
+    <div class="cc-hint cc-hint-top">Las compras que cargues acá se pagan solas en su vencimiento: no vuelvas a cargar ese pago. Usá esto para lo que ya debías antes de empezar, o para pagar por adelantado.</div>
+    <div class="field"><label>Tarjeta</label><select class="inp" id="ccPayCard" onchange="onCardPaymentCardChange()"></select></div>
+    <div class="field"><label>Monto</label><input class="inp" type="number" step="0.01" min="0" id="ccPayAmount" placeholder="0" oninput="updateCardPaymentWarn()"></div>
+    <div class="field"><label>Cuenta desde la que se paga</label><select class="inp" id="ccPayAccount" onchange="updateCardPaymentWarn()"></select></div>
+    <div class="field"><label>Fecha del pago</label><input class="inp" type="date" id="ccPayDate"></div>
+    <div class="field"><label>Nota (opcional)</label><input class="inp" id="ccPayNote" maxlength="80" placeholder="Ej: resumen de septiembre"></div>
+    <div class="move-warn" id="ccPayWarn" role="status" style="display:none"></div>
+    <div class="move-warn" id="ccPayErr" role="alert"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-card-payment')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveCardPayment()">Registrar</button>
     </div>
   </div>
 </div>
@@ -1809,7 +1862,7 @@
 <script src="habitos.js?v=6"></script>
 <script src="rutinas.js"></script>
 <script src="tarjetas-motor.js?v=2"></script>
-<script src="finanzas.js?v=7"></script>
+<script src="finanzas.js?v=9"></script>
 <script src="proyeccion-mes.js?v=1"></script>
 <script src="recordatorios.js?v=8"></script>
 <script src="objetivos.js"></script>
