@@ -56,6 +56,7 @@ const CMDeadlines = (() => {
     proy:        [7],
     cursada:     [1],               // clases y foros
     suscripcion: [2],
+    tarjeta:     [1],             // vencimiento de resumen: el día anterior + el mismo día
     proyeccion:  [],
     pedido:      [],
   };
@@ -117,6 +118,17 @@ const CMDeadlines = (() => {
       default:         return false;
     }
   }
+
+  // Motor de tarjetas: en el navegador es window.CMTarjetas; en Node se require().
+  // Se resuelve al usarlo (index.html carga deadlines.js ANTES que tarjetas-motor.js).
+  function cardsEngine() {
+    if (typeof window !== 'undefined' && window.CMTarjetas) return window.CMTarjetas;
+    try { return typeof require === 'function' ? require('./tarjetas-motor.js') : null; } catch (e) { return null; }
+  }
+  const peso = n => {
+    const [i, d] = Math.abs(n).toFixed(2).split('.');
+    return (n < 0 ? '-' : '') + '$' + i.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + (d === '00' ? '' : ',' + d);
+  };
 
   // ── recolección ─────────────────────────────────────────────────────────
   function collect(state, opts) {
@@ -231,6 +243,23 @@ const CMDeadlines = (() => {
       add({ id: 'ord_' + o.id, kind: 'pedido', kindLabel: 'Pedido', icon: '📦', tab: 'finanzas',
             title: `${o.name} llega`, date: o.arrival, allDay: true, priority: 'low' });
     });
+
+    // 10) Vencimientos de tarjeta: una entrada por (tarjeta, fecha) con lo que vence ese día,
+    //     de hoy a 12 meses. Sin motor o sin tarjetas/compras, el bloque se omite.
+    const motor = cardsEngine();
+    if (motor && Array.isArray(S.cards) && Array.isArray(S.cardCharges) && S.cardCharges.length) {
+      const paid = new Set((Array.isArray(S.cardPayments) ? S.cardPayments : []).map(p => p && p.key));
+      const end = addDays(today, 365);
+      S.cards.forEach(card => {
+        if (!card || !card.id) return;
+        motor.dueTotals(card, S.cardCharges, today, end).forEach(d => {
+          if (!(d.amount > 0) || paid.has('auto:' + card.id + ':' + d.dueDate)) return;
+          add({ id: 'tarj_' + card.id + '_' + d.dueDate, kind: 'tarjeta', kindLabel: 'Tarjeta', icon: '💳',
+                tab: 'finanzas', title: card.name + ' vence', sub: peso(d.amount) + ' a pagar',
+                date: d.dueDate, allDay: true, priority: 'high' });
+        });
+      });
+    }
 
     return items.sort((a, b) => a.at - b.at);
   }

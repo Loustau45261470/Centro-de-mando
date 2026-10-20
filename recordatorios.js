@@ -38,6 +38,7 @@ const REM_KIND_ACCENT = {
   proyeccion:  'var(--c-finanzas)',
   suscripcion: 'var(--c-finanzas)',
   pedido:      'var(--c-finanzas)',
+  tarjeta:     'var(--c-finanzas)',
 };
 // Chip de tipo (Final / TP / Proyecto / Meta / …). Los TPs pisan el acento de
 // cursada con el ámbar de alerta: entregan, no son solo agenda.

@@ -6090,3 +6090,16 @@ input:focus, select:focus, textarea:focus {
 .cc-paid { color: var(--ok); font-weight: 700; }
 .cc-preview { margin: 4px 0 12px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: rgba(255,255,255,.03); font-size: var(--fs-13); color: var(--ts); overflow-wrap: anywhere; }
 .cc-pv-title { margin-top: 8px; font-weight: 700; color: var(--tp); }
+.cc-cal-m { padding: 8px 0; border-bottom: 1px solid var(--border); }
+.cc-cal-m:last-of-type { border-bottom: 0; }
+.cc-cal-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+.cc-cal-label { font-weight: 700; color: var(--tp); text-transform: capitalize; }
+.cc-cal-total { font-size: var(--fs-13); color: var(--ts); }
+.cc-cal-total b { color: var(--tp); font-family: var(--mono); font-weight: 700; }
+.cc-cal-none { font-size: var(--fs-12-5); color: var(--tt); }
+.cc-cal-bar { height: 8px; border-radius: 99px; background: var(--border); overflow: hidden; }
+.cc-cal-bar i { display: block; height: 100%; border-radius: 99px; background: var(--accent); }
+.cc-cal-dues { margin: 6px 0 0; padding-left: 18px; font-size: var(--fs-13); color: var(--ts); }
+.cc-cal-dues li { margin: 2px 0; overflow-wrap: anywhere; }
+.cc-cal-exp { margin-top: 4px; font-size: var(--fs-12-5); color: var(--tt); }
+.cc-cal-exp b { color: var(--ts); font-family: var(--mono); font-weight: 700; }
