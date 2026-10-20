@@ -1996,6 +1996,32 @@ textarea { resize: vertical; min-height: 60px; }
   padding: 18px 14px 2px;
   line-height: 1;
 }
+#tab-finanzas .nw-label {
+  font-size: var(--fs-12);
+  color: var(--fin-t3);
+  font-family: var(--mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 14px 14px 0;
+}
+#tab-finanzas .nw-label + .nw-total { padding-top: 6px; }
+#tab-finanzas .nw-breakdown {
+  font-size: var(--fs-12-5);
+  color: var(--ts);
+  font-family: var(--mono);
+  padding: 8px 14px 0;
+  overflow-wrap: anywhere;
+}
+#tab-finanzas .nw-label-cash { padding-top: 12px; }
+#tab-finanzas .nw-cash {
+  font-size: 24px;
+  font-weight: 300;
+  letter-spacing: -0.03em;
+  font-family: var(--mono);
+  color: var(--fin-t1);
+  padding: 4px 14px 0;
+  line-height: 1.1;
+}
 #tab-finanzas .nw-1pct {
   font-size: var(--fs-12);
   color: var(--fin-t3);

@@ -1,16 +1,34 @@
 // ════════════════════════════════════════════════════════
 // FINANCE TAB
 // ════════════════════════════════════════════════════════
-function calcNetWorth() {
-  return S.accounts.reduce((sum,a)=>sum+(a.type!=='crypto'&&a.type!=='invest'?a.balance:a.balance),0);
+// Patrimonio (etapa 7). Una sola definición: calcNetWorth() = calcBalanceReal(); todo lo que lee el patrimonio llama a calcNetWorth.
+//   Cash disponible = efectivo (cash) + cuentas digitales/bancarias (bank) + deudas a favor (prestamo). Sin tarjetas ni inversiones.
+//   Balance real    = Cash − Crédito usado + Inversiones (invest) + cuentas de otro tipo (other y cualquier tipo no reconocido).
+// Se suma el saldo de cada cuenta tal cual, sin distinguir moneda (por ahora solo importan los pesos).
+function _nwParts() {
+  const sum = (f) => (S.accounts || []).filter(f).reduce((s, a) => s + (+a.balance || 0), 0);
+  const cash = sum(a => a.type === 'cash' || a.type === 'bank' || a.type === 'prestamo');
+  const invest = sum(a => a.type === 'invest');
+  const other = sum(a => !['cash', 'bank', 'prestamo', 'invest'].includes(a.type));
+  return { cash, invest, other, credit: calcCreditUsed() };
 }
+function calcCash() { return Math.round(_nwParts().cash * 100) / 100; }
+function calcCreditUsed() {
+  return Math.round((Array.isArray(S.cards) ? S.cards : []).reduce((s, c) => s + cardUsed(c), 0) * 100) / 100;
+}
+function calcBalanceReal() {
+  const p = _nwParts();
+  return Math.round((p.cash - p.credit + p.invest + p.other) * 100) / 100;
+}
+function calcNetWorth() { return calcBalanceReal(); }
 
 function snapshotNW() {
   const today = getActiveDate();
   const val = calcNetWorth();
   const existing = S.nwHistory.find(h=>h.date===today);
-  if (existing) existing.value = val;
-  else S.nwHistory.push({ date:today, value:val });
+  // c:1 = método nuevo (el patrimonio descuenta el crédito usado). Los puntos viejos no llevan la marca.
+  if (existing) { existing.value = val; existing.c = 1; }
+  else S.nwHistory.push({ date:today, value:val, c:1 });
   S.nwHistory.sort((a,b)=>a.date.localeCompare(b.date));
 
   // Snapshot por cuenta (S.accountHistory): sin reconstrucción retroactiva, arranca
@@ -49,9 +67,25 @@ function renderFinanzasTab() {
   if (nwPieInst) updateNWCharts();
 }
 
+// Nota bajo el gráfico de patrimonio: solo cuando el tramo visible mezcla puntos viejos (sin c) y nuevos (con c).
+function renderNWMethodNote() {
+  const el = document.getElementById('nwMethodNote');
+  if (!el) return;
+  const hist = typeof _nwHist === 'function' ? _nwHist() : [];
+  const marked = hist.filter(h => h && h.c).map(h => h.date).sort();
+  const mixed = marked.length > 0 && marked.length < hist.length;
+  el.textContent = mixed ? `Desde ${_ccDate(marked[0])} el patrimonio descuenta el crédito usado de las tarjetas; los puntos anteriores no.` : '';
+  el.style.display = mixed ? '' : 'none';
+}
+
 function renderAccounts() {
   const nw = calcNetWorth();
+  const p = _nwParts();
   document.getElementById('nwTotal').textContent = fmtMoney(nw, 'USD');
+  document.getElementById('nwCash').textContent = fmtMoney(calcCash(), 'USD');
+  document.getElementById('nwBreakdown').textContent = `Cash ${fmtMoney(calcCash(), 'USD')} − Crédito usado ${fmtMoney(p.credit, 'USD')} + Inversiones ${fmtMoney(p.invest, 'USD')}` +
+    (p.other ? ` + Otras cuentas ${fmtMoney(Math.round(p.other * 100) / 100, 'USD')}` : '');
+  renderNWMethodNote();
   document.getElementById('nw1pct').textContent = `1% = ${fmtMoney(nw*0.01,'USD')}`;
   const list = document.getElementById('accountList');
   list.innerHTML = S.accounts.length ? S.accounts.map(a=>`
@@ -443,7 +477,7 @@ function saveCard() {
   } else {
     S.cards.push({ id: uid(), ...data, ...(payAccountId ? { payAccountId } : {}) });
   }
-  saveState(); renderFinanzasTab(); closeModal('modal-card');
+  snapshotNW(); saveState(); renderFinanzasTab(); closeModal('modal-card');
   showToast(existing ? 'Tarjeta actualizada' : 'Tarjeta agregada');
 }
 
@@ -451,7 +485,7 @@ function deleteCard(id) {
   const c = (S.cards || []).find(x => x.id === id);
   if (!c || !confirm(`¿Eliminar la tarjeta "${c.name}"?`)) return;
   S.cards = S.cards.filter(x => x.id !== id);
-  saveState(); renderFinanzasTab();
+  snapshotNW(); saveState(); renderFinanzasTab();
 }
 
 // ── Compra con tarjeta ──
@@ -548,8 +582,8 @@ function saveCardCharge() {
   if (ch.mode === 'advance') {
     const acc = S.accounts.find(a => a.id === ch.toAccountId);
     acc.balance = _ccRound(acc.balance + ch.amount);
-    snapshotNW();
   }
+  snapshotNW();   // cambia el crédito usado (y, si es adelanto, el saldo de la cuenta)
   closeModal('modal-card-charge');
   materializeCardExpenses();
   saveState(); renderFinanzasTab();
@@ -576,7 +610,8 @@ function deleteCardCharge(id) {
   if (!confirm(msg)) return;
   S.cardCharges = S.cardCharges.filter(c => c.id !== id);
   S.transactions = (S.transactions || []).filter(t => t.cardChargeId !== id);
-  if (acc) { acc.balance = _ccRound(acc.balance - ch.amount); snapshotNW(); }
+  if (acc) acc.balance = _ccRound(acc.balance - ch.amount);
+  snapshotNW();
   saveState(); renderFinanzasTab();
   showToast(paid.length ? 'Compra borrada. Los pagos ya hechos quedaron registrados' : 'Compra borrada', 4500);
 }
