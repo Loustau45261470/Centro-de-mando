@@ -72,3 +72,27 @@ test('el rango elegido persiste en localStorage', async ({ cmPage }) => {
   expect(p.total).toBeLessThanOrEqual(181);
   await expect(cmPage.locator('#nwRangeSeg button[data-range="6M"]')).toHaveClass(/on/);
 });
+
+// Etiquetas del eje X: MM-DD en rangos cortos, "sep 26" (con año) si abarca más de un año.
+async function etiquetasPara(page, fechas) {
+  await page.evaluate((f) => {
+    S.nwHistory = f.map((d, i) => ({ date: d, value: 1000 + i }));
+    S.accountHistory = [];
+    try { localStorage.setItem('cm_nw_range', 'all'); } catch (e) {}
+  }, fechas);
+  await page.click('.nav-btn[data-tab="finanzas"]');
+  await expect(page.locator('#tab-finanzas')).toHaveClass(/active/);
+  await page.waitForFunction(() => typeof nwLineInst !== 'undefined' && nwLineInst);
+  await page.evaluate(() => updateNWCharts());
+  return page.evaluate(() => nwLineInst.data.labels);
+}
+
+test('eje X: rango de mas de un anio muestra el anio en las etiquetas', async ({ cmPage }) => {
+  const labels = await etiquetasPara(cmPage, ['2025-01-15', '2025-09-30', '2026-03-01', '2026-09-30']);
+  expect(labels).toEqual(['ene 25', 'sep 25', 'mar 26', 'sep 26']);
+});
+
+test('eje X: rango corto sigue en formato MM-DD', async ({ cmPage }) => {
+  const labels = await etiquetasPara(cmPage, ['2026-03-01', '2026-03-02', '2026-03-10']);
+  expect(labels).toEqual(['03-01', '03-02', '03-10']);
+});

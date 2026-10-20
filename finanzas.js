@@ -57,7 +57,7 @@ function renderAccounts() {
       <div class="account-icon">${a.icon||'🏦'}</div>
       <div class="account-info">
         <div class="account-name">${a.name}</div>
-        <div class="account-type">${{bank:'Banco',invest:'Inversión',prestamo:'Préstamo',other:'Otro'}[a.type]}</div>
+        <div class="account-type">${{bank:'Banco',cash:'Efectivo',invest:'Inversión',prestamo:'Préstamo',other:'Otro'}[a.type]}</div>
       </div>
       <div class="account-bal pos">${fmtMoney(a.balance,a.currency)}</div>
       <button class="icon-btn" onclick="openEditAccount('${a.id}')"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
@@ -86,6 +86,50 @@ function addAccount() {
   saveState(); renderFinanzasTab(); closeModal('modal-add-account');
   document.getElementById('accName').value='';document.getElementById('accBalance').value='';
   showToast('Cuenta agregada');
+}
+
+// ── Mover plata: pasa un monto de una cuenta a otra. No es ingreso ni gasto (no toca S.transactions). ──
+function openMoveMoney() {
+  const opts = S.accounts.map(a => `<option value="${a.id}">${a.icon||'🏦'} ${a.name} · ${fmtMoney(a.balance,a.currency)}</option>`).join('');
+  const blank = '<option value="">— Elegí una cuenta —</option>';
+  document.getElementById('moveFrom').innerHTML = blank + opts;
+  document.getElementById('moveTo').innerHTML = blank + opts;
+  document.getElementById('moveAmount').value = '';
+  document.getElementById('moveNote').value = '';
+  updateMoveWarn();
+  openModal('modal-move-money');
+}
+
+// Aviso en vivo: si el monto deja el origen en negativo (se permite, pero se avisa).
+function updateMoveWarn() {
+  const el = document.getElementById('moveWarn');
+  const from = S.accounts.find(a => a.id === document.getElementById('moveFrom').value);
+  const amount = +document.getElementById('moveAmount').value;
+  if (from && amount > 0 && from.balance - amount < 0) {
+    el.textContent = `Ojo: "${from.name}" va a quedar en negativo (${fmtMoney(Math.round((from.balance - amount)*100)/100, from.currency)}). Igual se puede mover.`;
+    el.style.display = '';
+  } else { el.textContent = ''; el.style.display = 'none'; }
+}
+
+function moverPlata() {
+  const fromId = document.getElementById('moveFrom').value;
+  const toId = document.getElementById('moveTo').value;
+  const amount = Math.round((+document.getElementById('moveAmount').value)*100)/100;
+  const note = document.getElementById('moveNote').value.trim();
+  if (!fromId || !toId) { showToast('Elegí las dos cuentas'); return; }
+  if (fromId === toId) { showToast('La cuenta de origen y la de destino no pueden ser la misma'); return; }
+  if (!(amount > 0)) { showToast('El monto tiene que ser mayor a cero'); return; }
+  const from = S.accounts.find(a => a.id === fromId);
+  const to = S.accounts.find(a => a.id === toId);
+  if (!from || !to) { showToast('Esa cuenta ya no existe'); return; }
+  if (from.currency !== to.currency) { showToast('Las dos cuentas tienen que estar en la misma moneda'); return; }
+  from.balance = Math.round((from.balance - amount)*100)/100;
+  to.balance = Math.round((to.balance + amount)*100)/100;
+  if (!Array.isArray(S.moves)) S.moves = [];
+  S.moves.push({ id:uid(), date:getActiveDate(), from:fromId, to:toId, amount, note });
+  snapshotNW(); saveState(); renderFinanzasTab(); closeModal('modal-move-money');
+  if (from.balance < 0) showToast(`Listo. Ojo: "${from.name}" quedó en negativo (${fmtMoney(from.balance, from.currency)})`, 5000);
+  else showToast('Plata movida');
 }
 
 function deleteAccount(id) {
