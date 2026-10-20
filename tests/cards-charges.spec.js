@@ -147,7 +147,8 @@ test('DoD 5: adelanto de 100.000 en 2 cuotas: entra a la cuenta, no es ingreso n
   await expect(cmPage.locator('#modal-card-charge')).not.toHaveClass(/open/);
 
   expect(await saldo(cmPage, 'efe')).toBe(150000);
-  expect(await cmPage.evaluate(() => calcNetWorth())).toBe(nwAntes + 100000);
+  // Etapa 7: el adelanto suma plata a la cuenta y suma crédito usado, así que el patrimonio no cambia.
+  expect(await cmPage.evaluate(() => calcNetWorth())).toBe(nwAntes);
   expect(await cmPage.evaluate(() => S.transactions.length)).toBe(0);
   await expect(fila(cmPage, 'Naranja').locator('.cc-used')).toHaveText('$965.000');
   await expect(fila(cmPage, 'Naranja')).toContainText('A pagar el 10/11: $50.000');

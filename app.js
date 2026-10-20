@@ -3140,6 +3140,7 @@ function updateNWCharts() {
   nwLineInst.options.scales = _nwLineScales();
   nwLineInst.update('none');
   _renderNWScaleNote();
+  if (typeof renderNWMethodNote === 'function') renderNWMethodNote();
 }
 
 // ════════════════════════════════════════════════════════
