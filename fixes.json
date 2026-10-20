@@ -259,7 +259,14 @@
       "fecha": "2026-10-20",
       "desc": "S.moves (Mover plata entre cuentas) no estaba en la lista de arrays con id de _rescueLocal: si la nube traia un estado sin un movimiento hecho en otro dispositivo, el merge lo descartaba. Ahora 'moves' se rescata por id igual que transactions. Cubierto por tests/moves-sync.spec.js.",
       "file": "app.js",
-      "marker": "['transactions','moves','accounts'"
+      "marker": "['transactions','moves',"
+    },
+    {
+      "id": "cards-sync-rescue",
+      "fecha": "2026-10-20",
+      "desc": "S.cards (tarjetas de credito) es clave nueva de primer nivel: se agrega a la lista de arrays con id de _rescueLocal para que una tarjeta cargada en un dispositivo no se pierda si la nube trae un estado sin ella. Cubierto por tests/cards-sync.spec.js.",
+      "file": "app.js",
+      "marker": "'moves','cards','accounts'"
     }
   ]
 }

@@ -36,6 +36,7 @@ function renderFinanzasTab() {
   fillTxnCategorySelect('txnCategory', document.getElementById('txnCategory')?.value);
   renderTabHeader('finanzasHeaderMeta');
   renderAccounts();
+  renderCredit();
   renderSubscriptions();
   renderWishlist();
   renderWishTop5();
@@ -138,6 +139,107 @@ function deleteAccount(id) {
   if (typeof nwSelectedAccounts !== 'undefined') nwSelectedAccounts = nwSelectedAccounts.filter(aid=>aid!==id);
   S.accountHistory = (S.accountHistory || []).filter(h => h.accountId !== id);
   snapshotNW(); saveState(); renderFinanzasTab();
+}
+
+// ── Crédito: tarjetas y utilización (etapa 4: solo saldo de apertura; cargos y pagos llegan en la etapa 5) ──
+// Usado = saldo inicial + Σ cargos − Σ pagos. S.cardCharges / S.cardPayments todavía no existen: se leen con || [].
+function cardUsed(card) {
+  const sum = (arr) => (arr || []).filter(x => x && x.cardId === card.id).reduce((s, x) => s + (+x.amount || 0), 0);
+  return Math.round(((+card.openingUsed || 0) + sum(S.cardCharges) - sum(S.cardPayments)) * 100) / 100;
+}
+function cardAvailable(card) { return Math.round(((+card.limit || 0) - cardUsed(card)) * 100) / 100; }
+function _creditPesos(n) { return (n < 0 ? '-' : '') + '$' + Math.abs(Math.round(n)).toLocaleString('es-AR'); }
+function _creditTone(pct) { return pct > 100 ? 'danger' : pct >= 80 ? 'warn' : 'ok'; }
+
+function renderCredit() {
+  const el = document.getElementById('creditBody');
+  if (!el) return;
+  const cards = Array.isArray(S.cards) ? S.cards : [];
+  if (!cards.length) {
+    el.innerHTML = `<div class="cc-empty">
+      <p>Todavía no cargaste ninguna tarjeta. Agregá una para ver cuánto usaste y cuánto te queda.</p>
+      <button class="btn btn-primary btn-sm" onclick="openCardModal()">+ Agregar tarjeta</button></div>`;
+    return;
+  }
+  const rows = cards.map(c => {
+    const used = cardUsed(c), avail = cardAvailable(c);
+    const pct = Math.round(used * 100 / c.limit), tone = _creditTone(pct);
+    return `<div class="cc-row cc-${tone}" data-card-id="${c.id}">
+      <div class="cc-head">
+        <div class="cc-name">${escHtml(c.name)}</div>
+        <div class="cc-pct" data-tone="${tone}">${pct}% usado</div>
+        <button class="icon-btn" aria-label="Editar tarjeta" onclick="openCardModal('${c.id}')"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+        <button class="icon-btn" aria-label="Eliminar tarjeta" onclick="deleteCard('${c.id}')"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg></button>
+      </div>
+      <div class="cc-bar" role="img" aria-label="${pct}% del límite usado"><i style="width:${Math.min(100, Math.max(0, pct))}%"></i></div>
+      <div class="cc-nums">
+        <span>Usado <b class="cc-used">${_creditPesos(used)}</b></span>
+        <span>Disponible <b class="cc-avail">${_creditPesos(avail)}</b></span>
+        <span>Límite <b class="cc-limit">${_creditPesos(c.limit)}</b></span>
+      </div>
+      <div class="cc-meta">Cierra el día ${c.closeDay} · Vence el día ${c.dueDay}${pct > 100 ? ' · <b class="cc-over">Te pasaste del límite</b>' : ''}</div>
+    </div>`;
+  }).join('');
+  const tUsed = cards.reduce((s, c) => s + cardUsed(c), 0);
+  const tLimit = cards.reduce((s, c) => s + (+c.limit || 0), 0);
+  const tPct = tLimit > 0 ? Math.round(tUsed * 100 / tLimit) : 0, tTone = _creditTone(tPct);
+  const R = 28, C = 2 * Math.PI * R, off = C * (1 - Math.max(0, Math.min(100, tPct)) / 100);
+  el.innerHTML = `<div class="cc-total cc-${tTone}" id="creditTotal">
+      <svg class="cc-ring" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="${tPct}% del límite total usado">
+        <circle cx="32" cy="32" r="${R}" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="6"/>
+        <circle class="cc-ring-prog" cx="32" cy="32" r="${R}" fill="none" stroke-width="6" stroke-linecap="round"
+          stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 32 32)"/>
+        <text x="32" y="32" text-anchor="middle" dominant-baseline="central" class="cc-ring-txt">${tPct}%</text>
+      </svg>
+      <div class="cc-nums cc-nums-total">
+        <span>Usado total <b class="cc-used">${_creditPesos(tUsed)}</b></span>
+        <span>Disponible total <b class="cc-avail">${_creditPesos(tLimit - tUsed)}</b></span>
+        <span>Límite total <b class="cc-limit">${_creditPesos(tLimit)}</b></span>
+      </div>
+    </div>${rows}`;
+}
+
+function openCardModal(id) {
+  const c = id ? (S.cards || []).find(x => x.id === id) : null;
+  document.getElementById('cardId').value = c ? c.id : '';
+  document.getElementById('cardModalTitle').textContent = c ? 'Editar tarjeta' : 'Agregar tarjeta';
+  document.getElementById('cardName').value = c ? c.name : '';
+  document.getElementById('cardLimit').value = c ? c.limit : '';
+  document.getElementById('cardCloseDay').value = c ? c.closeDay : '';
+  document.getElementById('cardDueDay').value = c ? c.dueDay : '';
+  document.getElementById('cardOpeningUsed').value = c ? c.openingUsed : '';
+  document.getElementById('cardErr').textContent = '';
+  openModal('modal-card');
+}
+
+function saveCard() {
+  const err = (m) => { document.getElementById('cardErr').textContent = m; };
+  const name = document.getElementById('cardName').value.trim();
+  const limit = Number(document.getElementById('cardLimit').value);
+  const closeDay = Number(document.getElementById('cardCloseDay').value);
+  const dueDay = Number(document.getElementById('cardDueDay').value);
+  const usedRaw = document.getElementById('cardOpeningUsed').value.trim();
+  const openingUsed = usedRaw === '' ? 0 : Number(usedRaw);
+  const okDay = (d) => Number.isInteger(d) && d >= 1 && d <= 31;
+  if (!name) return err('Escribí el nombre de la tarjeta');
+  if (!(limit > 0) || !isFinite(limit)) return err('El límite tiene que ser mayor a cero');
+  if (!okDay(closeDay)) return err('El día de cierre tiene que ser un número del 1 al 31');
+  if (!okDay(dueDay)) return err('El día de vencimiento tiene que ser un número del 1 al 31');
+  if (!(openingUsed >= 0) || !isFinite(openingUsed)) return err('Lo que ya usaste no puede ser negativo');
+  if (!Array.isArray(S.cards)) S.cards = [];
+  const id = document.getElementById('cardId').value;
+  const data = { name, limit: Math.round(limit * 100) / 100, closeDay, dueDay, openingUsed: Math.round(openingUsed * 100) / 100 };
+  const existing = id ? S.cards.find(c => c.id === id) : null;
+  if (existing) Object.assign(existing, data); else S.cards.push({ id: uid(), ...data });
+  saveState(); renderFinanzasTab(); closeModal('modal-card');
+  showToast(existing ? 'Tarjeta actualizada' : 'Tarjeta agregada');
+}
+
+function deleteCard(id) {
+  const c = (S.cards || []).find(x => x.id === id);
+  if (!c || !confirm(`¿Eliminar la tarjeta "${c.name}"?`)) return;
+  S.cards = S.cards.filter(x => x.id !== id);
+  saveState(); renderFinanzasTab();
 }
 
 function renderSubscriptions() {
