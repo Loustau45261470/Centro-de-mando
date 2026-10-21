@@ -53,7 +53,6 @@
     {ic:'＋', lbl:'Nueva meta — Mañana', cat:'Crear', kw:'meta manana tarea', run:()=>M('modal-add-goal-tom')},
     {ic:'＋', lbl:'Registrar movimiento', cat:'Finanzas', kw:'gasto ingreso transaccion movimiento plata', run:()=>{nav('finanzas');M('modal-add-txn');}},
     {ic:'＋', lbl:'Nueva cuenta', cat:'Finanzas', kw:'cuenta banco', run:()=>{nav('finanzas');M('modal-add-account');}},
-    {ic:'＋', lbl:'Nueva suscripción', cat:'Finanzas', kw:'suscripcion sub pago', run:()=>{nav('finanzas');M('modal-add-sub');}},
     {ic:'＋', lbl:'Nuevo objetivo de adquisición', cat:'Finanzas', kw:'deseo comprar wishlist objetivo', run:()=>{nav('finanzas');M('modal-add-wish');}},
     {ic:'＋', lbl:'Nuevo hábito — Vida', cat:'Hábitos', kw:'habito vida', run:()=>{ if(has('openAddHabitFor')) openAddHabitFor('vida'); }},
     {ic:'＋', lbl:'Nuevo hábito — Salud', cat:'Hábitos', kw:'habito salud', run:()=>{ if(has('openAddHabitFor')) openAddHabitFor('salud'); }},

@@ -36,7 +36,6 @@ const REM_KIND_ACCENT = {
   actividad:   'var(--indigo)',
   rec:         'var(--hud-bright)',
   proyeccion:  'var(--c-finanzas)',
-  suscripcion: 'var(--c-finanzas)',
   pedido:      'var(--c-finanzas)',
   tarjeta:     'var(--c-finanzas)',
 };
@@ -48,7 +47,7 @@ function remKindChip(r) {
 }
 
 // ── Todo lo que vence fuera de S.reminders (proyectos, finales, cursada, metas,
-//    actividades del planner, proyecciones, suscripciones, pedidos) entra acá como
+//    actividades del planner, proyecciones, pedidos) entra acá como
 //    ítem virtual de recordatorio. Fuente única: CMDeadlines (deadlines.js).
 function remVirtualItems(tab) {
   const now = Date.now();
@@ -346,7 +345,7 @@ function _showNotif(title, opts) {
 }
 
 // Notifica TODO lo que vence (recordatorios, proyectos, finales, cursada, metas,
-// actividades, proyecciones, suscripciones, pedidos). Los avisos los calcula
+// actividades, proyecciones, pedidos). Los avisos los calcula
 // CMDeadlines; acá solo se disparan los que cayeron en los últimos 5 min.
 // Corre cada 60 s con la app abierta; con la app cerrada lo cubre push-reminders.js.
 function checkReminderNotifications() {

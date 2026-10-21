@@ -57,7 +57,6 @@ function renderFinanzasTab() {
   renderAccounts();
   renderCredit();
   renderDebtFlow();
-  renderSubscriptions();
   renderWishlist();
   renderWishTop5();
   renderPurchaseFunds();
@@ -68,25 +67,10 @@ function renderFinanzasTab() {
   if (nwPieInst) updateNWCharts();
 }
 
-// Nota bajo el gráfico de patrimonio: solo cuando el tramo visible mezcla puntos viejos (sin c) y nuevos (con c).
-function renderNWMethodNote() {
-  const el = document.getElementById('nwMethodNote');
-  if (!el) return;
-  const hist = typeof _nwHist === 'function' ? _nwHist() : [];
-  const marked = hist.filter(h => h && h.c).map(h => h.date).sort();
-  const mixed = marked.length > 0 && marked.length < hist.length;
-  el.textContent = mixed ? `Desde ${_ccDate(marked[0])} el patrimonio descuenta el crédito usado de las tarjetas; los puntos anteriores no.` : '';
-  el.style.display = mixed ? '' : 'none';
-}
-
 function renderAccounts() {
   const nw = calcNetWorth();
-  const p = _nwParts();
   document.getElementById('nwTotal').textContent = fmtMoney(nw, 'USD');
   document.getElementById('nwCash').textContent = fmtMoney(calcCash(), 'USD');
-  document.getElementById('nwBreakdown').textContent = `Cash ${fmtMoney(calcCash(), 'USD')} − Crédito usado ${fmtMoney(p.credit, 'USD')} + Inversiones ${fmtMoney(p.invest, 'USD')}` +
-    (p.other ? ` + Otras cuentas ${fmtMoney(Math.round(p.other * 100) / 100, 'USD')}` : '');
-  renderNWMethodNote();
   document.getElementById('nw1pct').textContent = `1% = ${fmtMoney(nw*0.01,'USD')}`;
   const list = document.getElementById('accountList');
   list.innerHTML = S.accounts.length ? S.accounts.map(a=>`
@@ -540,7 +524,7 @@ function renderCredit() {
     const dueHtml = dues.map(d => `<div class="cc-due">A pagar el ${_ccDM(d.dueDate)}: <b>${_ccPesos(d.amount)}</b></div>`).join('');
     const payAcc = c.payAccountId && (S.accounts || []).find(a => a.id === c.payAccountId);
     const payHtml = payAcc
-      ? `<div class="cc-meta">Se paga solo desde ${escHtml(payAcc.name)}</div>`
+      ? ''
       : '<div class="cc-warnline" role="status">Elegí desde qué cuenta se paga (editá la tarjeta) para que los resúmenes se descuenten solos.</div>';
     return `<div class="cc-row cc-${tone}" data-card-id="${c.id}">
       <div class="cc-head">
@@ -963,51 +947,6 @@ function saveCardPayment() {
   closeModal('modal-card-payment');
   saveState(); renderFinanzasTab();
   showToast(over ? 'Pago registrado. Ojo: es más de lo que figuraba usado' : 'Pago registrado', over ? 5000 : 3000);
-}
-
-function renderSubscriptions() {
-  const list=document.getElementById('subList');
-  const empty=document.getElementById('subEmpty');
-  if (!S.subscriptions.length) { list.innerHTML=''; empty.classList.remove('hidden'); document.getElementById('subTotal').textContent='$0'; return; }
-  empty.classList.add('hidden');
-  const now=new Date();
-  let total=0;
-  list.innerHTML = [...S.subscriptions].sort((a,b)=>a.billingDay-b.billingDay).map(sub=>{
-    const days=daysUntil(sub.billingDay);
-    const alert=days<=5;
-    total+=sub.amount;
-    return `<div class="sub-row ${alert?'sub-alert':''}">
-      <div class="sub-info">
-        <div class="sub-name">${sub.name} ${alert?'<span class="pill pill-danger" style="font-size:var(--fs-12-5)">⚠ '+days+'d</span>':''}</div>
-        <div class="sub-detail">Día ${sub.billingDay} de cada mes</div>
-      </div>
-      <div class="sub-amount">${fmtMoney(sub.amount,sub.currency)}</div>
-      <button class="icon-btn" onclick="openEditSub('${sub.id}')"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
-      <button class="icon-btn" onclick="deleteSub('${sub.id}')"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg></button>
-    </div>`;
-  }).join('');
-  document.getElementById('subTotal').textContent=fmtMoney(total,'USD');
-}
-
-function addSubscription() {
-  const name=document.getElementById('subName').value.trim();
-  const amount=+document.getElementById('subAmount').value||0;
-  const day=+document.getElementById('subBillingDay').value;
-  if (!name||!day) { showToast('Completa nombre y día de cobro'); return; }
-  S.subscriptions.push({ id:uid(), name, amount, currency:document.getElementById('subCurrency').value, billingDay:day, accountId:document.getElementById('subAccount').value });
-  // [SUPABASE] await supabase.from('subscriptions').insert({ name, amount, currency, billing_day: day, account_id, user_id });
-  saveState(); renderSubscriptions(); buildTickerAlerts(); closeModal('modal-add-sub');
-  document.getElementById('subName').value=''; document.getElementById('subAmount').value='';
-  showToast('Suscripción agregada');
-}
-function deleteSub(id) {
-  const idx = S.subscriptions.findIndex(s=>s.id===id);
-  const sub = idx > -1 ? S.subscriptions[idx] : null;
-  S.subscriptions=S.subscriptions.filter(s=>s.id!==id); saveState(); renderSubscriptions(); buildTickerAlerts();
-  if (window.CMUndo && sub) CMUndo.registrar({
-    descripcion: 'Suscripción eliminada',
-    deshacer: () => { S.subscriptions.splice(idx, 0, sub); renderSubscriptions(); buildTickerAlerts(); }
-  });
 }
 
 function renderWishlist() {
@@ -3004,7 +2943,6 @@ function toggleActivityList() {
 
 function renderActivity() {
   if (!Array.isArray(S.transactions)) return; // estado aún no cargado (loadState es async; _sfMount puede llamar antes)
-  autoDeductSubscriptions();
   applyPendingScheduledExpenses();
   cardsCatchUp();
 
@@ -3397,24 +3335,8 @@ function addTransaction() {
   }
 }
 
-function autoDeductSubscriptions() {
-  const today=new Date();
-  S.subscriptions.forEach(sub=>{
-    if (sub.billingDay!==today.getDate()) return;
-    const already=S.transactions.some(t=>t.name===`Sub: ${sub.name}`&&t.date===getActiveDate());
-    if (already) return;
-    if (sub.accountId) {
-      const acc=S.accounts.find(a=>a.id===sub.accountId);
-      if (acc) { acc.balance-=sub.amount; snapshotNW(); }
-    }
-    S.transactions.unshift({ id:uid(), date:getActiveDate(), name:`Sub: ${sub.name}`, type:'expense', amount:sub.amount, currency:sub.currency, accountId:sub.accountId });
-    saveState();
-  });
-}
-
 // Aplica gastos programados a mes futuro (ver specs/gastos-programados.md) cuando la fecha
-// del sistema alcanza (o pasa) su día programado. A diferencia de autoDeductSubscriptions
-// (que exige coincidencia exacta de día), acá el chequeo es "hoy >= fecha programada" para
+// del sistema alcanza (o pasa) su día programado. El chequeo es "hoy >= fecha programada" para
 // recuperarse aunque el usuario no haya abierto la app justo ese día.
 function applyPendingScheduledExpenses() {
   const today = getActiveDate();

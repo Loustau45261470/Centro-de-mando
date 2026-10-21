@@ -4,7 +4,7 @@
 //
 // Qué avisa: TODO lo que tiene fecha — recordatorios, proyectos con fecha límite,
 // finales, cursada, metas del día con hora, actividades del planner, proyecciones
-// que vencen, suscripciones y pedidos. La lista y los horarios de aviso los calcula
+// que vencen y pedidos. La lista y los horarios de aviso los calcula
 // deadlines.js, el MISMO archivo que usa la app en el navegador.
 
 const webpush = require('web-push');

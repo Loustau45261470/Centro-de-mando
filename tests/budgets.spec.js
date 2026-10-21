@@ -605,6 +605,10 @@ for (const [monto, texto] of [[123456789, '9 dígitos'], [100000, 'monto normal'
 }
 
 test('17. la lista se resuelve de una vez: Rehacer los marcados y Dejar los demás; no vuelve a aparecer al reabrir ni recargar', async ({ cmPage, consoleErrors }) => {
+  // Es el test más largo del archivo: carga la app 3 veces (fixture + 2 reaperturas, ~4 s cada una por la animación del login)
+  // y, en vacío, tarda 22-26 s tanto en HEAD como en el árbol nuevo (medido). Con la suite completa en paralelo el reload
+  // pasaba los 30 s por carga de CPU, no por lógica. 60 s deja margen sin tocar el timeout global.
+  test.setTimeout(60000);
   await prep(cmPage, { hoy: '2026-10-20', budgets: base3() });
   await arrancar(cmPage, 2026);
   await abrirPresupuesto(cmPage, '2026-11');
