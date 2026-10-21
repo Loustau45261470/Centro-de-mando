@@ -111,6 +111,7 @@ function _financeLinkProgress(link, periodId) {
       if (!b) return;
       (b.fixed || []).forEach(it => { if (it.category === link.category) budgeted += _budgetItemTotal(it); });
       (b.reserved || []).forEach(it => { if (it.category === link.category) budgeted += (+it.amount || 0); });
+      (b.seasonal || []).forEach(it => { if (it.category === link.category) budgeted += (+it.amount || 0); });
     });
     const real = (S.transactions || [])
       .filter(t => t.type === 'expense' && t.category === link.category && t.currency === 'ARS' && monthKeys.includes((t.date || '').slice(0,7)))

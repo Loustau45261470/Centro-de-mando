@@ -580,6 +580,7 @@
           const b = S.budgets[mk];
           (b.fixed || []).forEach(it => { presupuestado += _n(it.v1) * _n(it.v2) * _n(it.v3); });
           (b.reserved || []).forEach(it => { presupuestado += _n(it.amount); });
+          (b.seasonal || []).forEach(it => { presupuestado += _n(it.amount); });
           const mDesde = mk + '-01', mHasta = mk + '-31';
           ejecutado += _filtrar(S.transactions, 'date', mDesde, mHasta)
             .filter(t => t.type === 'expense' && t.currency === 'ARS').reduce((s, t) => s + _n(t.amount), 0);
