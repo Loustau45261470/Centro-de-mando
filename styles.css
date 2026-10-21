@@ -5499,6 +5499,27 @@ input:focus, select:focus, textarea:focus {
   .ten-detail-grid, .ten-lotes { animation: none !important; }
 }
 
+/* ── Cartera: registrar venta + pestaña Historial (tres pestañas: el layout base de overlay-core.css es de dos) ── */
+#ov-cartera .plov-tabs { grid-template-columns: repeat(3, 1fr); }
+#ov-cartera .plov-tab { min-width: 0; padding: 10px 6px; }
+#ov-cartera .plov-tab-ink { width: calc((100% - 16px) / 3); }
+#ov-cartera .plov-tabs[data-on="analisis"] .plov-tab-ink { left: calc(8px + (100% - 16px) / 3); }
+#ov-cartera .plov-tabs[data-on="historial"] .plov-tab-ink { left: calc(12px + 2 * (100% - 16px) / 3); }
+.ten-actions { margin-top: 12px; }
+.ten-venta-btn { min-height: 40px; }
+.ten-ventas-list { display: flex; flex-direction: column; gap: 8px; }
+.ten-venta-item { display: grid; grid-template-columns: .9fr 1fr 1fr 1fr; gap: 8px; font-size: var(--fs-13); padding: 2px 0; }
+.ten-venta-item > * { min-width: 0; overflow-wrap: anywhere; text-align: right; }
+.ten-venta-item > :first-child { text-align: left; }
+.venta-disp { font-size: var(--fs-13); color: var(--ts); margin: -4px 0 10px; }
+.venta-resumen { font-size: var(--fs-13); line-height: 1.5; margin: 4px 0 8px; overflow-wrap: anywhere; }
+.venta-resumen:empty { display: none; }
+.ten-hist-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 14px; border-top: 1px solid rgba(255,255,255,.06); }
+.ten-hist-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ten-hist-fechas { font-size: var(--fs-12-5); color: var(--ts); overflow-wrap: anywhere; }
+.ten-hist-res { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; min-width: 0; text-align: right; }
+.ten-hist-monto { font-size: var(--fs-12-5); opacity: .85; overflow-wrap: anywhere; }
+
 /* ═══════════════ POMODORO (Sesión de estudio) ═══════════════ */
 .pomo-config { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-bottom: 18px; }
 .pomo-stepper { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 13px 16px 11px;

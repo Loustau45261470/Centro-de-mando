@@ -39,6 +39,7 @@ const DEFAULT_STATE = {
   cardCharges: [],     // [{ id, cardId, date, amount, mode:'now1'|'deferred'|'nowInst'|'advance', installments, consumeMonths, category, name, toAccountId }] — compras con tarjeta (cálculo en tarjetas-motor.js)
   cardPayments: [],    // [{ id, cardId, date, amount, accountId, kind:'auto'|'manual', key }] — pagos de resumen (key = statementKey)
   seasonals: [],       // [{ id, name, month(1-12), amount, category }] — gastos estacionales (regalos, cumpleaños...): se cargan solos en el presupuesto de su mes
+  carteraTx: [],       // [{ id, simbolo, fecha, ts, unidades, precio, costoUnit, costo, resultado, fechaCompra, cierra }] — ventas de activos de la cartera. SOLO se agrega, nunca se borra
   fixedExpenses: [],   // [{ id, name, amount, currency, dayOfMonth }]
   fixedExpenseLog: {}, // { 'YYYY-MM': { [expId]: true } }
   budgets: {},         // { 'YYYY-MM': { fixed:[{id,name,category,unit,v1,v2,v3}], reserved:[{id,name,category,amount}] } }
@@ -440,7 +441,7 @@ function _rescueLocal(cloudObj, localObj) {
   // Arrays con ID
   ['transactions','moves','cards','accounts','cardCharges','cardPayments','subscriptions','orders','wishlist',
    'photos','finObjectives','fixedExpenses','lawMilestones','routines','exerciseLibrary',
-   'bodyWeight','exercises','seasonals'
+   'bodyWeight','exercises','seasonals','carteraTx'
   ].forEach(key => {
     const c = Array.isArray(cloudObj[key]) ? cloudObj[key] : [];
     const l = Array.isArray(localObj[key]) ? localObj[key] : [];

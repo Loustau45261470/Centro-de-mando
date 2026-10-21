@@ -7,7 +7,8 @@
 // independientes: un solo botón en el abanico de Finanzas, un solo
 // CMOverlay, patrón de tabs reutilizado de plannificacion-overlay.js
 // (.plov-tabs/.plov-tab/.plov-pane, overlay-core.css). La lógica de fetch
-// y render de cada pestaña vive sin cambios en su propio archivo.
+// y render de cada pestaña vive sin cambios en su propio archivo. Una tercera,
+// "Historial", lista los activos ya vendidos por completo (ver tenencias.js).
 // ════════════════════════════════════════════════════════════════════════
 
 const CarteraOverlay = (() => {
@@ -24,10 +25,12 @@ const CarteraOverlay = (() => {
       <div class="plov-tabs" data-on="tenencias" role="tablist">
         <button class="plov-tab on" data-t="tenencias" role="tab" aria-selected="true" onclick="CarteraOverlay._tab('tenencias')">Mis tenencias</button>
         <button class="plov-tab" data-t="analisis" role="tab" aria-selected="false" onclick="CarteraOverlay._tab('analisis')">Análisis mensual</button>
+        <button class="plov-tab" data-t="historial" role="tab" aria-selected="false" onclick="CarteraOverlay._tab('historial')">Historial</button>
         <span class="plov-tab-ink"></span>
       </div>
       <div class="plov-pane ci-body" id="cov-pane-tenencias" role="tabpanel"></div>
-      <div class="plov-pane ci-body" id="cov-pane-analisis" role="tabpanel" hidden></div>`;
+      <div class="plov-pane ci-body" id="cov-pane-analisis" role="tabpanel" hidden></div>
+      <div class="plov-pane ci-body" id="cov-pane-historial" role="tabpanel" hidden></div>`;
     CMOverlay.open(overlay);
     if (window.Tenencias) Tenencias.renderInto(body.querySelector('#cov-pane-tenencias'));
   }
@@ -42,9 +45,12 @@ const CarteraOverlay = (() => {
     });
     const tabs = ov.querySelector('.plov-tabs');
     if (tabs) tabs.dataset.on = t;
-    const pTen = ov.querySelector('#cov-pane-tenencias'), pAn = ov.querySelector('#cov-pane-analisis');
+    const pTen = ov.querySelector('#cov-pane-tenencias'), pAn = ov.querySelector('#cov-pane-analisis'), pHis = ov.querySelector('#cov-pane-historial');
     if (pTen) pTen.hidden = t !== 'tenencias';
     if (pAn) pAn.hidden = t !== 'analisis';
+    if (pHis) pHis.hidden = t !== 'historial';
+    // El historial sale de lo que se registró, así que se repinta cada vez que se abre la pestaña.
+    if (t === 'historial' && pHis && window.Tenencias) Tenencias.renderHistorial(pHis);
     if (t === 'analisis' && !_analisisCargado && !_analisisEnCurso && window.CarteraInversion) {
       _analisisEnCurso = true;
       CarteraInversion.renderInto(pAn)

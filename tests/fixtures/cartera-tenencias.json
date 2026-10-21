@@ -1,0 +1,77 @@
+{
+  "generado": "2026-10-19T11:00:00Z",
+  "tenencias": [
+    {
+      "simbolo": "TESTA", "descripcion": "Cedear de prueba A", "tipo": "CEDEARS",
+      "cantidad": 100, "comprometido": 0, "precio": 1500, "variacionDiariaPct": 0.5, "variacionPct": 1.0,
+      "valorizado": 150000, "ppc": 1260, "ppcConfianza": "alta", "rendimientoPct": 19.05, "rendimientoMonto": 24000,
+      "lotes": [
+        { "fecha": "2026-08-20", "cantidad": 50, "precio": 1400 },
+        { "fecha": "2026-03-10", "cantidad": 20, "precio": 1000 },
+        { "fecha": "2026-05-15", "cantidad": 30, "precio": 1200 }
+      ]
+    },
+    {
+      "simbolo": "TESTB", "descripcion": "Cedear de prueba B", "tipo": "CEDEARS",
+      "cantidad": 10, "comprometido": 0, "precio": 2000, "variacionDiariaPct": 0, "variacionPct": 0,
+      "valorizado": 20000, "ppc": 1800, "ppcConfianza": "alta", "rendimientoPct": 11.11, "rendimientoMonto": 2000,
+      "lotes": [
+        { "fecha": "2026-04-01", "cantidad": 6, "precio": 2000 },
+        { "fecha": "2026-02-01", "cantidad": 4, "precio": 1500 }
+      ]
+    },
+    {
+      "simbolo": "TESTBONO", "descripcion": "Bono de prueba (precio por unidad, como el JSON semanal)", "tipo": "TIT. PUBLICOS",
+      "cantidad": 200000, "comprometido": 0, "precio": 1.3, "variacionDiariaPct": 0, "variacionPct": 0,
+      "valorizado": 260000, "ppc": 1.21, "ppcConfianza": "alta", "rendimientoPct": 7.4, "rendimientoMonto": 18000,
+      "lotes": [
+        { "fecha": "2026-06-01", "cantidad": 100000, "precio": 1.2 },
+        { "fecha": "2026-07-01", "cantidad": 100000, "precio": 1.22 }
+      ]
+    },
+    {
+      "simbolo": "TESTLETRA", "descripcion": "Letra de prueba (precio cada 100 nominales, como IOL en vivo; sin lotes)", "tipo": "Letras",
+      "cantidad": 100000, "comprometido": 0, "precio": 127.5, "variacionDiariaPct": 0,
+      "valorizado": 127500, "ppc": 120, "rendimientoPct": 6.25, "rendimientoMonto": 7500
+    },
+    {
+      "simbolo": "<img src=x onerror=\"window.__xss=1\">", "descripcion": "Simbolo con HTML", "tipo": "CEDEARS",
+      "cantidad": 5, "comprometido": 0, "precio": 100, "variacionDiariaPct": 0, "variacionPct": 0,
+      "valorizado": 500, "ppc": 80, "ppcConfianza": "alta", "rendimientoPct": 25, "rendimientoMonto": 100,
+      "lotes": [ { "fecha": "2026-05-05", "cantidad": 5, "precio": 80 } ]
+    },
+    {
+      "simbolo": "TESTC", "descripcion": "Cedear de prueba C (un lote de 26 unidades con precio 0; suman 50 = cantidad)", "tipo": "CEDEARS",
+      "cantidad": 50, "comprometido": 0, "precio": 1000, "variacionDiariaPct": 0, "variacionPct": 0,
+      "valorizado": 50000, "ppc": 920, "ppcConfianza": "alta", "rendimientoPct": 8.7, "rendimientoMonto": 4000,
+      "lotes": [
+        { "fecha": "2026-02-10", "cantidad": 5, "precio": 1900 },
+        { "fecha": "2026-03-05", "cantidad": 6, "precio": 2000 },
+        { "fecha": "2026-01-15", "cantidad": 26, "precio": 0 },
+        { "fecha": "2026-04-20", "cantidad": 13, "precio": 1900 }
+      ]
+    },
+    {
+      "simbolo": "TESTD", "descripcion": "Cedear de prueba D (los lotes suman 51 y la cantidad es 30)", "tipo": "CEDEARS",
+      "cantidad": 30, "comprometido": 0, "precio": 1200, "variacionDiariaPct": 0, "variacionPct": 0,
+      "valorizado": 36000, "ppc": 1050, "ppcConfianza": "alta", "rendimientoPct": 14.3, "rendimientoMonto": 4500,
+      "lotes": [
+        { "fecha": "2026-04-01", "cantidad": 20, "precio": 1000 },
+        { "fecha": "2026-02-02", "cantidad": 31, "precio": 1100 }
+      ]
+    },
+    {
+      "simbolo": "TESTE", "descripcion": "Cedear de prueba E (sin lotes y sin precio promedio de compra)", "tipo": "CEDEARS",
+      "cantidad": 10, "comprometido": 0, "precio": 100, "variacionDiariaPct": 0, "variacionPct": 0,
+      "valorizado": 1000
+    },
+    {
+      "simbolo": "TESTF", "descripcion": "Cedear de prueba F (su unico lote tiene precio 0)", "tipo": "CEDEARS",
+      "cantidad": 10, "comprometido": 0, "precio": 800, "variacionDiariaPct": 0, "variacionPct": 0,
+      "valorizado": 8000, "ppc": 700, "ppcConfianza": "alta", "rendimientoPct": 14.3, "rendimientoMonto": 1000,
+      "lotes": [ { "fecha": "2026-01-01", "cantidad": 10, "precio": 0 } ]
+    }
+  ],
+  "totales": { "valorizado": 430500, "variacionPct": 0.4 },
+  "liquidez": { "ars_disponible": 0, "ars_comprometido": 0, "usd_disponible": 0 }
+}

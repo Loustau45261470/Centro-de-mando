@@ -148,6 +148,15 @@ function updateMoveWarn() {
   } else { el.textContent = ''; el.style.display = 'none'; }
 }
 
+// Resta `amount` de `from` y lo suma a `to` (objetos de S.accounts) y deja el registro en S.moves.
+// No valida ni guarda: lo usan moverPlata() y la venta de activos (registrarVentaCartera).
+function _moverCuentas(from, to, amount, note) {
+  from.balance = Math.round((from.balance - amount)*100)/100;
+  to.balance = Math.round((to.balance + amount)*100)/100;
+  if (!Array.isArray(S.moves)) S.moves = [];
+  S.moves.push({ id:uid(), date:getActiveDate(), from:from.id, to:to.id, amount, note });
+}
+
 function moverPlata() {
   const fromId = document.getElementById('moveFrom').value;
   const toId = document.getElementById('moveTo').value;
@@ -160,13 +169,164 @@ function moverPlata() {
   const to = S.accounts.find(a => a.id === toId);
   if (!from || !to) { showToast('Esa cuenta ya no existe'); return; }
   if (from.currency !== to.currency) { showToast('Las dos cuentas tienen que estar en la misma moneda'); return; }
-  from.balance = Math.round((from.balance - amount)*100)/100;
-  to.balance = Math.round((to.balance + amount)*100)/100;
-  if (!Array.isArray(S.moves)) S.moves = [];
-  S.moves.push({ id:uid(), date:getActiveDate(), from:fromId, to:toId, amount, note });
+  _moverCuentas(from, to, amount, note);
   snapshotNW(); saveState(); renderFinanzasTab(); closeModal('modal-move-money');
   if (from.balance < 0) showToast(`Listo. Ojo: "${from.name}" quedó en negativo (${fmtMoney(from.balance, from.currency)})`, 5000);
   else showToast('Plata movida');
+}
+
+// ── Cartera: venta de un activo (etapa 9 de specs/finanzas-credito.md) ──
+// La cuenta de inversiones es manual y guarda el CAPITAL aportado (no el valor de mercado). Vender mueve el
+// COSTO (unidades × costo unitario) de esa cuenta a la de destino, igual que Mover plata, y la ganancia o
+// pérdida entra como movimiento de categoría "Inversión" en la cuenta destino: ahí queda costo + resultado = lo vendido.
+// Las compras no se cargan: salen de los lotes que ya trae data/cartera/tenencias.json. S.carteraTx es SOLO
+// de agregado (un dispositivo desactualizado resucitaría lo borrado vía _rescueLocal); un error se corrige con un movimiento inverso.
+const _cent = n => Math.round(n * 100) / 100;
+const CARTERA_TOL = 1e-6; // tolerancia de redondeo en unidades
+
+const _carteraNum = v => (v == null || v === '' || isNaN(v)) ? null : Number(v);
+const _carteraTs = x => isFinite(+x.ts) ? +x.ts : Date.parse(x.fecha);
+
+// Ventas registradas de un símbolo, en orden cronológico.
+function carteraVentasDe(simbolo) {
+  return (Array.isArray(S.carteraTx) ? S.carteraTx : [])
+    .filter(x => x && x.simbolo === simbolo)
+    .sort((a, b) => (_carteraTs(a) - _carteraTs(b)) || String(a.id).localeCompare(String(b.id)));
+}
+
+// Escala del precio: el JSON valoriza como cantidad × precio. Los bonos y letras que vienen de IOL en vivo cotizan cada 100
+// nominales (valorizado = cantidad × precio / 100); el JSON semanal ya viene por unidad (commit 28df696). Se deduce del propio
+// dato (valorizado / (cantidad × precio)) y no del tipo. Sin valorizado, solo CEDEARs/acciones se dan por escala 1.
+function carteraEscala(t) {
+  const q = _carteraNum(t.cantidad), p = _carteraNum(t.precio), v = _carteraNum(t.valorizado);
+  if (q > 0 && p > 0 && v > 0) {
+    const r = v / (q * p);
+    if (Math.abs(r - 1) < 0.02) return 1;
+    if (Math.abs(r - 0.01) < 0.0005) return 0.01;
+    return null;
+  }
+  return ['CEDEARS', 'ACCIONES'].includes(String(t.tipo ?? '').trim().toUpperCase()) ? 1 : null;
+}
+
+// Costo unitario = promedio ponderado de los lotes SOLO si los lotes son confiables (todos con cantidad y precio > 0 y
+// cuyas cantidades suman la `cantidad` del activo). Si no (un lote sin precio, suma distinta, sin lotes) usa el ppc que informa IOL;
+// sin ppc válido devuelve null. origen: 'lotes' | 'ppc'. avisoLotes: había lotes pero no coinciden (el costo sale del ppc).
+// fechaCompra = lote válido (cantidad y precio > 0) más antiguo, aunque el costo salga del ppc; 's/d' si no hay ninguno.
+function carteraCostoUnit(t) {
+  const todos = (Array.isArray(t.lotes) ? t.lotes : []);
+  const validos = todos.filter(lo => lo && typeof lo === 'object' && _carteraNum(lo.cantidad) > 0 && _carteraNum(lo.precio) > 0);
+  const fechas = validos.map(lo => /^\d{4}-\d{2}-\d{2}/.test(String(lo.fecha)) ? String(lo.fecha).slice(0, 10) : null).filter(Boolean).sort();
+  const fechaCompra = fechas[0] || 's/d';
+  const cantTotal = _carteraNum(t.cantidad);
+  const cantLotes = validos.reduce((s, lo) => s + Number(lo.cantidad), 0);
+  const confiables = todos.length > 0 && validos.length === todos.length && cantTotal > 0 && Math.abs(cantLotes - cantTotal) <= 1e-6 * cantTotal;
+  if (confiables) {
+    const costoUnit = validos.reduce((s, lo) => s + Number(lo.cantidad) * Number(lo.precio), 0) / cantLotes;
+    return { costoUnit, fechaCompra, origen: 'lotes', avisoLotes: false };
+  }
+  const ppc = _carteraNum(t.ppc);
+  return ppc > 0 ? { costoUnit: ppc, fechaCompra, origen: 'ppc', avisoLotes: todos.length > 0 } : null;
+}
+
+// Unidades que se pueden vender: las del JSON menos las ya vendidas DESPUÉS de que se generó (el JSON se actualiza
+// los lunes; hasta entonces todavía las cuenta). Las vendidas antes de `generado` ya no están en `cantidad`.
+function carteraDisponibles(t, generado) {
+  const cant = _carteraNum(t && t.cantidad);
+  if (!(cant > 0)) return 0;
+  const g = Date.parse(generado);
+  const vendidas = isFinite(g) ? carteraVentasDe(t.simbolo).filter(x => _carteraTs(x) > g).reduce((s, x) => s + (+x.unidades || 0), 0) : 0;
+  const d = Math.round((cant - vendidas) * 1e8) / 1e8;
+  return d > CARTERA_TOL ? d : 0;
+}
+
+// Cuenta de cálculo, sin efectos: valida unidades y precio y devuelve costo, vendido y resultado en centavos.
+function carteraCalcVenta({ t, generado, unidades, precio }) {
+  const fail = msg => ({ ok: false, msg });
+  if (!t || !t.simbolo) return fail('No encuentro ese activo en la cartera');
+  const u = Number(unidades), p = Number(precio);
+  if (!(isFinite(u) && u > 0)) return fail('Las unidades tienen que ser un número mayor a cero');
+  if (!(isFinite(p) && p > 0)) return fail('El precio de venta tiene que ser mayor a cero');
+  if (Math.abs(p * 10000 - Math.round(p * 10000)) > 1e-6) return fail('El precio admite hasta 4 decimales');
+  const escala = carteraEscala(t);
+  if (escala == null) return fail('No puedo confirmar en qué escala viene el precio de este activo (¿cotiza en dólares?). Por ahora solo se registran ventas en pesos');
+  const c = carteraCostoUnit(t);
+  if (!c) return fail('No hay un costo confiable para este activo: falta su precio de compra, así que no puedo calcular la ganancia');
+  const disp = carteraDisponibles(t, generado);
+  if (disp <= 0) return fail(`No te quedan unidades de ${t.simbolo} para vender hasta la próxima actualización de la cartera`);
+  if (u > disp + CARTERA_TOL) return fail(`Solo tenés ${disp.toLocaleString('es-AR')} unidades disponibles de ${t.simbolo}`);
+  const costoTot = _cent(u * c.costoUnit * escala);
+  const vendido = _cent(u * p * escala);
+  if (!(costoTot > 0 && vendido > 0)) return fail('El monto de la venta es demasiado chico');
+  const resultado = _cent(vendido - costoTot);
+  return { ok: true, u, p, costoUnit: c.costoUnit, escala, costoTot, vendido, resultado, pct: resultado / costoTot * 100,
+           fechaCompra: c.fechaCompra, costoOrigen: c.origen, avisoLotes: c.avisoLotes, disp, cierra: disp - u <= CARTERA_TOL };
+}
+
+// Registra la venta: mueve el costo entre cuentas, agrega la ganancia/pérdida a Movimientos (categoría Inversión)
+// y deja el registro en S.carteraTx. Devuelve { ok:false, msg } o { ok:true, rec, from, to, ... }.
+function registrarVentaCartera({ t, generado, unidades, precio, fromId, toId }) {
+  const c = carteraCalcVenta({ t, generado, unidades, precio });
+  if (!c.ok) return c;
+  const fail = msg => ({ ok: false, msg });
+  if (!fromId || !toId) return fail('Elegí las dos cuentas');
+  if (fromId === toId) return fail('La cuenta de origen y la de destino no pueden ser la misma');
+  const from = S.accounts.find(a => a.id === fromId);
+  const to = S.accounts.find(a => a.id === toId);
+  if (!from || !to) return fail('Esa cuenta ya no existe');
+  if ((from.currency || 'ARS') !== 'ARS' || (to.currency || 'ARS') !== 'ARS') return fail('Las dos cuentas tienen que estar en pesos');
+  _moverCuentas(from, to, c.costoTot, 'Venta ' + t.simbolo);
+  if (c.resultado !== 0) {
+    ensureTxnCategories();
+    if (!S.txnCategories.invest) { // si Tobías la borró, se recrea
+      S.txnCategories.invest = { label: 'Inversión', icon: '📈', color: '#16B364', section: 'finanzas' };
+      _invalidateCatCache();
+    }
+    const type = c.resultado > 0 ? 'income' : 'expense';
+    const amount = Math.abs(c.resultado);
+    to.balance = _cent(to.balance + (type === 'income' ? amount : -amount));
+    S.transactions.unshift({ id: uid(), date: getActiveDate(), name: 'Venta ' + t.simbolo, type, amount, currency: 'ARS', accountId: to.id, category: 'invest' });
+  }
+  if (!Array.isArray(S.carteraTx)) S.carteraTx = [];
+  const rec = { id: uid(), simbolo: t.simbolo, fecha: getActiveDate(), ts: Date.now(), unidades: c.u, precio: c.p,
+                costoUnit: Math.round(c.costoUnit * 1e6) / 1e6, costo: c.costoTot, resultado: c.resultado,
+                fechaCompra: c.fechaCompra, cierra: c.cierra };
+  S.carteraTx.push(rec);
+  snapshotNW(); saveState(); renderFinanzasTab();
+  return { ...c, ok: true, rec, from, to };
+}
+
+// Ciclos de un símbolo: cada ciclo termina en la venta que lo cierra; una venta posterior abre uno nuevo.
+function _carteraCiclos(simbolo) {
+  const ciclos = [];
+  let actual = [];
+  for (const r of carteraVentasDe(simbolo)) {
+    actual.push(r);
+    if (r.cierra) { ciclos.push({ recs: actual, cerrado: true }); actual = []; }
+  }
+  if (actual.length) ciclos.push({ recs: actual, cerrado: false });
+  return ciclos;
+}
+
+// Un registro por activo vendido por completo: fecha de compra (la más antigua del ciclo), fecha de venta, resultado y %.
+function carteraCiclosCerrados() {
+  const simbolos = [...new Set((Array.isArray(S.carteraTx) ? S.carteraTx : []).filter(x => x && x.simbolo).map(x => x.simbolo))];
+  const out = [];
+  for (const sim of simbolos) {
+    for (const c of _carteraCiclos(sim).filter(c => c.cerrado)) {
+      const resultado = _cent(c.recs.reduce((s, r) => s + (+r.resultado || 0), 0));
+      const base = _cent(c.recs.reduce((s, r) => s + (+r.costo || 0), 0));
+      const fechas = c.recs.map(r => r.fechaCompra).filter(f => /^\d{4}-\d{2}-\d{2}$/.test(String(f))).sort();
+      out.push({ simbolo: sim, fechaCompra: fechas[0] || 's/d', fechaVenta: c.recs[c.recs.length - 1].fecha,
+                 resultado, pct: base > 0 ? resultado / base * 100 : null });
+    }
+  }
+  return out.sort((a, b) => String(b.fechaVenta).localeCompare(String(a.fechaVenta)));
+}
+
+// Ventas parciales del ciclo abierto de un activo (las que se muestran bajo su historial de compras).
+function carteraVentasAbiertas(simbolo) {
+  const c = _carteraCiclos(simbolo).filter(c => !c.cerrado)[0];
+  return c ? c.recs : [];
 }
 
 function deleteAccount(id) {

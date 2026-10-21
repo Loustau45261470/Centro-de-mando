@@ -295,6 +295,27 @@
       "desc": "XSS por categoria de transaccion: renderBudgetSummary pintaba ${ci.label || c} sin escapar, y una categoria con HTML (p. ej. la que guarda JARVIS add_transaction desde la salida del modelo) ejecutaba script al renderizar Finanzas. Ahora el icono y la etiqueta/categoria se escapan con escHtml, y jarvis-brain.js valida la categoria contra S.txnCategories (etiqueta o id) y cae a '' si no coincide, igual que jarvis-agent.js. Cubierto por tests/xss-categoria.spec.js.",
       "file": "finanzas.js",
       "marker": "${escHtml(ci.icon)} ${escHtml(ci.label) || escHtml(c)}</span><span class=\"bsum-cat-val"
+    },
+    {
+      "id": "cartera-tx-sync-rescue",
+      "fecha": "2026-10-20",
+      "desc": "S.carteraTx (ventas de activos de la cartera, historial de transacciones) es clave nueva de primer nivel y SOLO se agrega, nunca se borra: se suma a la lista de arrays con id de _rescueLocal para que una venta registrada en un dispositivo no se pierda si la nube trae un estado sin ella (y un dispositivo desactualizado no resucite registros borrados). Cubierto por tests/cartera-sync.spec.js.",
+      "file": "app.js",
+      "marker": "'seasonals','carteraTx'"
+    },
+    {
+      "id": "cartera-venta-no-doble-descuento",
+      "fecha": "2026-10-20",
+      "desc": "Unidades disponibles para vender = cantidad del JSON de tenencias menos las ventas registradas DESPUES de que se genero (ts > generado). Las anteriores ya estan reflejadas en la cantidad: restarlas dos veces bloquearia vender lo que queda hasta el lunes y despues. Cubierto por tests/cartera-venta.spec.js.",
+      "file": "finanzas.js",
+      "marker": "_carteraTs(x) > g"
+    },
+    {
+      "id": "cartera-costo-lotes-inconsistentes",
+      "fecha": "2026-10-21",
+      "desc": "El costo unitario de una venta de cartera es el promedio ponderado de los lotes SOLO si todos tienen cantidad y precio > 0 y suman la cantidad del activo; si no, usa el ppc de IOL (y sin ppc valido rechaza la venta). Antes un lote con precio 0 se descartaba del promedio pero el resultado se aplicaba a todas las unidades: el costo salia ~2x el real (venta a +10% mostraba -42%). El modal muestra el origen del costo y avisa cuando los lotes no coinciden. Cubierto por tests/cartera-venta.spec.js (Costo con lotes inconsistentes).",
+      "file": "finanzas.js",
+      "marker": "validos.length === todos.length && cantTotal > 0"
     }
   ]
 }
