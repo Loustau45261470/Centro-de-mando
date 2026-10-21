@@ -458,7 +458,7 @@
     {
       id: 'fin_patrimonio', seccion: 'finanzas', label: 'Patrimonio neto', unidad: 'ARS', dir: 'up',
       fundamental: true, minGran: 'M', agg: 'last',
-      descripcion: 'El valor total de tus cuentas al cierre del período, según el último registro cargado.',
+      descripcion: 'Tus cuentas más inversiones, menos el crédito usado de las tarjetas, al cierre del período según el último registro cargado.',
       // Serie de stock: se reporta el último valor conocido hasta el cierre
       // del período (carry-forward), igual que un saldo de cuenta.
       calc: (desde, hasta) => {

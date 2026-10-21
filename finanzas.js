@@ -56,6 +56,7 @@ function renderFinanzasTab() {
   renderTabHeader('finanzasHeaderMeta');
   renderAccounts();
   renderCredit();
+  renderDebtFlow();
   renderSubscriptions();
   renderWishlist();
   renderWishTop5();
@@ -424,6 +425,134 @@ function renderCredit() {
     ${_ccCalendarHtml(today)}
     <div class="cc-sec">Compras con tarjeta</div>
     <div id="cardChargeList">${chargesHtml}</div>`;
+}
+
+// ── Deuda y flujo (etapa 10) ──
+// Deuda = crédito usado total (calcCreditUsed). Ingreso mensual promedio = promedio de los ingresos de los 3 meses
+// cerrados anteriores al actual; solo cuentan los meses de esa ventana que tienen ingresos. El mes en curso nunca entra.
+// Todo en pesos: se ignoran los movimientos en otra moneda. Solo se muestran números calculados (ningún texto del usuario).
+const _dfIsPeso = (t) => !t.currency || t.currency === 'ARS';
+const _dfNum = (n) => n.toLocaleString('es-AR', { maximumFractionDigits: 1 });
+const _dfMonthsTxt = (n) => `${_dfNum(n)} ${Math.abs(n - 1) < 0.05 ? 'mes' : 'meses'}`;
+function _dfClosedMonths(today, count) {
+  let y = +today.slice(0, 4), m = +today.slice(5, 7);
+  const out = [];
+  for (let i = 0; i < count; i++) {
+    m--; if (m < 1) { m = 12; y--; }
+    out.push(`${y}-${String(m).padStart(2, '0')}`);
+  }
+  return out;
+}
+function dfIncomeAverage(today) {
+  const win = _dfClosedMonths(today, 3);
+  const byMonth = {};
+  (Array.isArray(S.transactions) ? S.transactions : []).forEach(t => {
+    if (!t || t.type !== 'income' || !t.date || !_dfIsPeso(t)) return;
+    const mk = String(t.date).slice(0, 7);
+    if (win.includes(mk)) byMonth[mk] = (byMonth[mk] || 0) + (+t.amount || 0);
+  });
+  const vals = win.map(mk => byMonth[mk]).filter(v => v > 0);
+  const n = vals.length;
+  return { n, avg: n ? _ccRound(vals.reduce((s, v) => s + v, 0) / n) : 0 };
+}
+// Ingresos y gastos del mes en curso hasta hoy.
+function dfMonthFlow(today) {
+  const mk = today.slice(0, 7), day = +today.slice(8, 10);
+  const side = { count: 0, total: 0 };
+  const res = { day, income: { ...side }, expense: { ...side } };
+  (Array.isArray(S.transactions) ? S.transactions : []).forEach(t => {
+    if (!t || !t.date || !_dfIsPeso(t) || String(t.date).slice(0, 7) !== mk || t.date > today) return;
+    const bucket = t.type === 'income' ? res.income : t.type === 'expense' ? res.expense : null;
+    if (!bucket) return;
+    bucket.count++; bucket.total += (+t.amount || 0);
+  });
+  res.income.total = _ccRound(res.income.total); res.expense.total = _ccRound(res.expense.total);
+  return res;
+}
+
+function _dfDebtIncomeHtml(debt, today) {
+  const inc = dfIncomeAverage(today);
+  let body;
+  if (debt <= 0) {
+    body = '<div class="df-big">Sin deuda</div><div class="df-sub">No tenés crédito usado en las tarjetas.</div>';
+  } else if (!inc.n) {
+    body = `<div class="df-big">Sin datos suficientes</div>
+      <div class="df-sub">Para esta cuenta hace falta al menos un mes cerrado con ingresos cargados. Deuda actual: <b>${_creditPesos(debt)}</b>.</div>`;
+  } else {
+    const ratio = debt / inc.avg, pct = Math.round(ratio * 100);
+    const R = 28, C = 2 * Math.PI * R, off = C * (1 - Math.max(0, Math.min(100, pct)) / 100);
+    body = `<div class="df-ratio">
+      <svg class="df-ring" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="La deuda equivale al ${pct}% de un mes de ingresos">
+        <circle class="df-ring-track" cx="32" cy="32" r="${R}" fill="none" stroke-width="6"/>
+        <circle class="df-ring-prog" cx="32" cy="32" r="${R}" fill="none" stroke-width="6" stroke-linecap="round"
+          stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 32 32)"/>
+        <text x="32" y="32" text-anchor="middle" dominant-baseline="central" class="df-ring-txt">${pct > 999 ? '999%+' : pct + '%'}</text>
+      </svg>
+      <div class="df-ratio-txt">
+        <div class="df-big" id="dfDebtMonths">Tu deuda equivale a ${_dfMonthsTxt(ratio)} de ingresos</div>
+        <div class="df-sub"><b id="dfDebtPct">${pct}%</b> de un mes de ingresos</div>
+      </div>
+    </div>
+    <div class="df-nums">
+      <span>Deuda <b>${_creditPesos(debt)}</b></span>
+      <span>Ingreso mensual promedio <b>${_creditPesos(inc.avg)}</b></span>
+    </div>
+    <div class="df-sub" id="dfDebtBasis">Ingreso calculado con el promedio de ${inc.n} ${inc.n === 1 ? 'mes cerrado' : 'meses cerrados'} con ingresos (no cuenta el mes en curso).</div>`;
+  }
+  return `<div class="df-block" id="dfDebtIncome"><div class="df-h">Deuda sobre ingresos</div>${body}</div>`;
+}
+
+function _dfNetDebtHtml(debt) {
+  const nw = calcNetWorth();
+  let body;
+  if (debt <= 0) {
+    body = '<div class="df-big">Sin deuda</div>';
+  } else if (nw > 0) {
+    const r = nw / debt;
+    body = `<div class="df-big">Tu patrimonio equivale a ${Math.abs(r - 1) < 0.05 ? '1 vez' : _dfNum(r) + ' veces'} tu deuda</div>
+      <div class="df-nums"><span>Patrimonio <b>${_creditPesos(nw)}</b></span><span>Deuda <b>${_creditPesos(debt)}</b></span></div>`;
+  } else {
+    body = `<div class="df-big df-neg">Tu patrimonio es ${nw < 0 ? 'negativo' : 'cero'}: ${_creditPesos(nw)}</div>
+      <div class="df-sub">No alcanza para cubrir la deuda de <b>${_creditPesos(debt)}</b>.</div>`;
+  }
+  const note = debt > 0 ? '<div class="df-sub">El patrimonio ya tiene descontado el crédito usado.</div>' : '';
+  return `<div class="df-block" id="dfNetDebt"><div class="df-h">Patrimonio sobre deuda</div>${body}${note}</div>`;
+}
+
+function _dfFlowHtml(today) {
+  const f = dfMonthFlow(today);
+  const mo = _CC_MONTHS[+today.slice(5, 7) - 1];
+  const head = `<div class="df-h">Flujo de efectivo del mes</div>`;
+  if (!f.income.count && !f.expense.count) {
+    return `<div class="df-block" id="dfFlow">${head}<div class="df-big">Sin movimientos este mes</div>
+      <div class="df-sub">Cuando cargues ingresos o gastos de ${mo}, vas a ver acá el resumen.</div></div>`;
+  }
+  const avgDay = (s) => _creditPesos(Math.round(s.total / f.day));
+  const avgRec = (s) => (s.count ? _creditPesos(Math.round(s.total / s.count)) : '—');
+  const flow = _ccRound(f.income.total - f.expense.total);
+  const flowTxt = (flow > 0 ? '+' : '') + _creditPesos(flow);
+  const flowMsg = flow > 0 ? 'Entró más de lo que salió' : flow < 0 ? 'Salió más de lo que entró' : 'Entró lo mismo que salió';
+  return `<div class="df-block" id="dfFlow">${head}
+    <div class="df-sub">Del 1 al ${f.day} de ${mo}${f.day === 1 ? ' (1 día)' : ` (${f.day} días)`}.</div>
+    <table class="df-table" id="dfFlowTable">
+      <thead><tr><th scope="col"><span class="sr-only">Concepto</span></th><th scope="col">Ingreso</th><th scope="col">Gasto</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Cantidad de registros</th><td>${f.income.count}</td><td>${f.expense.count}</td></tr>
+        <tr><th scope="row">Promedio por día</th><td>${avgDay(f.income)}</td><td>${avgDay(f.expense)}</td></tr>
+        <tr><th scope="row">Promedio por registro</th><td>${avgRec(f.income)}</td><td>${avgRec(f.expense)}</td></tr>
+        <tr class="df-total"><th scope="row">Total</th><td>${_creditPesos(f.income.total)}</td><td>${_creditPesos(f.expense.total)}</td></tr>
+      </tbody>
+    </table>
+    <div class="df-flow" id="dfFlowNet"><span>Flujo de efectivo</span><b>${flowTxt}</b></div>
+    <div class="df-sub">${flowMsg}.</div></div>`;
+}
+
+function renderDebtFlow() {
+  const el = document.getElementById('debtFlowBody');
+  if (!el) return;
+  const today = getActiveDate();
+  const debt = calcCreditUsed();
+  el.innerHTML = _dfDebtIncomeHtml(debt, today) + _dfNetDebtHtml(debt) + _dfFlowHtml(today);
 }
 
 // Cambiar el cierre/vencimiento de una tarjeta con compras movería todas sus cuotas de fecha.
