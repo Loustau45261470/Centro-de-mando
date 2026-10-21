@@ -274,6 +274,20 @@
       "desc": "S.cardCharges (compras con tarjeta) y S.cardPayments (pagos de resumen) son claves nuevas de primer nivel: se agregan a la lista de arrays con id de _rescueLocal para que una compra o pago cargado en un dispositivo no se pierda si la nube trae un estado sin el. Cubierto por tests/tarjetas-sync.spec.js.",
       "file": "app.js",
       "marker": "'accounts','cardCharges','cardPayments'"
+    },
+    {
+      "id": "seasonals-sync-rescue",
+      "fecha": "2026-10-20",
+      "desc": "S.seasonals (gastos estacionales: regalos, cumpleanos, etc.) es clave nueva de primer nivel: se agrega a la lista de arrays con id de _rescueLocal para que un estacional cargado en un dispositivo no se pierda si la nube trae un estado sin el. Cubierto por tests/seasonals-sync.spec.js.",
+      "file": "app.js",
+      "marker": "'bodyWeight','exercises','seasonals'"
+    },
+    {
+      "id": "budget-roll-from-prev-month",
+      "fecha": "2026-10-20",
+      "desc": "El presupuesto de cada mes se rearma desde los limites finales del mes inmediatamente anterior cuando el mes llega (rollBudgets), pero SOLO si lo creo el codigo nuevo (bandera auto:true). Un mes sin banderas (de la version anterior o de Tobias) jamas se pisa solo: se ofrece rehacerlo con un aviso (budgetPendingResolve) con Deshacer. Antes una heuristica de firma marcaba como regenerable un mes que Tobias habia editado y perdia datos. Cubierto por tests/budgets.spec.js.",
+      "file": "finanzas.js",
+      "marker": "function _rollBudgets(curMk)"
     }
   ]
 }

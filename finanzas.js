@@ -1721,8 +1721,7 @@ let budgetActiveMonth = null;
 let budgetActiveYear = null;
 
 function _curMonthKey() {
-  const n = new Date();
-  return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`;
+  return getActiveDate().slice(0, 7);
 }
 
 // Año siguiente al dado, derivado con rollover nativo de Date (mes 12 = enero del año próximo).
@@ -1734,38 +1733,202 @@ function _emptyBudget() { return { fixed: [], reserved: [] }; }
 
 function _budgetItemTotal(it) { return (+it.v1 || 0) * (+it.v2 || 0) * (+it.v3 || 0); }
 
-// Crea el presupuesto del mes `mk` si no existe, copiando el último mes previo
-// existente (con ids nuevos). Devuelve true si lo creó. Edge: sin mes previo → vacío.
+// ── Armado mensual del presupuesto ──
+// Regla de oro: la app NUNCA pisa un mes que no creó ella. Banderas de cada mes:
+//  · `auto:true` = borrador que armó el código nuevo y nadie tocó (se rehace solo al llegar el mes).
+//  · `touched:true` = Tobías lo editó o eligió dejarlo como está (nunca se pisa).
+//  · `auto:false, touched:false` = ya resuelto (se armó solo al llegar el mes, o Tobías pidió rehacerlo).
+//  · sin banderas = lo creó la versión anterior o Tobías: es suyo, no se toca solo (ver _budgetPendingMonths).
+// Las líneas estacionales viven aparte (b.seasonal) para que NO viajen al mes siguiente con la copia de límites.
+function _budgetAutoOf(b) { return !!(b && b.auto === true && !b.touched); }
+function _touchBudget(b) { if (b) { b.touched = true; delete b.auto; } }
+function _prevBudgetKey(mk) {
+  const ks = Object.keys(S.budgets || {}).filter(k => k < mk).sort();
+  return ks.length ? ks[ks.length - 1] : null;
+}
+// Copia los límites tal como quedaron (ids nuevos). No copia estacionales.
+function _copyBudgetLimits(src) {
+  return {
+    fixed:    ((src && src.fixed)    || []).map(it => ({ id: uid(), name: it.name, category: it.category, unit: it.unit, v1: it.v1, v2: it.v2, v3: it.v3 })),
+    reserved: ((src && src.reserved) || []).map(it => ({ id: uid(), name: it.name, category: it.category, amount: it.amount })),
+  };
+}
+function _limitsKey(b) {
+  return JSON.stringify([
+    ((b && b.fixed) || []).map(it => [it.name, it.category, it.unit, it.v1, it.v2, it.v3]),
+    ((b && b.reserved) || []).map(it => [it.name, it.category, it.amount]),
+  ]);
+}
+function _limitsSummary(b) {
+  const fx = (b && b.fixed) || [], rs = (b && b.reserved) || [];
+  let total = 0;
+  fx.forEach(it => { total += _budgetItemTotal(it); });
+  rs.forEach(it => { total += (+it.amount || 0); });
+  return { n: fx.length + rs.length, total };
+}
+function _calPrevMonthKey(mk) {
+  const [y, m] = mk.split('-').map(Number);
+  const d = new Date(y, m - 2, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// Crea el presupuesto del mes `mk` si no existe, copiando el último mes previo existente
+// (con ids nuevos) y marcándolo como armado por la app. Devuelve true si lo creó.
+// Edge: sin mes previo → vacío.
 function ensureBudgetMonth(mk) {
   if (!S.budgets) S.budgets = {};
   if (S.budgets[mk]) return false;
-  const prevKeys = Object.keys(S.budgets).filter(k => k < mk).sort();
-  const src = prevKeys.length ? S.budgets[prevKeys[prevKeys.length - 1]] : null;
-  if (src) {
-    S.budgets[mk] = {
-      fixed:    (src.fixed    || []).map(it => ({ id: uid(), name: it.name, category: it.category, unit: it.unit, v1: it.v1, v2: it.v2, v3: it.v3 })),
-      reserved: (src.reserved || []).map(it => ({ id: uid(), name: it.name, category: it.category, amount: it.amount })),
-    };
-  } else {
-    S.budgets[mk] = _emptyBudget();
-  }
+  const pk = _prevBudgetKey(mk);
+  const b = pk ? _copyBudgetLimits(S.budgets[pk]) : _emptyBudget();
+  b.auto = true;
+  S.budgets[mk] = b;
   return true;
 }
 
-// Precrea en cascada los meses FUTUROS de `year` (idempotente por mes vía ensureBudgetMonth).
+// Mantenimiento de los meses hasta `curMk` (inclusive). Devuelve true si cambió algo (no guarda).
+//  1) Solo se rehace un mes con `auto:true` (borrador que armó el código nuevo, sin editar) que ya llegó:
+//     parte de cómo quedó el mes inmediatamente anterior (o el más reciente anterior si falta), en orden.
+//     Un mes sin banderas nunca se toca acá: lo resuelve Tobías con el aviso (_budgetPendingMonths).
+//  2) Si el mes actual no existe, se arma igual desde el anterior.
+function _rollBudgets(curMk) {
+  let changed = false;
+  Object.keys(S.budgets).sort().forEach(mk => {
+    if (mk > curMk) return;
+    const b = S.budgets[mk];
+    if (!_budgetAutoOf(b)) return;
+    const pk = _prevBudgetKey(mk);
+    if (pk) { Object.assign(b, _copyBudgetLimits(S.budgets[pk])); b.base = pk; b.seasonal = []; }
+    b.auto = false; b.touched = false;
+    changed = true;
+  });
+  if (!S.budgets[curMk]) {
+    const pk = _prevBudgetKey(curMk);
+    ensureBudgetMonth(curMk);
+    const c = S.budgets[curMk];
+    c.auto = false; c.touched = false;
+    if (pk) c.base = pk;
+    changed = true;
+  }
+  return changed;
+}
+
+// Meses sin banderas (de la versión anterior o de Tobías), futuros o el actual, cuyos límites difieren del
+// mes anterior (o cuyo mes anterior, también futuro, está pendiente: al rehacerlo cambia el de este): se
+// ofrecen para rehacer con un aviso, nunca automático. Si son iguales al anterior no hay nada que decidir;
+// si el anterior cambia después, el aviso aparece.
+function _budgetPendingMonths(curMk) {
+  const out = [];
+  Object.keys(S.budgets || {}).sort().forEach(mk => {
+    const b = S.budgets[mk], pk = _prevBudgetKey(mk);
+    if (mk < curMk || !b || b.auto !== undefined || b.touched !== undefined || !pk) return;
+    if (_limitsKey(b) !== _limitsKey(S.budgets[pk]) || (pk > curMk && out.includes(pk))) out.push(mk);
+  });
+  return out;
+}
+
+// Copia en memoria de los meses rehechos con el aviso, para "Deshacer" (dura hasta recargar o editar el mes).
+let _budgetUndo = null;
+let _budgetPendOff = [];   // meses de la lista que Tobías dejó sin marcar (para no volver a marcarlos al repintar)
+function _budgetUndoValid() {
+  return (_budgetUndo || []).filter(u => { const b = S.budgets[u.mk]; return b && b.auto === false && b.touched === false; });
+}
+
+function budgetPendingResolve(action) {
+  const curMk = getActiveDate().slice(0, 7);
+  const pending = _budgetPendingMonths(curMk);
+  const picked = [...document.querySelectorAll('#budgetPending input[data-pend]:checked')].map(i => i.dataset.pend).filter(mk => pending.includes(mk)).sort();
+  if (action === 'redo') {
+    if (!picked.length) { showToast('Marcá al menos un mes'); return; }
+    const undo = [];
+    picked.forEach(mk => {
+      const b = S.budgets[mk], pk = _prevBudgetKey(mk);
+      undo.push({ mk, snap: JSON.parse(JSON.stringify(b)) });
+      Object.assign(b, _copyBudgetLimits(S.budgets[pk]));
+      b.base = pk; b.auto = false; b.touched = false;
+    });
+    _budgetUndo = undo;
+    _budgetPendOff = pending.filter(mk => !picked.includes(mk));   // lo que dejó sin marcar sigue sin marcar al repintar
+    _syncSeasonalLines(curMk);
+  } else {
+    // "Dejar los demás como están": todo mes de la lista que NO está marcado queda resuelto y no se vuelve a preguntar.
+    pending.filter(mk => !picked.includes(mk)).forEach(mk => { S.budgets[mk].touched = true; });
+    _budgetUndo = null; _budgetPendOff = [];
+  }
+  saveState(); renderBudget();
+}
+
+// El botón de rehacer solo sirve si hay algún mes marcado.
+function budgetPendingSync() {
+  const redo = document.getElementById('budgetPendingRedo');
+  if (redo) redo.disabled = !document.querySelector('#budgetPending input[data-pend]:checked');
+}
+
+function budgetUndoRedo() {
+  _budgetUndoValid().forEach(u => { S.budgets[u.mk] = u.snap; });
+  _budgetUndo = null;
+  saveState(); renderBudget();
+}
+
+// Carga solos los gastos estacionales en los meses desde `curMk` en adelante (los pasados no se tocan):
+// agrega la línea que falta (salvo que Tobías la haya quitado de ese mes), pone al día las que no ajustó
+// y saca las de un estacional que ya no existe o cambió de mes. Devuelve true si cambió algo.
+function _syncSeasonalLines(curMk) {
+  const seas = Array.isArray(S.seasonals) ? S.seasonals : [];
+  const byId = new Map(seas.map(s => [s.id, s]));
+  let changed = false;
+  Object.keys(S.budgets || {}).forEach(mk => {
+    const b = S.budgets[mk];
+    if (!b || mk < curMk) return;
+    const mNum = +mk.slice(5, 7);
+    const lines = Array.isArray(b.seasonal) ? b.seasonal : [];
+    const skip = Array.isArray(b.skipSeasonal) ? b.skipSeasonal : [];
+    const keep = lines.filter(l => { const s = byId.get(l.seasonalId); return s && s.month === mNum; });
+    let dirty = keep.length !== lines.length;
+    keep.forEach(l => {
+      const s = byId.get(l.seasonalId);
+      if (!l.adjusted && (l.name !== s.name || l.amount !== s.amount || l.category !== s.category)) {
+        l.name = s.name; l.amount = s.amount; l.category = s.category; dirty = true;
+      }
+    });
+    seas.forEach(s => {
+      if (s.month === mNum && !skip.includes(s.id) && !keep.some(l => l.seasonalId === s.id)) {
+        keep.push({ id: uid(), seasonalId: s.id, name: s.name, category: s.category, amount: s.amount });
+        dirty = true;
+      }
+    });
+    if (dirty) { b.seasonal = keep; changed = true; }
+  });
+  return changed;
+}
+
+// Mantiene al día el presupuesto (rehacer meses que llegaron + estacionales) y guarda solo si cambió algo.
+function rollBudgets() {
+  if (!S.budgets) S.budgets = {};
+  const curMk = getActiveDate().slice(0, 7);
+  let changed = _rollBudgets(curMk);
+  if (_syncSeasonalLines(curMk)) changed = true;
+  if (changed) saveState();
+  return changed;
+}
+
+// Precrea en cascada los meses FUTUROS de `year` como borradores (idempotente por mes vía ensureBudgetMonth);
+// llegado el mes, rollBudgets los rehace con cómo quedó el mes anterior mientras nadie los haya editado.
 // Año calendario real actual: arranca en el mes real actual (nunca retro-crea meses pasados).
 // Años futuros (>= año real actual): arrancan en enero (todos sus meses son futuros).
-// Años pasados: no crea nada. Un solo saveState() al final si se creó algo, nunca uno por mes.
+// Años pasados: no crea nada. Un solo saveState() al final si se cambió algo, nunca uno por mes.
 function ensureBudgetYear(year) {
   if (!S.budgets) S.budgets = {};
-  const realCurYear = new Date().getFullYear();
-  if (year < realCurYear) return false;
-  const startMonth = (year === realCurYear) ? (new Date().getMonth() + 1) : 1;
-  let changed = false;
-  for (let m = startMonth; m <= 12; m++) {
-    const mk = `${year}-${String(m).padStart(2,'0')}`;
-    if (ensureBudgetMonth(mk)) changed = true;
+  const today = getActiveDate();
+  const curMk = today.slice(0, 7);
+  const realCurYear = +today.slice(0, 4);
+  let changed = _rollBudgets(curMk);
+  if (year >= realCurYear) {
+    const startMonth = (year === realCurYear) ? +today.slice(5, 7) : 1;
+    for (let m = startMonth; m <= 12; m++) {
+      if (ensureBudgetMonth(`${year}-${String(m).padStart(2,'0')}`)) changed = true;
+    }
   }
+  if (_syncSeasonalLines(curMk)) changed = true;
   if (changed) saveState();
   return changed;
 }
@@ -1798,10 +1961,11 @@ function renderBudget() {
   const body = document.getElementById('budgetBody');
   if (!body) return;
   if (!S.budgets) S.budgets = {};
-  const realCurYear = new Date().getFullYear();
+  const realCurYear = +getActiveDate().slice(0, 4);
   if (!budgetActiveYear) budgetActiveYear = realCurYear;
-  // renderBudget es de solo lectura: la precreación en cascada corre en setBudgetYear()
-  // (cambio explícito de año) y en el init de app.js (año calendario real al arrancar).
+  // La precreación en cascada corre en setBudgetYear() (cambio explícito de año) y en el init de
+  // app.js. Acá solo se rehace lo que ya llegó (por si la app quedó abierta pasando el día 1).
+  rollBudgets();
 
   const months = getBudgetMonths();
   if (!budgetActiveMonth || !months.includes(budgetActiveMonth)) {
@@ -1881,6 +2045,90 @@ function renderBudget() {
     </div>`;
   }).join('') : `<p class="empty-state">${budgetCatFilter ? 'Sin reservados en esta categoría' : 'Sin gastos reservados'}</p>`;
 
+  // Gastos estacionales cargados en este mes (línea propia por estacional, monto editable por mes)
+  const seasLines = b.seasonal || [];
+  let totalSeas = 0;
+  seasLines.forEach(it => { totalSeas += (+it.amount || 0); });
+  const seasView = _viewRows(seasLines, it => (+it.amount || 0));
+  const seasRows = seasView.map(it => {
+    const ci = getCatInfo(it.category, 'expense');
+    return `<div class="sub-row" data-seasonal-line="${escHtml(it.id)}">
+      <div class="sub-info">
+        <div class="sub-name">${escHtml(it.name)}</div>
+        <div class="sub-detail">${escHtml(ci.icon)} ${escHtml(ci.label) || '—'} · ${it.adjusted ? 'Ajustado para este mes' : 'Monto del estacional'}</div>
+      </div>
+      <div class="flex gap-8 items-center">
+        <span class="mono bold">${fmtMoney(+it.amount || 0, 'ARS')}</span>
+        <button class="icon-btn" aria-label="Cambiar el monto de este mes" onclick="openSeasonalLine('${escHtml(it.id)}')">${_EDIT_SVG}</button>
+        <button class="icon-btn" aria-label="Quitar de este mes" onclick="deleteSeasonalLine('${escHtml(it.id)}')">${_DEL_SVG}</button>
+      </div>
+    </div>`;
+  }).join('');
+  const seasBlock = seasLines.length ? `
+    <div class="budget-block-hdr"><span>Estacionales de ${monthLabel}</span></div>
+    ${seasRows || '<p class="empty-state">Sin estacionales en esta categoría</p>'}` : '';
+
+  // Lista base de estacionales (se repiten cada año en su mes)
+  const seasBase = [...(S.seasonals || [])].sort((a2, c2) => (a2.month - c2.month) || String(a2.name).localeCompare(String(c2.name)));
+  const seasBaseRows = seasBase.length ? seasBase.map(s => {
+    const ci = getCatInfo(s.category, 'expense');
+    return `<div class="sub-row" data-seasonal="${escHtml(s.id)}">
+      <div class="sub-info">
+        <div class="sub-name">${escHtml(s.name)}</div>
+        <div class="sub-detail">${escHtml(CAL_MONTHS[(+s.month || 1) - 1])} · ${escHtml(ci.icon)} ${escHtml(ci.label) || '—'}</div>
+      </div>
+      <div class="flex gap-8 items-center">
+        <span class="mono bold">${fmtMoney(+s.amount || 0, 'ARS')}</span>
+        <button class="icon-btn" aria-label="Editar estacional" onclick="openSeasonal('${escHtml(s.id)}')">${_EDIT_SVG}</button>
+        <button class="icon-btn" aria-label="Eliminar estacional" onclick="deleteSeasonal('${escHtml(s.id)}')">${_DEL_SVG}</button>
+      </div>
+    </div>`;
+  }).join('') : '<p class="empty-state">Todavía no cargaste ninguno. Ej.: regalo de Navidad, Día de la Madre, un cumpleaños.</p>';
+
+  // Aviso: un mes futuro armado por la app es un borrador, no el presupuesto final
+  const curMkNow = getActiveDate().slice(0, 7);
+  const provNote = (_budgetAutoOf(b) && budgetActiveMonth > curMkNow)
+    ? (() => { const [py, pm] = _calPrevMonthKey(budgetActiveMonth).split('-'); return `<p class="budget-prov">Borrador: el día 1 de ${monthLabel} se arma de nuevo con cómo quede ${CAL_MONTHS[+pm - 1]} ${py}. Si cambiás algo acá, queda como lo dejes.</p>`; })()
+    : '';
+
+  // Aviso (uno solo, nunca automático): meses que ya existían sin que los haya armado el código nuevo y cuyos
+  // límites difieren del mes anterior. Más, si se acaba de rehacer alguno, el botón para deshacerlo.
+  const _mLbl = mk => { const [y, mo] = mk.split('-'); return `${CAL_MONTHS[+mo - 1]} ${y}`; };
+  const _sumTxt = s => `${s.n} ${s.n === 1 ? 'ítem' : 'ítems'} · ${fmtMoney(s.total, 'ARS')}`;
+  const pendMks = _budgetPendingMonths(curMkNow);
+  const pendOn = pendMks.filter(mk => mk > curMkNow && !_budgetPendOff.includes(mk));   // marcados de entrada: los futuros
+  const undoMks = _budgetUndoValid().map(u => u.mk);
+  let noticeBox = '';
+  if (pendMks.length || undoMks.length) {
+    const doneHtml = undoMks.length
+      ? `<div class="budget-notice-done"><span>Se rehizo ${undoMks.map(_mLbl).join(', ')} con cómo quedó el mes anterior.</span>
+           <button class="btn btn-ghost btn-sm" onclick="budgetUndoRedo()">Deshacer</button></div>` : '';
+    let pendHtml = '';
+    if (pendMks.length) {
+      const one = pendMks.length === 1;
+      const rows = pendMks.map(mk => {
+        const pk = _prevBudgetKey(mk);
+        const prevTxt = pendMks.includes(pk) ? `se arma desde cómo quede ${_mLbl(pk)}` : `${_mLbl(pk)} quedó con ${_sumTxt(_limitsSummary(S.budgets[pk]))}`;
+        return `<label class="budget-notice-row">
+          <input type="checkbox" data-pend="${mk}" ${pendOn.includes(mk) ? 'checked' : ''} onchange="budgetPendingSync()">
+          <span><b>${_mLbl(mk)}</b> hoy tiene ${_sumTxt(_limitsSummary(S.budgets[mk]))}; ${prevTxt}.</span>
+        </label>`;
+      }).join('');
+      pendHtml = `<div id="budgetPending">
+        <p class="budget-notice-t">${one
+          ? `${_mLbl(pendMks[0])} ya tenía un presupuesto armado antes, con límites de otros meses. ¿Querés rehacerlo con cómo quedó ${_mLbl(_prevBudgetKey(pendMks[0]))}?`
+          : 'Estos meses ya tenían un presupuesto armado antes, con límites de otros meses. ¿Querés rehacerlos con cómo quedó el mes anterior? Se rehacen en orden.'}</p>
+        ${rows}
+        <div class="budget-notice-btns">
+          <button class="btn btn-primary btn-sm" id="budgetPendingRedo" onclick="budgetPendingResolve('redo')" ${pendOn.length ? '' : 'disabled'}>Rehacer los marcados</button>
+          <button class="btn btn-ghost btn-sm" onclick="budgetPendingResolve('keep')">Dejar los demás como están</button>
+        </div>
+        <p class="budget-notice-n">"Dejar los demás como están" cierra la lista: los meses sin marcar ya no se vuelven a preguntar. Lo rehecho se puede deshacer mientras no edites ese mes ni recargues la app.</p>
+      </div>`;
+    }
+    noticeBox = `<div class="budget-notice" role="region" aria-label="Aviso de presupuesto">${doneHtml}${pendHtml}</div>`;
+  }
+
   // Comparación plan vs real (solo ARS, mes activo)
   const realByCat = {};
   S.transactions.forEach(t => {
@@ -1892,6 +2140,7 @@ function renderBudget() {
   const budByCat = {};
   b.fixed.forEach(it => { if (it.category) budByCat[it.category] = (budByCat[it.category] || 0) + _budgetItemTotal(it); });
   b.reserved.forEach(it => { if (it.category) budByCat[it.category] = (budByCat[it.category] || 0) + (+it.amount || 0); });
+  seasLines.forEach(it => { if (it.category) budByCat[it.category] = (budByCat[it.category] || 0) + (+it.amount || 0); });
   const allCats = [...new Set([...Object.keys(budByCat), ...Object.keys(realByCat)])]
     .filter(c => !budgetCatFilter || c === budgetCatFilter)
     .sort((a, c) => ((budByCat[c]||0)+(realByCat[c]||0)) - ((budByCat[a]||0)+(realByCat[a]||0)));
@@ -1911,7 +2160,7 @@ function renderBudget() {
 
   // Controles de vista (orden + categoría). Las categorías ofrecidas son las que
   // realmente aparecen en este mes: un desplegable con opciones vacías no sirve.
-  const usedCats = [...new Set([...b.fixed, ...b.reserved].map(it => it.category).filter(Boolean))];
+  const usedCats = [...new Set([...b.fixed, ...b.reserved, ...seasLines].map(it => it.category).filter(Boolean))];
   const catOpts = usedCats.map(c => {
     const ci = getCatInfo(c, 'expense');
     return `<option value="${escHtml(c)}" ${c === budgetCatFilter ? 'selected' : ''}>${escHtml(ci.icon)} ${escHtml(ci.label) || escHtml(c)}</option>`;
@@ -1927,16 +2176,19 @@ function renderBudget() {
   </div>`;
 
   body.innerHTML = `
+    ${noticeBox}
     <div class="budget-totals">
       <div class="budget-total-main">
         <span class="budget-total-lbl">Presupuesto total</span>
-        <span class="budget-total-num">${fmtMoney(totalFijo + totalRes, 'ARS')}</span>
+        <span class="budget-total-num">${fmtMoney(totalFijo + totalRes + totalSeas, 'ARS')}</span>
       </div>
       <div class="budget-total-sub">
         <span>Mínimo fijo: <b>${fmtMoney(totalFijo, 'ARS')}</b></span>
         <span>Reservados: <b>${fmtMoney(totalRes, 'ARS')}</b></span>
+        ${seasLines.length ? `<span>Estacionales: <b>${fmtMoney(totalSeas, 'ARS')}</b></span>` : ''}
       </div>
     </div>
+    ${provNote}
     ${controls}
     <div class="budget-block-hdr">
       <span>Mínimo fijo</span>
@@ -1948,6 +2200,12 @@ function renderBudget() {
       <button class="btn btn-ghost btn-sm" onclick="openBudgetReserved()">+ Reservado</button>
     </div>
     ${resRows}
+    ${seasBlock}
+    <div class="budget-block-hdr">
+      <span>Gastos estacionales</span>
+      <button class="btn btn-ghost btn-sm" onclick="openSeasonal()">+ Estacional</button>
+    </div>
+    ${seasBaseRows}
     <div class="budget-block-hdr"><span>Plan vs. real · ${monthLabel}</span></div>
     ${comparison}`;
   if (typeof renderBudgetSummary === 'function') renderBudgetSummary();
@@ -1959,6 +2217,7 @@ function _budgetMonthTotal(mk) {
   let t = _pfBudgetTotal(mk);
   (b.fixed || []).forEach(it => t += _budgetItemTotal(it));
   (b.reserved || []).forEach(it => t += (+it.amount || 0));
+  (b.seasonal || []).forEach(it => t += (+it.amount || 0));
   return t;
 }
 function _spentMonth(mk) {
@@ -1984,6 +2243,7 @@ function renderBudgetSummary() {
   if (b) {
     (b.fixed || []).forEach(it => { if (it.category) budByCat[it.category] = (budByCat[it.category] || 0) + _budgetItemTotal(it); });
     (b.reserved || []).forEach(it => { if (it.category) budByCat[it.category] = (budByCat[it.category] || 0) + (+it.amount || 0); });
+    (b.seasonal || []).forEach(it => { if (it.category) budByCat[it.category] = (budByCat[it.category] || 0) + (+it.amount || 0); });
   }
   const cats = [...new Set([...Object.keys(budByCat), ...Object.keys(realByCat)])]
     .sort((a, c) => (realByCat[c] || 0) - (realByCat[a] || 0)).slice(0, 5);
@@ -2016,7 +2276,13 @@ function renderBudgetSummary() {
   // Medidor radial (arco 270°). C = 2·π·50 ≈ 314.16; arco visible = 0.75·C ≈ 235.6.
   const ARC = 235.6, FULL = 314.16;
   const valDash = `${(ARC * Math.min(ratio, 1)).toFixed(1)} ${FULL}`;
+  // Aviso corto (solo si hay meses por decidir) que lleva a la pantalla de presupuestos, donde está la lista.
+  const pendN = _budgetPendingMonths(mk).length;
+  const pendLine = pendN
+    ? `<button class="bsum-pend" onclick="if(window.openBudgetOverlay)openBudgetOverlay()">Tenés ${pendN} ${pendN === 1 ? 'mes' : 'meses'} con presupuesto armado antes: revisalos →</button>`
+    : '';
   body.innerHTML = `
+    ${pendLine}
     <div class="bsum-top">
       <div class="bsum-gauge-wrap">
         <svg class="bsum-gauge" viewBox="0 0 120 120" aria-hidden="true">
@@ -2182,6 +2448,7 @@ function saveBudgetFixed() {
   };
   if (id) { const it = b.fixed.find(x => x.id === id); if (it) Object.assign(it, data); }
   else { b.fixed.push({ id: uid(), ...data }); }
+  _touchBudget(b);
   saveState(); renderBudget(); closeModal('modal-budget-fixed');
   showToast('Ítem fijo guardado');
 }
@@ -2190,6 +2457,7 @@ function deleteBudgetFixed(id) {
   const b = S.budgets[budgetActiveMonth];
   if (!b) return;
   b.fixed = b.fixed.filter(x => x.id !== id);
+  _touchBudget(b);
   saveState(); renderBudget(); closeModal('modal-budget-fixed');
 }
 
@@ -2218,6 +2486,7 @@ function saveBudgetReserved() {
   };
   if (id) { const it = b.reserved.find(x => x.id === id); if (it) Object.assign(it, data); }
   else { b.reserved.push({ id: uid(), ...data }); }
+  _touchBudget(b);
   saveState(); renderBudget(); closeModal('modal-budget-reserved');
   showToast('Gasto reservado guardado');
 }
@@ -2226,7 +2495,114 @@ function deleteBudgetReserved(id) {
   const b = S.budgets[budgetActiveMonth];
   if (!b) return;
   b.reserved = b.reserved.filter(x => x.id !== id);
+  _touchBudget(b);
   saveState(); renderBudget(); closeModal('modal-budget-reserved');
+}
+
+// ── Gastos estacionales (S.seasonals): regalos, cumpleaños, Día de la Madre... ──
+// Se crean/editan/eliminan acá; en su mes se cargan solos como línea del presupuesto (rollBudgets).
+// Monto válido: mayor a 0 y con hasta 2 decimales. Devuelve null si no sirve.
+function _parseMoney2(raw) {
+  const s = String(raw == null ? '' : raw).trim().replace(',', '.');
+  if (!/^\d+(\.\d{1,2})?$/.test(s)) return null;
+  const n = +s;
+  return n > 0 ? n : null;
+}
+const _SEAS_MONEY_MSG = 'Escribí un monto mayor a 0, con hasta 2 decimales';
+
+function openSeasonal(id) {
+  if (!Array.isArray(S.seasonals)) S.seasonals = [];
+  const s = id ? S.seasonals.find(x => x.id === id) : null;
+  document.getElementById('seasonalTitle').textContent = s ? 'Editar estacional' : 'Nuevo estacional';
+  document.getElementById('seasonalId').value = s ? s.id : '';
+  document.getElementById('seasonalName').value = s ? s.name : '';
+  document.getElementById('seasonalMonth').innerHTML = CAL_MONTHS.map((m, i) =>
+    `<option value="${i + 1}" ${s && s.month === i + 1 ? 'selected' : ''}>${m}</option>`).join('');
+  fillBudgetCatSelect('seasonalCat', s ? s.category : BUDGET_EXPENSE_CATS[0]);
+  document.getElementById('seasonalAmount').value = s ? s.amount : '';
+  document.getElementById('seasonalDel').style.display = s ? '' : 'none';
+  openModal('modal-seasonal');
+}
+
+function saveSeasonal() {
+  const name = document.getElementById('seasonalName').value.trim();
+  if (!name) { showToast('Escribí un nombre'); return; }
+  if (name.length > 60) { showToast('El nombre es muy largo (máximo 60 letras)'); return; }
+  const mRaw = document.getElementById('seasonalMonth').value;
+  const month = /^\d{1,2}$/.test(mRaw) ? +mRaw : 0;
+  if (month < 1 || month > 12) { showToast('Elegí un mes del 1 al 12'); return; }
+  const amount = _parseMoney2(document.getElementById('seasonalAmount').value);
+  if (amount === null) { showToast(_SEAS_MONEY_MSG); return; }
+  const category = document.getElementById('seasonalCat').value;
+  if (!BUDGET_EXPENSE_CATS.includes(category)) { showToast('Elegí una categoría'); return; }
+  if (!Array.isArray(S.seasonals)) S.seasonals = [];
+  const idEl = document.getElementById('seasonalId');
+  const cur = idEl.value ? S.seasonals.find(x => x.id === idEl.value) : null;
+  if (cur) Object.assign(cur, { name, month, amount, category });
+  else {
+    const id = uid();
+    S.seasonals.push({ id, name, month, amount, category });
+    idEl.value = id;   // un segundo clic guarda sobre este mismo, no crea otro
+  }
+  _syncSeasonalLines(getActiveDate().slice(0, 7));
+  saveState(); renderBudget(); closeModal('modal-seasonal');
+  showToast('Estacional guardado');
+}
+
+function deleteSeasonal(id) {
+  const s = (S.seasonals || []).find(x => x.id === id);
+  if (!s) return;
+  if (!confirm(`¿Eliminar "${s.name}"? Se saca de este mes y de los próximos. Los meses que ya pasaron no cambian.`)) return;
+  S.seasonals = S.seasonals.filter(x => x.id !== id);
+  _syncSeasonalLines(getActiveDate().slice(0, 7));
+  saveState(); renderBudget(); closeModal('modal-seasonal');
+  showToast('Estacional eliminado');
+}
+
+function _seasonalLineOf(lineId) {
+  const b = S.budgets && S.budgets[budgetActiveMonth];
+  const line = b && (b.seasonal || []).find(x => x.id === lineId);
+  return { b, line };
+}
+
+function openSeasonalLine(lineId) {
+  const { line } = _seasonalLineOf(lineId);
+  if (!line) return;
+  document.getElementById('seasonalLineId').value = line.id;
+  document.getElementById('seasonalLineTitle').textContent = line.name;
+  document.getElementById('seasonalLineAmount').value = line.amount;
+  openModal('modal-seasonal-line');
+}
+
+// updateBase=false: el monto vale solo para este mes (el estacional no cambia).
+// updateBase=true: además pasa a ser el monto base del estacional (los próximos años y meses).
+function saveSeasonalLine(updateBase) {
+  const { b, line } = _seasonalLineOf(document.getElementById('seasonalLineId').value);
+  if (!line) return;
+  const amount = _parseMoney2(document.getElementById('seasonalLineAmount').value);
+  if (amount === null) { showToast(_SEAS_MONEY_MSG); return; }
+  line.amount = amount;
+  line.adjusted = !updateBase;
+  if (updateBase) {
+    const s = (S.seasonals || []).find(x => x.id === line.seasonalId);
+    if (s) s.amount = amount;
+  }
+  _touchBudget(b);
+  _syncSeasonalLines(getActiveDate().slice(0, 7));
+  saveState(); renderBudget(); closeModal('modal-seasonal-line');
+  showToast(updateBase ? 'Monto base actualizado' : 'Monto de este mes guardado');
+}
+
+// Quita la línea solo de este mes (el estacional sigue existiendo y vuelve a cargarse otros meses).
+function deleteSeasonalLine(lineId) {
+  const { b, line } = _seasonalLineOf(lineId);
+  if (!line) return;
+  if (!confirm(`¿Quitar "${line.name}" del presupuesto de este mes? El estacional sigue guardado.`)) return;
+  b.seasonal = b.seasonal.filter(x => x.id !== lineId);
+  if (!Array.isArray(b.skipSeasonal)) b.skipSeasonal = [];
+  if (!b.skipSeasonal.includes(line.seasonalId)) b.skipSeasonal.push(line.seasonalId);
+  _touchBudget(b);
+  saveState(); renderBudget(); closeModal('modal-seasonal-line');
 }
 
 let txnActiveMonth = null;

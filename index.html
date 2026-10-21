@@ -21,7 +21,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-<link rel="stylesheet" href="styles.css?v=209">
+<link rel="stylesheet" href="styles.css?v=212">
 <link rel="stylesheet" href="gamemode.css">
 <link rel="stylesheet" href="overlay-core.css">
 <link rel="stylesheet" href="speed-dial.css?v=2">
@@ -1760,6 +1760,44 @@
   </div>
 </div>
 
+<!-- Budget: gasto estacional (alta/edición de la lista base) -->
+<div class="modal-overlay" id="modal-seasonal" onclick="if(event.target===this)closeModal('modal-seasonal')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="seasonalTitle">Nuevo estacional</div>
+    <input type="hidden" id="seasonalId">
+    <div class="field"><label>Nombre</label><input class="inp" id="seasonalName" maxlength="60" placeholder="Ej: Regalo Navidad – mamá"></div>
+    <div class="field"><label>Mes</label><select class="inp" id="seasonalMonth"></select></div>
+    <div class="field"><label>Categoría</label><select class="inp" id="seasonalCat"></select></div>
+    <div class="field"><label>Monto (ARS)</label><input class="inp" type="number" step="0.01" min="0" id="seasonalAmount" placeholder="Ej: 80000"></div>
+    <div class="modal-actions" style="display:flex;gap:8px">
+      <button class="btn btn-danger btn-sm" id="seasonalDel" onclick="deleteSeasonal(document.getElementById('seasonalId').value)">Eliminar</button>
+      <div style="flex:1;display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="closeModal('modal-seasonal')">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveSeasonal()">Guardar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Budget: monto de un estacional en el mes activo -->
+<div class="modal-overlay" id="modal-seasonal-line" onclick="if(event.target===this)closeModal('modal-seasonal-line')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="seasonalLineTitle">Estacional</div>
+    <input type="hidden" id="seasonalLineId">
+    <div class="field"><label>Monto de este mes (ARS)</label><input class="inp" type="number" step="0.01" min="0" id="seasonalLineAmount" placeholder="Ej: 80000"></div>
+    <div class="modal-actions" style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-danger btn-sm" onclick="deleteSeasonalLine(document.getElementById('seasonalLineId').value)">Quitar de este mes</button>
+      <div style="flex:1;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+        <button class="btn btn-ghost" onclick="closeModal('modal-seasonal-line')">Cancelar</button>
+        <button class="btn btn-ghost" id="seasonalLineBase" onclick="saveSeasonalLine(true)">Guardar y usar como monto base</button>
+        <button class="btn btn-primary" onclick="saveSeasonalLine(false)">Guardar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Add / Edit Habit (Vida) -->
 <div class="modal-overlay" id="modal-habit" onclick="if(event.target===this)closeModal('modal-habit')">
   <div class="modal">
@@ -1858,7 +1896,7 @@
 
 <script src="errores.js?v=1"></script>
 <script src="deadlines.js?v=4"></script>
-<script src="app.js?v=191"></script>
+<script src="app.js?v=192"></script>
 <script src="archivo.js?v=1"></script>
 <script src="undo.js?v=1"></script>
 <script src="workspace.js?v=197"></script>
@@ -1867,7 +1905,7 @@
 <script src="habitos.js?v=6"></script>
 <script src="rutinas.js"></script>
 <script src="tarjetas-motor.js?v=2"></script>
-<script src="finanzas.js?v=11"></script>
+<script src="finanzas.js?v=14"></script>
 <script src="proyeccion-mes.js?v=1"></script>
 <script src="recordatorios.js?v=9"></script>
 <script src="objetivos.js"></script>
@@ -1918,7 +1956,7 @@
 <script src="pomodoro.js?v=7"></script>
 <script src="finales.js?v=5"></script>
 <script src="secciones-fab.js?v=13"></script>
-<script src="informes-datos.js?v=3"></script>
+<script src="informes-datos.js?v=4"></script>
 <script src="informes.js?v=3"></script>
 <script src="revision-semanal.js?v=1"></script>
 
