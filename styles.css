@@ -6160,3 +6160,29 @@ input:focus, select:focus, textarea:focus {
 /* Presupuesto: nombres largos (estacionales) se parten en vez de ensanchar la fila en pantallas angostas */
 #budgetBody .sub-row { grid-template-columns: minmax(0, 1fr) auto; }
 #budgetBody .sub-info { min-width: 0; overflow-wrap: anywhere; }
+
+/* ── Deuda y flujo (etapa 10) ── */
+#debt-flow-card, #debt-flow-card .df-block, #debt-flow-card .df-ratio-txt { min-width: 0; }
+.df-block { padding: 10px 0 12px; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+.df-block:last-child { border-bottom: 0; }
+.df-h { font-size: var(--fs-13); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ts); margin-bottom: 8px; }
+.df-big { font-size: var(--fs-15); font-weight: 800; color: var(--tp); line-height: 1.3; }
+.df-neg { color: var(--danger); }
+.df-sub { margin-top: 4px; font-size: var(--fs-12-5); color: var(--tt); }
+.df-sub b { color: var(--ts); font-family: var(--mono); font-weight: 700; }
+.df-ratio { display: flex; align-items: center; gap: 14px; }
+.df-ratio-txt { flex: 1; }
+.df-ring { flex-shrink: 0; }
+.df-ring-track { stroke: var(--border); }
+.df-ring-prog { stroke: var(--accent); transition: stroke-dashoffset .6s cubic-bezier(.16,1,.3,1); }
+.df-ring-txt { fill: var(--tp); font-size: var(--fs-13); font-weight: 800; font-family: var(--mono); }
+.df-nums { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: var(--fs-13); color: var(--ts); }
+.df-nums b { color: var(--tp); font-family: var(--mono); font-weight: 700; }
+.df-table { width: 100%; table-layout: fixed; border-collapse: collapse; margin-top: 8px; font-size: var(--fs-13); }
+.df-table th, .df-table td { padding: 6px 4px; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; vertical-align: top; }
+.df-table thead th { font-size: var(--fs-12-5); font-weight: 700; color: var(--ts); text-align: right; }
+.df-table tbody th { width: 34%; text-align: left; font-weight: 600; color: var(--ts); }
+.df-table td { text-align: right; font-family: var(--mono); font-weight: 700; color: var(--tp); }
+.df-table .df-total th, .df-table .df-total td { color: var(--tp); border-bottom-width: 2px; }
+.df-flow { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 10px; font-weight: 700; color: var(--ts); }
+.df-flow b { font-family: var(--mono); font-size: var(--fs-16); color: var(--tp); overflow-wrap: anywhere; }

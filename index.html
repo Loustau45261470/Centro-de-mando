@@ -21,7 +21,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-<link rel="stylesheet" href="styles.css?v=212">
+<link rel="stylesheet" href="styles.css?v=213">
 <link rel="stylesheet" href="gamemode.css">
 <link rel="stylesheet" href="overlay-core.css">
 <link rel="stylesheet" href="speed-dial.css?v=2">
@@ -578,7 +578,7 @@
         <!-- Net Worth -->
         <div class="card">
           <div class="card-title">
-            💰 Patrimonio Neto
+            💰 Patrimonio (balance real)
             <div style="display:flex;gap:6px">
               <button class="btn btn-ghost btn-sm" onclick="openMoveMoney()">Mover plata</button>
               <button class="btn btn-ghost btn-sm" onclick="openModal('modal-add-account')">+ Cuenta</button>
@@ -591,6 +591,7 @@
           <div class="nw-cash" id="nwCash">$0</div>
           <div class="nw-1pct" id="nw1pct">1% = $0</div>
           <div class="chart-wrap-tall"><canvas id="nwPieChart"></canvas></div>
+          <div class="nw-scale-note" id="nwPieNote">La torta muestra tus cuentas; el crédito usado se descuenta en el balance real.</div>
           <div class="seg seg-sm nw-range" id="nwRangeSeg" role="group" aria-label="Rango del gráfico de patrimonio">
             <button type="button" data-range="1M" onclick="setNWRange('1M')">1M</button>
             <button type="button" data-range="3M" onclick="setNWRange('3M')">3M</button>
@@ -618,6 +619,11 @@
             </span>
           </div>
           <div id="creditBody"></div>
+        </div>
+        <!-- Deuda y flujo de efectivo -->
+        <div class="card" id="debt-flow-card">
+          <div class="card-title">📊 Deuda y flujo</div>
+          <div id="debtFlowBody"></div>
         </div>
         <!-- Activity log -->
         <div class="card" id="activity-card">
@@ -1905,7 +1911,7 @@
 <script src="habitos.js?v=6"></script>
 <script src="rutinas.js"></script>
 <script src="tarjetas-motor.js?v=2"></script>
-<script src="finanzas.js?v=14"></script>
+<script src="finanzas.js?v=15"></script>
 <script src="proyeccion-mes.js?v=1"></script>
 <script src="recordatorios.js?v=9"></script>
 <script src="objetivos.js"></script>
@@ -1956,7 +1962,7 @@
 <script src="pomodoro.js?v=7"></script>
 <script src="finales.js?v=5"></script>
 <script src="secciones-fab.js?v=13"></script>
-<script src="informes-datos.js?v=4"></script>
+<script src="informes-datos.js?v=5"></script>
 <script src="informes.js?v=3"></script>
 <script src="revision-semanal.js?v=1"></script>
 
