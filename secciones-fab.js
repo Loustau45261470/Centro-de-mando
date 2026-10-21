@@ -31,7 +31,7 @@ const _SF_ICONS = {
   informe: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="2.5"/><path d="M7.5 16v-3M12 16v-6M16.5 16v-4.5"/></svg>`,
 };
 
-// ── Presupuesto: overlay que aloja el presupuesto + las obligaciones recurrentes ──
+// ── Presupuesto: overlay que aloja el presupuesto y los fondos ──
 let _sfBudgetSrcs = [];
 function _sfOpenBudget() {
   if (typeof CMOverlay === 'undefined') return;
@@ -42,7 +42,7 @@ function _sfOpenBudget() {
   }
   const host = document.getElementById('ov-budget-host');
   _sfBudgetSrcs = [];
-  ['budget-card', 'fondos-card', 'obligaciones-card'].forEach(id => {
+  ['budget-card', 'fondos-card'].forEach(id => {
     const el = document.getElementById(id);
     if (el) { el._sfHome = { parent: el.parentNode, next: el.nextSibling }; host.appendChild(el); _sfBudgetSrcs.push(el); }
   });

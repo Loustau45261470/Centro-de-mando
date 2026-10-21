@@ -7,18 +7,17 @@
 // Método:
 //   proyección al cierre = gasto real acumulado + comprometido + variable proyectado
 //   - "comprometido": gastos que van a caer sí o sí este mes y todavía no generaron
-//     transacción (gastos fijos sin marcar en fixedExpenseLog, suscripciones sin
-//     facturar, pedidos con llegada este mes). Es determinístico, no se proyecta.
+//     transacción (gastos fijos sin marcar en fixedExpenseLog, pedidos con llegada
+//     este mes). Es determinístico, no se proyecta.
 //   - "variable proyectado": ritmo diario de gasto variable × días que faltan.
 //     El ritmo se calcula sobre DÍAS TRANSCURRIDOS (no días con movimiento): un día
 //     sin ninguna transacción cuenta como gasto 0 ese día, porque la ausencia de
 //     registro en una cuenta ya reconciliada es gasto que no ocurrió.
-//   - Para no contar dos veces lo comprometido: las transacciones generadas por
-//     autoDeductSubscriptions() (nombre "Sub: <nombre>") se excluyen del pool de
-//     "gasto variable" — ya están contadas como comprometido-caído, no son un ritmo
-//     que deba extrapolarse hacia los días que faltan. Los gastos fijos (S.fixedExpenses)
-//     y los pedidos (S.orders) nunca generan una transacción en este código, así que
-//     no hay riesgo de que aparezcan también en el pool variable.
+//   - Las transacciones históricas "Sub: <nombre>" (cobros de suscripciones de cuando esa
+//     función existía) se excluyen del pool de "gasto variable": son cargos fijos, no un
+//     ritmo que deba extrapolarse hacia los días que faltan. Los gastos fijos
+//     (S.fixedExpenses) y los pedidos (S.orders) nunca generan una transacción en este
+//     código, así que no hay riesgo de que aparezcan también en el pool variable.
 //   - Antes del día 5 del mes no se proyecta (3-4 días de datos es ruido): se muestra
 //     solo lo comprometido.
 //   - Moneda: igual criterio que _spentMonth()/renderBudget() en finanzas.js
@@ -89,9 +88,8 @@
       t.date && t.date.slice(0, 7) === mesKey && t.date <= cutoff);
     const gastoRealAcumulado = gastosMes.reduce((s, t) => s + (+t.amount || 0), 0);
 
-    // Las transacciones que autoDeductSubscriptions() genera llevan el nombre "Sub: <x>".
-    // Se excluyen del pool "variable" para no contarlas dos veces: ya están adentro de
-    // "comprometido" (más abajo) y no son un ritmo que deba extrapolarse.
+    // Las transacciones históricas de suscripciones llevan el nombre "Sub: <x>" (cargos
+    // fijos): se excluyen del pool "variable" porque no son un ritmo que deba extrapolarse.
     const esSuscripcionFacturada = t => typeof t.name === 'string' && t.name.indexOf('Sub: ') === 0;
     const variables = gastosMes.filter(t => !esSuscripcionFacturada(t));
     const gastoVariableAcumulado = variables.reduce((s, t) => s + (+t.amount || 0), 0);
@@ -109,17 +107,12 @@
     const comprFijos = fixedExpenses.filter(e => e && e.currency === 'ARS' && !fixedLog[e.id])
       .reduce((s, e) => s + (+e.amount || 0), 0);
 
-    const subs = Array.isArray(S.subscriptions) ? S.subscriptions : [];
-    const comprSubs = subs.filter(sub => sub && sub.currency === 'ARS' &&
-        !gastosMes.some(t => t.name === `Sub: ${sub.name}`))
-      .reduce((s, sub) => s + (+sub.amount || 0), 0);
-
     const orders = Array.isArray(S.orders) ? S.orders : [];
     const comprPedidos = orders.filter(o => o && o.currency === 'ARS' && !o.deducted &&
         o.arrival && o.arrival.slice(0, 7) === mesKey)
       .reduce((s, o) => s + (+o.amount || 0), 0);
 
-    const comprometido = comprFijos + comprSubs + comprPedidos;
+    const comprometido = comprFijos + comprPedidos;
 
     const variableProy7 = ritmoDiario7 * diasRestantes;
     const variableProyMes = ritmoDiarioMes * diasRestantes;
@@ -147,7 +140,7 @@
     return {
       mes: mesKey, totalDias, diasTranscurridos, diasRestantes, disponible,
       gastoRealAcumulado,
-      comprometido, comprometidoDetalle: { fijos: comprFijos, subs: comprSubs, pedidos: comprPedidos },
+      comprometido, comprometidoDetalle: { fijos: comprFijos, pedidos: comprPedidos },
       ritmoDiario7, ritmoDiarioMes,
       variableProy7, variableProyMes,
       proyeccion7, proyeccionMes,

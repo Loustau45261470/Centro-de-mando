@@ -164,10 +164,12 @@ test('flujo del mes: sin movimientos dice "Sin movimientos este mes", no ceros',
   await expect(cmPage.locator('#dfFlowNet')).toHaveText('Flujo de efectivo-$60.000');
 });
 
-test('torta, título del patrimonio y descripción de la métrica (pendientes de la etapa 7)', async ({ cmPage }) => {
+test('título del patrimonio (sin aclaraciones) y descripción de la métrica', async ({ cmPage }) => {
   await preparar(cmPage);
-  await expect(cmPage.locator('#nwPieNote')).toHaveText('La torta muestra tus cuentas; el crédito usado se descuenta en el balance real.');
-  await expect(cmPage.locator('#tab-finanzas .card-title', { hasText: 'Patrimonio' }).first()).toContainText('Patrimonio (balance real)');
+  // Reorganización de Finanzas: fuera la nota de la torta y el "(balance real)" del título.
+  expect(await cmPage.locator('#nwPieNote').count()).toBe(0);
+  const titulo = await cmPage.evaluate(() => document.querySelector('#nwTotal').closest('.card').querySelector('.card-title').innerText.split(/\r?\n/)[0].trim().toLowerCase());
+  expect(titulo).toBe('💰 patrimonio');
   await expect(cmPage.locator('#tab-finanzas')).not.toContainText('Patrimonio Neto');
   const desc = await cmPage.evaluate(() => CMInformesData.CATALOGO.find((m) => m.id === 'fin_patrimonio').descripcion);
   expect(desc).toContain('Tus cuentas más inversiones, menos el crédito usado de las tarjetas');

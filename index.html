@@ -21,11 +21,11 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-<link rel="stylesheet" href="styles.css?v=214">
+<link rel="stylesheet" href="styles.css?v=216">
 <link rel="stylesheet" href="gamemode.css">
 <link rel="stylesheet" href="overlay-core.css">
 <link rel="stylesheet" href="speed-dial.css?v=2">
-<link rel="stylesheet" href="proyectos-overlay.css?v=158">
+<link rel="stylesheet" href="proyectos-overlay.css?v=159">
 <link rel="stylesheet" href="mapa-ideas.css?v=1">
 <link rel="stylesheet" href="informes.css?v=2">
 </head>
@@ -510,88 +510,23 @@
       <div id="sgc-analisis-finanzas"></div>
     </div>
 
-    <!-- ── 2 columnas reales · izq: objetivos/calendarios/obligaciones/recordatorios · der: patrimonio + resto ── -->
+    <!-- ── 2 columnas reales · izq: patrimonio + movimientos + presupuesto/vencimientos/top 5 · der: objetivos/hábitos + crédito/deuda + objetivos financieros/fondos/wishlist ── -->
+    <!-- El orden del DOM es el orden visual (sin `order` en CSS): en el celular se apila izq y luego der. -->
     <div class="fin-cols">
-      <div class="fin-col">
-        <!-- Quarterly Objectives: Economía -->
-        <div id="qobj-wrap-finanzas"></div>
-        <!-- Habit calendars -->
-        <div id="finanzas-habits-wrap"></div>
-        <!-- Subscriptions · Obligaciones recurrentes (incorporadas dentro del Presupuesto en el overlay) -->
-        <div class="card" id="obligaciones-card">
-          <div class="card-title">
-            🔄 Obligaciones Recurrentes
-            <button class="btn btn-ghost btn-sm" onclick="openModal('modal-add-sub')">+ Suscripción</button>
-          </div>
-          <div class="fin-col-hdr sub-hdr">
-            <span>Servicio</span><span class="col-r">Costo</span><span></span><span></span>
-          </div>
-          <div id="subList"></div>
-          <div id="subEmpty" class="empty-state hidden">Sin suscripciones registradas</div>
-          <div class="flex items-center justify-between mt-8 text-sm text-ter">
-            <span>Total mensual:</span>
-            <span class="mono bold" id="subTotal">$0</span>
-          </div>
-        </div>
-        <!-- Financial objectives tracking · la sección muestra banner + gráfico + próximos puntos -->
-        <div id="fin-objectives-wrap"></div>
-        <!-- Historial completo de puntos: vive en el overlay (botón "Ver historial" de la card) -->
-        <div class="card" id="finobj-hist-card">
-          <div class="card-title">💰 Objetivos · historial</div>
-          <div id="finObjHistBody"></div>
-        </div>
-        <div id="proyectos-wrap-finanzas"></div>
-        <!-- Top 5 adquisiciones (sección) · gestión completa + puntaje en el overlay -->
-        <div class="card" id="wish-top5-card">
-          <div class="card-title">🛒 Top 5 · Adquisiciones</div>
-          <div id="wishTop5Body"></div>
-        </div>
-
-        <!-- Fondos de compra · gasto fijo acumulable sujeto a condición (specs/fondos-de-compra.md) -->
-        <div class="card" id="fondos-card">
-          <div class="card-title">
-            🪙 Fondos
-            <button class="btn btn-ghost btn-sm" onclick="openFundModal()">+ Fondo</button>
-          </div>
-          <div class="fin-col-hdr sub-hdr">
-            <span>Fondo</span><span class="col-r">Acumulado</span><span></span><span></span>
-          </div>
-          <div id="fundsList"></div>
-          <div id="fundsEmpty" class="empty-state hidden">Sin fondos creados</div>
-          <div class="flex items-center justify-between mt-8 text-sm text-ter">
-            <span>Acumulado total:</span>
-            <span class="mono bold" id="fundsTotal">$0</span>
-          </div>
-        </div>
-
-        <!-- Wishlist · Objetivos de adquisición (completo vive en el overlay del FAB) -->
-        <div class="card" id="wishlist-card">
-          <div class="card-title">
-            🛒 Objetivos de Adquisición
-            <button class="btn btn-ghost btn-sm" onclick="openModal('modal-add-wish')">+ Objetivo</button>
-          </div>
-          <div id="wishList"></div>
-          <div id="wishEmpty" class="empty-state hidden">Sin objetivos registrados</div>
-        </div>
-      </div>
       <div class="fin-col">
         <!-- Net Worth -->
         <div class="card">
           <div class="card-title">
-            💰 Patrimonio (balance real)
+            💰 Patrimonio
             <div style="display:flex;gap:6px">
               <button class="btn btn-ghost btn-sm" onclick="openMoveMoney()">Mover plata</button>
               <button class="btn btn-ghost btn-sm" onclick="openModal('modal-add-account')">+ Cuenta</button>
             </div>
           </div>
-          <div class="nw-label">Balance real (tu patrimonio)</div>
           <div class="nw-total" id="nwTotal">$0</div>
-          <div class="nw-breakdown" id="nwBreakdown"></div>
-          <div class="nw-label nw-label-cash">Cash disponible</div>
-          <div class="nw-cash" id="nwCash">$0</div>
+          <div class="nw-cash">Cash <span id="nwCash">$0</span></div>
           <div class="nw-1pct" id="nw1pct">1% = $0</div>
           <div class="chart-wrap-tall"><canvas id="nwPieChart"></canvas></div>
-          <div class="nw-scale-note" id="nwPieNote">La torta muestra tus cuentas; el crédito usado se descuenta en el balance real.</div>
           <div class="seg seg-sm nw-range" id="nwRangeSeg" role="group" aria-label="Rango del gráfico de patrimonio">
             <button type="button" data-range="1M" onclick="setNWRange('1M')">1M</button>
             <button type="button" data-range="3M" onclick="setNWRange('3M')">3M</button>
@@ -601,7 +536,6 @@
             <button type="button" data-range="all" onclick="setNWRange('all')">Todo</button>
           </div>
           <div class="chart-wrap"><canvas id="nwLineChart"></canvas></div>
-          <div class="nw-scale-note" id="nwMethodNote" style="display:none"></div>
           <div class="nw-scale-note" id="nwScaleNote" style="display:none"></div>
           <div class="nw-acc-toggles" id="nwAccountToggles"></div>
           <div class="fin-col-hdr accounts-hdr">
@@ -609,23 +543,7 @@
           </div>
           <div id="accountList"></div>
         </div>
-        <!-- Crédito: tarjetas y utilización -->
-        <div class="card" id="credit-card">
-          <div class="card-title">
-            🪪 Crédito
-            <span class="flex gap-8">
-              <button class="btn btn-ghost btn-sm" onclick="openCardChargeModal()">+ Compra</button>
-              <button class="btn btn-ghost btn-sm" onclick="openCardModal()">+ Tarjeta</button>
-            </span>
-          </div>
-          <div id="creditBody"></div>
-        </div>
-        <!-- Deuda y flujo de efectivo -->
-        <div class="card" id="debt-flow-card">
-          <div class="card-title">📊 Deuda y flujo</div>
-          <div id="debtFlowBody"></div>
-        </div>
-        <!-- Activity log -->
+        <!-- Activity log (Movimientos) -->
         <div class="card" id="activity-card">
           <div class="card-title">
             💳 Actividad
@@ -665,18 +583,83 @@
           <div class="card-title">🧮 Presupuesto · resumen</div>
           <div id="budgetSummaryBody"></div>
         </div>
-        <!-- ── Presupuesto mensual completo (vive en el overlay del FAB → Presupuesto) ── -->
-        <div class="card" id="budget-card">
-          <div class="card-title">
-            🧮 Presupuesto del mes
-            <select class="inp budget-year-sel" id="budgetYearSel" onchange="setBudgetYear(this.value)"></select>
-            <select class="inp budget-month-sel" id="budgetMonthSel" onchange="setBudgetMonth(this.value)"></select>
-          </div>
-          <div id="budgetBody"></div>
-        </div>
-        <!-- Reminders -->
+        <!-- Reminders · notificaciones (la card completa vive en el overlay de Recordatorios) -->
         <div class="card rnotif-card"><div class="card-title">🔔 Vencimientos</div><div id="reminders-notif-finanzas"></div></div>
         <div id="reminders-wrap-finanzas"></div>
+        <!-- Top 5 adquisiciones (sección) · gestión completa + puntaje en el overlay -->
+        <div class="card" id="wish-top5-card">
+          <div class="card-title">🛒 Top 5 · Adquisiciones</div>
+          <div id="wishTop5Body"></div>
+        </div>
+      </div>
+      <div class="fin-col">
+        <!-- Quarterly Objectives: Economía -->
+        <div id="qobj-wrap-finanzas"></div>
+        <!-- Habit calendars -->
+        <div id="finanzas-habits-wrap"></div>
+        <!-- Crédito: tarjetas y utilización -->
+        <div class="card" id="credit-card">
+          <div class="card-title">
+            🪪 Crédito
+            <span class="flex gap-8">
+              <button class="btn btn-ghost btn-sm" onclick="openCardChargeModal()">+ Compra</button>
+              <button class="btn btn-ghost btn-sm" onclick="openCardModal()">+ Tarjeta</button>
+            </span>
+          </div>
+          <div id="creditBody"></div>
+        </div>
+        <!-- Deuda y flujo de efectivo -->
+        <div class="card" id="debt-flow-card">
+          <div class="card-title">📊 Deuda y flujo</div>
+          <div id="debtFlowBody"></div>
+        </div>
+        <!-- Financial objectives tracking · la sección muestra banner + gráfico + próximos puntos -->
+        <div id="fin-objectives-wrap"></div>
+        <!-- Historial completo de puntos: vive en el overlay (botón "Ver historial" de la card) -->
+        <div class="card" id="finobj-hist-card">
+          <div class="card-title">💰 Objetivos · historial</div>
+          <div id="finObjHistBody"></div>
+        </div>
+        <div id="proyectos-wrap-finanzas"></div>
+
+        <!-- Fondos de compra · gasto fijo acumulable sujeto a condición (specs/fondos-de-compra.md) -->
+        <div class="card" id="fondos-card">
+          <div class="card-title">
+            🪙 Fondos
+            <button class="btn btn-ghost btn-sm" onclick="openFundModal()">+ Fondo</button>
+          </div>
+          <div class="fin-col-hdr sub-hdr">
+            <span>Fondo</span><span class="col-r">Acumulado</span><span></span><span></span>
+          </div>
+          <div id="fundsList"></div>
+          <div id="fundsEmpty" class="empty-state hidden">Sin fondos creados</div>
+          <div class="flex items-center justify-between mt-8 text-sm text-ter">
+            <span>Acumulado total:</span>
+            <span class="mono bold" id="fundsTotal">$0</span>
+          </div>
+        </div>
+
+        <!-- Wishlist · Objetivos de adquisición (completo vive en el overlay del FAB) -->
+        <div class="card" id="wishlist-card">
+          <div class="card-title">
+            🛒 Objetivos de Adquisición
+            <button class="btn btn-ghost btn-sm" onclick="openModal('modal-add-wish')">+ Objetivo</button>
+          </div>
+          <div id="wishList"></div>
+          <div id="wishEmpty" class="empty-state hidden">Sin objetivos registrados</div>
+        </div>
+      </div>
+    </div>
+    <!-- Fuentes de overlay: no se muestran en la pestaña; secciones-fab.js las reubica por id al abrir el Presupuesto -->
+    <div class="fin-overlay-src" hidden>
+      <!-- ── Presupuesto mensual completo (vive en el overlay del FAB → Presupuesto) ── -->
+      <div class="card" id="budget-card">
+        <div class="card-title">
+          🧮 Presupuesto del mes
+          <select class="inp budget-year-sel" id="budgetYearSel" onchange="setBudgetYear(this.value)"></select>
+          <select class="inp budget-month-sel" id="budgetMonthSel" onchange="setBudgetMonth(this.value)"></select>
+        </div>
+        <div id="budgetBody"></div>
       </div>
     </div>
 
@@ -1121,27 +1104,6 @@
   </div>
 </div>
 
-<!-- Add Subscription -->
-<div class="modal-overlay" id="modal-add-sub">
-  <div class="modal">
-    <div class="modal-handle"></div>
-    <div class="modal-title">Agregar suscripción</div>
-    <div class="field"><label>Nombre</label><input class="inp" id="subName" placeholder="Ej: Claude Pro, Netflix…"></div>
-    <div class="input-row">
-      <div class="field" style="flex:1"><label>Monto</label><input class="inp" type="number" step="0.01" id="subAmount" placeholder="20.00"></div>
-      <div class="field" style="width:90px"><label>Moneda</label>
-        <select class="inp" id="subCurrency"><option>USD</option><option>EUR</option><option>ARS</option></select>
-      </div>
-    </div>
-    <div class="field"><label>Día de cobro (del mes)</label><input class="inp" type="number" min="1" max="31" id="subBillingDay" placeholder="15"></div>
-    <div class="field"><label>Descontar de cuenta</label><select class="inp" id="subAccount"><option value="">— Ninguna —</option></select></div>
-    <div class="modal-actions">
-      <button class="btn btn-ghost" onclick="closeModal('modal-add-sub')">Cancelar</button>
-      <button class="btn btn-primary" onclick="addSubscription()">Agregar</button>
-    </div>
-  </div>
-</div>
-
 <!-- Add Fixed Expense -->
 <div class="modal-overlay" id="modal-add-fixed-expense">
   <div class="modal">
@@ -1334,27 +1296,6 @@
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('modal-edit-account')">Cancelar</button>
       <button class="btn btn-primary" onclick="saveEditAccount()">Guardar</button>
-    </div>
-  </div>
-</div>
-
-<!-- Edit Subscription -->
-<div class="modal-overlay" id="modal-edit-sub" onclick="if(event.target===this)closeModal('modal-edit-sub')">
-  <div class="modal">
-    <div class="modal-handle"></div>
-    <div class="modal-title">Editar suscripción</div>
-    <input type="hidden" id="editSubId">
-    <div class="field"><label>Nombre</label><input class="inp" id="editSubName"></div>
-    <div class="input-row">
-      <div class="field" style="flex:1"><label>Monto</label><input class="inp" type="number" step="0.01" id="editSubAmount"></div>
-      <div class="field" style="width:90px"><label>Moneda</label>
-        <select class="inp" id="editSubCurrency"><option>USD</option><option>EUR</option><option>ARS</option></select>
-      </div>
-    </div>
-    <div class="field"><label>Día de cobro</label><input class="inp" type="number" min="1" max="31" id="editSubBillingDay"></div>
-    <div class="modal-actions">
-      <button class="btn btn-ghost" onclick="closeModal('modal-edit-sub')">Cancelar</button>
-      <button class="btn btn-primary" onclick="saveEditSub()">Guardar</button>
     </div>
   </div>
 </div>
@@ -1920,8 +1861,8 @@
 </div>
 
 <script src="errores.js?v=1"></script>
-<script src="deadlines.js?v=4"></script>
-<script src="app.js?v=193"></script>
+<script src="deadlines.js?v=5"></script>
+<script src="app.js?v=195"></script>
 <script src="archivo.js?v=1"></script>
 <script src="undo.js?v=1"></script>
 <script src="workspace.js?v=197"></script>
@@ -1930,9 +1871,9 @@
 <script src="habitos.js?v=6"></script>
 <script src="rutinas.js"></script>
 <script src="tarjetas-motor.js?v=2"></script>
-<script src="finanzas.js?v=18"></script>
-<script src="proyeccion-mes.js?v=1"></script>
-<script src="recordatorios.js?v=9"></script>
+<script src="finanzas.js?v=20"></script>
+<script src="proyeccion-mes.js?v=2"></script>
+<script src="recordatorios.js?v=10"></script>
 <script src="objetivos.js"></script>
 <script src="correlaciones.js?v=2"></script>
 <script src="cursada.js?v=6"></script>
@@ -1955,7 +1896,7 @@
 
 <script src="jarvis-ears.js"></script>
 
-<script src="busqueda-global.js?v=1"></script>
+<script src="busqueda-global.js?v=2"></script>
 <script src="command-palette.js"></script>
 
 <script src="telemetry.js"></script>
@@ -1980,7 +1921,7 @@
 <script src="fichero-personas.js"></script>
 <script src="pomodoro.js?v=7"></script>
 <script src="finales.js?v=5"></script>
-<script src="secciones-fab.js?v=13"></script>
+<script src="secciones-fab.js?v=14"></script>
 <script src="informes-datos.js?v=5"></script>
 <script src="informes.js?v=3"></script>
 <script src="revision-semanal.js?v=1"></script>

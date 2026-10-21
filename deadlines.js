@@ -4,7 +4,7 @@
 //
 // Devuelve una lista normalizada de vencimientos (recordatorios, proyectos,
 // finales, cursada, metas del día, actividades del planner, proyecciones,
-// suscripciones y pedidos) con sus avisos ya calculados.
+// pedidos y vencimientos de tarjeta) con sus avisos ya calculados.
 //
 // Lo consumen DOS lados y por eso el archivo es puro (sin DOM, sin S global):
 //   · navegador  → recordatorios.js (lo que se ve + notificación local)
@@ -55,7 +55,6 @@ const CMDeadlines = (() => {
     tp:          [30, 15, 7],
     proy:        [7],
     cursada:     [1],               // clases y foros
-    suscripcion: [2],
     tarjeta:     [1],             // vencimiento de resumen: el día anterior + el mismo día
     proyeccion:  [],
     pedido:      [],
@@ -228,16 +227,7 @@ const CMDeadlines = (() => {
             priority: 'medium' });
     });
 
-    // 8) Suscripciones (día de cobro del mes) y 9) pedidos en camino
-    (S.subscriptions || []).forEach(s => {
-      const day = parseInt(s && s.billingDay, 10);
-      if (!day || day < 1 || day > 31) return;
-      let date = today.slice(0, 8) + pad(day);
-      if (date < today) date = addDays(today.slice(0, 8) + '01', 32).slice(0, 8) + pad(day);
-      add({ id: 'sub_' + (s.id || s.name) + '_' + date, kind: 'suscripcion', kindLabel: 'Suscripción', icon: '💳',
-            tab: 'finanzas', title: `${s.name} se cobra`, sub: s.amount ? `$${s.amount}` : '',
-            date, allDay: true, priority: 'high' });
-    });
+    // 8) Pedidos en camino
     (S.orders || []).forEach(o => {
       if (!o || !isDate(o.arrival)) return;
       add({ id: 'ord_' + o.id, kind: 'pedido', kindLabel: 'Pedido', icon: '📦', tab: 'finanzas',

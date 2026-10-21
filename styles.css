@@ -874,8 +874,6 @@ textarea { resize: vertical; min-height: 60px; }
 .sub-info { flex: 1; }
 .sub-name { font-size: var(--fs-15); font-weight: 600; }
 .sub-detail { font-size: var(--fs-13); color: var(--tt); }
-.sub-amount { font-family: var(--mono); font-size: var(--fs-15); font-weight: 700; }
-.sub-alert { animation: blink 1s ease-in-out infinite; background: rgba(255,45,45,.05) !important; }
 .inv-alert { background: rgba(255,45,45,.08) !important; border-left: 3px solid var(--danger, #ff2d2d); padding-left: 8px; }
 .inv-alert-badge { font-size: var(--fs-12-5); font-weight: 700; color: var(--danger, #ff2d2d); margin-left: 6px; }
 
@@ -1996,31 +1994,12 @@ textarea { resize: vertical; min-height: 60px; }
   padding: 18px 14px 2px;
   line-height: 1;
 }
-#tab-finanzas .nw-label {
-  font-size: var(--fs-12);
-  color: var(--fin-t3);
-  font-family: var(--mono);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  padding: 14px 14px 0;
-}
-#tab-finanzas .nw-label + .nw-total { padding-top: 6px; }
-#tab-finanzas .nw-breakdown {
+#tab-finanzas .nw-cash {
   font-size: var(--fs-12-5);
   color: var(--ts);
   font-family: var(--mono);
-  padding: 8px 14px 0;
-  overflow-wrap: anywhere;
-}
-#tab-finanzas .nw-label-cash { padding-top: 12px; }
-#tab-finanzas .nw-cash {
-  font-size: 24px;
-  font-weight: 300;
-  letter-spacing: -0.03em;
-  font-family: var(--mono);
-  color: var(--fin-t1);
-  padding: 4px 14px 0;
-  line-height: 1.1;
+  padding: 6px 14px 0;
+  line-height: 1.2;
 }
 #tab-finanzas .nw-1pct {
   font-size: var(--fs-12);
@@ -2246,16 +2225,10 @@ textarea { resize: vertical; min-height: 60px; }
 #tab-finanzas .sub-row:last-child { border-bottom: none; }
 #tab-finanzas .sub-name { font-size: var(--fs-12-5); font-weight: 400; color: var(--fin-t1); }
 #tab-finanzas .sub-detail { font-size: var(--fs-12-5); color: var(--fin-t3); letter-spacing: 0.06em; font-family: var(--mono); margin-top: 1px; }
-#tab-finanzas .sub-amount { font-size: var(--fs-12-5); font-weight: 500; font-family: var(--mono); color: var(--fin-t2); text-align: right; white-space: nowrap; letter-spacing: -0.02em; }
 #tab-finanzas .sub-row .icon-btn { opacity: 0; padding: 3px; }
 #tab-finanzas .sub-row:hover .icon-btn { opacity: 0.4; }
 #tab-finanzas .sub-row .icon-btn:hover { opacity: 1 !important; }
 #tab-finanzas .sub-row .icon-btn svg { width: 13px; height: 13px; }
-#tab-finanzas .sub-alert .pill-danger {
-  font-size: var(--fs-12-5) !important; background: rgba(196,53,53,0.1) !important;
-  color: var(--fin-red) !important; border-color: rgba(196,53,53,0.22) !important;
-  border-radius: 2px !important; padding: 1px 5px !important; letter-spacing: 0.08em;
-}
 #tab-finanzas .card .flex.items-center.justify-between.mt-8 {
   margin: 0; padding: 8px 14px;
   border-top: 1px solid var(--fin-border);
@@ -2263,7 +2236,6 @@ textarea { resize: vertical; min-height: 60px; }
   font-size: var(--fs-12-5); font-weight: 700; letter-spacing: 0.12em;
   text-transform: uppercase; color: var(--fin-t3); font-family: var(--mono);
 }
-#tab-finanzas #subTotal,
 #tab-finanzas #fundsTotal { font-family: var(--mono); font-size: var(--fs-12-5); font-weight: 600; color: var(--fin-t2); }
 
 /* ══ ACQUISITION TARGETS ═════════════════════════════════════ */
@@ -4129,7 +4101,7 @@ body:has(#login-screen) #hud-frame { opacity: 0; }
     column-span: all;
   }
   /* Finanzas/Vida/Conocimiento/Salud: 2 columnas reales en vez del masonry (evita huecos entre tarjetas) ·
-     izq: objetivos/calendarios/obligaciones/recordatorios · der: patrimonio (o equivalente) + resto */
+     Finanzas: izq patrimonio + movimientos + presupuesto/vencimientos · der objetivos/hábitos + crédito + objetivos financieros */
   #tab-finanzas.tab-panel.active,
   #tab-vida.tab-panel.active,
   #tab-conocimiento.tab-panel.active,

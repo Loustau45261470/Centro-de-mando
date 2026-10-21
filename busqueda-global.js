@@ -60,7 +60,7 @@
     if (typeof S === 'undefined' || !S) return 'no-state';
     const n = arr => (Array.isArray(arr) ? arr.length : 0);
     return [
-      n(S.transactions), n(S.subscriptions), n(S.fixedExpenses), n(S.orders), n(S.wishlist), n(S.accounts),
+      n(S.transactions), n(S.fixedExpenses), n(S.orders), n(S.wishlist), n(S.accounts),
       n(S.purchaseFunds),
       _sumValues(S.goals), _sumNested(S.monthlyGoals),
       ((S.quarterlyObjectives && S.quarterlyObjectives.periods) || []).reduce((s, p) => s + n(p.objectives), 0),
@@ -97,14 +97,6 @@
       subtitulo: (has('fmtMoney') ? fmtMoney(t.amount, t.currency) : (t.amount + ' ' + (t.currency || ''))) + (t.date ? ' · ' + t.date : ''),
       _ts: _ts(t.date), _hay: norm(t.name),
       ir: () => { nav('finanzas'); call('openEditTxn', t.id); },
-    }));
-
-    // Suscripciones — app.js:34 subscriptions: [{ id, name, amount, currency, billingDay, accountId }]
-    (S.subscriptions || []).forEach(s => out.push({
-      tipo: 'suscripcion', seccion: SEC.MOVIMIENTOS, titulo: s.name || '(sin nombre)',
-      subtitulo: 'Suscripción · día ' + s.billingDay,
-      _ts: -Infinity, _hay: norm(s.name),
-      ir: () => { nav('finanzas'); call('openEditSub', s.id); },
     }));
 
     // Gastos fijos — app.js:37 fixedExpenses: [{ id, name, amount, currency, dayOfMonth }]

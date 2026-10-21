@@ -204,7 +204,9 @@ test('pago automático: dos renders no restan dos veces; sin cuenta de pago no s
   await cmPage.evaluate(() => { applyCardAutoPayments(); applyCardAutoPayments(); });
   expect(await saldo(cmPage, 'uala')).toBe(950000);
   expect(await pagos(cmPage)).toHaveLength(1);
-  await expect(fila(cmPage, 'Naranja')).toContainText('Se paga solo desde Ualá');
+  // Reorganización de Finanzas: la fila ya no repite "Se paga solo desde Ualá"; con cuenta de pago tampoco avisa que falta.
+  await expect(fila(cmPage, 'Naranja')).not.toContainText('Se paga solo');
+  await expect(fila(cmPage, 'Naranja')).not.toContainText('Elegí desde qué cuenta se paga');
 
   // Otro dispositivo ya había guardado el pago (mismo id): no se vuelve a restar.
   const r = await cmPage.evaluate(() => {

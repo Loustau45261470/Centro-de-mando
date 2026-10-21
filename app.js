@@ -1065,12 +1065,6 @@ function fmtDate(iso) {
   const [y,m,d] = iso.split('-').map(Number);
   return new Date(y,m-1,d).toLocaleDateString('es', { weekday:'short', month:'short', day:'numeric' });
 }
-function daysUntil(dayOfMonth) {
-  const now = new Date();
-  let target = new Date(now.getFullYear(), now.getMonth(), dayOfMonth);
-  if (target < now) target.setMonth(target.getMonth()+1);
-  return Math.ceil((target - now) / 86400000);
-}
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
 
 // ════════════════════════════════════════════════════════
@@ -1165,7 +1159,7 @@ function showToast(msg, duration = 3000) {
 // ════════════════════════════════════════════════════════
 function openModal(id) {
   document.getElementById(id).classList.add('open');
-  if (id === 'modal-add-sub' || id === 'modal-add-txn') populateAccountSelects();
+  if (id === 'modal-add-txn') populateAccountSelects();
   if (id === 'modal-add-txn') updateTxnMonthNotice();
   if (id === 'modal-cfg-gym') renderGymConfigModal();
 }
@@ -1177,7 +1171,7 @@ document.querySelectorAll('.modal-overlay').forEach(ov => {
   ov.addEventListener('click', e => { if (e.target === ov) ov.classList.remove('open'); });
 });
 function populateAccountSelects() {
-  ['subAccount','ordAccount','txnAccount','fundAccount'].forEach(id => {
+  ['ordAccount','txnAccount','fundAccount'].forEach(id => {
     const sel = document.getElementById(id);
     if (!sel) return;
     const base = id === 'ordAccount' ? '<option value="">— No descontar —</option>' : '<option value="">— Ninguna —</option>';
@@ -1219,7 +1213,7 @@ function buildTickerAlerts() {
   if (typeof CMDeadlines !== 'undefined') {
     const nowMs = now.getTime();
     const endToday = new Date(now); endToday.setHours(23, 59, 59, 999);
-    // Suscripciones y pedidos ya tienen su propio bloque de ticker más abajo.
+    // Los pedidos tienen su propio bloque de ticker más abajo.
     const DEADLINE_KINDS = ['proy', 'final', 'cursada', 'proyeccion', 'tarjeta'];
     CMDeadlines.collect(S, { now: nowMs, pastDays: 14 })
       .filter(d => DEADLINE_KINDS.includes(d.kind) && d.at <= endToday.getTime())
@@ -1229,14 +1223,6 @@ function buildTickerAlerts() {
         cls: d.at <= nowMs ? 'alert' : 'warn',
       }));
   }
-
-  // Subscription alerts (3-5 days)
-  S.subscriptions.forEach(sub => {
-    const days = daysUntil(sub.billingDay);
-    if (days <= 5 && days >= 0) {
-      alerts.push({ text: `💳 ${sub.name} se cobra en ${days}d ($${sub.amount})`, cls: days <= 2 ? 'alert' : 'warn' });
-    }
-  });
 
   // Orders arriving soon
   S.orders.forEach(ord => {
@@ -2542,28 +2528,6 @@ function saveEditAccount() {
   snapshotNW(); saveState(); renderFinanzasTab(); closeModal('modal-edit-account');
 }
 
-function openEditSub(id) {
-  const sub = S.subscriptions.find(s => s.id === id);
-  if (!sub) return;
-  document.getElementById('editSubId').value         = id;
-  document.getElementById('editSubName').value       = sub.name;
-  document.getElementById('editSubAmount').value     = sub.amount;
-  document.getElementById('editSubCurrency').value   = sub.currency;
-  document.getElementById('editSubBillingDay').value = sub.billingDay;
-  openModal('modal-edit-sub');
-}
-function saveEditSub() {
-  const id = document.getElementById('editSubId').value;
-  const sub = S.subscriptions.find(s => s.id === id);
-  if (!sub) return;
-  const name = document.getElementById('editSubName').value.trim();
-  if (name) sub.name = name;
-  sub.amount     = +document.getElementById('editSubAmount').value     || sub.amount;
-  sub.currency   =  document.getElementById('editSubCurrency').value;
-  sub.billingDay = +document.getElementById('editSubBillingDay').value || sub.billingDay;
-  saveState(); renderSubscriptions(); buildTickerAlerts(); closeModal('modal-edit-sub');
-}
-
 function openEditFixedExpense(id) {
   const exp = S.fixedExpenses.find(e => e.id === id);
   if (!exp) return;
@@ -3142,7 +3106,6 @@ function updateNWCharts() {
   nwLineInst.options.scales = _nwLineScales();
   nwLineInst.update('none');
   _renderNWScaleNote();
-  if (typeof renderNWMethodNote === 'function') renderNWMethodNote();
 }
 
 // ════════════════════════════════════════════════════════

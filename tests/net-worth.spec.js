@@ -53,9 +53,9 @@ test('1) efectivo 200k + Ualá 500k + deuda a favor 100k + inversiones 300k − 
   // Lo que ve el usuario
   expect(digitos(await cmPage.locator('#nwTotal').innerText())).toBe('500000');
   expect(digitos(await cmPage.locator('#nwCash').innerText())).toBe('800000');
-  await expect(cmPage.locator('#tab-finanzas .nw-label').first()).toHaveText('Balance real (tu patrimonio)');
-  await expect(cmPage.locator('#tab-finanzas .nw-label-cash')).toHaveText('Cash disponible');
-  await expect(cmPage.locator('#nwBreakdown')).toHaveText('Cash $800,000 − Crédito usado $600,000 + Inversiones $300,000');
+  // Reorganización de Finanzas: el balance real es el número grande y el cash va en pequeño debajo; sin desglose ni etiquetas.
+  await expect(cmPage.locator('#nwCash').locator('xpath=..')).toHaveText('Cash $800,000');
+  expect(await cmPage.locator('#nwBreakdown, #tab-finanzas .nw-label, #tab-finanzas .nw-label-cash').count()).toBe(0);
   expect(consoleErrors).toEqual([]);
 });
 
@@ -63,7 +63,7 @@ test('1b) un crédito usado negativo se muestra tal cual y suma al balance', asy
   await preparar(cmPage, { cards: [{ ...NARANJA, openingUsed: -50000 }] });
   expect(await used(cmPage)).toBe(-50000);
   expect(await nw(cmPage)).toBe(1150000);
-  await expect(cmPage.locator('#nwBreakdown')).toContainText('Crédito usado -$50,000');
+  expect(digitos(await cmPage.locator('#nwTotal').innerText())).toBe('1150000');   // el desglose textual ya no se muestra
 });
 
 test('2) compra now1: sube el usado y baja el patrimonio ese monto; pagar (automático y manual) no cambia el patrimonio', async ({ cmPage }) => {
@@ -113,7 +113,7 @@ test('4) Mover plata no cambia el patrimonio (Ualá a Inversiones: baja el cash,
   await expect(cmPage.locator('#modal-move-money')).not.toHaveClass(/open/);
   expect(await nw(cmPage)).toBe(antes);
   expect(await cmPage.evaluate(() => calcCash())).toBe(600000);
-  await expect(cmPage.locator('#nwBreakdown')).toHaveText('Cash $600,000 − Crédito usado $600,000 + Inversiones $500,000');
+  await expect(cmPage.locator('#nwCash').locator('xpath=..')).toHaveText('Cash $600,000');
 });
 
 test('5) una cuenta de tipo Otro suma en el balance real pero no en el cash', async ({ cmPage }) => {
@@ -121,34 +121,28 @@ test('5) una cuenta de tipo Otro suma en el balance real pero no en el cash', as
   expect(await cmPage.evaluate(() => calcCash())).toBe(800000);
   expect(await nw(cmPage)).toBe(540000);
   expect(digitos(await cmPage.locator('#nwCash').innerText())).toBe('800000');
-  await expect(cmPage.locator('#nwBreakdown')).toHaveText('Cash $800,000 − Crédito usado $600,000 + Inversiones $300,000 + Otras cuentas $40,000');
+  expect(digitos(await cmPage.locator('#nwTotal').innerText())).toBe('540000');   // el desglose textual ya no se muestra
 });
 
-test('6) historial: el punto nuevo lleva c:1, los viejos no se tocan; la nota aparece solo con mezcla', async ({ cmPage }) => {
+test('6) historial: el punto nuevo lleva c:1 y los viejos no se tocan (la nota del método ya no se muestra)', async ({ cmPage }) => {
   await preparar(cmPage);
-  const nota = cmPage.locator('#nwMethodNote');
   const viejos = [{ date: '2026-08-01', value: 1111 }, { date: '2026-08-20', value: 2222 }];
 
-  // Solo puntos viejos: sin nota.
   await cmPage.evaluate((v) => { S.nwHistory = v.map((x) => ({ ...x })); renderFinanzasTab(); }, viejos);
-  await expect(nota).toBeHidden();
 
   // snapshotNW agrega el punto nuevo marcado; los viejos quedan idénticos.
   await cmPage.evaluate(() => { snapshotNW(); renderFinanzasTab(); });
   const h = await puntos(cmPage);
   expect(h).toEqual([...viejos, { date: HOY, value: 500000, c: 1 }]);
-  await expect(nota).toBeVisible();
-  await expect(nota).toHaveText('Desde 15/10/2026 el patrimonio descuenta el crédito usado de las tarjetas; los puntos anteriores no.');
+  expect(await cmPage.locator('#nwMethodNote').count()).toBe(0);
 
-  // Rango 1M: solo se ve el punto nuevo, ya no hay mezcla.
+  // Cambiar el rango del gráfico no rompe nada sin la nota.
   await cmPage.click('#nwRangeSeg button[data-range="1M"]');
-  await expect(nota).toBeHidden();
   await cmPage.click('#nwRangeSeg button[data-range="all"]');
-  await expect(nota).toBeVisible();
 
-  // Sin puntos viejos: sin nota.
+  // Sin puntos viejos: solo el punto nuevo marcado.
   await cmPage.evaluate(() => { S.nwHistory = []; snapshotNW(); renderFinanzasTab(); });
-  await expect(nota).toBeHidden();
+  expect(await puntos(cmPage)).toEqual([{ date: HOY, value: 500000, c: 1 }]);
 });
 
 test('6b) cambia el crédito usado: se actualiza el punto de hoy (sin duplicar el día) con c:1', async ({ cmPage }) => {
@@ -218,17 +212,16 @@ test('8) logros, JARVIS, objetivos y adquisiciones reciben el mismo valor que ca
 test.describe('390px', () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
-  test('9) la tarjeta Patrimonio no genera scroll horizontal (con nota, desglose largo y crédito negativo)', async ({ cmPage }) => {
+  test('9) la tarjeta Patrimonio no genera scroll horizontal (con cifras enormes y crédito alto)', async ({ cmPage }) => {
     await preparar(cmPage, {
       cuentas: [...CUENTAS, { id: 'otro', name: 'Otro', type: 'other', balance: 123456789, currency: 'ARS', icon: '🏦' }],
       cards: [{ ...NARANJA, openingUsed: 987654321, limit: 2000000000 }],
     });
     await cmPage.evaluate(() => { S.nwHistory = [{ date: '2026-09-01', value: 1 }]; snapshotNW(); renderFinanzasTab(); });
-    await expect(cmPage.locator('#nwMethodNote')).toBeVisible();
-    await cmPage.locator('#nwBreakdown').scrollIntoViewIfNeeded();
+    await cmPage.locator('#nwCash').scrollIntoViewIfNeeded();
     const { sw, cw } = await cmPage.evaluate(() => ({ sw: document.body.scrollWidth, cw: document.documentElement.clientWidth }));
     expect(sw).toBeLessThanOrEqual(cw + 1);
-    for (const sel of ['#nwTotal', '#nwCash', '#nwBreakdown', '#nwMethodNote']) {
+    for (const sel of ['#nwTotal', '#nwCash']) {
       const box = await cmPage.locator(sel).boundingBox();
       expect(box.x, sel).toBeGreaterThanOrEqual(0);
       expect(box.x + box.width, sel).toBeLessThanOrEqual(cw + 1);
