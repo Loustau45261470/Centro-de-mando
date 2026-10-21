@@ -21,7 +21,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-<link rel="stylesheet" href="styles.css?v=216">
+<link rel="stylesheet" href="styles.css?v=217">
 <link rel="stylesheet" href="gamemode.css">
 <link rel="stylesheet" href="overlay-core.css">
 <link rel="stylesheet" href="speed-dial.css?v=2">
@@ -550,6 +550,8 @@
             <span class="flex gap-8">
               <button class="btn btn-ghost btn-sm" onclick="openCatManager()">🎨 Categorías</button>
               <button class="btn btn-ghost btn-sm" onclick="abrirGastoFoto()">📷 Foto ticket</button>
+              <button class="btn btn-ghost btn-sm" id="openTarjetasBtn" aria-haspopup="dialog" onclick="if(window.openTarjetasOverlay)openTarjetasOverlay('compras')">💳 Tarjetas</button>
+              <button class="btn btn-ghost btn-sm" onclick="openCardChargeModal()">+ Compra con tarjeta</button>
               <button class="btn btn-ghost btn-sm" onclick="openModal('modal-add-txn')">+ Movimiento</button>
             </span>
           </div>
@@ -568,6 +570,10 @@
               <div class="fin-summary-lbl">Balance</div>
             </div>
           </div>
+          <details class="txn-flow" id="txnFlow">
+            <summary>Flujo del mes</summary>
+            <div id="txnFlowBody"></div>
+          </details>
           <div class="chart-wrap" id="txnChartWrap" style="height:160px;display:none"><canvas id="txnExpenseChart"></canvas></div>
           <button class="bsum-full" id="verHistorialBtn" onclick="if(window.openHistorialOverlay)openHistorialOverlay()" style="display:none">Ver historial →</button>
           <div class="fin-col-hdr activity-hdr" id="activityColHdr" style="display:none" onclick="toggleActivityList()" title="Plegar / desplegar">
@@ -598,19 +604,15 @@
         <!-- Habit calendars -->
         <div id="finanzas-habits-wrap"></div>
         <!-- Crédito: tarjetas y utilización -->
-        <div class="card" id="credit-card">
-          <div class="card-title">
-            🪪 Crédito
-            <span class="flex gap-8">
-              <button class="btn btn-ghost btn-sm" onclick="openCardChargeModal()">+ Compra</button>
-              <button class="btn btn-ghost btn-sm" onclick="openCardModal()">+ Tarjeta</button>
-            </span>
-          </div>
+        <div class="card cc-card-link" id="credit-card" data-cc-init="1" role="button" tabindex="0" aria-haspopup="dialog" aria-labelledby="creditTitle" aria-describedby="creditBody"
+             onclick="if(window.openTarjetasOverlay)openTarjetasOverlay('tarjetas')"
+             onkeydown="if((event.key==='Enter'||event.key===' ')&&event.target===this){event.preventDefault();if(window.openTarjetasOverlay)openTarjetasOverlay('tarjetas')}">
+          <div class="card-title" id="creditTitle">🪪 Crédito</div>
           <div id="creditBody"></div>
         </div>
         <!-- Deuda y flujo de efectivo -->
         <div class="card" id="debt-flow-card">
-          <div class="card-title">📊 Deuda y flujo</div>
+          <div class="card-title">📊 Deuda</div>
           <div id="debtFlowBody"></div>
         </div>
         <!-- Financial objectives tracking · la sección muestra banner + gráfico + próximos puntos -->
@@ -1871,7 +1873,7 @@
 <script src="habitos.js?v=6"></script>
 <script src="rutinas.js"></script>
 <script src="tarjetas-motor.js?v=2"></script>
-<script src="finanzas.js?v=20"></script>
+<script src="finanzas.js?v=21"></script>
 <script src="proyeccion-mes.js?v=2"></script>
 <script src="recordatorios.js?v=10"></script>
 <script src="objetivos.js"></script>
@@ -1921,7 +1923,7 @@
 <script src="fichero-personas.js"></script>
 <script src="pomodoro.js?v=7"></script>
 <script src="finales.js?v=5"></script>
-<script src="secciones-fab.js?v=14"></script>
+<script src="secciones-fab.js?v=15"></script>
 <script src="informes-datos.js?v=5"></script>
 <script src="informes.js?v=3"></script>
 <script src="revision-semanal.js?v=1"></script>

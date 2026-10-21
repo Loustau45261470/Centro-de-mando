@@ -1,4 +1,4 @@
-// Finanzas, etapa 10: bloque "Deuda y flujo" (deuda sobre ingresos, patrimonio sobre deuda, flujo de efectivo del mes)
+// Finanzas, etapa 10: card "Deuda" (deuda sobre ingresos, patrimonio sobre deuda) y "Flujo del mes" (plegable dentro de Movimientos)
 // y los tres detalles pendientes de la etapa 7 (nota bajo la torta, título del patrimonio, descripción de la métrica).
 // La fecha de "hoy" se fija pisando getActiveDate(). Los datos de ejemplo viven solo acá (repo público).
 'use strict';
@@ -23,6 +23,7 @@ async function preparar(page, { hoy = '2026-10-15', accounts = ACC, cards = [car
 }
 
 const bloque = (page) => page.locator('#debt-flow-card');
+const flujo = (page) => page.locator('#txnFlow');
 const deudaIng = (page) => page.locator('#dfDebtIncome');
 const filas = (page) => page.locator('#dfFlowTable tbody tr');
 const celdas = (page, i) => filas(page).nth(i).locator('th, td');
@@ -37,6 +38,7 @@ test('deuda sobre ingresos: promedio de 3 meses cerrados, equivale a 2 meses y 2
   await expect(b).toContainText('equivale a 2 meses de ingresos');
   await expect(cmPage.locator('#dfDebtPct')).toHaveText('200%');
   await expect(b).toContainText('promedio de 3 meses cerrados');
+  await expect(b).not.toContainText('no cuenta el mes en curso');
   await expect(b.locator('svg.df-ring')).toHaveCount(1);
   expect(consoleErrors).toEqual([]);
 });
@@ -94,6 +96,8 @@ test('patrimonio sobre deuda: cuenta correcta, y un patrimonio negativo se muest
   await expect(nd).toContainText('Tu patrimonio equivale a 2 veces tu deuda');
   await expect(nd).toContainText('Patrimonio $1.600.000');
   await expect(nd).toContainText('Deuda $800.000');
+  await expect(nd).not.toContainText('ya tiene descontado');
+  await expect(bloque(cmPage)).not.toContainText('ya tiene descontado');
   expect(await cmPage.evaluate(() => calcNetWorth())).toBe(1600000);
 
   // 1,5 veces: patrimonio 1.200.000 con deuda 800.000 (cuenta de 2.000.000).
@@ -129,7 +133,15 @@ test('flujo del mes: cantidad, promedios y total; compra con tarjeta cuenta; Mov
     ],
     moves: [{ id: 'm1', date: '2026-10-09', from: 'uala', to: 'uala', amount: 500000, note: '' }],
   });
-  await expect(cmPage.locator('#dfFlow')).toContainText('Flujo de efectivo del mes');
+  // Vive en Movimientos, debajo de Ingresos / Gastos / Balance, plegado por defecto y titulado "Flujo del mes".
+  await expect(cmPage.locator('#activity-card #txnFlow')).toHaveCount(1);
+  await expect(cmPage.locator('#debt-flow-card #dfFlow')).toHaveCount(0);
+  expect(await cmPage.evaluate(() => document.getElementById('txnSummaryRow').nextElementSibling.id)).toBe('txnFlow');
+  await expect(flujo(cmPage).locator('summary')).toHaveText('Flujo del mes');
+  expect(await flujo(cmPage).evaluate((e) => e.open)).toBe(false);
+  await expect(cmPage.locator('#dfFlowTable')).toBeHidden();
+  await flujo(cmPage).locator('summary').click();
+  await expect(cmPage.locator('#dfFlowTable')).toBeVisible();
   await expect(cmPage.locator('#dfFlow')).toContainText('Del 1 al 10 de octubre (10 días)');
   await expect(cmPage.locator('#dfFlowTable thead th').nth(1)).toHaveText('Ingreso');
   await expect(cmPage.locator('#dfFlowTable thead th').nth(2)).toHaveText('Gasto');
@@ -190,6 +202,9 @@ test('el bloque no usa vocabulario interno en ningún estado', async ({ cmPage }
     const texto = await bloque(cmPage).innerText();
     expect(texto).not.toMatch(prohibido);
     expect(texto.length).toBeGreaterThan(20);
+    const textoFlujo = await flujo(cmPage).evaluate((e) => e.textContent);   // plegado: se lee el texto aunque no se vea
+    expect(textoFlujo).not.toMatch(prohibido);
+    expect(textoFlujo.length).toBeGreaterThan(20);
   }
 });
 
@@ -199,7 +214,7 @@ test('ningún texto del usuario (categorías, nombres) llega al bloque, ni como 
     cards: [card(800000, { name: mal })],
     txns: [{ ...inc('a', '2026-09-05', 500000), name: mal, category: mal }, { ...exp('e', '2026-10-03', 1000), name: mal, category: mal }],
   });
-  const html = await cmPage.locator('#debtFlowBody').innerHTML();
+  const html = await cmPage.locator('#debtFlowBody').innerHTML() + await cmPage.locator('#txnFlowBody').innerHTML();
   expect(html).not.toContain('onerror');
   expect(html).not.toContain('<img');
   // Otras secciones de Finanzas (presupuesto) todavía pintan la categoría sin escapar: se aísla este bloque.
@@ -225,9 +240,10 @@ for (const ancho of [390, 360]) {
         ],
       });
       await bloque(cmPage).scrollIntoViewIfNeeded();
+      await flujo(cmPage).locator('summary').click();   // el flujo del mes está plegado por defecto
       await expect(filas(cmPage)).toHaveCount(4);
-      const m = await cmPage.evaluate(() => {
-        const card = document.querySelector('#debt-flow-card');
+      const medir = (sel) => cmPage.evaluate((sel) => {
+        const card = document.querySelector(sel);
         const cr = card.getBoundingClientRect();
         const cortados = [];
         card.querySelectorAll('*').forEach((el) => {
@@ -242,12 +258,19 @@ for (const ancho of [390, 360]) {
           csw: card.scrollWidth, ccw: card.clientWidth, cortados,
           texto: card.innerText,
         };
-      });
-      expect(m.sw).toBeLessThanOrEqual(m.cw + 1);
-      expect(m.csw).toBeLessThanOrEqual(m.ccw + 1);
-      expect(m.cortados).toEqual([]);
-      expect(m.texto).toContain('$987.654.321');
-      expect(m.texto).toContain('$123.456.789');
+      }, sel);
+      for (const sel of ['#debt-flow-card', '#txnFlow']) {
+        const m = await medir(sel);
+        expect(m.sw, sel).toBeLessThanOrEqual(m.cw + 1);
+        expect(m.csw, sel).toBeLessThanOrEqual(m.ccw + 1);
+        expect(m.cortados, sel).toEqual([]);
+        if (sel === '#debt-flow-card') {
+          expect(m.texto).toContain('$987.654.321');
+          expect(m.texto).toContain('$123.456.789');
+        } else {
+          expect(m.texto).toContain('$987.654.321');   // total de ingresos del mes
+        }
+      }
     });
   });
 }

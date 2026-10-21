@@ -1,9 +1,10 @@
-// Tarjetas, etapa 6: calendario de pagos a 12 meses en Finanzas > Crédito y vencimientos de tarjeta en
+// Tarjetas, etapa 6: calendario de pagos a 12 meses (overlay Tarjetas > Calendario) y vencimientos de tarjeta en
 // deadlines.js (card de Recordatorios, ticker y push). Los datos de ejemplo viven solo acá.
 // La fecha de "hoy" de Finanzas se fija pisando getActiveDate(); deadlines.js usa la hora real del navegador.
 'use strict';
 const { test, expect } = require('./support/fixtures');
 const CMDeadlines = require('../deadlines.js');
+const { abrirTarjetas, cerrarTarjetas } = require('./support/tarjetas-ui');
 
 const NARANJA = { id: 'nar', name: 'Naranja', limit: 1000000, closeDay: 27, dueDay: 10, openingUsed: 865000 };
 const MP = { id: 'mp', name: 'Mercado Pago', limit: 425000, closeDay: 5, dueDay: 10, openingUsed: 357000 };
@@ -18,6 +19,7 @@ const CARGOS = [
 ];
 
 async function preparar(page, { hoy = '2026-10-15', pagarDesde = null, cards = [NARANJA], cargos = CARGOS } = {}) {
+  await cerrarTarjetas(page);
   await page.click('.nav-btn[data-tab="finanzas"]');
   await expect(page.locator('#tab-finanzas')).toHaveClass(/active/);
   await page.evaluate(({ hoy, pagarDesde, cards, cargos }) => {
@@ -30,6 +32,7 @@ async function preparar(page, { hoy = '2026-10-15', pagarDesde = null, cards = [
     S.transactions = []; S.cardCharges = JSON.parse(JSON.stringify(cargos)); S.cardPayments = []; S.moves = [];
     renderFinanzasTab();
   }, { hoy, pagarDesde, cards, cargos });
+  await abrirTarjetas(page, 'calendario');   // el calendario vive en esa pestaña del overlay
 }
 
 const irA = (page, hoy) => page.evaluate((h) => { window.getActiveDate = () => h; renderFinanzasTab(); }, hoy);
@@ -265,6 +268,8 @@ test.describe('390px', () => {
     });
     await cmPage.locator('#cardCalendar').scrollIntoViewIfNeeded();
     await expect(cmPage.locator('#cardCalendar .cc-cal-m')).toHaveCount(12);
+    const ovw = await cmPage.locator('#ov-tarjetas .cm-ov-body').evaluate((e) => ({ sw: e.scrollWidth, cw: e.clientWidth }));
+    expect(ovw.sw).toBeLessThanOrEqual(ovw.cw + 1);
     const m = await cmPage.evaluate(() => ({
       sw: document.body.scrollWidth, cw: document.documentElement.clientWidth,
       csw: document.querySelector('#credit-card').scrollWidth, ccw: document.querySelector('#credit-card').clientWidth,
