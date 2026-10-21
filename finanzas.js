@@ -2388,7 +2388,7 @@ function renderBudgetSummary() {
     const w = plan > 0 ? Math.min(real / plan * 100, 100) : (real > 0 ? 100 : 0);
     const ov = plan > 0 && real > plan;
     return `<div class="bsum-cat">
-      <div class="bsum-cat-top"><span class="bsum-cat-name">${ci.icon} ${ci.label || c}</span><span class="bsum-cat-val mono ${ov ? 'text-danger' : ''}">${fmtMoney(real, 'ARS')} / ${fmtMoney(plan, 'ARS')}</span></div>
+      <div class="bsum-cat-top"><span class="bsum-cat-name">${escHtml(ci.icon)} ${escHtml(ci.label) || escHtml(c)}</span><span class="bsum-cat-val mono ${ov ? 'text-danger' : ''}">${fmtMoney(real, 'ARS')} / ${fmtMoney(plan, 'ARS')}</span></div>
       <div class="bsum-cat-bar"><div class="bsum-cat-fill${ov ? ' over' : ''}" style="width:${w}%"></div></div>
     </div>`;
   }).join('') || '<p class="empty-state">Sin movimientos este mes</p>';
@@ -2445,10 +2445,10 @@ function fillTxnCategorySelect(elId, selected) {
   const map = _liveCatMap();
   const opts = ['<option value="">— Sin categoría —</option>'];
   Object.entries(map).forEach(([id, c]) => {
-    opts.push(`<option value="${id}" ${id === selected ? 'selected' : ''}>${escHtml(c.icon)} ${escHtml(c.label)}</option>`);
+    opts.push(`<option value="${escHtml(id)}" ${id === selected ? 'selected' : ''}>${escHtml(c.icon)} ${escHtml(c.label)}</option>`);
   });
   if (selected && !map[selected]) {
-    opts.push(`<option value="${selected}" selected>💸 (categoría eliminada)</option>`);
+    opts.push(`<option value="${escHtml(selected)}" selected>💸 (categoría eliminada)</option>`);
   }
   el.innerHTML = opts.join('');
 }
@@ -2532,7 +2532,7 @@ function fillBudgetCatSelect(elId, selected) {
   if (!el) return;
   el.innerHTML = BUDGET_EXPENSE_CATS.map(c => {
     const ci = getCatInfo(c, 'expense');
-    return `<option value="${c}" ${c === selected ? 'selected' : ''}>${escHtml(ci.icon)} ${escHtml(ci.label)}</option>`;
+    return `<option value="${escHtml(c)}" ${c === selected ? 'selected' : ''}>${escHtml(ci.icon)} ${escHtml(ci.label)}</option>`;
   }).join('');
 }
 
@@ -2927,7 +2927,7 @@ function renderActivity() {
           </div>`
         : '';
       return `<div class="activity-row">
-        <div class="act-icon" style="background:${t.type==='income'?'rgba(107,227,164,.1)':'rgba(255,107,107,.1)'}">${cat.icon||(t.type==='income'?'💚':'🔴')}</div>
+        <div class="act-icon" style="background:${t.type==='income'?'rgba(107,227,164,.1)':'rgba(255,107,107,.1)'}">${escHtml(cat.icon||(t.type==='income'?'💚':'🔴'))}</div>
         <div class="act-info">
           <div class="act-name" style="display:flex;align-items:center;flex-wrap:wrap;gap:2px">${escHtml(t.name)}${catBadge}${pendingBadge}</div>
           <div class="act-date">${fmtDate(t.date)}${acc?` <span style="color:var(--ts)">· ${acc.icon||'🏦'} ${acc.name}</span>`:''}</div>

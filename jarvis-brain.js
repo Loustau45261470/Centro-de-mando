@@ -737,7 +737,7 @@
           if (a.account) { const af = _find(S.accounts || [], a.account, 'name'); if (af) accId = af.item.id; }
           if (!accId && S.accounts && S.accounts.length) accId = S.accounts[0].id;
           const cur = a.currency || (S.accounts && S.accounts[0] && S.accounts[0].currency) || 'ARS';
-          const nt = { id: uid(), date: _today(), name: a.name || '', type: a.type === 'income' ? 'income' : 'expense', amount: amt, currency: cur, accountId: accId, category: a.category || '' };
+          const nt = { id: uid(), date: _today(), name: a.name || '', type: a.type === 'income' ? 'income' : 'expense', amount: amt, currency: cur, accountId: accId, category: (() => { if (typeof ensureTxnCategories === 'function') ensureTxnCategories(); const q = _norm(a.category); const es = q && S.txnCategories ? Object.entries(S.txnCategories) : []; const hit = es.find(([id, c]) => _norm(c.label) === q || _norm(id) === q) || es.find(([id, c]) => _norm(c.label).includes(q) || q.includes(_norm(c.label))); return hit ? hit[0] : ''; })() };
           if (accId) { const acc = (S.accounts || []).find(x => x.id === accId); if (acc) { acc.balance += nt.type === 'income' ? amt : -amt; if (typeof snapshotNW === 'function') snapshotNW(); } }
           S.transactions.unshift(nt);
           saveState(); if (typeof renderFinanzasTab === 'function') renderFinanzasTab();
