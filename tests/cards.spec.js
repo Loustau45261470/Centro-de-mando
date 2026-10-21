@@ -2,6 +2,7 @@
 // Los datos de ejemplo viven solo acá; el código de producción no trae ninguna tarjeta.
 'use strict';
 const { test, expect, completeLoginOverlay, waitForBoot } = require('./support/fixtures');
+const { abrirTarjetas, cerrarTarjetas } = require('./support/tarjetas-ui');
 
 const NARANJA = { name: 'Naranja', limit: 1000000, closeDay: 27, dueDay: 10, used: 865000 };
 const MP = { name: 'Mercado Pago', limit: 425000, closeDay: 5, dueDay: 10, used: 357000 };
@@ -21,9 +22,15 @@ async function llenar(page, c) {
   await page.fill('#cardOpeningUsed', String(c.used));
 }
 
-async function alta(page, c) {
-  await page.click('#credit-card button:has-text("+ Tarjeta")');
+// El alta se hace desde la pestaña Tarjetas del overlay ("+ Agregar tarjeta" si no hay ninguna, "+ Tarjeta" si ya hay).
+async function abrirAlta(page) {
+  await abrirTarjetas(page, 'tarjetas');
+  await page.locator('#tj-pane-tarjetas button:has-text("tarjeta")').first().click();
   await expect(page.locator('#modal-card')).toHaveClass(/open/);
+}
+
+async function alta(page, c) {
+  await abrirAlta(page);
   await llenar(page, c);
   await page.click('#modal-card button:has-text("Guardar")');
   await expect(page.locator('#modal-card')).not.toHaveClass(/open/);
@@ -34,7 +41,13 @@ const fila = (page, name) => page.locator('.cc-row', { hasText: name });
 
 test('estado vacío: mensaje claro y botón para agregar, sin porcentaje engañoso', async ({ cmPage }) => {
   await irAFinanzas(cmPage);
-  const body = cmPage.locator('#creditBody');
+  // La card Crédito, compacta, avisa que no hay tarjetas y se puede tocar para agregar.
+  const card = cmPage.locator('#credit-card');
+  await expect(card).toContainText('Sin tarjetas · tocá para agregar');
+  await expect(card.locator('.cc-pct, .cc-ring, .cc-bar')).toHaveCount(0);
+  // El detalle (mensaje y botón de alta) está en la pestaña Tarjetas del overlay.
+  await abrirTarjetas(cmPage, 'tarjetas');
+  const body = cmPage.locator('#tj-pane-tarjetas');
   await expect(body).toContainText('Todavía no cargaste ninguna tarjeta');
   await expect(body.locator('button:has-text("+ Agregar tarjeta")')).toBeVisible();
   await expect(body.locator('.cc-pct, .cc-ring, .cc-bar')).toHaveCount(0);
@@ -59,11 +72,15 @@ test('alta de las 3 tarjetas: usado, disponible y % por tarjeta y en total', asy
     await expect(f.locator('.cc-pct')).toHaveText(pct);
     await expect(f).toContainText(`Cierra el día ${c.closeDay} · Vence el día ${c.dueDay}`);
   }
+  // La card Crédito compacta muestra el total como "usado / límite" y una línea por tarjeta (usado / disponible).
   const tot = cmPage.locator('#creditTotal');
   expect(digitos(await tot.locator('.cc-used').innerText())).toBe('1222000');
-  expect(digitos(await tot.locator('.cc-avail').innerText())).toBe('1203000');
   expect(digitos(await tot.locator('.cc-limit').innerText())).toBe('2425000');
   await expect(tot.locator('.cc-ring-txt')).toHaveText('50%');
+  // El disponible total (1.203.000) ya no se muestra aparte: es la suma de lo disponible de cada línea.
+  const disp = (await cmPage.locator('#credit-card .cc-line .cc-avail').allInnerTexts()).map((s) => Number(digitos(s)));
+  expect(disp).toEqual([135000, 68000, 1000000]);
+  expect(disp.reduce((a, b) => a + b, 0)).toBe(1203000);
 
   // Formato en pesos con separador de miles (es-AR) y sin tocar gastos ni ingresos.
   await expect(fila(cmPage, 'Naranja').locator('.cc-used')).toHaveText('$865.000');
@@ -94,7 +111,7 @@ test('cardUsed suma cargos y resta pagos si existen (contrato para la etapa 5)',
 
 test('validaciones: rechaza con mensaje y no guarda', async ({ cmPage }) => {
   await irAFinanzas(cmPage);
-  await cmPage.click('#credit-card button:has-text("+ Tarjeta")');
+  await abrirAlta(cmPage);
   const err = cmPage.locator('#cardErr');
   const guardar = () => cmPage.click('#modal-card button:has-text("Guardar")');
   const base = { name: 'Test', limit: 1000, closeDay: 5, dueDay: 10, used: 0 };
@@ -161,7 +178,8 @@ test('editar y borrar (con confirmación)', async ({ cmPage }) => {
   // Aceptar sí borra y vuelve el estado vacío.
   cmPage.once('dialog', (d) => d.accept());
   await fila(cmPage, 'Mercado Pago').locator('button[aria-label="Eliminar tarjeta"]').click();
-  await expect(cmPage.locator('#creditBody')).toContainText('Todavía no cargaste ninguna tarjeta');
+  await expect(cmPage.locator('#tj-pane-tarjetas')).toContainText('Todavía no cargaste ninguna tarjeta');
+  await expect(cmPage.locator('#creditBody')).toContainText('Sin tarjetas · tocá para agregar');
   expect(await cmPage.evaluate(() => S.cards.length)).toBe(0);
 });
 
@@ -175,6 +193,7 @@ test('persistencia: las tarjetas sobreviven a recargar la página', async ({ cmP
   await waitForBoot(cmPage);
   await completeLoginOverlay(cmPage);
   await cmPage.click('.nav-btn[data-tab="finanzas"]');
+  await abrirTarjetas(cmPage, 'tarjetas');
   await expect(fila(cmPage, 'Naranja').locator('.cc-pct')).toHaveText('87% usado');
   await expect(fila(cmPage, 'Galicia').locator('.cc-pct')).toHaveText('0% usado');
   expect(await cmPage.evaluate(() => S.cards.length)).toBe(2);
@@ -194,8 +213,8 @@ test.describe('390px', () => {
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 1);
     const card = await cmPage.locator('#credit-card').evaluate((e) => ({ sw: e.scrollWidth, cw: e.clientWidth }));
     expect(card.sw).toBeLessThanOrEqual(card.cw + 1);
-    // Modal usable en pantalla chica.
-    await cmPage.click('#credit-card button:has-text("+ Tarjeta")');
+    // Modal usable en pantalla chica (se abre desde la pestaña Tarjetas del overlay).
+    await abrirAlta(cmPage);
     const m = await cmPage.locator('#modal-card .modal').boundingBox();
     expect(m.x).toBeGreaterThanOrEqual(0);
     expect(m.x + m.width).toBeLessThanOrEqual(391);

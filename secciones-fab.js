@@ -111,6 +111,74 @@ function _sfOpenHistorial() {
 }
 window.openHistorialOverlay = _sfOpenHistorial;
 
+// ── Tarjetas: overlay con Compras, Calendario y Tarjetas ──
+// Mismo patrón que Cartera (pestañas .plov-tabs). El armazón se crea una sola vez; finanzas.js
+// (renderCardsOverlay) pinta cada pestaña cada vez que cambia el estado. Cerrado queda `inert`
+// (sin foco ni lectura) y al cerrar el foco vuelve a lo que lo abrió.
+const _SF_TJ_TABS = ['compras', 'calendario', 'tarjetas'];
+let _sfTjOpener = null;
+function _sfTjTab(t) {
+  const ov = document.getElementById('ov-tarjetas');
+  if (!ov) return;
+  ov.querySelectorAll('.plov-tab').forEach(b => {
+    const on = b.dataset.t === t;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-selected', String(on));
+  });
+  ov.querySelector('.plov-tabs').dataset.on = t;
+  _SF_TJ_TABS.forEach(k => { const p = ov.querySelector('#tj-pane-' + k); if (p) p.hidden = k !== t; });
+}
+function _sfTjOnClose(ov) {
+  ov.inert = true;
+  const o = _sfTjOpener; _sfTjOpener = null;
+  if (o && o.isConnected && typeof o.focus === 'function') o.focus();
+}
+function _sfEnsureTarjetas() {
+  if (typeof CMOverlay === 'undefined') return null;
+  const { overlay, body } = CMOverlay.build({ id: 'ov-tarjetas', accent: '#22C55E', onClose: _sfTjOnClose });
+  if (!overlay._sfBuilt) {
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-label', 'Tarjetas');
+    overlay.inert = true;
+    body.innerHTML = `<div class="cm-ov-head"><div class="cm-ov-eyebrow">FINANZAS · TARJETAS</div><div class="cm-ov-title">Tarjetas</div></div>
+      <div class="plov-tabs" data-on="compras" role="tablist" aria-label="Secciones de Tarjetas">
+        <button class="plov-tab on" id="tj-tab-compras" data-t="compras" role="tab" aria-selected="true" aria-controls="tj-pane-compras">Compras</button>
+        <button class="plov-tab" id="tj-tab-calendario" data-t="calendario" role="tab" aria-selected="false" aria-controls="tj-pane-calendario">Calendario</button>
+        <button class="plov-tab" id="tj-tab-tarjetas" data-t="tarjetas" role="tab" aria-selected="false" aria-controls="tj-pane-tarjetas">Tarjetas</button>
+        <span class="plov-tab-ink"></span>
+      </div>
+      <div class="plov-pane" id="tj-pane-compras" role="tabpanel" aria-labelledby="tj-tab-compras"></div>
+      <div class="plov-pane" id="tj-pane-calendario" role="tabpanel" aria-labelledby="tj-tab-calendario" hidden></div>
+      <div class="plov-pane" id="tj-pane-tarjetas" role="tabpanel" aria-labelledby="tj-tab-tarjetas" hidden></div>`;
+    body.querySelectorAll('.plov-tab').forEach(b => b.addEventListener('click', () => _sfTjTab(b.dataset.t)));
+    // Foco atrapado: Tab y Shift+Tab dan la vuelta dentro del overlay.
+    overlay.addEventListener('keydown', e => {
+      if (e.key !== 'Tab') return;
+      const f = [...overlay.querySelectorAll('button, summary, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')]
+        .filter(el => !el.disabled && !el.closest('[hidden]') && el.getClientRects().length);
+      if (!f.length) return;
+      const a = document.activeElement;
+      if (!overlay.contains(a) || (e.shiftKey && a === f[0])) { e.preventDefault(); f[e.shiftKey ? f.length - 1 : 0].focus(); }
+      else if (!e.shiftKey && a === f[f.length - 1]) { e.preventDefault(); f[0].focus(); }
+    });
+    overlay._sfBuilt = true;
+  }
+  return overlay;
+}
+function _sfOpenTarjetas(tab) {
+  const overlay = _sfEnsureTarjetas();
+  if (!overlay) return;
+  if (typeof renderCardsOverlay === 'function') renderCardsOverlay();
+  _sfTjTab(_SF_TJ_TABS.includes(tab) ? tab : 'compras');
+  if (!overlay.classList.contains('show')) _sfTjOpener = document.activeElement;
+  overlay.inert = false;
+  CMOverlay.open(overlay);
+  const on = overlay.querySelector('.plov-tab.on');
+  if (on) on.focus();
+}
+window.openTarjetasOverlay = _sfOpenTarjetas;
+
 // ── Sesión de estudio: overlay con Pomodoro + historial de sesiones ──
 function _sfEnsureSesionEstudio() {
   if (typeof CMOverlay === 'undefined') return null;
@@ -251,6 +319,8 @@ function _sfMount() {
 
   // Saca la lista de movimientos de la sección hacia el overlay desde el arranque.
   _sfEnsureHistorial();
+  // Arma el armazón del overlay de Tarjetas (queda cerrado hasta que se abre).
+  _sfEnsureTarjetas();
   // Arma el overlay de Sesión de estudio (Pomodoro + historial) desde el arranque.
   _sfEnsureSesionEstudio();
   // Arma el overlay de Historial de bienestar desde el arranque.

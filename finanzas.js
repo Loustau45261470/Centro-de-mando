@@ -57,6 +57,7 @@ function renderFinanzasTab() {
   renderAccounts();
   renderCredit();
   renderDebtFlow();
+  renderMonthFlow();
   renderWishlist();
   renderWishTop5();
   renderPurchaseFunds();
@@ -503,25 +504,89 @@ function _ccCalendarHtml(today) {
 }
 const _CC_CAL_NOTE = `<p class="cc-hint cc-cal-note">El saldo inicial cargado sin fecha no figura acá: se paga con 'Registrar pago de resumen'.</p>`;
 
+// Card "Crédito" (sección): solo estadísticas, chica. Todo el detalle (compras, calendario, alta y baja
+// de tarjetas) vive en el overlay de Tarjetas (secciones-fab.js); acá se pinta su contenido en renderCardsOverlay.
 function renderCredit() {
   const el = document.getElementById('creditBody');
-  if (!el) return;
+  if (el) el.innerHTML = _ccCompactHtml();
+  renderCardsOverlay();
+}
+
+function _ccCompactHtml() {
   const cards = Array.isArray(S.cards) ? S.cards : [];
+  if (!cards.length) return '<div class="cc-empty-min">Sin tarjetas · tocá para agregar</div>';
+  const tUsed = cards.reduce((s, c) => s + cardUsed(c), 0);
+  const tLimit = cards.reduce((s, c) => s + (+c.limit || 0), 0);
+  const tPct = tLimit > 0 ? Math.round(tUsed * 100 / tLimit) : 0, tTone = _creditTone(tPct);
+  const R = 20, C = 2 * Math.PI * R, off = C * (1 - Math.max(0, Math.min(100, tPct)) / 100);
+  const lines = cards.map(c => {
+    const used = cardUsed(c), avail = cardAvailable(c);
+    const pct = Math.round(used * 100 / c.limit), tone = _creditTone(pct);
+    return `<div class="cc-line cc-${tone}" data-card-id="${escHtml(c.id)}">
+      <div class="cc-line-top">
+        <span class="cc-name">${escHtml(c.name)}</span>
+        <span class="cc-line-nums"><b class="cc-used">${_creditPesos(used)}</b> / <b class="cc-avail">${_creditPesos(avail)}</b></span>
+      </div>
+      <div class="cc-line-bar">
+        <div class="cc-bar" role="img" aria-label="${pct}% del límite usado"><i style="width:${Math.min(100, Math.max(0, pct))}%"></i></div>
+        <span class="cc-pct" data-tone="${tone}">${pct}%</span>
+      </div>
+    </div>`;
+  }).join('');
+  return `<div class="cc-total cc-${tTone}" id="creditTotal">
+      <svg class="cc-ring" viewBox="0 0 48 48" width="48" height="48" role="img" aria-label="${tPct}% del límite total usado">
+        <circle class="cc-ring-track" cx="24" cy="24" r="${R}" fill="none" stroke-width="5"/>
+        <circle class="cc-ring-prog" cx="24" cy="24" r="${R}" fill="none" stroke-width="5" stroke-linecap="round"
+          stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 24 24)"/>
+        <text x="24" y="24" text-anchor="middle" dominant-baseline="central" class="cc-ring-txt">${tPct}%</text>
+      </svg>
+      <div class="cc-total-txt">
+        <div class="cc-total-nums"><b class="cc-used">${_creditPesos(tUsed)}</b> / <span class="cc-limit">${_creditPesos(tLimit)}</span></div>
+        <div class="cc-total-cap">usado / límite</div>
+      </div>
+    </div>
+    <div class="cc-lines-hdr"><span>Tarjeta</span><span>usado / disponible</span></div>
+    <div class="cc-lines">${lines}</div>`;
+}
+
+// Contenido del overlay de Tarjetas (el armazón y las pestañas están en secciones-fab.js).
+// Reusa los mismos bloques de siempre: lista de compras, calendario de pagos y filas de cada tarjeta.
+function renderCardsOverlay() {
+  const pCompras = document.getElementById('tj-pane-compras');
+  const pCal = document.getElementById('tj-pane-calendario');
+  const pTarj = document.getElementById('tj-pane-tarjetas');
+  if (!pCompras || !pCal || !pTarj) return;
+  const cards = Array.isArray(S.cards) ? S.cards : [];
+  const today = getActiveDate();
+  const paidKeys = new Set((S.cardPayments || []).map(p => p && p.key));
+
+  // Compras
+  const charges = [...(S.cardCharges || [])].filter(Boolean)
+    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : (a.id < b.id ? 1 : -1)));
+  pCompras.innerHTML = `<div class="cc-pane-bar"><button class="btn btn-primary btn-sm" onclick="openCardChargeModal()">+ Compra con tarjeta</button></div>
+    <div id="cardChargeList">${charges.length ? charges.map(_ccChargeHtml).join('') : '<p class="cc-hint">Todavía no cargaste compras con tarjeta.</p>'}</div>`;
+
+  // Calendario: lo que se paga en cada tarjeta y los 12 meses
+  const dueCards = cards.map(c => {
+    const dues = window.CMTarjetas
+      ? CMTarjetas.dueTotals(c, S.cardCharges || [], today, '2999-12-31').filter(d => !paidKeys.has(`auto:${c.id}:${d.dueDate}`)).slice(0, 2)
+      : [];
+    if (!dues.length) return '';
+    return `<div class="cc-due-card" data-card-id="${escHtml(c.id)}"><div class="cc-name">${escHtml(c.name)}</div>${
+      dues.map(d => `<div class="cc-due">A pagar el ${_ccDM(d.dueDate)}: <b>${_ccPesos(d.amount)}</b></div>`).join('')}</div>`;
+  }).join('');
+  pCal.innerHTML = dueCards + _ccCalendarHtml(today);
+
+  // Tarjetas
   if (!cards.length) {
-    el.innerHTML = `<div class="cc-empty">
+    pTarj.innerHTML = `<div class="cc-empty">
       <p>Todavía no cargaste ninguna tarjeta. Agregá una para ver cuánto usaste y cuánto te queda.</p>
       <button class="btn btn-primary btn-sm" onclick="openCardModal()">+ Agregar tarjeta</button></div>`;
     return;
   }
-  const today = getActiveDate();
-  const paidKeys = new Set((S.cardPayments || []).map(p => p && p.key));
   const rows = cards.map(c => {
     const used = cardUsed(c), avail = cardAvailable(c);
     const pct = Math.round(used * 100 / c.limit), tone = _creditTone(pct);
-    const dues = window.CMTarjetas
-      ? CMTarjetas.dueTotals(c, S.cardCharges || [], today, '2999-12-31').filter(d => !paidKeys.has(`auto:${c.id}:${d.dueDate}`)).slice(0, 2)
-      : [];
-    const dueHtml = dues.map(d => `<div class="cc-due">A pagar el ${_ccDM(d.dueDate)}: <b>${_ccPesos(d.amount)}</b></div>`).join('');
     const payAcc = c.payAccountId && (S.accounts || []).find(a => a.id === c.payAccountId);
     const payHtml = payAcc
       ? ''
@@ -540,35 +605,13 @@ function renderCredit() {
         <span>Límite <b class="cc-limit">${_creditPesos(c.limit)}</b></span>
       </div>
       <div class="cc-meta">Cierra el día ${c.closeDay} · Vence el día ${c.dueDay}${pct > 100 ? ' · <b class="cc-over">Te pasaste del límite</b>' : ''}</div>
-      ${dueHtml}${payHtml}
+      ${payHtml}
     </div>`;
   }).join('');
-  const tUsed = cards.reduce((s, c) => s + cardUsed(c), 0);
-  const tLimit = cards.reduce((s, c) => s + (+c.limit || 0), 0);
-  const tPct = tLimit > 0 ? Math.round(tUsed * 100 / tLimit) : 0, tTone = _creditTone(tPct);
-  const R = 28, C = 2 * Math.PI * R, off = C * (1 - Math.max(0, Math.min(100, tPct)) / 100);
-  const charges = [...(S.cardCharges || [])].filter(Boolean)
-    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : (a.id < b.id ? 1 : -1)));
-  const chargesHtml = charges.length
-    ? charges.map(_ccChargeHtml).join('')
-    : '<p class="cc-hint">Todavía no cargaste compras con tarjeta.</p>';
-  el.innerHTML = `<div class="cc-total cc-${tTone}" id="creditTotal">
-      <svg class="cc-ring" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="${tPct}% del límite total usado">
-        <circle class="cc-ring-track" cx="32" cy="32" r="${R}" fill="none" stroke-width="6"/>
-        <circle class="cc-ring-prog" cx="32" cy="32" r="${R}" fill="none" stroke-width="6" stroke-linecap="round"
-          stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 32 32)"/>
-        <text x="32" y="32" text-anchor="middle" dominant-baseline="central" class="cc-ring-txt">${tPct}%</text>
-      </svg>
-      <div class="cc-nums cc-nums-total">
-        <span>Usado total <b class="cc-used">${_creditPesos(tUsed)}</b></span>
-        <span>Disponible total <b class="cc-avail">${_creditPesos(tLimit - tUsed)}</b></span>
-        <span>Límite total <b class="cc-limit">${_creditPesos(tLimit)}</b></span>
-      </div>
-    </div>${rows}
-    <div class="cc-actions"><button class="btn btn-ghost btn-sm" onclick="openCardPaymentModal()">Registrar pago de resumen</button></div>
-    ${_ccCalendarHtml(today)}
-    <div class="cc-sec">Compras con tarjeta</div>
-    <div id="cardChargeList">${chargesHtml}</div>`;
+  pTarj.innerHTML = `<div class="cc-pane-bar">
+      <button class="btn btn-primary btn-sm" onclick="openCardModal()">+ Tarjeta</button>
+      <button class="btn btn-ghost btn-sm" onclick="openCardPaymentModal()">Registrar pago de resumen</button>
+    </div>${rows}`;
 }
 
 // ── Deuda y flujo (etapa 10) ──
@@ -641,7 +684,7 @@ function _dfDebtIncomeHtml(debt, today) {
       <span>Deuda <b>${_creditPesos(debt)}</b></span>
       <span>Ingreso mensual promedio <b>${_creditPesos(inc.avg)}</b></span>
     </div>
-    <div class="df-sub" id="dfDebtBasis">Ingreso calculado con el promedio de ${inc.n} ${inc.n === 1 ? 'mes cerrado' : 'meses cerrados'} con ingresos (no cuenta el mes en curso).</div>`;
+    <div class="df-sub" id="dfDebtBasis">Según el promedio de ${inc.n} ${inc.n === 1 ? 'mes cerrado' : 'meses cerrados'}.</div>`;
   }
   return `<div class="df-block" id="dfDebtIncome"><div class="df-h">Deuda sobre ingresos</div>${body}</div>`;
 }
@@ -659,16 +702,14 @@ function _dfNetDebtHtml(debt) {
     body = `<div class="df-big df-neg">Tu patrimonio es ${nw < 0 ? 'negativo' : 'cero'}: ${_creditPesos(nw)}</div>
       <div class="df-sub">No alcanza para cubrir la deuda de <b>${_creditPesos(debt)}</b>.</div>`;
   }
-  const note = debt > 0 ? '<div class="df-sub">El patrimonio ya tiene descontado el crédito usado.</div>' : '';
-  return `<div class="df-block" id="dfNetDebt"><div class="df-h">Patrimonio sobre deuda</div>${body}${note}</div>`;
+  return `<div class="df-block" id="dfNetDebt"><div class="df-h">Patrimonio sobre deuda</div>${body}</div>`;
 }
 
 function _dfFlowHtml(today) {
   const f = dfMonthFlow(today);
   const mo = _CC_MONTHS[+today.slice(5, 7) - 1];
-  const head = `<div class="df-h">Flujo de efectivo del mes</div>`;
   if (!f.income.count && !f.expense.count) {
-    return `<div class="df-block" id="dfFlow">${head}<div class="df-big">Sin movimientos este mes</div>
+    return `<div class="df-block" id="dfFlow"><div class="df-big">Sin movimientos este mes</div>
       <div class="df-sub">Cuando cargues ingresos o gastos de ${mo}, vas a ver acá el resumen.</div></div>`;
   }
   const avgDay = (s) => _creditPesos(Math.round(s.total / f.day));
@@ -676,7 +717,7 @@ function _dfFlowHtml(today) {
   const flow = _ccRound(f.income.total - f.expense.total);
   const flowTxt = (flow > 0 ? '+' : '') + _creditPesos(flow);
   const flowMsg = flow > 0 ? 'Entró más de lo que salió' : flow < 0 ? 'Salió más de lo que entró' : 'Entró lo mismo que salió';
-  return `<div class="df-block" id="dfFlow">${head}
+  return `<div class="df-block" id="dfFlow">
     <div class="df-sub">Del 1 al ${f.day} de ${mo}${f.day === 1 ? ' (1 día)' : ` (${f.day} días)`}.</div>
     <table class="df-table" id="dfFlowTable">
       <thead><tr><th scope="col"><span class="sr-only">Concepto</span></th><th scope="col">Ingreso</th><th scope="col">Gasto</th></tr></thead>
@@ -696,7 +737,13 @@ function renderDebtFlow() {
   if (!el) return;
   const today = getActiveDate();
   const debt = calcCreditUsed();
-  el.innerHTML = _dfDebtIncomeHtml(debt, today) + _dfNetDebtHtml(debt) + _dfFlowHtml(today);
+  el.innerHTML = _dfDebtIncomeHtml(debt, today) + _dfNetDebtHtml(debt);
+}
+
+// "Flujo del mes": bloque plegable dentro de Movimientos (mismos números de siempre).
+function renderMonthFlow() {
+  const el = document.getElementById('txnFlowBody');
+  if (el) el.innerHTML = _dfFlowHtml(getActiveDate());
 }
 
 // Cambiar el cierre/vencimiento de una tarjeta con compras movería todas sus cuotas de fecha.
@@ -3241,7 +3288,7 @@ function saveEditTxn() {
 
 function deleteTransaction(id) {
   const linked = S.transactions.find(t => t.id === id);
-  if (linked && linked.cardChargeId) { showToast('Este gasto viene de una compra con tarjeta. Borralo desde la compra en Crédito.', 4500); return; }
+  if (linked && linked.cardChargeId) { showToast('Este gasto viene de una compra con tarjeta. Borralo desde la compra en Tarjetas.', 4500); return; }
   if (!confirm('¿Eliminar este movimiento?')) return;
   const idx = S.transactions.findIndex(t=>t.id===id);
   const txn = idx > -1 ? S.transactions[idx] : null;

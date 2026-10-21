@@ -5477,6 +5477,29 @@ input:focus, select:focus, textarea:focus {
 #ov-cartera .plov-tab-ink { width: calc((100% - 16px) / 3); }
 #ov-cartera .plov-tabs[data-on="analisis"] .plov-tab-ink { left: calc(8px + (100% - 16px) / 3); }
 #ov-cartera .plov-tabs[data-on="historial"] .plov-tab-ink { left: calc(12px + 2 * (100% - 16px) / 3); }
+#ov-tarjetas .plov-tabs { grid-template-columns: repeat(3, 1fr); }
+#ov-tarjetas .plov-tab { min-width: 0; padding: 10px 6px; }
+#ov-tarjetas .plov-tab-ink { width: calc((100% - 16px) / 3); }
+#ov-tarjetas .plov-tabs[data-on="calendario"] .plov-tab-ink { left: calc(8px + (100% - 16px) / 3); }
+#ov-tarjetas .plov-tabs[data-on="tarjetas"] .plov-tab-ink { left: calc(12px + 2 * (100% - 16px) / 3); }
+#ov-tarjetas .plov-pane { min-width: 0; padding-bottom: 24px; }
+
+/* Movimientos: con cinco botones el encabezado baja de renglón en vez de cortarse en el borde de la card */
+/* (workspace.js envuelve el contenido del título en un <div> flex, por eso se apunta a los dos niveles) */
+#activity-card .card-title, #activity-card .card-title > div { flex-wrap: wrap; row-gap: 7px; }
+#activity-card .card-title > .flex, #activity-card .card-title > div > .flex { flex-wrap: wrap; justify-content: flex-end; row-gap: 7px; min-width: 0; }
+@media (max-width: 620px) {
+  #activity-card .card-title .btn { padding: 5px 7px; letter-spacing: .02em; }
+}
+
+/* Movimientos: "Flujo del mes", plegado por defecto */
+.txn-flow { margin: 0 0 12px; border: 1px solid var(--border); border-radius: 10px; background: rgba(255,255,255,.03); }
+.txn-flow > summary { display: flex; align-items: center; gap: 8px; padding: 9px 12px; cursor: pointer; list-style: none; font-size: var(--fs-13); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ts); }
+.txn-flow > summary::-webkit-details-marker { display: none; }
+.txn-flow > summary::before { content: '▸'; color: var(--accent); }
+.txn-flow[open] > summary::before { content: '▾'; }
+.txn-flow > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#txnFlowBody { padding: 0 12px 4px; }
 .ten-actions { margin-top: 12px; }
 .ten-venta-btn { min-height: 40px; }
 .ten-ventas-list { display: flex; flex-direction: column; gap: 8px; }
@@ -6073,14 +6096,14 @@ input:focus, select:focus, textarea:focus {
 .cc-hint { margin-top: 4px; font-size: var(--fs-13); color: var(--ts); }
 
 /* Crédito: tarjetas y utilización de cupo */
-#creditBody { padding: 10px 14px; }
+#creditBody { padding: 8px 14px 10px; }
 .cc-empty { text-align: center; padding: 18px 8px; color: var(--ts); font-size: var(--fs-15); }
 .cc-empty p { margin: 0 0 12px; }
-.cc-total { display: flex; align-items: center; gap: 14px; padding: 4px 0 14px; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+.cc-total { display: flex; align-items: center; gap: 12px; padding: 0 0 8px; border-bottom: 1px solid var(--border); margin-bottom: 6px; }
 .cc-ring { flex-shrink: 0; }
 .cc-ring-track { stroke: var(--border); }
 .cc-ring-prog { stroke: var(--cc-c); transition: stroke-dashoffset .6s cubic-bezier(.16,1,.3,1); }
-.cc-ring-txt { fill: var(--cc-c); font-size: var(--fs-15); font-weight: 800; font-family: var(--mono); }
+.cc-ring-txt { fill: var(--cc-c); font-size: var(--fs-12-5); font-weight: 800; font-family: var(--mono); }
 .cc-ok { --cc-c: var(--ok); } .cc-warn { --cc-c: var(--warn); } .cc-danger { --cc-c: var(--danger); }
 .cc-row { padding: 10px 0; border-bottom: 1px solid var(--border); }
 .cc-row:last-child { border-bottom: 0; }
@@ -6091,14 +6114,32 @@ input:focus, select:focus, textarea:focus {
 .cc-bar i { display: block; height: 100%; border-radius: 99px; background: var(--cc-c); transition: width .5s; }
 .cc-nums { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: var(--fs-13); color: var(--ts); }
 .cc-nums b { color: var(--tp); font-family: var(--mono); font-weight: 700; }
-.cc-nums-total { flex: 1; min-width: 0; flex-direction: column; margin-top: 0; }
+.cc-card-link { cursor: pointer; transition: border-color .18s; }
+.cc-card-link:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.cc-card-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cc-empty-min { padding: 6px 0 2px; font-size: var(--fs-13); color: var(--ts); }
+.cc-total-txt { flex: 1; min-width: 0; }
+.cc-total-nums { font-family: var(--mono); font-size: var(--fs-15); color: var(--ts); overflow-wrap: anywhere; }
+.cc-total-nums b { color: var(--tp); font-weight: 800; }
+.cc-total-cap { font-size: var(--fs-12-5); color: var(--tt); }
+.cc-lines-hdr { display: flex; justify-content: space-between; gap: 8px; padding-bottom: 2px; font-size: var(--fs-12-5); color: var(--tt); }
+.cc-line { padding: 5px 0; }
+.cc-line-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.cc-line-top .cc-name { font-size: var(--fs-13); }
+.cc-line-nums { flex: 0 1 auto; min-width: 0; text-align: right; font-family: var(--mono); font-size: var(--fs-13); color: var(--ts); overflow-wrap: anywhere; }
+.cc-line-nums b { color: var(--tp); font-weight: 700; }
+.cc-line-bar { display: flex; align-items: center; gap: 8px; margin-top: 3px; }
+.cc-line-bar .cc-bar { flex: 1; height: 4px; }
+.cc-line-bar .cc-pct { min-width: 3.4em; text-align: right; font-size: var(--fs-12-5); }
 .cc-meta { margin-top: 4px; font-size: var(--fs-12-5); color: var(--tt); }
 .cc-over { color: var(--danger); }
 .cc-danger .cc-avail { color: var(--danger); }
 .cc-due { margin-top: 4px; font-size: var(--fs-13); color: var(--ts); }
 .cc-due b { color: var(--tp); font-family: var(--mono); }
 .cc-warnline { margin-top: 6px; font-size: var(--fs-12-5); color: var(--warn); }
-.cc-actions { padding: 12px 0 4px; }
+.cc-pane-bar { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.cc-due-card { padding: 8px 0 10px; border-bottom: 1px solid var(--border); }
+.cc-due-card .cc-name { font-size: var(--fs-13); }
 .cc-sec { margin-top: 10px; padding: 12px 0 6px; border-top: 1px solid var(--border); font-size: var(--fs-13); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ts); }
 .cc-hint { margin-top: 6px; font-size: var(--fs-12-5); color: var(--tt); overflow-wrap: anywhere; }
 .cc-hint-top { margin: 0 0 14px; }
@@ -6155,7 +6196,7 @@ input:focus, select:focus, textarea:focus {
 #budgetBody .sub-info { min-width: 0; overflow-wrap: anywhere; }
 
 /* ── Deuda y flujo (etapa 10) ── */
-#debt-flow-card, #debt-flow-card .df-block, #debt-flow-card .df-ratio-txt { min-width: 0; }
+#debt-flow-card, #debt-flow-card .df-block, #debt-flow-card .df-ratio-txt, #txnFlow .df-block { min-width: 0; }
 .df-block { padding: 10px 0 12px; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
 .df-block:last-child { border-bottom: 0; }
 .df-h { font-size: var(--fs-13); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ts); margin-bottom: 8px; }

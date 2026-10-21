@@ -2,6 +2,7 @@
 // Los datos de ejemplo viven solo acá; el código de producción no trae ninguna cuenta ni tarjeta.
 'use strict';
 const { test, expect } = require('./support/fixtures');
+const { abrirTarjetas, abrirCompraDesdeMovimientos, abrirPagoResumen } = require('./support/tarjetas-ui');
 
 const NARANJA = { id: 'nar', name: 'Naranja', limit: 1000000, closeDay: 27, dueDay: 10, openingUsed: 600000, payAccountId: 'uala' };
 const HOY = '2026-10-15';
@@ -33,8 +34,7 @@ const digitos = (s) => s.replace(/\D/g, '');
 const puntos = (page) => page.evaluate(() => S.nwHistory.map((h) => ({ ...h })));
 
 async function cargar(page, c) {
-  await page.click('#credit-card button:has-text("+ Compra")');
-  await expect(page.locator('#modal-card-charge')).toHaveClass(/open/);
+  await abrirCompraDesdeMovimientos(page);
   await page.fill('#ccChDate', c.fecha || HOY);
   await page.fill('#ccChAmount', String(c.monto));
   await page.selectOption('#ccChMode', c.modo || 'now1');
@@ -82,8 +82,7 @@ test('2) compra now1: sube el usado y baja el patrimonio ese monto; pagar (autom
   expect(await nw(cmPage)).toBe(conCompra);
 
   // Pago manual de 50.000 desde Ualá.
-  await cmPage.click('#creditBody button:has-text("Registrar pago de resumen")');
-  await expect(cmPage.locator('#modal-card-payment')).toHaveClass(/open/);
+  await abrirPagoResumen(cmPage);
   await cmPage.fill('#ccPayAmount', '50000');
   await cmPage.click('#modal-card-payment .btn-primary');
   await expect(cmPage.locator('#modal-card-payment')).not.toHaveClass(/open/);
@@ -152,7 +151,7 @@ test('6b) cambia el crédito usado: se actualiza el punto de hoy (sin duplicar e
   expect(await puntos(cmPage)).toEqual([{ date: HOY, value: 400000, c: 1 }]);
 
   // Pago manual
-  await cmPage.click('#creditBody button:has-text("Registrar pago de resumen")');
+  await abrirPagoResumen(cmPage);
   await cmPage.fill('#ccPayAmount', '10000');
   await cmPage.click('#modal-card-payment .btn-primary');
   await expect(cmPage.locator('#modal-card-payment')).not.toHaveClass(/open/);
@@ -161,6 +160,7 @@ test('6b) cambia el crédito usado: se actualiza el punto de hoy (sin duplicar e
   // Borrar la compra libera crédito: el patrimonio sube y el punto de hoy lo refleja.
   const id = await cmPage.evaluate(() => S.cardCharges[0].id);
   cmPage.once('dialog', (d) => d.accept());
+  await abrirTarjetas(cmPage, 'compras');
   await cmPage.click(`.cc-chg[data-charge-id="${id}"] button[aria-label="Borrar compra"]`);
   await expect.poll(() => cmPage.evaluate(() => S.cardCharges.length)).toBe(0);
   const esperado = await nw(cmPage);
@@ -174,7 +174,8 @@ test('6b) cambia el crédito usado: se actualiza el punto de hoy (sin duplicar e
   await expect(cmPage.locator('#modal-card')).not.toHaveClass(/open/);
   expect(await puntos(cmPage)).toEqual([{ date: HOY, value: 800000, c: 1 }]);
   cmPage.once('dialog', (d) => d.accept());
-  await cmPage.click('#creditBody button[aria-label="Eliminar tarjeta"]');
+  await abrirTarjetas(cmPage, 'tarjetas');
+  await cmPage.click('#tj-pane-tarjetas button[aria-label="Eliminar tarjeta"]');
   await expect.poll(() => cmPage.evaluate(() => S.cards.length)).toBe(0);
   expect(await puntos(cmPage)).toEqual([{ date: HOY, value: 1090000, c: 1 }]);
 });
