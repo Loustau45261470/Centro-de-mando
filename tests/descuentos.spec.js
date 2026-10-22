@@ -500,9 +500,9 @@ test('12) los gastos materializados de una compra con tarjeta, Mover plata y los
   const g = await cmPage.evaluate(() => S.transactions.filter((t) => t.cardChargeId).map((t) => Object.keys(t).sort().join(',')));
   expect(g.length).toBe(3);
   for (const k of g) expect(k).not.toMatch(/discountPct|amountOriginal/);
-  // JARVIS (add_transaction), gasto-foto y Mover plata arman sus movimientos sin pasar por el formulario: no leen el selector.
+  // JARVIS (add_transaction) y Mover plata arman sus movimientos sin pasar por el formulario: no leen el selector.
   const fs = require('fs'), path = require('path');
-  for (const f of ['jarvis-agent.js', 'gasto-foto.js']) {
+  for (const f of ['jarvis-agent.js']) {
     const src = fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
     expect(src, f).not.toMatch(/discountPct|amountOriginal|txnDiscount|_txnDiscountPct/);
   }
