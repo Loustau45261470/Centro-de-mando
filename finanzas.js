@@ -442,7 +442,7 @@ function _ccChargeHtml(ch) {
   return `<div class="cc-chg" data-charge-id="${escHtml(ch.id)}">
     <div class="cc-chg-head">
       <div class="cc-chg-name">${escHtml(ch.name || 'Compra con tarjeta')}</div>
-      <div class="cc-chg-amt">${_ccPesos(ch.amount)}</div>
+      <div class="cc-chg-amt">${_ccPesos(ch.amount)}${_discTagHtml(ch)}</div>
       <button class="icon-btn" aria-label="Borrar compra" onclick="deleteCardCharge('${escHtml(ch.id)}')">${_DEL_SVG}</button>
     </div>
     <div class="cc-meta">${escHtml(card ? card.name : 'Tarjeta eliminada')} · ${_ccDate(ch.date)} · ${_CC_MODES[ch.mode] || ''}</div>
@@ -819,16 +819,20 @@ const _txnPayCardId = () => {
 };
 
 // Opciones del medio de pago: cuentas (como siempre, más efectivo) y, solo en gastos, una por tarjeta.
+// Las mismas cuentas para el alta y para la edición de un movimiento (la edición no ofrece tarjetas).
+function _txnAccountOptionsHtml(cards) {
+  const accs = (S.accounts || []).filter(a => a.type === 'bank' || a.type === 'invest' || a.type === 'cash');
+  return '<option value="">— Ninguna —</option>'
+    + accs.map(a => `<option value="${escHtml(a.id)}">${a.icon || '🏦'} ${escHtml(a.name)}</option>`).join('')
+    + '<option value="prestamos_amorcito">💙 Prestamos amorcito</option>'
+    + (cards || []).map(c => `<option value="${_TXN_CARD_PREFIX}${escHtml(c.id)}">💳 ${escHtml(c.name)}</option>`).join('');
+}
+
 function fillTxnPaymentSelect(selected) {
   const sel = document.getElementById('txnAccount');
   if (!sel) return;
   const expense = document.getElementById('txnType').value === 'expense';
-  const accs = (S.accounts || []).filter(a => a.type === 'bank' || a.type === 'invest' || a.type === 'cash');
-  const cards = expense ? (S.cards || []) : [];
-  sel.innerHTML = '<option value="">— Ninguna —</option>'
-    + accs.map(a => `<option value="${escHtml(a.id)}">${a.icon || '🏦'} ${escHtml(a.name)}</option>`).join('')
-    + '<option value="prestamos_amorcito">💙 Prestamos amorcito</option>'
-    + cards.map(c => `<option value="${_TXN_CARD_PREFIX}${escHtml(c.id)}">💳 ${escHtml(c.name)}</option>`).join('');
+  sel.innerHTML = _txnAccountOptionsHtml(expense ? (S.cards || []) : []);
   sel.value = [...sel.options].some(o => o.value === selected) ? selected : '';
 }
 
@@ -842,6 +846,7 @@ function initTxnForm() {
   g('ccChMonths').value = '3';
   g('ccChToAcc').innerHTML = _ccAccountOptions('', '— Elegí una cuenta —');
   g('ccChErr').textContent = '';
+  setTxnDiscount(0);   // el formulario siempre arranca en "Sin descuento"
   onTxnPaymentChange();
 }
 
@@ -858,7 +863,77 @@ function onTxnPaymentChange() {
   document.getElementById('txnCurrencyRow').style.display = card ? 'none' : '';   // las compras con tarjeta son en pesos
   if (card) onCardChargeModeChange();
   else document.getElementById('txnCategoryRow').style.display = '';
+  syncTxnDiscount();
   updateTxnMonthNotice();
+}
+
+// ── Descuento porcentual (solo gastos reales, no "plata de un tercero") ──
+// El usuario carga el TOTAL; todo lo demás (movimiento, saldo, cargo de tarjeta, cuotas) usa el final con descuento.
+// Final = total × (1 − pct/100) redondeado a centavos, mitad hacia arriba (cuentas en centavos enteros: sin error de coma flotante).
+const _TXN_DISCOUNTS = [10, 15, 20, 25, 50];
+function _discountFinal(total, pct) {
+  return Math.floor((Math.round(total * 100) * (100 - pct) + 50) / 100) / 100;
+}
+function _txnDiscountAllowed() {
+  if (document.getElementById('txnType').value !== 'expense') return false;
+  return !_txnPayCardId() || document.getElementById('ccChMode').value !== 'advance';
+}
+// Porcentaje elegido (0 si no hay o si el formulario no admite descuento).
+function _txnDiscountPct() {
+  if (!_txnDiscountAllowed()) return 0;
+  const el = document.querySelector('#txnDiscount [aria-checked="true"]');
+  const p = el ? Number(el.dataset.pct) : 0;
+  return _TXN_DISCOUNTS.includes(p) ? p : 0;
+}
+function setTxnDiscount(pct) {
+  pct = _TXN_DISCOUNTS.includes(+pct) ? +pct : 0;
+  document.querySelectorAll('#txnDiscount button').forEach(b => {
+    const on = Number(b.dataset.pct) === pct;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-checked', on ? 'true' : 'false');
+    b.tabIndex = on ? 0 : -1;
+  });
+  updateTxnDiscountPreview();
+  updateCardChargePreview();
+}
+// Radiogrupo: las flechas mueven y eligen; Espacio/Enter eligen el chip enfocado (son botones).
+function onTxnDiscountKey(e) {
+  const keys = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
+  const btns = [...document.querySelectorAll('#txnDiscount button')];
+  let i = btns.indexOf(document.activeElement);
+  if (i < 0) return;
+  if (e.key === 'Home') i = 0;
+  else if (e.key === 'End') i = btns.length - 1;
+  else if (keys[e.key]) i = (i + keys[e.key] + btns.length) % btns.length;
+  else return;
+  e.preventDefault();
+  setTxnDiscount(btns[i].dataset.pct);
+  btns[i].focus();
+}
+function updateTxnDiscountPreview() {
+  const el = document.getElementById('txnDiscountPreview');
+  if (!el) return;
+  const pct = _txnDiscountPct();
+  if (!pct) { el.textContent = ''; return; }
+  const total = Number(document.getElementById('txnAmount').value);
+  if (!(total > 0) || !_ccTwoDecimals(total)) { el.textContent = 'Cargá el total para ver cuánto pagás.'; return; }
+  const fin = _discountFinal(total, pct);
+  el.textContent = `Total ${_ccPesos(total)} → pagás ${_ccPesos(fin)} (ahorrás ${_ccPesos(_ccRound(total - fin))})`;
+}
+// Muestra u oculta el selector según el tipo y el medio de pago; si ya no corresponde, vuelve a "Sin descuento".
+function syncTxnDiscount() {
+  const ok = _txnDiscountAllowed();
+  document.getElementById('txnDiscountRow').style.display = ok ? '' : 'none';
+  if (!ok) setTxnDiscount(0); else updateTxnDiscountPreview();
+}
+function onTxnAmountInput() { updateTxnDiscountPreview(); updateCardChargePreview(); }
+// Etiqueta chica "−20%" junto al monto final (movimientos y compras con tarjeta que tienen descuento).
+function _discTagHtml(rec) {
+  const p = Number(rec && rec.discountPct);
+  if (!(p > 0)) return '';
+  const orig = Number(rec.amountOriginal);
+  const label = (orig > 0 ? `Total ${_ccPesos(orig)}, ` : '') + `descuento ${p}%`;
+  return `<span class="disc-tag" role="img" aria-label="${label}" title="${label}">−${p}%</span>`;
 }
 
 // "+ Compra con tarjeta" de la pestaña Compras: abre Movimientos como gasto con la tarjeta ya elegida
@@ -881,19 +956,24 @@ function onCardChargeModeChange() {
   show('ccChToAccRow', mode === 'advance');
   show('txnCategoryRow', mode !== 'advance');
   document.getElementById('ccChModeHint').textContent = _CC_MODE_HINTS[mode] || '';
+  syncTxnDiscount();   // "plata de un tercero" no es gasto: sin descuento
   updateCardChargePreview();
 }
 
 function _ccReadCharge() {
   const v = (id) => document.getElementById(id).value;
   const mode = v('ccChMode');
+  // Con descuento, el cargo guarda el FINAL (lo que usan cuotas, límite y gasto) y el total cargado como referencia.
+  const total = Number(v('txnAmount')), pct = _txnDiscountPct();
+  const disc = pct > 0 && total > 0 && _ccTwoDecimals(total);
   const ch = {
-    cardId: _txnPayCardId() || '', date: v('ccChDate'), amount: Number(v('txnAmount')), mode,
+    cardId: _txnPayCardId() || '', date: v('ccChDate'), amount: disc ? _discountFinal(total, pct) : total, mode,
     installments: mode === 'now1' ? 1 : Number(v('ccChInst')),
     category: mode === 'advance' ? '' : v('txnCategory'), name: v('txnName').trim(),
   };
   if (mode === 'deferred') ch.consumeMonths = Number(v('ccChMonths'));
   if (mode === 'advance') ch.toAccountId = v('ccChToAcc');
+  if (disc) { ch.discountPct = pct; ch.amountOriginal = total; }
   return ch;
 }
 
@@ -3130,7 +3210,7 @@ function renderActivity() {
         </div>
         <div style="display:flex;align-items:center;gap:6px">
           ${verdictBtns}
-          <div class="act-amount ${t.type}">${t.type==='expense'?'-':'+'} ${fmtMoney(t.amount,t.currency)}</div>
+          <div class="act-amount ${t.type}">${t.type==='expense'?'-':'+'} ${fmtMoney(t.amount,t.currency)}${t.type==='expense'?_discTagHtml(t):''}</div>
           <div class="txn-actions"><button class="icon-btn" onclick="openEditTxn('${t.id}')" title="Editar"><svg viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button></div>
         </div>
       </div>`;
@@ -3276,9 +3356,11 @@ function openEditTxn(id) {
   document.getElementById('editTxnCurrency').value = txn.currency;
   fillTxnCategorySelect('editTxnCategory', txn.category);
   const sel = document.getElementById('editTxnAccount');
-  sel.innerHTML = '<option value="">— Ninguna —</option>' +
-    S.accounts.filter(a=>a.type==='bank'||a.type==='invest')
-      .map(a=>`<option value="${a.id}">${a.icon||'🏦'} ${a.name}</option>`).join('');
+  sel.innerHTML = _txnAccountOptionsHtml();
+  // Cuenta que ya no existe: se conserva tal cual al guardar (sin saldo que mover).
+  if (txn.accountId && ![...sel.options].some(o => o.value === txn.accountId)) {
+    const o = document.createElement('option'); o.value = txn.accountId; o.textContent = '— Cuenta eliminada —'; sel.appendChild(o);
+  }
   sel.value = txn.accountId || '';
   populateTxnMonthSelect('editTxnMonth', txn.date ? txn.date.slice(0,7) : null);
   toggleTxnMonthField('editTxnMonth', txn.type);
@@ -3312,7 +3394,10 @@ function saveEditTxn() {
   }
   txn.name     = document.getElementById('editTxnName').value.trim() || txn.name;
   txn.type     = newType;
-  txn.amount   = +document.getElementById('editTxnAmount').value || txn.amount;
+  const newAmount = +document.getElementById('editTxnAmount').value || txn.amount;
+  // El monto editado es el final: no reaplica descuento. Si cambia, el "total y descuento" de referencia ya no vale.
+  if (newAmount !== txn.amount) { delete txn.discountPct; delete txn.amountOriginal; }
+  txn.amount   = newAmount;
   txn.currency = document.getElementById('editTxnCurrency').value;
   txn.category = document.getElementById('editTxnCategory').value;
   txn.accountId= newAccountId;
@@ -3368,7 +3453,11 @@ function addTransaction() {
   const name=document.getElementById('txnName').value.trim();
   if (!name) { showToast('Escribe la descripción'); return; }
   const type=document.getElementById('txnType').value;
-  const amount=+document.getElementById('txnAmount').value||0;
+  const total=+document.getElementById('txnAmount').value||0;
+  const pct=_txnDiscountPct();
+  if (pct && !(total > 0)) { showToast('El monto tiene que ser mayor a 0'); return; }
+  if (pct && !_ccTwoDecimals(total)) { showToast('El monto puede tener como máximo 2 decimales'); return; }
+  const amount = pct ? _discountFinal(total, pct) : total;   // con descuento, el gasto real es el final
   const currency=document.getElementById('txnCurrency').value;
   const accountId=document.getElementById('txnAccount').value;
   const category=document.getElementById('txnCategory').value;
@@ -3392,6 +3481,7 @@ function addTransaction() {
   }
   const txn = { id:uid(), date, name, type, amount, currency, accountId, category };
   if (pending) txn.pending = true;
+  if (pct) { txn.discountPct = pct; txn.amountOriginal = total; }
   S.transactions.unshift(txn);
   saveState(); renderFinanzasTab(); closeModal('modal-add-txn');
   document.getElementById('txnName').value='';
