@@ -5484,12 +5484,21 @@ input:focus, select:focus, textarea:focus {
 #ov-tarjetas .plov-tabs[data-on="tarjetas"] .plov-tab-ink { left: calc(12px + 2 * (100% - 16px) / 3); }
 #ov-tarjetas .plov-pane { min-width: 0; padding-bottom: 24px; }
 
-/* Movimientos: con cinco botones el encabezado baja de renglón en vez de cortarse en el borde de la card */
+/* Movimientos: los tres botones van en una sola fila, un 10% más chicos que el resto; si no entran, el grupo baja de renglón en vez de cortarse en el borde de la card */
 /* (workspace.js envuelve el contenido del título en un <div> flex, por eso se apunta a los dos niveles) */
 #activity-card .card-title, #activity-card .card-title > div { flex-wrap: wrap; row-gap: 7px; }
 #activity-card .card-title > .flex, #activity-card .card-title > div > .flex { flex-wrap: wrap; justify-content: flex-end; row-gap: 7px; min-width: 0; }
+#activity-card .card-title .btn { font-size: calc(var(--fs-13) * .9); padding: 4.5px 9px; }
 @media (max-width: 620px) {
-  #activity-card .card-title .btn { padding: 5px 7px; letter-spacing: .02em; }
+  #activity-card .card-title .btn { padding: 4.5px 6px; letter-spacing: .02em; }
+}
+@media (max-width: 400px) {
+  #activity-card .card-title .btn { padding: 4.5px 5px; letter-spacing: 0; }
+}
+/* Donde la card es angosta (celular y 900-1279px, con dos columnas) los botones van solos en un renglón de ancho completo y la flecha de plegar sube a la esquina: así entran los tres juntos */
+@media (max-width: 560px), (min-width: 900px) and (max-width: 1279px) {
+  #activity-card .card-title > .card-collapse-chevron { position: absolute; top: 11px; right: 14px; }
+  #activity-card .card-title .flex { flex: 0 0 100%; column-gap: 4px; }
 }
 
 /* Movimientos: "Flujo del mes", plegado por defecto */

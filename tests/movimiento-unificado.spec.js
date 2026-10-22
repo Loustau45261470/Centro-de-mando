@@ -341,7 +341,7 @@ for (const ancho of [1280, 390]) {
         });
         return { cardL: card.left, cardR: card.right, botones, tsw: titulo.scrollWidth, tcw: titulo.clientWidth };
       });
-      expect(m.botones.map((b) => b.t)).toEqual(['🎨 Categorías', '📷 Foto ticket', '💳 Tarjetas', '+ Movimiento']);
+      expect(m.botones.map((b) => b.t)).toEqual(['🎨 Categorías', '💳 Tarjetas', '+ Movimiento']);
       for (const b of m.botones) {
         expect(b.w, b.t).toBeGreaterThan(40);
         expect(b.l, b.t).toBeGreaterThanOrEqual(m.cardL);
