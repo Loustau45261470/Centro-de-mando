@@ -563,7 +563,7 @@ function renderCardsOverlay() {
   // Compras
   const charges = [...(S.cardCharges || [])].filter(Boolean)
     .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : (a.id < b.id ? 1 : -1)));
-  pCompras.innerHTML = `<div class="cc-pane-bar"><button class="btn btn-primary btn-sm" onclick="openCardChargeModal()">+ Compra con tarjeta</button></div>
+  pCompras.innerHTML = `<div class="cc-pane-bar"><button class="btn btn-primary btn-sm" onclick="openTxnCardForm()">+ Compra con tarjeta</button></div>
     <div id="cardChargeList">${charges.length ? charges.map(_ccChargeHtml).join('') : '<p class="cc-hint">Todavía no cargaste compras con tarjeta.</p>'}</div>`;
 
   // Calendario: lo que se paga en cada tarjeta y los 12 meses
@@ -808,23 +808,69 @@ function deleteCard(id) {
   snapshotNW(); saveState(); renderFinanzasTab();
 }
 
-// ── Compra con tarjeta ──
-function openCardChargeModal() {
+// ── Compra con tarjeta (dentro del formulario de Movimientos) ──
+// El medio de pago de un gasto puede ser una cuenta o una tarjeta (valor "card:<id>"). Al elegir tarjeta
+// aparece #txnCardPanel con las modalidades; fecha de compra, monto, descripción y categoría salen del formulario.
+const _TXN_CARD_PREFIX = 'card:';
+const _txnPayCardId = () => {
+  const el = document.getElementById('txnAccount');
+  const v = el ? el.value : '';
+  return v.startsWith(_TXN_CARD_PREFIX) ? v.slice(_TXN_CARD_PREFIX.length) : null;
+};
+
+// Opciones del medio de pago: cuentas (como siempre, más efectivo) y, solo en gastos, una por tarjeta.
+function fillTxnPaymentSelect(selected) {
+  const sel = document.getElementById('txnAccount');
+  if (!sel) return;
+  const expense = document.getElementById('txnType').value === 'expense';
+  const accs = (S.accounts || []).filter(a => a.type === 'bank' || a.type === 'invest' || a.type === 'cash');
+  const cards = expense ? (S.cards || []) : [];
+  sel.innerHTML = '<option value="">— Ninguna —</option>'
+    + accs.map(a => `<option value="${escHtml(a.id)}">${a.icon || '🏦'} ${escHtml(a.name)}</option>`).join('')
+    + '<option value="prestamos_amorcito">💙 Prestamos amorcito</option>'
+    + cards.map(c => `<option value="${_TXN_CARD_PREFIX}${escHtml(c.id)}">💳 ${escHtml(c.name)}</option>`).join('');
+  sel.value = [...sel.options].some(o => o.value === selected) ? selected : '';
+}
+
+// La llama openModal('modal-add-txn'): deja el formulario en su estado inicial.
+function initTxnForm() {
+  const g = (id) => document.getElementById(id);
+  fillTxnPaymentSelect('');
+  g('ccChDate').value = getActiveDate();
+  g('ccChMode').value = 'now1';
+  g('ccChInst').value = '3';
+  g('ccChMonths').value = '3';
+  g('ccChToAcc').innerHTML = _ccAccountOptions('', '— Elegí una cuenta —');
+  g('ccChErr').textContent = '';
+  onTxnPaymentChange();
+}
+
+function onTxnTypeChange() {
+  fillTxnPaymentSelect(document.getElementById('txnAccount').value);
+  onTxnPaymentChange();
+}
+
+function onTxnPaymentChange() {
+  const expense = document.getElementById('txnType').value === 'expense';
+  const card = !!_txnPayCardId();
+  document.getElementById('txnAccountLbl').textContent = expense ? 'Medio de pago' : 'Cuenta';
+  document.getElementById('txnCardPanel').style.display = card ? '' : 'none';
+  document.getElementById('txnCurrencyRow').style.display = card ? 'none' : '';   // las compras con tarjeta son en pesos
+  if (card) onCardChargeModeChange();
+  else document.getElementById('txnCategoryRow').style.display = '';
+  updateTxnMonthNotice();
+}
+
+// "+ Compra con tarjeta" de la pestaña Compras: abre Movimientos como gasto con la tarjeta ya elegida
+// (si hay una sola). Con varias, deja el medio de pago para que se elija.
+function openTxnCardForm() {
   const cards = S.cards || [];
   if (!cards.length) { showToast('Primero agregá una tarjeta'); return; }
-  ensureTxnCategories();
-  document.getElementById('ccChCard').innerHTML = cards.map(c => `<option value="${escHtml(c.id)}">${escHtml(c.name)}</option>`).join('');
-  document.getElementById('ccChDate').value = getActiveDate();
-  document.getElementById('ccChAmount').value = '';
-  document.getElementById('ccChName').value = '';
-  document.getElementById('ccChMode').value = 'now1';
-  document.getElementById('ccChInst').value = '3';
-  document.getElementById('ccChMonths').value = '3';
-  document.getElementById('ccChToAcc').innerHTML = _ccAccountOptions('', '— Elegí una cuenta —');
-  fillTxnCategorySelect('ccChCategory');
-  document.getElementById('ccChErr').textContent = '';
-  onCardChargeModeChange();
-  openModal('modal-card-charge');
+  openModal('modal-add-txn');
+  document.getElementById('txnType').value = 'expense';
+  fillTxnPaymentSelect(cards.length === 1 ? _TXN_CARD_PREFIX + cards[0].id : '');
+  onTxnPaymentChange();
+  if (cards.length > 1) document.getElementById('txnAccount').focus();
 }
 
 function onCardChargeModeChange() {
@@ -833,7 +879,7 @@ function onCardChargeModeChange() {
   show('ccChInstRow', mode !== 'now1');
   show('ccChMonthsRow', mode === 'deferred');
   show('ccChToAccRow', mode === 'advance');
-  show('ccChCategoryRow', mode !== 'advance');
+  show('txnCategoryRow', mode !== 'advance');
   document.getElementById('ccChModeHint').textContent = _CC_MODE_HINTS[mode] || '';
   updateCardChargePreview();
 }
@@ -842,9 +888,9 @@ function _ccReadCharge() {
   const v = (id) => document.getElementById(id).value;
   const mode = v('ccChMode');
   const ch = {
-    cardId: v('ccChCard'), date: v('ccChDate'), amount: Number(v('ccChAmount')), mode,
+    cardId: _txnPayCardId() || '', date: v('ccChDate'), amount: Number(v('txnAmount')), mode,
     installments: mode === 'now1' ? 1 : Number(v('ccChInst')),
-    category: mode === 'advance' ? '' : v('ccChCategory'), name: v('ccChName').trim(),
+    category: mode === 'advance' ? '' : v('txnCategory'), name: v('txnName').trim(),
   };
   if (mode === 'deferred') ch.consumeMonths = Number(v('ccChMonths'));
   if (mode === 'advance') ch.toAccountId = v('ccChToAcc');
@@ -858,6 +904,7 @@ function _ccChargeError(ch) {
   const vc = CMTarjetas.validateCard(card);
   if (!vc.ok) return vc.error;
   if (!_ccTwoDecimals(ch.amount)) return 'El monto puede tener como máximo 2 decimales.';
+  if (ch.name.length > 80) return 'La descripción puede tener hasta 80 caracteres.';
   const v = CMTarjetas.validateCharge(ch);
   if (!v.ok) return v.error;
   if (ch.mode === 'advance' && !_ccAccounts().some(a => a.id === ch.toAccountId)) return 'Elegí una cuenta en pesos donde entra la plata.';
@@ -866,7 +913,7 @@ function _ccChargeError(ch) {
 
 function updateCardChargePreview() {
   const el = document.getElementById('ccChPreview');
-  if (!el) return;
+  if (!el || !_txnPayCardId()) return;
   const ch = _ccReadCharge();
   const card = (S.cards || []).find(c => c.id === ch.cardId);
   if (!card || _ccChargeError(ch)) { el.innerHTML = '<span class="cc-hint">Completá los datos para ver cómo queda.</span>'; return; }
@@ -887,9 +934,10 @@ function updateCardChargePreview() {
     <div class="cc-pv-title">Qué pagás</div><ul class="cc-chg-list">${cuotas}</ul>${gasto}`;
 }
 
-function saveCardCharge() {
-  // Doble clic: la segunda llamada llega con el modal ya cerrado y no hace nada.
-  if (!document.getElementById('modal-card-charge').classList.contains('open')) return;
+// Guardar de un gasto cuyo medio de pago es una tarjeta (lo llama addTransaction).
+function _saveTxnCardCharge() {
+  // Doble clic: la segunda llamada llega con el formulario ya cerrado y no hace nada.
+  if (!document.getElementById('modal-add-txn').classList.contains('open')) return;
   const errEl = document.getElementById('ccChErr');
   const ch = _ccReadCharge();
   const error = _ccChargeError(ch);
@@ -904,7 +952,9 @@ function saveCardCharge() {
     acc.balance = _ccRound(acc.balance + ch.amount);
   }
   snapshotNW();   // cambia el crédito usado (y, si es adelanto, el saldo de la cuenta)
-  closeModal('modal-card-charge');
+  closeModal('modal-add-txn');
+  document.getElementById('txnName').value = '';
+  document.getElementById('txnAmount').value = '';
   materializeCardExpenses();
   saveState(); renderFinanzasTab();
   const card = S.cards.find(c => c.id === ch.cardId);
@@ -2948,6 +2998,7 @@ function toggleTxnMonthField(fieldId, type) {
 function updateTxnMonthNotice() {
   const notice = document.getElementById('txnMonthNotice');
   if (!notice) return;
+  if (_txnPayCardId()) { notice.style.display = 'none'; return; }   // compra con tarjeta: manda la fecha de la compra
   const now = new Date();
   const curMK = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
   const targetMonth = txnActiveMonth || curMK;
@@ -3313,6 +3364,7 @@ function deleteTransaction(id) {
 }
 
 function addTransaction() {
+  if (_txnPayCardId()) return _saveTxnCardCharge();
   const name=document.getElementById('txnName').value.trim();
   if (!name) { showToast('Escribe la descripción'); return; }
   const type=document.getElementById('txnType').value;

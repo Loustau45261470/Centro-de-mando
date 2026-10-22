@@ -2,7 +2,7 @@
 // Los datos de ejemplo viven solo acá; el código de producción no trae ninguna cuenta ni tarjeta.
 'use strict';
 const { test, expect } = require('./support/fixtures');
-const { abrirTarjetas, abrirCompraDesdeMovimientos, abrirPagoResumen } = require('./support/tarjetas-ui');
+const { abrirTarjetas, abrirCompraDesdeMovimientos, llenarCompra, guardarCompra, abrirPagoResumen } = require('./support/tarjetas-ui');
 
 const NARANJA = { id: 'nar', name: 'Naranja', limit: 1000000, closeDay: 27, dueDay: 10, openingUsed: 600000, payAccountId: 'uala' };
 const HOY = '2026-10-15';
@@ -35,13 +35,8 @@ const puntos = (page) => page.evaluate(() => S.nwHistory.map((h) => ({ ...h })))
 
 async function cargar(page, c) {
   await abrirCompraDesdeMovimientos(page);
-  await page.fill('#ccChDate', c.fecha || HOY);
-  await page.fill('#ccChAmount', String(c.monto));
-  await page.selectOption('#ccChMode', c.modo || 'now1');
-  if (c.cuotas !== undefined) await page.fill('#ccChInst', String(c.cuotas));
-  if (c.cuenta) await page.selectOption('#ccChToAcc', c.cuenta);
-  await page.click('#modal-card-charge .btn-primary');
-  await expect(page.locator('#modal-card-charge')).not.toHaveClass(/open/);
+  await llenarCompra(page, { ...c, fecha: c.fecha || HOY });
+  await guardarCompra(page);
 }
 
 test('1) efectivo 200k + Ualá 500k + deuda a favor 100k + inversiones 300k − crédito 600k: Cash 800k, Balance real 500k = patrimonio mostrado', async ({ cmPage, consoleErrors }) => {
