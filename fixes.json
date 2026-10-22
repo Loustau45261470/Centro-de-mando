@@ -316,6 +316,13 @@
       "desc": "El costo unitario de una venta de cartera es el promedio ponderado de los lotes SOLO si todos tienen cantidad y precio > 0 y suman la cantidad del activo; si no, usa el ppc de IOL (y sin ppc valido rechaza la venta). Antes un lote con precio 0 se descartaba del promedio pero el resultado se aplicaba a todas las unidades: el costo salia ~2x el real (venta a +10% mostraba -42%). El modal muestra el origen del costo y avisa cuando los lotes no coinciden. Cubierto por tests/cartera-venta.spec.js (Costo con lotes inconsistentes).",
       "file": "finanzas.js",
       "marker": "validos.length === todos.length && cantTotal > 0"
+    },
+    {
+      "id": "gasto-tarjeta-edicion-doble-descuento",
+      "fecha": "2026-10-22",
+      "desc": "Editar desde Actividad un gasto materializado de tarjeta (cardChargeId, ids cc:*) lo desalineaba del cargo y, con cuenta asignada, descontaba el saldo dos veces al pagar la cuota. openEditTxn y saveEditTxn ahora lo bloquean con aviso y no modifican nada.",
+      "file": "finanzas.js",
+      "marker": "const _CC_EDIT_BLOCK_MSG"
     }
   ]
 }

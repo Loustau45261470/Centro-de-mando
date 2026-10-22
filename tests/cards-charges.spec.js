@@ -568,8 +568,7 @@ test('borrar desde Actividad un gasto de tarjeta no lo borra y avisa; uno normal
     S.transactions.push({ id: 'normal1', type: 'expense', name: 'Normal', amount: 100, date: '2026-10-15', accountId: 'efe', currency: 'ARS', category: '' });
     window.confirm = () => true;
   });
-  await cmPage.evaluate((id) => { openEditTxn(id); }, g.id);
-  await cmPage.click('#modal-edit-txn button:has-text("Eliminar")');
+  await cmPage.evaluate((id) => { deleteTransaction(id); }, g.id);
   await expect(cmPage.locator('#toast')).toContainText('Este gasto viene de una compra con tarjeta. Borralo desde la compra en Tarjetas.');
   await expect(cmPage.locator('#toast')).not.toContainText('eliminado');
   expect(await gastosTarjeta(cmPage)).toHaveLength(1);
