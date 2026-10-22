@@ -3,7 +3,7 @@
 // La fecha de "hoy" se fija pisando getActiveDate() (el helper que usa todo el código de tarjetas).
 'use strict';
 const { test, expect } = require('./support/fixtures');
-const { abrirTarjetas, cerrarTarjetas, abrirCompraDesdeMovimientos, abrirPagoResumen } = require('./support/tarjetas-ui');
+const { abrirTarjetas, cerrarTarjetas, abrirCompraDesdeMovimientos, llenarCompra, guardarCompra, abrirPagoResumen } = require('./support/tarjetas-ui');
 
 const NARANJA = { id: 'nar', name: 'Naranja', limit: 1000000, closeDay: 27, dueDay: 10, openingUsed: 865000 };
 const MP = { id: 'mp', name: 'Mercado Pago', limit: 425000, closeDay: 5, dueDay: 10, openingUsed: 357000 };
@@ -39,23 +39,10 @@ async function abrirCompra(page) {
   await abrirCompraDesdeMovimientos(page);
 }
 
-async function llenarCompra(page, c) {
-  if (c.card) await page.selectOption('#ccChCard', c.card);
-  await page.fill('#ccChDate', c.fecha || '2026-10-15');
-  await page.fill('#ccChAmount', String(c.monto));
-  if (c.nombre !== undefined) await page.fill('#ccChName', c.nombre);
-  if (c.categoria) await page.selectOption('#ccChCategory', c.categoria);
-  await page.selectOption('#ccChMode', c.modo || 'now1');
-  if (c.cuotas !== undefined) await page.fill('#ccChInst', String(c.cuotas));
-  if (c.meses !== undefined) await page.fill('#ccChMonths', String(c.meses));
-  if (c.cuenta) await page.selectOption('#ccChToAcc', c.cuenta);
-}
-
 async function cargar(page, c) {
   await abrirCompra(page);
   await llenarCompra(page, c);
-  await page.click('#modal-card-charge .btn-primary');
-  await expect(page.locator('#modal-card-charge')).not.toHaveClass(/open/);
+  await guardarCompra(page);
 }
 
 test('DoD 2: 50.000 en 1 pago el 15-oct con Naranja: gasto en octubre, la plata sale el 10-nov, el usado sube', async ({ cmPage, consoleErrors }) => {
@@ -99,8 +86,7 @@ test('DoD 3: 90.000 diferida (5 meses, 3 cuotas): 18.000 de gasto por mes y 30.0
   await expect(pv).toContainText('Cuota 2 de 3 · vence el 10/12/2026 · $30.000');
   await expect(pv).toContainText('Cuota 3 de 3 · vence el 10/01/2027 · $30.000');
   for (const m of ['octubre 2026', 'noviembre 2026', 'diciembre 2026', 'enero 2027', 'febrero 2027']) await expect(pv).toContainText(`${m} · $18.000`);
-  await cmPage.click('#modal-card-charge .btn-primary');
-  await expect(cmPage.locator('#modal-card-charge')).not.toHaveClass(/open/);
+  await guardarCompra(cmPage);
 
   const ch = (await cargos(cmPage))[0];
   expect(ch).toMatchObject({ mode: 'deferred', installments: 3, consumeMonths: 5, amount: 90000 });
@@ -144,9 +130,8 @@ test('DoD 5: adelanto de 100.000 en 2 cuotas: entra a la cuenta, no es ingreso n
   await abrirCompra(cmPage);
   await llenarCompra(cmPage, { monto: 100000, nombre: 'Adelanto a Didi', modo: 'advance', cuotas: 2, cuenta: 'efe' });
   await expect(cmPage.locator('#ccChPreview')).toContainText('No es ingreso ni gasto');
-  await expect(cmPage.locator('#ccChCategoryRow')).toBeHidden();
-  await cmPage.click('#modal-card-charge .btn-primary');
-  await expect(cmPage.locator('#modal-card-charge')).not.toHaveClass(/open/);
+  await expect(cmPage.locator('#txnCategoryRow')).toBeHidden();
+  await guardarCompra(cmPage);
 
   expect(await saldo(cmPage, 'efe')).toBe(150000);
   // Etapa 7: el adelanto suma plata a la cuenta y suma crédito usado, así que el patrimonio no cambia.
@@ -170,7 +155,7 @@ test('compra el día exacto del cierre cae en el resumen siguiente', async ({ cm
   await expect(cmPage.locator('#ccChPreview')).toContainText('cierra el 27/10/2026 y vence el 10/11/2026');
   await cmPage.fill('#ccChDate', '2026-10-27');
   await expect(cmPage.locator('#ccChPreview')).toContainText('cierra el 27/11/2026 y vence el 10/12/2026');
-  await cmPage.click('#modal-card-charge .btn-primary');
+  await cmPage.click('#modal-add-txn .btn-primary');
   await expect(vence(cmPage, 'Naranja')).toContainText('A pagar el 10/12: $1.000');
   await expect(vence(cmPage, 'Naranja')).not.toContainText('A pagar el 10/11');
 });
@@ -377,7 +362,7 @@ test('validaciones de la compra: mensaje en pantalla y no se guarda nada', async
   await preparar(cmPage);
   await abrirCompra(cmPage);
   const err = cmPage.locator('#ccChErr');
-  const guardar = () => cmPage.click('#modal-card-charge .btn-primary');
+  const guardar = () => cmPage.click('#modal-add-txn .btn-primary');
   const casos = [
     [{ monto: '100.123' }, '2 decimales'],
     [{ monto: '0.001' }, '2 decimales'],
@@ -397,12 +382,12 @@ test('validaciones de la compra: mensaje en pantalla y no se guarda nada', async
   for (const [c, palabra] of casos) {
     await cmPage.selectOption('#ccChMode', c.modo || 'now1');
     await cmPage.fill('#ccChDate', c.fecha === undefined ? '2026-10-15' : c.fecha);
-    await cmPage.fill('#ccChAmount', c.monto);
+    await cmPage.fill('#txnAmount', c.monto);
     if (c.cuotas !== undefined) await cmPage.fill('#ccChInst', c.cuotas);
     if (c.meses !== undefined) await cmPage.fill('#ccChMonths', c.meses);
     if (c.modo === 'advance') await cmPage.selectOption('#ccChToAcc', c.cuenta);
     await guardar();
-    await expect(cmPage.locator('#modal-card-charge')).toHaveClass(/open/);
+    await expect(cmPage.locator('#modal-add-txn')).toHaveClass(/open/);
     await expect(err).toContainText(palabra);
   }
   expect(await cargos(cmPage)).toHaveLength(0);
@@ -410,9 +395,9 @@ test('validaciones de la compra: mensaje en pantalla y no se guarda nada', async
   // Con 2 decimales exactos sí guarda.
   await cmPage.selectOption('#ccChMode', 'now1');
   await cmPage.fill('#ccChDate', '2026-10-15');
-  await cmPage.fill('#ccChAmount', '1234.56');
+  await cmPage.fill('#txnAmount', '1234.56');
   await guardar();
-  await expect(cmPage.locator('#modal-card-charge')).not.toHaveClass(/open/);
+  await expect(cmPage.locator('#modal-add-txn')).not.toHaveClass(/open/);
   expect((await cargos(cmPage))[0].amount).toBe(1234.56);
 });
 
@@ -434,7 +419,7 @@ test('doble clic en Guardar no duplica la compra', async ({ cmPage }) => {
   await abrirCompra(cmPage);
   await llenarCompra(cmPage, { monto: 5000, nombre: 'Una sola vez' });
   await cmPage.evaluate(() => {
-    const b = document.querySelector('#modal-card-charge .btn-primary');
+    const b = document.querySelector('#modal-add-txn .btn-primary');
     b.click(); b.click();
   });
   expect(await cargos(cmPage)).toHaveLength(1);
@@ -450,10 +435,11 @@ test('doble clic en Guardar no duplica la compra', async ({ cmPage }) => {
   expect(await saldo(cmPage, 'uala')).toBe(999000);
 });
 
-test('sin tarjetas: los botones avisan en vez de abrir un modal vacío', async ({ cmPage }) => {
+test('sin tarjetas: el botón de Compras avisa en vez de abrir el formulario', async ({ cmPage }) => {
   await preparar(cmPage, { cards: [] });
-  await cmPage.click('#activity-card button:has-text("+ Compra con tarjeta")');
-  await expect(cmPage.locator('#modal-card-charge')).not.toHaveClass(/open/);
+  await abrirTarjetas(cmPage, 'compras');
+  await cmPage.click('#tj-pane-compras button:has-text("+ Compra con tarjeta")');
+  await expect(cmPage.locator('#modal-add-txn')).not.toHaveClass(/open/);
   await expect(cmPage.locator('#toast')).toContainText('Primero agregá una tarjeta');
 });
 
@@ -499,7 +485,7 @@ test.describe('390px', () => {
     expect(m.padName).toBeGreaterThanOrEqual(12);
 
     for (const abrir of [
-      async () => { await abrirCompra(cmPage); await cmPage.selectOption('#ccChMode', 'deferred'); await cmPage.fill('#ccChAmount', '90000'); },
+      async () => { await abrirCompra(cmPage); await cmPage.selectOption('#ccChMode', 'deferred'); await cmPage.fill('#txnAmount', '90000'); },
       async () => { await abrirPagoResumen(cmPage); await cmPage.fill('#ccPayAmount', '5000000'); },
     ]) {
       await abrir();

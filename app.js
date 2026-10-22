@@ -1159,8 +1159,7 @@ function showToast(msg, duration = 3000) {
 // ════════════════════════════════════════════════════════
 function openModal(id) {
   document.getElementById(id).classList.add('open');
-  if (id === 'modal-add-txn') populateAccountSelects();
-  if (id === 'modal-add-txn') updateTxnMonthNotice();
+  if (id === 'modal-add-txn') { initTxnForm(); updateTxnMonthNotice(); }   // medio de pago + panel de tarjeta (finanzas.js)
   if (id === 'modal-cfg-gym') renderGymConfigModal();
 }
 function closeModal(id) {
@@ -1171,7 +1170,7 @@ document.querySelectorAll('.modal-overlay').forEach(ov => {
   ov.addEventListener('click', e => { if (e.target === ov) ov.classList.remove('open'); });
 });
 function populateAccountSelects() {
-  ['ordAccount','txnAccount','fundAccount'].forEach(id => {
+  ['ordAccount','fundAccount'].forEach(id => {
     const sel = document.getElementById(id);
     if (!sel) return;
     const base = id === 'ordAccount' ? '<option value="">— No descontar —</option>' : '<option value="">— Ninguna —</option>';

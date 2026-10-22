@@ -21,7 +21,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-<link rel="stylesheet" href="styles.css?v=217">
+<link rel="stylesheet" href="styles.css?v=218">
 <link rel="stylesheet" href="gamemode.css">
 <link rel="stylesheet" href="overlay-core.css">
 <link rel="stylesheet" href="speed-dial.css?v=2">
@@ -551,7 +551,6 @@
               <button class="btn btn-ghost btn-sm" onclick="openCatManager()">🎨 Categorías</button>
               <button class="btn btn-ghost btn-sm" onclick="abrirGastoFoto()">📷 Foto ticket</button>
               <button class="btn btn-ghost btn-sm" id="openTarjetasBtn" aria-haspopup="dialog" onclick="if(window.openTarjetasOverlay)openTarjetasOverlay('compras')">💳 Tarjetas</button>
-              <button class="btn btn-ghost btn-sm" onclick="openCardChargeModal()">+ Compra con tarjeta</button>
               <button class="btn btn-ghost btn-sm" onclick="openModal('modal-add-txn')">+ Movimiento</button>
             </span>
           </div>
@@ -1025,34 +1024,6 @@
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('modal-card')">Cancelar</button>
       <button class="btn btn-primary" onclick="saveCard()">Guardar</button>
-    </div>
-  </div>
-</div>
-
-<!-- Compra con tarjeta de crédito -->
-<div class="modal-overlay" id="modal-card-charge" onclick="if(event.target===this)closeModal('modal-card-charge')">
-  <div class="modal">
-    <div class="modal-handle"></div>
-    <div class="modal-title">Compra con tarjeta</div>
-    <div class="field"><label>Tarjeta</label><select class="inp" id="ccChCard" onchange="updateCardChargePreview()"></select></div>
-    <div class="field"><label>Fecha de la compra</label><input class="inp" type="date" id="ccChDate" oninput="updateCardChargePreview()"></div>
-    <div class="field"><label>Monto</label><input class="inp" type="number" step="0.01" min="0" id="ccChAmount" placeholder="0" oninput="updateCardChargePreview()"></div>
-    <div class="field"><label>Descripción</label><input class="inp" id="ccChName" maxlength="80" placeholder="Ej: alimento de las mascotas"></div>
-    <div class="field" id="ccChCategoryRow"><label>Categoría</label><select class="inp" id="ccChCategory"></select></div>
-    <div class="field"><label>Cómo se paga y se gasta</label><select class="inp" id="ccChMode" onchange="onCardChargeModeChange()">
-      <option value="now1">Consumo inmediato, 1 pago</option>
-      <option value="deferred">En cuotas, uso diferido</option>
-      <option value="nowInst">En cuotas, uso inmediato</option>
-      <option value="advance">Plata de un tercero con mi tarjeta</option>
-    </select><div class="cc-hint" id="ccChModeHint"></div></div>
-    <div class="field" id="ccChInstRow"><label>Cantidad de cuotas</label><input class="inp" type="number" step="1" min="1" id="ccChInst" oninput="updateCardChargePreview()"></div>
-    <div class="field" id="ccChMonthsRow"><label>Para cuántos meses rinde</label><input class="inp" type="number" step="1" min="1" id="ccChMonths" oninput="updateCardChargePreview()"></div>
-    <div class="field" id="ccChToAccRow"><label>Cuenta donde entra la plata</label><select class="inp" id="ccChToAcc" onchange="updateCardChargePreview()"></select></div>
-    <div class="cc-preview" id="ccChPreview" aria-live="polite"></div>
-    <div class="move-warn" id="ccChErr" role="alert"></div>
-    <div class="modal-actions">
-      <button class="btn btn-ghost" onclick="closeModal('modal-card-charge')">Cancelar</button>
-      <button class="btn btn-primary" onclick="saveCardCharge()">Guardar</button>
     </div>
   </div>
 </div>
@@ -1560,21 +1531,36 @@
     <div class="modal-title">Registrar movimiento</div>
     <div class="field"><label>Descripción</label><input class="inp" id="txnName" placeholder="Ej: Salario, Comida…"></div>
     <div class="field"><label>Tipo</label>
-      <select class="inp" id="txnType" onchange="updateTxnMonthNotice()"><option value="income">Ingreso 💚</option><option value="expense">Gasto 🔴</option></select>
+      <select class="inp" id="txnType" onchange="onTxnTypeChange()"><option value="income">Ingreso 💚</option><option value="expense">Gasto 🔴</option></select>
     </div>
     <div id="txnMonthNotice" class="txn-month-notice" style="display:none"></div>
-    <div class="field"><label>Categoría</label>
+    <div class="field" id="txnCategoryRow"><label for="txnCategory">Categoría</label>
       <select class="inp" id="txnCategory">
         <option value="">— Sin categoría —</option>
       </select>
     </div>
     <div class="input-row">
-      <div class="field" style="flex:1"><label>Monto</label><input class="inp" type="number" step="0.01" id="txnAmount" placeholder="0.00"></div>
-      <div class="field" style="width:90px"><label>Moneda</label>
+      <div class="field" style="flex:1"><label>Monto</label><input class="inp" type="number" step="0.01" id="txnAmount" placeholder="0.00" oninput="updateCardChargePreview()"></div>
+      <div class="field" id="txnCurrencyRow" style="width:90px"><label>Moneda</label>
         <select class="inp" id="txnCurrency"><option>USD</option><option>EUR</option><option>ARS</option></select>
       </div>
     </div>
-    <div class="field"><label>Cuenta</label><select class="inp" id="txnAccount"><option value="">— Ninguna —</option></select></div>
+    <div class="field"><label for="txnAccount" id="txnAccountLbl">Cuenta</label><select class="inp" id="txnAccount" onchange="onTxnPaymentChange()"><option value="">— Ninguna —</option></select></div>
+    <!-- Compra con tarjeta de crédito: aparece al elegir una tarjeta como medio de pago de un gasto -->
+    <div id="txnCardPanel" class="txn-card-panel" style="display:none">
+      <div class="field"><label for="ccChDate">Fecha de la compra</label><input class="inp" type="date" id="ccChDate" oninput="updateCardChargePreview()"></div>
+      <div class="field"><label for="ccChMode">Cómo se paga y se gasta</label><select class="inp" id="ccChMode" onchange="onCardChargeModeChange()">
+        <option value="now1">Consumo inmediato, 1 pago</option>
+        <option value="deferred">En cuotas, uso diferido</option>
+        <option value="nowInst">En cuotas, uso inmediato</option>
+        <option value="advance">Plata de un tercero con mi tarjeta</option>
+      </select><div class="cc-hint" id="ccChModeHint"></div></div>
+      <div class="field" id="ccChInstRow"><label for="ccChInst">Cantidad de cuotas</label><input class="inp" type="number" step="1" min="1" id="ccChInst" oninput="updateCardChargePreview()"></div>
+      <div class="field" id="ccChMonthsRow"><label for="ccChMonths">Para cuántos meses rinde</label><input class="inp" type="number" step="1" min="1" id="ccChMonths" oninput="updateCardChargePreview()"></div>
+      <div class="field" id="ccChToAccRow"><label for="ccChToAcc">Cuenta donde entra la plata</label><select class="inp" id="ccChToAcc" onchange="updateCardChargePreview()"></select></div>
+      <div class="cc-preview" id="ccChPreview" aria-live="polite"></div>
+      <div class="move-warn" id="ccChErr" role="alert"></div>
+    </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('modal-add-txn')">Cancelar</button>
       <button class="btn btn-primary" onclick="addTransaction()">Registrar</button>
@@ -1864,7 +1850,7 @@
 
 <script src="errores.js?v=1"></script>
 <script src="deadlines.js?v=5"></script>
-<script src="app.js?v=195"></script>
+<script src="app.js?v=196"></script>
 <script src="archivo.js?v=1"></script>
 <script src="undo.js?v=1"></script>
 <script src="workspace.js?v=197"></script>
@@ -1873,7 +1859,7 @@
 <script src="habitos.js?v=6"></script>
 <script src="rutinas.js"></script>
 <script src="tarjetas-motor.js?v=2"></script>
-<script src="finanzas.js?v=21"></script>
+<script src="finanzas.js?v=22"></script>
 <script src="proyeccion-mes.js?v=2"></script>
 <script src="recordatorios.js?v=10"></script>
 <script src="objetivos.js"></script>

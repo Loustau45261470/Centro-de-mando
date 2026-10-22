@@ -4,7 +4,7 @@
 // Los datos de ejemplo viven solo acá; el código de producción no trae ninguno.
 'use strict';
 const { test, expect } = require('./support/fixtures');
-const { abrirTarjetas, cerrarTarjetas } = require('./support/tarjetas-ui');
+const { abrirTarjetas, cerrarTarjetas, abrirCompraDesdeMovimientos, llenarCompra: llenarFormCompra, guardarCompra } = require('./support/tarjetas-ui');
 
 const NARANJA = { id: 'nar', name: 'Naranja', limit: 1000000, closeDay: 27, dueDay: 10, openingUsed: 865000 };
 const MP = { id: 'mp', name: 'Mercado Pago', limit: 425000, closeDay: 5, dueDay: 10, openingUsed: 357000 };
@@ -51,12 +51,8 @@ const dangerRef = (page) => page.evaluate(() => {
 });
 
 async function llenarCompra(page, c) {
-  await page.fill('#ccChDate', c.fecha || '2026-10-15');
-  await page.fill('#ccChAmount', String(c.monto));
-  await page.fill('#ccChName', c.nombre);
-  await page.selectOption('#ccChMode', c.modo || 'now1');
-  await page.click('#modal-card-charge .btn-primary');
-  await expect(page.locator('#modal-card-charge')).not.toHaveClass(/open/);
+  await llenarFormCompra(page, c);
+  await guardarCompra(page);
 }
 
 test('1) el botón Tarjetas abre el overlay en Compras; Esc y el botón de cerrar lo cierran y devuelven el foco', async ({ cmPage, consoleErrors }) => {
@@ -113,14 +109,13 @@ test('1) el botón Tarjetas abre el overlay en Compras; Esc y el botón de cerra
   expect(consoleErrors).toEqual([]);
 });
 
-test('2) "+ Compra con tarjeta" desde Movimientos guarda una compra que aparece en Compras con su calendario; borrar pide confirmación', async ({ cmPage, consoleErrors }) => {
+test('2) la compra con tarjeta desde Movimientos guarda una compra que aparece en Compras con su calendario; borrar pide confirmación', async ({ cmPage, consoleErrors }) => {
   await preparar(cmPage);
-  // El acceso está junto a "+ Movimiento".
+  // El acceso es "+ Movimiento" (el botón aparte de compra con tarjeta ya no existe).
   const hdr = cmPage.locator('#activity-card .card-title');
-  await expect(hdr.locator('button:has-text("+ Compra con tarjeta")')).toBeVisible();
+  await expect(hdr.locator('button:has-text("+ Compra con tarjeta")')).toHaveCount(0);
   await expect(hdr.locator('button:has-text("+ Movimiento")')).toBeVisible();
-  await hdr.locator('button:has-text("+ Compra con tarjeta")').click();
-  await expect(cmPage.locator('#modal-card-charge')).toHaveClass(/open/);
+  await abrirCompraDesdeMovimientos(cmPage);
   await llenarCompra(cmPage, { monto: 100000, nombre: 'Compra de prueba' });
 
   // Gasto del mes (modalidad "consumo inmediato, 1 pago") y el usado sube 865.000 → 965.000.
@@ -144,8 +139,12 @@ test('2) "+ Compra con tarjeta" desde Movimientos guarda una compra que aparece 
 
   // Desde el propio overlay también se carga una compra (el modal queda por encima) y la lista se actualiza abierta.
   await cmPage.click('#tj-pane-compras button:has-text("+ Compra con tarjeta")');
-  await expect(cmPage.locator('#modal-card-charge')).toHaveClass(/open/);
-  await llenarCompra(cmPage, { fecha: '2026-10-10', monto: 20000, nombre: 'Segunda' });
+  await expect(cmPage.locator('#modal-add-txn')).toHaveClass(/open/);
+  await expect(cmPage.locator('#txnType')).toHaveValue('expense');
+  // Con varias tarjetas el medio de pago queda para elegir.
+  await expect(cmPage.locator('#txnAccount')).toHaveValue('');
+  await expect(cmPage.locator('#txnCardPanel')).toBeHidden();
+  await llenarCompra(cmPage, { card: 'nar', fecha: '2026-10-10', monto: 20000, nombre: 'Segunda' });
   await expect(cmPage.locator('#ov-tarjetas')).toHaveClass(/show/);
   await expect(lista.locator('.cc-chg-name')).toHaveText(['Compra de prueba', 'Segunda']);
 
@@ -432,7 +431,7 @@ for (const ancho of [1280, 390]) {
         });
         return { cardL: card.left, cardR: card.right, botones, tsw: titulo.scrollWidth, tcw: titulo.clientWidth };
       });
-      expect(m.botones.map((b) => b.t)).toEqual(['🎨 Categorías', '📷 Foto ticket', '💳 Tarjetas', '+ Compra con tarjeta', '+ Movimiento']);
+      expect(m.botones.map((b) => b.t)).toEqual(['🎨 Categorías', '📷 Foto ticket', '💳 Tarjetas', '+ Movimiento']);
       for (const b of m.botones) {
         expect(b.w, b.t).toBeGreaterThan(40);
         expect(b.l, b.t).toBeGreaterThanOrEqual(m.cardL);

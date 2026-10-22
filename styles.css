@@ -6155,6 +6155,8 @@ input:focus, select:focus, textarea:focus {
 .cc-paid { color: var(--ok); font-weight: 700; }
 .cc-preview { margin: 4px 0 12px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: rgba(255,255,255,.03); font-size: var(--fs-13); color: var(--ts); overflow-wrap: anywhere; }
 .cc-pv-title { margin-top: 8px; font-weight: 700; color: var(--tp); }
+/* Panel de compra con tarjeta dentro del formulario de Movimientos */
+.txn-card-panel { margin: 4px 0 8px; padding-top: 12px; border-top: 1px solid var(--border); }
 .cc-cal-m { padding: 8px 0; border-bottom: 1px solid var(--border); }
 .cc-cal-m:last-of-type { border-bottom: 0; }
 .cc-cal-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
