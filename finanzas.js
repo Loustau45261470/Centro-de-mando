@@ -928,11 +928,13 @@ function syncTxnDiscount() {
 }
 function onTxnAmountInput() { updateTxnDiscountPreview(); updateCardChargePreview(); }
 // Etiqueta chica "−20%" junto al monto final (movimientos y compras con tarjeta que tienen descuento).
-function _discTagHtml(rec) {
+// compra=true: el rec es el cargo de un gasto de tarjeta (puede ser en cuotas): el texto habla de la compra completa.
+function _discTagHtml(rec, compra) {
   const p = Number(rec && rec.discountPct);
   if (!(p > 0)) return '';
   const orig = Number(rec.amountOriginal);
-  const label = (orig > 0 ? `Total ${_ccPesos(orig)}, ` : '') + `descuento ${p}%`;
+  const label = compra ? (orig > 0 ? `Compra de ${_ccPesos(orig)} con descuento ${p}%` : `Compra con descuento ${p}%`)
+    : (orig > 0 ? `Total ${_ccPesos(orig)}, ` : '') + `descuento ${p}%`;
   return `<span class="disc-tag" role="img" aria-label="${label}" title="${label}">−${p}%</span>`;
 }
 
@@ -3210,7 +3212,7 @@ function renderActivity() {
         </div>
         <div style="display:flex;align-items:center;gap:6px">
           ${verdictBtns}
-          <div class="act-amount ${t.type}">${t.type==='expense'?'-':'+'} ${fmtMoney(t.amount,t.currency)}${t.type==='expense'?_discTagHtml(t):''}</div>
+          <div class="act-amount ${t.type}">${t.type==='expense'?'-':'+'} ${fmtMoney(t.amount,t.currency)}${t.type==='expense'?(t.cardChargeId?_discTagHtml((S.cardCharges||[]).find(c=>c.id===t.cardChargeId),true):_discTagHtml(t)):''}</div>
           <div class="txn-actions"><button class="icon-btn" onclick="openEditTxn('${t.id}')" title="Editar"><svg viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button></div>
         </div>
       </div>`;
@@ -3346,9 +3348,12 @@ function toggleMonthBalanceView() {
   if (!visible) renderMonthBalanceList();
 }
 
+// Los gastos de una compra con tarjeta (cardChargeId) no se editan: su monto y su cuenta salen del cargo.
+const _CC_EDIT_BLOCK_MSG = 'Este gasto viene de una compra con tarjeta. Para cambiarlo, borrá la compra en Tarjetas y cargala de nuevo.';
 function openEditTxn(id) {
   const txn = S.transactions.find(t=>t.id===id);
   if (!txn) return;
+  if (txn.cardChargeId) { showToast(_CC_EDIT_BLOCK_MSG, 4500); return; }
   document.getElementById('editTxnId').value = txn.id;
   document.getElementById('editTxnName').value = txn.name;
   document.getElementById('editTxnType').value = txn.type;
@@ -3371,6 +3376,7 @@ function saveEditTxn() {
   const id = document.getElementById('editTxnId').value;
   const txn = S.transactions.find(t=>t.id===id);
   if (!txn) return;
+  if (txn.cardChargeId) { showToast(_CC_EDIT_BLOCK_MSG, 4500); return; }
 
   // Validar ANTES de mutar nada: si el cambio de "Mes destino" va a dejar el movimiento
   // "pending" (mismo criterio que el bloque de más abajo), necesita cuenta asociada — igual

@@ -140,20 +140,20 @@ test('e) movimientos viejos sin cuenta o con cuenta eliminada no se rompen ni ca
   expect(await cmPage.evaluate(() => S.accounts.map((a) => [a.id, a.balance]))).toEqual(antes);
 });
 
-test('f) un gasto materializado de tarjeta no se borra desde Actividad y editarlo no toca saldos', async ({ cmPage }) => {
+test('f) un gasto materializado de tarjeta no se borra ni se edita desde Actividad y no toca saldos', async ({ cmPage }) => {
   await preparar(cmPage);
   await cmPage.evaluate(() => {
     S.transactions.push({ id: 'tc1', type: 'expense', name: 'Compra tarjeta', amount: 5000, date: '2026-10-12', currency: 'ARS', category: '', cardChargeId: 'ch1' });
     window.confirm = () => true;
   });
   const antes = await cmPage.evaluate(() => S.accounts.map((a) => [a.id, a.balance]));
-  await cmPage.evaluate(() => openEditTxn('tc1'));
-  await cmPage.click('#modal-edit-txn button:has-text("Eliminar")');
+  await cmPage.evaluate(() => deleteTransaction('tc1'));
   await expect(cmPage.locator('#toast')).toContainText('Este gasto viene de una compra con tarjeta');
   expect(await cmPage.evaluate(() => S.transactions.some((t) => t.id === 'tc1'))).toBe(true);
-  await cmPage.evaluate(() => closeModal('modal-edit-txn'));
-  await editar(cmPage, 'tc1', { nombre: 'Compra tarjeta 2' });
-  expect(await txn(cmPage, 'tc1')).toMatchObject({ name: 'Compra tarjeta 2', cardChargeId: 'ch1', amount: 5000 });
+  // Editarlo está bloqueado (specs en gasto-tarjeta-edicion.spec.js): el modal no abre y nada cambia.
+  await cmPage.evaluate(() => openEditTxn('tc1'));
+  await expect(cmPage.locator('#modal-edit-txn')).not.toHaveClass(/open/);
+  expect(await txn(cmPage, 'tc1')).toMatchObject({ name: 'Compra tarjeta', cardChargeId: 'ch1', amount: 5000 });
   expect((await txn(cmPage, 'tc1')).accountId || '').toBe('');
   expect(await cmPage.evaluate(() => S.accounts.map((a) => [a.id, a.balance]))).toEqual(antes);
 });
