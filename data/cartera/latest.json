@@ -5,7 +5,7 @@
     {
       "simbolo": "GOOGL",
       "cantidad": 30,
-      "precio": 9530,
+      "precio": 9145,
       "precioMesAnterior": 9610,
       "variacionPct": -2.5,
       "rend3m": -0.05,
@@ -15,7 +15,7 @@
     {
       "simbolo": "MELI",
       "cantidad": 20,
-      "precio": 24740,
+      "precio": 24900,
       "precioMesAnterior": 26260,
       "variacionPct": -1.6,
       "rend3m": 24.65,
@@ -25,7 +25,7 @@
     {
       "simbolo": "META",
       "cantidad": 10,
-      "precio": 47680,
+      "precio": 44280,
       "precioMesAnterior": 38640,
       "variacionPct": -1.29,
       "rend3m": -3.05,
@@ -35,7 +35,7 @@
     {
       "simbolo": "AMZN",
       "cantidad": 100,
-      "precio": 2815,
+      "precio": 2852.5,
       "precioMesAnterior": 2980,
       "variacionPct": -2.85,
       "rend3m": 10.08,
@@ -45,7 +45,7 @@
     {
       "simbolo": "NVDA",
       "cantidad": 15,
-      "precio": 14510,
+      "precio": 14560,
       "precioMesAnterior": 14540,
       "variacionPct": 1.17,
       "rend3m": 8.56,
@@ -55,7 +55,7 @@
     {
       "simbolo": "V",
       "cantidad": 10,
-      "precio": 36200,
+      "precio": 37480,
       "precioMesAnterior": 34020,
       "variacionPct": -0.94,
       "rend3m": 27.55,
@@ -65,7 +65,7 @@
     {
       "simbolo": "MA",
       "cantidad": 10,
-      "precio": 30200,
+      "precio": 31160,
       "precioMesAnterior": 29000,
       "variacionPct": -1.38,
       "rend3m": 31.56,
@@ -75,7 +75,7 @@
     {
       "simbolo": "SPY",
       "cantidad": 50,
-      "precio": 20620,
+      "precio": 20940,
       "precioMesAnterior": 20620,
       "variacionPct": -0.78,
       "rend3m": 7.12,
@@ -85,7 +85,7 @@
     {
       "simbolo": "SPGI",
       "cantidad": 40,
-      "precio": 15420,
+      "precio": 16360,
       "precioMesAnterior": 15820,
       "variacionPct": -2.02,
       "rend3m": 11.19,
@@ -95,7 +95,7 @@
     {
       "simbolo": "NU",
       "cantidad": 50,
-      "precio": 11820,
+      "precio": 12510,
       "precioMesAnterior": 11500,
       "variacionPct": 1.04,
       "rend3m": 31.45,
@@ -105,7 +105,7 @@
     {
       "simbolo": "UBER",
       "cantidad": 5,
-      "precio": 57050,
+      "precio": 54950,
       "precioMesAnterior": null,
       "variacionPct": null,
       "rend3m": null,
