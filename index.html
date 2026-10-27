@@ -21,7 +21,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-<link rel="stylesheet" href="styles.css?v=227">
+<link rel="stylesheet" href="styles.css?v=228">
 <link rel="stylesheet" href="gamemode.css">
 <link rel="stylesheet" href="overlay-core.css">
 <link rel="stylesheet" href="speed-dial.css?v=2">
@@ -1541,7 +1541,7 @@
     <div class="input-row">
       <div class="field" style="flex:1"><label>Monto</label><input class="inp" type="number" step="0.01" id="txnAmount" placeholder="0.00" oninput="onTxnAmountInput()"></div>
       <div class="field" id="txnCurrencyRow" style="width:90px"><label>Moneda</label>
-        <select class="inp" id="txnCurrency"><option>USD</option><option>EUR</option><option>ARS</option></select>
+        <select class="inp" id="txnCurrency" onchange="syncTxnDiscount()"><option>USD</option><option>EUR</option><option>ARS</option></select>
       </div>
     </div>
     <div class="field"><label for="txnAccount" id="txnAccountLbl">Cuenta</label><select class="inp" id="txnAccount" onchange="onTxnPaymentChange()"><option value="">— Ninguna —</option></select></div>
@@ -1555,8 +1555,14 @@
         <button type="button" role="radio" aria-checked="false" data-pct="25" tabindex="-1" onclick="setTxnDiscount(25)">25%</button>
         <button type="button" role="radio" aria-checked="false" data-pct="50" tabindex="-1" onclick="setTxnDiscount(50)">50%</button>
       </div>
+      <!-- Cómo te lo hacen: descuento en el precio (baja el monto) o reintegro (pagás el total y te devuelven plata en una cuenta) -->
+      <div class="seg seg-sm txn-disc txn-disc-kind" id="txnDiscKind" role="radiogroup" aria-label="Cómo te hacen el descuento" style="display:none" onkeydown="onTxnDiscKindKey(event)">
+        <button type="button" role="radio" class="on" aria-checked="true" data-kind="price" tabindex="0" onclick="setTxnDiscKind('price')">Descuento en el precio</button>
+        <button type="button" role="radio" aria-checked="false" data-kind="refund" tabindex="-1" onclick="setTxnDiscKind('refund')">Reintegro a una cuenta</button>
+      </div>
       <div class="cc-hint" id="txnDiscountPreview" aria-live="polite"></div>
     </div>
+    <div class="field txn-refund-acc" id="txnRefundAccRow" style="display:none"><label for="txnRefundAcc">Cuenta donde entra el reintegro</label><select class="inp" id="txnRefundAcc" onchange="onTxnRefundAccChange()"></select></div>
     <!-- Compra con tarjeta de crédito: aparece al elegir una tarjeta como medio de pago de un gasto -->
     <div id="txnCardPanel" class="txn-card-panel" style="display:none">
       <div class="field"><label for="ccChDate">Fecha de la compra</label><input class="inp" type="date" id="ccChDate" oninput="updateCardChargePreview()"></div>
@@ -1872,7 +1878,7 @@
 <script src="habitos.js?v=6"></script>
 <script src="rutinas.js"></script>
 <script src="tarjetas-motor.js?v=3"></script>
-<script src="finanzas.js?v=27"></script>
+<script src="finanzas.js?v=28"></script>
 <script src="proyeccion-mes.js?v=2"></script>
 <script src="recordatorios.js?v=10"></script>
 <script src="objetivos.js"></script>
