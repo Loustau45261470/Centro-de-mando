@@ -6207,6 +6207,24 @@ input:focus, select:focus, textarea:focus {
 .disc-tag-refund { color: var(--hud); background: color-mix(in srgb, var(--hud) 14%, transparent); border-color: color-mix(in srgb, var(--hud) 35%, transparent); }
 .txn-disc-kind { margin-top: 8px; }
 .txn-refund-acc { margin: 8px 0 0; }
+/* Compra que cubre otra persona: opción en el formulario, filas mes + monto, etiqueta en Compras y botón en la cuenta a cobrar */
+.cc-cover-opt { display: flex !important; align-items: center; gap: 8px; cursor: pointer; letter-spacing: 0 !important; }
+.cc-cover-opt input { width: 18px; height: 18px; flex: none; accent-color: var(--accent); }
+#ccCoverBox { margin-top: 8px; }
+#ccCoverBox > label { margin-top: 10px; }
+.cc-cover-row { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(0, 1fr) 32px; gap: 6px; align-items: center; margin-bottom: 8px; }
+.cc-cover-row .inp { min-width: 0; width: 100%; }
+.cc-cover-row .cc-cover-m { padding-left: 10px; padding-right: 8px; }
+.cc-cover-row:only-child .icon-btn { visibility: hidden; }
+.cc-cover-row .icon-btn { opacity: .7; min-height: 36px; }
+/* Mismo aspecto que .btn-ghost pero con clase propia: los tests y el resto de la app buscan "el primer .btn-ghost" del modal como Cancelar */
+.btn-cover { background: var(--card); border: 1px solid var(--border); color: var(--ts); }
+.btn-cover:hover { background: var(--card-h); color: var(--tp); border-color: var(--hud-dim); }
+#ccCoverAdd { margin-top: 2px; }
+.disc-tag-cover { color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); border-color: color-mix(in srgb, var(--warn) 35%, transparent); margin-left: 0; }
+.cc-cover-info { margin-top: 6px; }
+.cc-cover-col { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-top: 6px; font-size: var(--fs-13); color: var(--ts); }
+.acc-cobro { margin-top: 6px; }
 .cc-cal-m { padding: 8px 0; border-bottom: 1px solid var(--border); }
 .cc-cal-m:last-of-type { border-bottom: 0; }
 .cc-cal-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
