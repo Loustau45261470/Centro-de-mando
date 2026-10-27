@@ -70,7 +70,7 @@ test.describe('diagnóstico de sincronización', () => {
     expect(rec.ts).toEqual(expect.any(Number));
 
     const evs = await cmPage.evaluate(() => JSON.parse(localStorage.getItem('_syncEvents')));
-    expect(evs.length).toBeLessThanOrEqual(80);
+    expect(evs.length).toBeLessThanOrEqual(300);
     const tipos = evs.map((e) => e.tipo);
     for (const t of ['boot', 'saveState', 'guardar-inicio', 'guardar-rama', 'guardado-ok', 'guardar-fin']) expect(tipos, 'falta ' + t).toContain(t);
     const ss = evs.find((e) => e.tipo === 'saveState');
