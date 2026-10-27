@@ -130,3 +130,17 @@ test('6) la tarjeta del fondo muestra el disponible con lo ganado hoy', async ({
   expect(txt.acc).toBe(txt.esperado);
   expect(consoleErrors).toEqual([]);
 });
+
+test('7) el modal de compra dice cuánto se puede gastar todavía (0 si ya se pasó del margen)', async ({ cmPage, consoleErrors }) => {
+  const { today, cap } = await cargarFondoDiario(cmPage);
+  await marcar(cmPage, today, 'done');
+  const margen = Math.round(cap * 0.1);
+  const txt = (s) => cmPage.evaluate(() => { openFundSpend('f1'); const t = document.getElementById('fundSpendAvail').textContent; closeModal('modal-fund-spend'); return t; });
+  const r1 = await txt();
+  expect(r1).toContain(await cmPage.evaluate((n) => fmtMoney(n, 'ARS'), 1000 + margen));
+  expect(await gastar(cmPage, 1000 + margen)).toBe(true);
+  await marcar(cmPage, today, null);                    // queda por debajo del margen
+  const r2 = await txt();
+  expect(r2).toMatch(/podés gastar hasta \D*0$/);
+  expect(consoleErrors).toEqual([]);
+});

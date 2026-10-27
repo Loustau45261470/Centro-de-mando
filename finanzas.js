@@ -1905,12 +1905,13 @@ let _pfSpendFundId = null, _pfSpendId = null;
 
 function openFundSpend(fundId, spendId) {
   _pfEnsure();
+  pfCatchUp();   // si cambió el mes con la app abierta, lo ganado pasa a acreditado antes de calcular el disponible
   const f = _pfFund(fundId); if (!f) return;
   _pfSpendFundId = fundId; _pfSpendId = spendId || null;
   const sp = spendId ? S.purchaseFundSpends.find(s => s.id === spendId) : null;
   const avail = pfAccumulated(fundId) + (sp ? (+sp.amount || 0) : 0);
   document.getElementById('fund-spend-title').textContent = sp ? 'Editar compra' : `Compra de ${f.name}`;
-  document.getElementById('fundSpendAvail').textContent = `Disponible en el fondo: ${fmtMoney(avail, 'ARS')} (podés pasarte hasta ${fmtMoney(pfSpendMargin(f), 'ARS')})`;
+  document.getElementById('fundSpendAvail').textContent = `Disponible en el fondo: ${fmtMoney(avail, 'ARS')} · podés gastar hasta ${fmtMoney(Math.max(0, avail + pfSpendMargin(f)), 'ARS')}`;
   document.getElementById('fundSpendDesc').value = sp ? sp.desc : '';
   document.getElementById('fundSpendAmount').value = sp ? (+sp.amount || '') : '';
   document.getElementById('fundSpendDate').value = sp ? sp.date : getActiveDate();
@@ -1919,6 +1920,7 @@ function openFundSpend(fundId, spendId) {
 
 function saveFundSpend() {
   _pfEnsure();
+  pfCatchUp();
   const fundId = _pfSpendFundId;
   const f = _pfFund(fundId); if (!f) return;
   const desc = document.getElementById('fundSpendDesc').value.trim();
