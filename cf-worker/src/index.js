@@ -114,6 +114,8 @@ const CACHE_KEY_TOKEN = new Request('https://cdm-cartera-cache.internal/token');
 // que sí consultó IOL fue hace menos de CARTERA_FRESH_MIN_INTERVAL_MS, se responde lo cacheado.
 const CARTERA_FRESH_MIN_INTERVAL_MS = 30000;
 const CACHE_KEY_FRESH_LAST = new Request('https://cdm-cartera-cache.internal/fresh-last');
+const CACHE_KEY_LOGIN_FAIL = new Request('https://cdm-cartera-cache.internal/login-fail');
+const IOL_LOGIN_BACKOFF_MS = 10 * 60 * 1000;
 
 function jsonError(status, code, message) {
   return new Response(JSON.stringify({ error: code, message }), {
@@ -129,12 +131,26 @@ async function getIolToken(env) {
     const { access_token, expires_at } = await cached.json();
     if (access_token && expires_at > Date.now()) return access_token;
   }
+  // Tras un ingreso rechazado no se reintenta durante IOL_LOGIN_BACKOFF_MS: varios intentos fallidos
+  // seguidos con la contraseña podrían bloquear la cuenta de IOL.
+  const fallo = await cache.match(CACHE_KEY_LOGIN_FAIL);
+  if (fallo) {
+    const { at, status } = await fallo.json().catch(() => ({}));
+    const resta = typeof at === 'number' ? IOL_LOGIN_BACKOFF_MS - (Date.now() - at) : 0;
+    if (resta > 0) throw new Error(`IOL rechazó el último ingreso (HTTP ${status}). Para no bloquear tu cuenta, el próximo intento es en ${Math.ceil(resta / 60000)} min`);
+  }
   const res = await fetch(IOL_TOKEN_URL, {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ username: env.IOL_USER, password: env.IOL_PASS, grant_type: 'password' }),
   });
-  if (!res.ok) throw new Error('login IOL falló (HTTP ' + res.status + ')');
+  if (!res.ok) {
+    await cache.put(CACHE_KEY_LOGIN_FAIL, new Response(JSON.stringify({ at: Date.now(), status: res.status }), {
+      headers: { 'content-type': 'application/json', 'cache-control': `max-age=${IOL_LOGIN_BACKOFF_MS / 1000}` },
+    }));
+    throw new Error('login IOL falló (HTTP ' + res.status + ')');
+  }
+  await cache.delete(CACHE_KEY_LOGIN_FAIL);
   const json = await res.json();
   if (!json.access_token) throw new Error('login IOL no devolvió access_token');
   await cache.put(CACHE_KEY_TOKEN, new Response(JSON.stringify({
@@ -368,16 +384,24 @@ async function handleCartera(request, env) {
 
   const cache = caches.default;
   let forzar = new URL(request.url).searchParams.get('fresh') === '1';
+  let frenado = false;
   if (forzar) {
     const ultimo = await cache.match(CACHE_KEY_FRESH_LAST);
     if (ultimo) {
       const { at } = await ultimo.json().catch(() => ({}));
-      if (typeof at === 'number' && Date.now() - at < CARTERA_FRESH_MIN_INTERVAL_MS) forzar = false;
+      if (typeof at === 'number' && Date.now() - at < CARTERA_FRESH_MIN_INTERVAL_MS) { forzar = false; frenado = true; }
     }
   }
-  if (!forzar) {
+  if (forzar) {
+    // El freno cuenta cada intento forzado, salga bien o mal: un IOL que falla tampoco se golpea más de una vez cada 30 s.
+    await cache.put(CACHE_KEY_FRESH_LAST, new Response(JSON.stringify({ at: Date.now() }), {
+      headers: { 'content-type': 'application/json', 'cache-control': 'max-age=60' },
+    }));
+  } else {
     const cached = await cache.match(CACHE_KEY_PORTAFOLIO);
     if (cached) return new Response(cached.body, { status: 200, headers: { ...CARTERA_CORS_HEADERS, 'content-type': 'application/json', 'x-cartera-fuente': 'cache' } });
+    // Frenado y sin nada guardado (el intento anterior falló): no se vuelve a consultar IOL todavía.
+    if (frenado) return jsonError(429, 'too_soon', 'Esperá unos segundos antes de volver a actualizar.');
   }
 
   try {
@@ -390,11 +414,6 @@ async function handleCartera(request, env) {
     await cache.put(CACHE_KEY_PORTAFOLIO, new Response(body, {
       headers: { 'content-type': 'application/json', 'cache-control': `max-age=${CARTERA_CACHE_TTL_SECONDS}` },
     }));
-    if (forzar) {
-      await cache.put(CACHE_KEY_FRESH_LAST, new Response(JSON.stringify({ at: Date.now() }), {
-        headers: { 'content-type': 'application/json', 'cache-control': 'max-age=60' },
-      }));
-    }
     return new Response(body, { status: 200, headers: { ...CARTERA_CORS_HEADERS, 'content-type': 'application/json', 'x-cartera-fuente': 'iol' } });
   } catch (e) {
     console.error('cartera error', e);
