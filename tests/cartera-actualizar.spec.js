@@ -125,6 +125,9 @@ test.describe('Botón Actualizar en Mis tenencias', () => {
     await fila(page, 'TESTA').click(); // dejar una fila abierta: el error no debe cerrarla ni cambiar nada
     await boton(page).click();
     await expect(page.locator('#toast.show').filter({ hasText: msg })).toBeVisible();
+    // El toast queda debajo del overlay: el motivo también se ve dentro de la pantalla de Cartera.
+    await expect(page.locator('#cov-pane-tenencias .ten-act-err')).toHaveText('En vivo no disponible: ' + msg);
+    await expect(page.locator('#cov-pane-tenencias .ten-act-err')).toBeVisible();
     await expect(boton(page)).toBeEnabled();
     await expect(boton(page)).toHaveText('Actualizar');
     expect(await heroNum(page)).toBe('170000');
@@ -144,6 +147,7 @@ test.describe('Botón Actualizar en Mis tenencias', () => {
     await boton(page).click();
     await expect(fila(page, 'NUEVO')).toBeVisible();
     expect(await heroNum(page)).toBe('181500');
+    await expect(page.locator('#cov-pane-tenencias .ten-act-err')).toHaveCount(0);
     // Los 500/502 mockeados dejan su línea de red en la consola; cualquier otro error sería un bug.
     expect(soloRuidoDeRed(consoleErrors)).toEqual([]);
   });
@@ -213,6 +217,7 @@ test.describe('Botón Actualizar en Mis tenencias', () => {
     await page.evaluate(() => CarteraOverlay.open());
     await expect(fila(page, 'TESTA')).toBeVisible();
     await expect(meta(page)).toContainText('Último cierre');
+    await expect(page.locator('#cov-pane-tenencias .ten-act-err')).toHaveText('En vivo no disponible: worker HTTP 503');
     await expect(boton(page)).toBeVisible();
     await boton(page).click();
     await expect(fila(page, 'NUEVO')).toBeVisible();
