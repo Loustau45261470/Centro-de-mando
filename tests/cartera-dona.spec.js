@@ -26,7 +26,7 @@ const fixtureDe = (tenencias) => ({
   tenencias,
 });
 
-const TOTAL_ESPERADO = [['AAA', '36.4%'], ['BBB', '18.2%'], ['BONO', '16.4%'], ['CCC', '9.1%'], ['FFF', '9.1%'], ['LETRA', '9.1%'], ['Otros', '1.8%']];
+const TOTAL_ESPERADO = [['AAA', '36.4%'], ['BBB', '18.2%'], ['BONO', '16.3%'], ['CCC', '9.1%'], ['FFF', '9.1%'], ['LETRA', '9.1%'], ['Otros', '1.8%']];
 const ACCIONES_ESPERADO = [['AAA', '48.8%'], ['BBB', '24.4%'], ['CCC', '12.2%'], ['FFF', '12.2%'], ['Otros', '2.4%']];
 
 async function abrir(page, fixture = fixtureDe(TENENCIAS)) {
@@ -56,9 +56,9 @@ test.describe('Dona "Cartera actual" en Mis tenencias', () => {
     expect(digitos(await centro(page))).toBe('1100000');
     await expect(chip(page, 'total')).toHaveAttribute('aria-pressed', 'true');
     await expect(chip(page, 'acciones')).toHaveAttribute('aria-pressed', 'false');
-    // Los % de la leyenda suman 100 (dentro del redondeo).
+    // Los % de la leyenda suman exactamente 100,0 (el redondeo se reparte).
     const suma = (await leyenda(page)).reduce((a, [, p]) => a + parseFloat(p), 0);
-    expect(Math.abs(suma - 100)).toBeLessThan(0.3);
+    expect(Math.round(suma * 10)).toBe(1000);
 
     // Chart.js es un script del CDN: si cargó, hay una dona con un dato por fila de la leyenda.
     if (await page.evaluate(() => typeof Chart !== 'undefined')) {
