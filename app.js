@@ -38,6 +38,7 @@ const DEFAULT_STATE = {
   cards: [],           // [{ id, name, limit, closeDay, dueDay, openingUsed }] — tarjetas de crédito (openingUsed = saldo de apertura, sin impacto en gastos)
   cardCharges: [],     // [{ id, cardId, date, amount, mode:'now1'|'deferred'|'nowInst'|'advance', installments, consumeMonths, category, name, toAccountId }] — compras con tarjeta (cálculo en tarjetas-motor.js)
   cardPayments: [],    // [{ id, cardId, date, amount, accountId, kind:'auto'|'manual', key }] — pagos de resumen (key = statementKey)
+  cardDues: [],        // [{ id:'cd:<cardId>:<due>', cardId, due:'YYYY-MM-DD', amount }] — lo ya usado de cada tarjeta con la fecha en que vence (un registro por tarjeta y mes)
   seasonals: [],       // [{ id, name, month(1-12), amount, category }] — gastos estacionales (regalos, cumpleaños...): se cargan solos en el presupuesto de su mes
   carteraTx: [],       // [{ id, simbolo, fecha, ts, unidades, precio, costoUnit, costo, resultado, fechaCompra, cierra }] — ventas de activos de la cartera. SOLO se agrega, nunca se borra
   fixedExpenses: [],   // [{ id, name, amount, currency, dayOfMonth }]
@@ -439,7 +440,7 @@ function _rescueLocal(cloudObj, localObj) {
   // txnCategories: combina local + nube (no pierde categorías creadas offline)
   r.txnCategories = { ...(localObj.txnCategories||{}), ...(cloudObj.txnCategories||{}) };
   // Arrays con ID
-  ['transactions','moves','cards','accounts','cardCharges','cardPayments','subscriptions','orders','wishlist',
+  ['transactions','moves','cards','accounts','cardCharges','cardPayments','cardDues','subscriptions','orders','wishlist',
    'photos','finObjectives','fixedExpenses','lawMilestones','routines','exerciseLibrary',
    'bodyWeight','exercises','seasonals','carteraTx'
   ].forEach(key => {

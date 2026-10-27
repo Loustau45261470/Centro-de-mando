@@ -20,6 +20,8 @@ const CARGOS = [
 
 async function preparar(page, { hoy = '2026-10-15', pagarDesde = null, cards = [NARANJA], cargos = CARGOS } = {}) {
   await cerrarTarjetas(page);
+  // El aviso de "revisión semanal" (domingo y lunes) tapa la barra de navegación.
+  await page.evaluate(() => { const n = document.getElementById('rs-nudge'); if (n) n.remove(); });
   await page.click('.nav-btn[data-tab="finanzas"]');
   await expect(page.locator('#tab-finanzas')).toHaveClass(/active/);
   await page.evaluate(({ hoy, pagarDesde, cards, cargos }) => {
@@ -59,8 +61,8 @@ test('calendario: 12 meses y total a pagar correcto por vencimiento con los 4 mo
   // Después de la última cuota no queda nada.
   await expect(mes(cmPage, '2027-02')).toContainText('Nada para pagar');
   await expect(cal.locator('.cc-cal-due')).toHaveCount(3);
-  // Nota fija
-  await expect(cmPage.locator('.cc-cal-note')).toHaveText("El saldo inicial cargado sin fecha no figura acá: se paga con 'Registrar pago de resumen'.");
+  // Nota: hay saldo usado sin fecha de vencimiento
+  await expect(cmPage.locator('.cc-cal-note')).toHaveText("Tenés $865.000 usados sin fecha de vencimiento: cargalos en Tarjetas");
   expect(consoleErrors).toEqual([]);
 });
 
