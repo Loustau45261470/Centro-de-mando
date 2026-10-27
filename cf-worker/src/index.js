@@ -99,6 +99,8 @@ const CARTERA_CORS_HEADERS = {
   'Access-Control-Allow-Origin': CARTERA_ALLOWED_ORIGIN,
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
   'Access-Control-Allow-Headers': 'authorization',
+  // x-cartera-fuente ('iol' | 'cache') le dice al cliente si la respuesta vino de IOL o de la caché del Worker.
+  'Access-Control-Expose-Headers': 'x-cartera-fuente',
   'Vary': 'Origin',
 };
 const IOL_TOKEN_URL = 'https://api.invertironline.com/token';
@@ -108,6 +110,10 @@ const IOL_TOKEN_TTL_SECONDS = 840; // el access_token de IOL dura ~15 min; 14 de
 // Requests sintéticas usadas solo como clave de la Cache API del Worker (no salen a la red).
 const CACHE_KEY_PORTAFOLIO = new Request('https://cdm-cartera-cache.internal/portafolio');
 const CACHE_KEY_TOKEN = new Request('https://cdm-cartera-cache.internal/token');
+// ?fresh=1 salta la caché del portafolio, pero con freno anti-abuso: si el último refresco forzado
+// que sí consultó IOL fue hace menos de CARTERA_FRESH_MIN_INTERVAL_MS, se responde lo cacheado.
+const CARTERA_FRESH_MIN_INTERVAL_MS = 30000;
+const CACHE_KEY_FRESH_LAST = new Request('https://cdm-cartera-cache.internal/fresh-last');
 
 function jsonError(status, code, message) {
   return new Response(JSON.stringify({ error: code, message }), {
@@ -361,8 +367,18 @@ async function handleCartera(request, env) {
   }
 
   const cache = caches.default;
-  const cached = await cache.match(CACHE_KEY_PORTAFOLIO);
-  if (cached) return new Response(cached.body, { status: 200, headers: { ...CARTERA_CORS_HEADERS, 'content-type': 'application/json' } });
+  let forzar = new URL(request.url).searchParams.get('fresh') === '1';
+  if (forzar) {
+    const ultimo = await cache.match(CACHE_KEY_FRESH_LAST);
+    if (ultimo) {
+      const { at } = await ultimo.json().catch(() => ({}));
+      if (typeof at === 'number' && Date.now() - at < CARTERA_FRESH_MIN_INTERVAL_MS) forzar = false;
+    }
+  }
+  if (!forzar) {
+    const cached = await cache.match(CACHE_KEY_PORTAFOLIO);
+    if (cached) return new Response(cached.body, { status: 200, headers: { ...CARTERA_CORS_HEADERS, 'content-type': 'application/json', 'x-cartera-fuente': 'cache' } });
+  }
 
   try {
     const token = await getIolToken(env);
@@ -374,7 +390,12 @@ async function handleCartera(request, env) {
     await cache.put(CACHE_KEY_PORTAFOLIO, new Response(body, {
       headers: { 'content-type': 'application/json', 'cache-control': `max-age=${CARTERA_CACHE_TTL_SECONDS}` },
     }));
-    return new Response(body, { status: 200, headers: { ...CARTERA_CORS_HEADERS, 'content-type': 'application/json' } });
+    if (forzar) {
+      await cache.put(CACHE_KEY_FRESH_LAST, new Response(JSON.stringify({ at: Date.now() }), {
+        headers: { 'content-type': 'application/json', 'cache-control': 'max-age=60' },
+      }));
+    }
+    return new Response(body, { status: 200, headers: { ...CARTERA_CORS_HEADERS, 'content-type': 'application/json', 'x-cartera-fuente': 'iol' } });
   } catch (e) {
     console.error('cartera error', e);
     return jsonError(502, 'iol_unavailable', 'No se pudo obtener la cartera desde IOL: ' + (e && e.message ? e.message : String(e)));

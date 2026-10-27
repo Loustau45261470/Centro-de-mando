@@ -41,6 +41,13 @@ lectura: nunca envía una orden a IOL.
 - Portafolio: `GET https://api.invertironline.com/api/v2/portafolio/argentina`.
   La respuesta transformada queda cacheada ~15 min (misma Cache API) — la API de
   IOL no se consulta en cada carga de la app.
+- **`GET /cartera?fresh=1` — forzar la actualización.** Misma auth. Salta la caché
+  de 15 min del portafolio y consulta IOL (reusa el `access_token` cacheado si sigue
+  vigente), guarda el resultado nuevo en la caché y lo devuelve. Freno anti-abuso: si
+  el último refresco forzado que sí consultó IOL fue hace menos de 30 s, responde lo
+  cacheado. Toda respuesta 200 trae el header `x-cartera-fuente` (`iol` = se consultó
+  IOL, `cache` = salió de la caché), expuesto por CORS. Sin `fresh` el comportamiento
+  no cambia. Lo usa el botón "Actualizar" de Mis tenencias (timeout de 15 s).
 - CORS restringido a `https://loustau45261470.github.io` (no `*`): expone datos
   financieros personales.
 - Devuelve la misma forma que `data/cartera/tenencias.json`, pero solo con los

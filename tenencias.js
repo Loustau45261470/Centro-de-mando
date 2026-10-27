@@ -16,6 +16,7 @@ const Tenencias = (() => {
   // en vivo, cacheada ~15 min. Constante fácil de cambiar si el Worker se muda.
   const URL_WORKER = 'https://cdm-push-worker.tobiasloustau11.workers.dev/cartera';
   const WORKER_TIMEOUT_MS = 6000;
+  const WORKER_FRESH_TIMEOUT_MS = 15000; // "Actualizar" fuerza una consulta a IOL: tarda más que servir la caché
   // Sin secret embebido: /cartera expone datos financieros, así que se gatea
   // con el ID token de Firebase Auth (fresco, pedido en cada intento) en vez
   // de un valor fijo que quedaría legible en este repo público. `_auth` es la
@@ -33,6 +34,24 @@ const Tenencias = (() => {
   let _donaChart = null;     // instancia Chart.js vigente (se destruye antes de crear otra)
   let _ctx = null;   // { body, d, fuente } del último render — para repintar después de registrar una venta
   let _venta = null; // { t, generado } mientras el modal "Registrar venta" está abierto (null = ya se confirmó o se cerró)
+  let _actualizando = false; // hay un "Actualizar" en vuelo: el botón se pinta deshabilitado aunque se repinte la pantalla
+  let _estatico = null;      // último data/cartera/tenencias.json que cargó (lotes e historial para completar lo que llega en vivo)
+
+  // El Worker devuelve un snapshot del portafolio: no trae lo que sale de la rutina semanal. Se completa por símbolo
+  // desde el JSON estático; el valor en vivo manda si algún día el Worker lo trae. Sin estático, se muestra lo en vivo tal cual.
+  const CAMPOS_SEMANALES = ['lotes', 'variacionPct', 'precioAnterior', 'ppcConfianza'];
+  function fusionarEstatico(d, est) {
+    const base = est && Array.isArray(est.tenencias) ? est.tenencias : null;
+    if (!base || !Array.isArray(d.tenencias)) return d;
+    const porSimbolo = new Map(base.filter(t => t && t.simbolo != null).map(t => [t.simbolo, t]));
+    return { ...d, tenencias: d.tenencias.map(t => {
+      const e = t && porSimbolo.get(t.simbolo);
+      if (!e) return t;
+      const extra = {};
+      CAMPOS_SEMANALES.forEach(k => { if (t[k] === undefined && e[k] !== undefined) extra[k] = e[k]; });
+      return { ...t, ...extra };
+    }) };
+  }
 
   function header(d) {
     const t = d.totales || {};
@@ -345,8 +364,13 @@ const Tenencias = (() => {
 
   // fuente: 'live' (Worker → IOL, recién consultado) o 'estatico' (JSON commiteado,
   // último cierre de la rutina semanal). El usuario necesita saber cuál está viendo.
+  // 'live-fresh' = en vivo tras tocar "Actualizar": muestra la hora en que el Worker consultó IOL.
   function metaFuente(d, fuente) {
     const gen = d.generado ? new Date(d.generado) : null;
+    if (fuente === 'live-fresh') {
+      if (!gen || isNaN(gen)) return 'En vivo · IOL';
+      return `En vivo · Actualizado a las ${gen.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false })} · IOL`;
+    }
     if (fuente === 'live') {
       if (!gen) return 'En vivo · IOL';
       const minutos = Math.max(0, Math.round((Date.now() - gen.getTime()) / 60000));
@@ -360,8 +384,9 @@ const Tenencias = (() => {
   function render(body, d, fuente) {
     _ctx = { body, d, fuente };
     const meta = metaFuente(d, fuente || 'estatico');
-    body.innerHTML = `<div class="ci-meta">${esc(meta)}</div>${header(d)}${donaHtml(d)}${tabla(d)}`;
+    body.innerHTML = `<div class="ten-act-bar"><div class="ci-meta">${esc(meta)}</div>${botonActualizar()}</div>${header(d)}${donaHtml(d)}${tabla(d)}`;
     pintarDona(body, d);
+    body.querySelector('.ten-act-btn')?.addEventListener('click', () => actualizar(body));
     const toggle = sim => {
       _openSimbolo = _openSimbolo === sim ? null : sim;
       render(body, d, fuente);
@@ -487,15 +512,16 @@ const Tenencias = (() => {
     return fetch(url, { ...opts, signal: ctrl.signal }).finally(() => clearTimeout(t));
   }
 
-  async function fetchWorker() {
+  // fresh=true → ?fresh=1: el Worker se salta su caché de 15 min y consulta IOL (con su propio freno de 30 s).
+  async function fetchWorker({ fresh = false } = {}) {
     // Sin sesión no hay token que mandar — directo al estático, ni vale la
     // pena golpear el Worker (respondería 401 igual).
     if (typeof _auth === 'undefined' || !_auth.currentUser) throw new Error('sin sesión de Firebase Auth');
     const idToken = await _auth.currentUser.getIdToken();
-    const res = await fetchConTimeout(URL_WORKER, {
+    const res = await fetchConTimeout(fresh ? URL_WORKER + '?fresh=1' : URL_WORKER, {
       headers: { authorization: `Bearer ${idToken}` },
       cache: 'no-store',
-    }, WORKER_TIMEOUT_MS);
+    }, fresh ? WORKER_FRESH_TIMEOUT_MS : WORKER_TIMEOUT_MS);
     if (!res.ok) {
       let msg = 'worker HTTP ' + res.status;
       try { const j = await res.json(); if (j && j.message) msg = j.message; } catch (_) { /* body no-JSON, nos quedamos con el status */ }
@@ -504,9 +530,58 @@ const Tenencias = (() => {
     return res.json();
   }
 
-  function fetchEstatico(bx) {
+  function leerEstatico() {
     return fetch(URL_JSON, { cache: 'no-store' })
       .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(d => { _estatico = d; return d; });
+  }
+
+  // El estático solo completa lo en vivo: si no carga o tarda, se muestra igual lo que llegó del Worker.
+  function estaticoOpcional(p, ms = 4000) {
+    return Promise.race([p.catch(() => null), new Promise(r => setTimeout(() => r(null), ms))]);
+  }
+
+  function botonActualizar() {
+    return `<button type="button" class="btn btn-ghost btn-sm ten-act-btn" aria-label="Actualizar tenencias con datos en vivo de IOL"${_actualizando ? ' disabled' : ''}>${_actualizando ? 'Actualizando…' : 'Actualizar'}</button>`;
+  }
+
+  function pintarBoton(body) {
+    const btn = body.querySelector('.ten-act-btn');
+    if (!btn) return;
+    btn.disabled = _actualizando;
+    btn.textContent = _actualizando ? 'Actualizando…' : 'Actualizar';
+  }
+
+  function mensajeError(e) {
+    if (e && e.name === 'AbortError') return 'IOL tardó demasiado en responder. Probá de nuevo en un momento.';
+    if (e instanceof TypeError && /fetch|network|load failed/i.test(e.message)) return 'no hay conexión con el servidor.';
+    return e && e.message ? e.message : 'error desconocido.';
+  }
+
+  // Botón "Actualizar": fuerza traer las posiciones en vivo (salta la caché del Worker). Si falla se avisa con un toast
+  // y quedan los datos que ya había en pantalla.
+  async function actualizar(body) {
+    if (_actualizando) return;
+    _actualizando = true;
+    pintarBoton(body);
+    try {
+      const [d, est] = await Promise.all([
+        fetchWorker({ fresh: true }),
+        _estatico ? Promise.resolve(_estatico) : estaticoOpcional(leerEstatico()),
+      ]);
+      if (!d || !Array.isArray(d.tenencias)) throw new Error('la respuesta de IOL tiene un formato inesperado.');
+      if (_ctx && _ctx.body === body) render(body, fusionarEstatico(d, est), 'live-fresh');
+    } catch (e) {
+      console.warn('[tenencias] No se pudo forzar la actualización:', e && e.message ? e.message : e);
+      showToast('No se pudo actualizar: ' + mensajeError(e), 5000);
+    } finally {
+      _actualizando = false;
+      pintarBoton(body);
+    }
+  }
+
+  function fetchEstatico(bx, p) {
+    return (p || leerEstatico())
       .then(d => {
         try {
           render(bx, d, 'estatico');
@@ -535,18 +610,21 @@ const Tenencias = (() => {
     _openSimbolo = null;
     _orden = 'valorizado';
     bx.innerHTML = `<div class="empty-state">Cargando tenencias…</div>`;
+    const estP = leerEstatico(); // en paralelo al Worker: completa lotes/semanal de lo en vivo, o es el fallback
+    estP.catch(() => {});        // el error real se maneja en fetchEstatico; acá solo evita el "unhandled rejection"
     fetchWorker()
-      .then(d => {
+      .then(async d => {
+        const est = await estaticoOpcional(estP);
         try {
-          render(bx, d, 'live');
+          render(bx, fusionarEstatico(d, est), 'live');
         } catch (e) {
           console.warn('[tenencias] Worker devolvió un formato inesperado, cae a estático:', e);
-          return fetchEstatico(bx);
+          return fetchEstatico(bx, estP);
         }
       })
       .catch(e => {
         console.warn('[tenencias] Worker no disponible, cae a JSON estático:', e && e.message ? e.message : e);
-        return fetchEstatico(bx);
+        return fetchEstatico(bx, estP);
       });
   }
 
