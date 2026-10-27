@@ -8,12 +8,24 @@ const { cerrarTarjetas } = require('./support/tarjetas-ui');
 const TEXTOS = ['🎨 Categorías', '💳 Tarjetas', '+ Movimiento'];
 const ANCHOS = [1920, 1440, 1280, 1024, 768, 390, 360];
 
-// Medidas de "+ Movimiento" ANTES del cambio (con 4 botones), tomadas a mano con getBoundingClientRect en cada ancho:
-// el tamaño de la letra de la pestaña cambia a 900px y a 620px, por eso hay tres juegos de valores.
-const ANTES = (ancho) => (ancho >= 900 ? { w: 146.6, h: 32 } : ancho > 620 ? { w: 130, h: 29 } : { w: 117.7, h: 29 });
+// Los tests bloquean Google Fonts y medirían con la letra de respaldo del sistema (Segoe en Windows, DejaVu en Linux,
+// más ancha): acá se carga la letra real de la app (Geist) para medir lo que se ve en el dispositivo.
+async function letraReal(page) {
+  await page.route('**/fonts.googleapis.com/**', (r) => r.continue());
+  await page.evaluate(() => new Promise((ok) => {
+    const l = document.createElement('link');
+    l.rel = 'stylesheet';
+    l.href = 'https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&display=swap&t=' + Date.now();
+    l.onload = ok; l.onerror = ok;
+    document.head.appendChild(l);
+  }));
+  await page.evaluate(() => document.fonts.load('600 13px Geist').then(() => document.fonts.ready));
+  expect(await page.evaluate(() => document.fonts.check('600 13px Geist')), 'la letra Geist cargó').toBe(true);
+}
 
 async function preparar(page) {
   await cerrarTarjetas(page);
+  await letraReal(page);
   await page.click('.nav-btn[data-tab="finanzas"]');
   await expect(page.locator('#tab-finanzas')).toHaveClass(/active/);
   await page.locator('#activity-card').scrollIntoViewIfNeeded();
@@ -79,17 +91,27 @@ for (const ancho of ANCHOS) {
   test.describe(`${ancho}px · tamaño`, () => {
     test.use({ viewport: { width: ancho, height: 900 } });
 
-    test(`3) los botones son entre un 5% y un 15% más chicos que antes a ${ancho}px`, async ({ cmPage }) => {
+    // Comparación contra un botón chico común de la misma card (no contra píxeles medidos en una máquina): la letra
+    // de "+ Movimiento" queda entre un 5% y un 15% por debajo (la regla es 0,9×) y el alto entre un 5% y un 25%.
+    test(`3) los botones son un poco más chicos que un botón chico común a ${ancho}px`, async ({ cmPage }) => {
       await preparar(cmPage);
-      const m = await medir(cmPage);
-      const mov = m.botones.find((b) => b.t === '+ Movimiento');
-      const antes = ANTES(ancho);
-      const dW = 1 - mov.w / antes.w;
-      const dH = 1 - mov.h / antes.h;
-      expect(dW, `ancho ${mov.w} vs ${antes.w}`).toBeGreaterThanOrEqual(0.05);
-      expect(dW, `ancho ${mov.w} vs ${antes.w}`).toBeLessThanOrEqual(0.15);
-      expect(dH, `alto ${mov.h} vs ${antes.h}`).toBeGreaterThanOrEqual(0.05);
-      expect(dH, `alto ${mov.h} vs ${antes.h}`).toBeLessThanOrEqual(0.15);
+      const r = await cmPage.evaluate(() => {
+        const ref = document.createElement('button');
+        ref.className = 'btn btn-ghost btn-sm';
+        ref.textContent = '+ Movimiento';
+        document.getElementById('activity-card').appendChild(ref);
+        const mov = [...document.querySelectorAll('#activity-card .card-title button')].find((b) => b.textContent.trim() === '+ Movimiento');
+        const fs = (el) => parseFloat(getComputedStyle(el).fontSize);
+        const out = { fsMov: fs(mov), fsRef: fs(ref), hMov: mov.getBoundingClientRect().height, hRef: ref.getBoundingClientRect().height };
+        ref.remove();
+        return out;
+      });
+      const dF = 1 - r.fsMov / r.fsRef;
+      const dH = 1 - r.hMov / r.hRef;
+      expect(dF, `letra ${r.fsMov} vs ${r.fsRef}`).toBeGreaterThanOrEqual(0.05);
+      expect(dF, `letra ${r.fsMov} vs ${r.fsRef}`).toBeLessThanOrEqual(0.15);
+      expect(dH, `alto ${r.hMov} vs ${r.hRef}`).toBeGreaterThanOrEqual(0.05);
+      expect(dH, `alto ${r.hMov} vs ${r.hRef}`).toBeLessThanOrEqual(0.25);   // además del 10% de letra, el padding vertical es menor
     });
   });
 }

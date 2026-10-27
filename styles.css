@@ -5506,12 +5506,16 @@ input:focus, select:focus, textarea:focus {
   #activity-card .card-title .btn { padding: 4.5px 6px; letter-spacing: .02em; }
 }
 @media (max-width: 400px) {
-  #activity-card .card-title .btn { padding: 4.5px 5px; letter-spacing: 0; }
+  #activity-card .card-title .btn { padding: 4.5px 4px; letter-spacing: 0; }
 }
 /* Donde la card es angosta (celular y 900-1279px, con dos columnas) los botones van solos en un renglón de ancho completo y la flecha de plegar sube a la esquina: así entran los tres juntos */
 @media (max-width: 560px), (min-width: 900px) and (max-width: 1279px) {
   #activity-card .card-title > .card-collapse-chevron { position: absolute; top: 11px; right: 14px; }
   #activity-card .card-title .flex { flex: 0 0 100%; column-gap: 4px; }
+}
+/* 900-1279px: la card de dos columnas es justo para los tres con la letra Geist; menos aire lateral para que no baje "+ Movimiento" */
+@media (min-width: 900px) and (max-width: 1279px) {
+  #activity-card .card-title .btn { padding: 4.5px 7px; letter-spacing: .02em; }
 }
 
 /* Movimientos: "Flujo del mes", plegado por defecto */
