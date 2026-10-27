@@ -21,7 +21,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-<link rel="stylesheet" href="styles.css?v=228">
+<link rel="stylesheet" href="styles.css?v=229">
 <link rel="stylesheet" href="gamemode.css">
 <link rel="stylesheet" href="overlay-core.css">
 <link rel="stylesheet" href="speed-dial.css?v=2">
@@ -1047,6 +1047,23 @@
   </div>
 </div>
 
+<!-- Cobro de una compra con tarjeta que cubre otra persona (desde la cuenta "A cobrar · <nombre>") -->
+<div class="modal-overlay" id="modal-cover-collect" onclick="if(event.target===this)closeModal('modal-cover-collect')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="cvTitle">Registrar cobro</div>
+    <input type="hidden" id="cvAccId">
+    <div class="field"><label for="cvAmount">Monto recibido</label><input class="inp" type="number" step="0.01" min="0" id="cvAmount" placeholder="0" oninput="updateCoverCollectPreview()"></div>
+    <div class="field"><label for="cvToAcc">Cuenta donde entra</label><select class="inp" id="cvToAcc" onchange="updateCoverCollectPreview()"></select></div>
+    <div class="cc-preview" id="cvPreview" aria-live="polite"></div>
+    <div class="move-warn" id="cvErr" role="alert"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-cover-collect')">Cancelar</button>
+      <button class="btn btn-primary" id="cvSaveBtn" onclick="saveCoverCollect()">Registrar cobro</button>
+    </div>
+  </div>
+</div>
+
 <!-- Add Account -->
 <div class="modal-overlay" id="modal-add-account">
   <div class="modal">
@@ -1575,6 +1592,19 @@
       <div class="field" id="ccChInstRow"><label for="ccChInst">Cantidad de cuotas</label><input class="inp" type="number" step="1" min="1" id="ccChInst" oninput="updateCardChargePreview()"></div>
       <div class="field" id="ccChMonthsRow"><label for="ccChMonths">Para cuántos meses rinde</label><input class="inp" type="number" step="1" min="1" id="ccChMonths" oninput="updateCardChargePreview()"></div>
       <div class="field" id="ccChToAccRow"><label for="ccChToAcc">Cuenta donde entra la plata</label><select class="inp" id="ccChToAcc" onchange="updateCardChargePreview()"></select></div>
+      <!-- La cubre otra persona: la compra ocupa la tarjeta pero no es gasto; lo que esa persona debe queda como saldo a cobrar -->
+      <div class="field cc-cover" id="ccCoverRow">
+        <label class="cc-cover-opt" for="ccChCover"><input type="checkbox" id="ccChCover" onchange="onCoverToggle()"> La cubre otra persona</label>
+        <div class="cc-hint" id="ccCoverHint" style="display:none">No se puede combinar con descuento ni reintegro. Elegí "Sin descuento" para usarla.</div>
+        <div id="ccCoverBox" style="display:none">
+          <label for="ccCoverWho">Quién</label>
+          <input class="inp" id="ccCoverWho" maxlength="40" value="Papá" oninput="updateCardChargePreview()">
+          <label id="ccCoverMonthsLbl">Meses que cubre</label>
+          <div id="ccCoverRows" role="group" aria-labelledby="ccCoverMonthsLbl"></div>
+          <button type="button" class="btn btn-sm btn-cover" id="ccCoverAdd" onclick="addCoverRow()">+ otro mes</button>
+          <div class="cc-hint" id="ccCoverSum" aria-live="polite"></div>
+        </div>
+      </div>
       <div class="cc-preview" id="ccChPreview" aria-live="polite"></div>
       <div class="move-warn" id="ccChErr" role="alert"></div>
     </div>
@@ -1868,7 +1898,7 @@
 
 <script src="errores.js?v=1"></script>
 <script src="deadlines.js?v=6"></script>
-<script src="app.js?v=199"></script>
+<script src="app.js?v=200"></script>
 <script src="sync-diagnostico.js?v=1"></script>
 <script src="archivo.js?v=1"></script>
 <script src="undo.js?v=1"></script>
@@ -1878,7 +1908,7 @@
 <script src="habitos.js?v=6"></script>
 <script src="rutinas.js"></script>
 <script src="tarjetas-motor.js?v=3"></script>
-<script src="finanzas.js?v=28"></script>
+<script src="finanzas.js?v=29"></script>
 <script src="proyeccion-mes.js?v=2"></script>
 <script src="recordatorios.js?v=10"></script>
 <script src="objetivos.js"></script>

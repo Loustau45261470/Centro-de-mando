@@ -69,6 +69,7 @@ function renderFinanzasTab() {
 }
 
 function renderAccounts() {
+  const coverAccs = new Set((S.cardCharges || []).filter(c => c && c.cover).map(c => c.cover.accountId));   // cuentas "A cobrar · <nombre>"
   const nw = calcNetWorth();
   document.getElementById('nwTotal').textContent = fmtMoney(nw, 'USD');
   document.getElementById('nwCash').textContent = fmtMoney(calcCash(), 'USD');
@@ -80,6 +81,7 @@ function renderAccounts() {
       <div class="account-info">
         <div class="account-name">${a.name}</div>
         <div class="account-type">${{bank:'Banco',cash:'Efectivo',invest:'Inversión',prestamo:'Préstamo',other:'Otro'}[a.type]}</div>
+        ${coverAccs.has(a.id) ? `<button class="btn btn-sm btn-cover acc-cobro" onclick="openCoverCollect('${escHtml(a.id)}')">Registrar cobro</button>` : ''}
       </div>
       <div class="account-bal pos">${fmtMoney(a.balance,a.currency)}</div>
       <button class="icon-btn" onclick="openEditAccount('${a.id}')"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
@@ -377,6 +379,7 @@ function materializeCardExpenses() {
   const have = new Set(S.transactions.map(t => t && t.id));
   let made = 0;
   S.cardCharges.forEach(ch => {
+    if (ch.cover) return;   // la cubre otra persona: ocupa la tarjeta pero no es gasto
     const sched = CMTarjetas.expenseSchedule(ch);
     sched.forEach((e, i) => {
       if (e.month > thisMonth) return;
@@ -435,7 +438,9 @@ function _ccChargeHtml(ch) {
   const exp = CMTarjetas.expenseSchedule(ch);
   const cuotas = sched.map(q => `<li>${sched.length === 1 ? 'Pago único' : `Cuota ${q.n} de ${sched.length}`} · vence el ${_ccDate(q.dueDate)} · ${_ccPesos(q.amount)}${paidKeys.has(`auto:${ch.cardId}:${q.dueDate}`) ? ' · <span class="cc-paid">pagada</span>' : ''}</li>`).join('');
   let gasto;
-  if (ch.mode === 'advance') {
+  if (ch.cover) {
+    gasto = `No cuenta como gasto: la cubre ${escHtml(_coverWho(ch))}.`;
+  } else if (ch.mode === 'advance') {
     const acc = (S.accounts || []).find(a => a.id === ch.toAccountId);
     gasto = `No cuenta como gasto ni ingreso${acc ? `. Entró a ${escHtml(acc.name)}` : ''}.`;
   } else if (exp.length > 1) {
@@ -451,6 +456,7 @@ function _ccChargeHtml(ch) {
       <button class="icon-btn" aria-label="Borrar compra" onclick="deleteCardCharge('${escHtml(ch.id)}')">${_DEL_SVG}</button>
     </div>
     <div class="cc-meta">${escHtml(card ? card.name : 'Tarjeta eliminada')} · ${_ccDate(ch.date)} · ${_CC_MODES[ch.mode] || ''}</div>
+    ${_coverChargeHtml(ch)}
     <details class="cc-chg-cal"><summary>Ver cuotas</summary>
       <ul class="cc-chg-list">${cuotas}</ul>
       <div class="cc-meta">${gasto}</div>
@@ -485,7 +491,7 @@ function _ccCalendarHtml(today) {
     m.cents += Math.round(d.amount * 100);
   }));
   const thisMonth = today.slice(0, 7);
-  charges.forEach(ch => CMTarjetas.expenseSchedule(ch).forEach(e => {
+  charges.forEach(ch => !ch.cover && CMTarjetas.expenseSchedule(ch).forEach(e => {   // la que cubre otra persona no es gasto previsto
     if (e.month > thisMonth && byMonth[e.month]) byMonth[e.month].planned += Math.round(e.amount * 100);
   }));
   const max = Math.max(...months.map(mk => byMonth[mk].cents));
@@ -974,6 +980,7 @@ function initTxnForm() {
   g('ccChMonths').value = '3';
   g('ccChToAcc').innerHTML = _ccAccountOptions('', '— Elegí una cuenta —');
   g('ccChErr').textContent = '';
+  _coverReset();
   setTxnDiscount(0);   // el formulario siempre arranca en "Sin descuento"
   onTxnPaymentChange();
 }
@@ -990,7 +997,7 @@ function onTxnPaymentChange() {
   document.getElementById('txnCardPanel').style.display = card ? '' : 'none';
   document.getElementById('txnCurrencyRow').style.display = card ? 'none' : '';   // las compras con tarjeta son en pesos
   if (card) onCardChargeModeChange();
-  else document.getElementById('txnCategoryRow').style.display = '';
+  else { document.getElementById('txnCategoryRow').style.display = ''; _coverSyncUi(); }
   syncTxnDiscount();
   updateTxnMonthNotice();
 }
@@ -1004,6 +1011,7 @@ function _discountFinal(total, pct) {
 }
 function _txnDiscountAllowed() {
   if (document.getElementById('txnType').value !== 'expense') return false;
+  if (_coverOn()) return false;   // la que cubre otra persona no es gasto: no lleva descuento ni reintegro
   return !_txnPayCardId() || document.getElementById('ccChMode').value !== 'advance';
 }
 // Porcentaje elegido (0 si no hay o si el formulario no admite descuento).
@@ -1024,6 +1032,7 @@ function setTxnDiscount(pct) {
   if (!pct) { _markTxnDiscKind('price'); _txnRefundAccTouched = false; }   // "Sin descuento" borra también el reintegro
   syncTxnRefundUi();
   updateTxnDiscountPreview();
+  _coverSyncUi();
   updateCardChargePreview();
 }
 
@@ -1210,6 +1219,8 @@ function onCardChargeModeChange() {
   show('ccChToAccRow', mode === 'advance');
   show('txnCategoryRow', mode !== 'advance');
   document.getElementById('ccChModeHint').textContent = _CC_MODE_HINTS[mode] || '';
+  if (mode === 'advance') document.getElementById('ccChCover').checked = false;   // "plata de un tercero" y "la cubre otra persona" no se combinan
+  _coverSyncUi();
   syncTxnDiscount();   // "plata de un tercero" no es gasto: sin descuento
   updateCardChargePreview();
 }
@@ -1231,6 +1242,7 @@ function _ccReadCharge() {
   if (mode === 'advance') ch.toAccountId = v('ccChToAcc');
   if (disc && !refund) { ch.discountPct = pct; ch.amountOriginal = total; }
   if (refund) ch.refund = { pct, amount: _ccRound(total - _discountFinal(total, pct)), accountId: v('txnRefundAcc'), txnId: '' };
+  if (_coverOn()) ch.cover = { accountId: '', who: v('ccCoverWho').trim(), periods: _coverRowsRead().map(r => ({ month: r.month, amount: r.amount, collected: 0 })) };   // accountId se resuelve al guardar
   return ch;
 }
 
@@ -1246,21 +1258,26 @@ function _ccChargeError(ch) {
   if (!v.ok) return v.error;
   if (ch.mode === 'advance' && !_ccAccounts().some(a => a.id === ch.toAccountId)) return 'Elegí una cuenta en pesos donde entra la plata.';
   if (ch.refund && !_ccAccounts().some(a => a.id === ch.refund.accountId)) return 'Elegí la cuenta donde entra el reintegro.';
+  if (ch.cover) return _coverError(ch);
   return null;
 }
 
 function updateCardChargePreview() {
   const el = document.getElementById('ccChPreview');
   if (!el || !_txnPayCardId()) return;
+  _coverAutoSync();   // antes de leer: deja la fila única con el mes y el total actuales
   const ch = _ccReadCharge();
   const card = (S.cards || []).find(c => c.id === ch.cardId);
+  _coverSumHint(ch);
   if (!card || _ccChargeError(ch)) { el.innerHTML = '<span class="cc-hint">Completá los datos para ver cómo queda.</span>'; return; }
   const st = CMTarjetas.statementFor(card, ch.date);
   const fx = CMTarjetas.chargeEffects(card, ch);
   const n = fx.installments.length;
   const cuotas = fx.installments.map(q => `<li>${n === 1 ? 'Pago único' : `Cuota ${q.n} de ${n}`} · vence el ${_ccDate(q.dueDate)} · ${_ccPesos(q.amount)}</li>`).join('');
   let gasto;
-  if (ch.mode === 'advance') {
+  if (ch.cover) {
+    gasto = `<div>No cuenta como gasto. ${escHtml(ch.cover.who)} te debe ${_ccPesos(ch.amount)}: queda en "${escHtml(_COVER_ACC_PREFIX + ch.cover.who)}". Las cuotas y el límite son los de siempre.</div>`;
+  } else if (ch.mode === 'advance') {
     const acc = (S.accounts || []).find(a => a.id === ch.toAccountId);
     gasto = `<div>No es ingreso ni gasto. Entran ${_ccPesos(ch.amount)} a ${escHtml(acc ? acc.name : 'la cuenta')} y usás ${_ccPesos(ch.amount)} de tu límite.</div>`;
   } else {
@@ -1294,6 +1311,7 @@ function _saveTxnCardCharge() {
     const acc = S.accounts.find(a => a.id === ch.toAccountId);
     acc.balance = _ccRound(acc.balance + ch.amount);
   }
+  if (ch.cover) _coverApply(ch);
   if (ch.refund) _addRefund(ch, ch.name || 'Compra con tarjeta', ch.date);   // el ingreso se crea una sola vez, acá
   snapshotNW();   // cambia el crédito usado (y, si es adelanto, el saldo de la cuenta)
   closeModal('modal-add-txn');
@@ -1346,6 +1364,7 @@ function openEditCardCharge(id) {
   const ch = (S.cardCharges || []).find(c => c.id === id);
   if (!ch) return;
   if (_ccPaidInstallments(ch).length) { showToast(_CC_PAID_EDIT_MSG, 5500); return; }
+  if (_coverCollectedAny(ch)) { showToast(_COVER_EDIT_MSG, 5500); return; }
   if (!(S.cards || []).some(c => c.id === ch.cardId)) { showToast('La tarjeta de esta compra ya no existe. Borrá la compra y cargala de nuevo.', 5500); return; }
   const g = (i) => document.getElementById(i);
   openModal('modal-add-txn');   // initTxnForm deja el formulario en modo alta; abajo se precarga la compra
@@ -1361,6 +1380,7 @@ function openEditCardCharge(id) {
   g('ccChInst').value = ch.installments || 3;
   g('ccChMonths').value = ch.consumeMonths || 3;
   g('ccChToAcc').innerHTML = _ccAccountOptions(ch.toAccountId || '', '— Elegí una cuenta —');
+  _coverLoad(ch);
   onTxnPaymentChange();
   if (ch.refund && ch.refund.pct > 0) { setTxnDiscount(ch.refund.pct); setTxnDiscKind('refund', ch.refund.accountId); }
   else setTxnDiscount(ch.discountPct > 0 ? ch.discountPct : 0);
@@ -1373,11 +1393,14 @@ function _saveEditedCardCharge(ch) {
   if (idx < 0) { closeModal('modal-add-txn'); showToast('Esa compra ya no existe'); return; }
   const old = S.cardCharges[idx];
   if (_ccPaidInstallments(old).length) { closeModal('modal-add-txn'); showToast(_CC_PAID_EDIT_MSG, 5500); return; }
+  if (_coverCollectedAny(old)) { closeModal('modal-add-txn'); showToast(_COVER_EDIT_MSG, 5500); return; }
   ch.id = old.id;
   if (ch.mode === 'now1') delete ch.installments;
   const oldAcc = old.mode === 'advance' ? S.accounts.find(a => a.id === old.toAccountId) : null;
   if (oldAcc) oldAcc.balance = _ccRound(oldAcc.balance - old.amount);
+  if (old.cover) _coverRevert(old);   // lo que se le debía a la persona vuelve atrás; si sigue cubierta, se aplica de nuevo abajo
   S.cardCharges[idx] = ch;
+  if (ch.cover) _coverApply(ch);
   S.transactions = (S.transactions || []).filter(t => t.cardChargeId !== old.id);
   _removeRefundOf(old.id);   // el reintegro viejo se revierte y, si corresponde, se aplica el nuevo (sin duplicar)
   if (ch.mode === 'advance') {
@@ -1405,9 +1428,11 @@ function deleteCardChargeFromForm() {
 function deleteCardCharge(id) {
   const ch = (S.cardCharges || []).find(c => c.id === id);
   if (!ch) return;
+  if (_coverCollectedAny(ch)) { showToast('Esta compra ya tiene cobros registrados: deshacé los cobros primero.', 5500); return; }
   const paid = _ccPaidInstallments(ch);
   const acc = ch.mode === 'advance' ? S.accounts.find(a => a.id === ch.toAccountId) : null;
   let msg = `¿Borrar la compra "${ch.name || 'Compra con tarjeta'}" de ${_ccPesos(ch.amount)}? Se quitan sus cuotas y sus gastos.`;
+  if (ch.cover) msg += `\n\nSe quitan ${_ccPesos(ch.amount)} de "${_COVER_ACC_PREFIX}${_coverWho(ch)}", que es lo que ${_coverWho(ch)} te iba a pagar.`;
   if (acc) msg += `\n\nSe descuentan ${_ccPesos(ch.amount)} de "${acc.name}", que son los que habían entrado.`;
   const rfNote = _refundNote(id);
   if (rfNote) msg += `\n\n${rfNote}`;
@@ -1419,10 +1444,295 @@ function deleteCardCharge(id) {
   S.cardCharges = S.cardCharges.filter(c => c.id !== id);
   S.transactions = (S.transactions || []).filter(t => t.cardChargeId !== id);
   _removeRefundOf(id);
+  if (ch.cover) _coverRevert(ch);
   if (acc) acc.balance = _ccRound(acc.balance - ch.amount);
   snapshotNW();
   saveState(); renderFinanzasTab();
   showToast(paid.length ? 'Compra borrada. Los pagos ya hechos quedaron registrados' : 'Compra borrada', 4500);
+}
+
+// ── Compra con tarjeta que cubre otra persona ("La cubre Papá") — specs/compra-cubierta.md ──
+// El cargo lleva `cover { accountId, who, periods:[{ month, amount, collected }] }`: la compra ocupa el límite y genera cuotas y
+// vencimientos como cualquier otra (los meses de `periods` SOLO reparten los cobros, no tocan el cronograma), pero no es gasto
+// (materializeCardExpenses la saltea) y lo que esa persona debe queda como saldo de la cuenta `prestamo` "A cobrar · <quién>".
+// Cada cobro se guarda en S.coverCollections; la parte aplicada baja el saldo a cobrar y el resto entra como ingreso `Extra · <quién>`.
+const _COVER_ACC_PREFIX = 'A cobrar · ';
+const _COVER_EDIT_MSG = 'Esta compra ya tiene cobros registrados: no se puede editar. Deshacé los cobros primero.';
+const _coverCents = (n) => Math.round(n * 100);
+const _ccMonthShort = (mk) => { const m = _CC_MONTHS[+mk.slice(5, 7) - 1]; return `${m.charAt(0).toUpperCase()}${m.slice(1, 3)} ${mk.slice(0, 4)}`; };
+let _coverAuto = true;   // la fila única sigue sola al mes y al total de la compra hasta que el usuario toca algo
+
+function _coverWho(ch) {
+  const c = (ch && ch.cover) || {};
+  if (c.who) return c.who;
+  const a = (S.accounts || []).find(x => x.id === c.accountId);
+  return a ? a.name.replace(_COVER_ACC_PREFIX, '') : 'otra persona';
+}
+const _coverCollectedAny = (ch) => !!(ch && ch.cover && (ch.cover.periods || []).some(p => (+p.collected || 0) > 0));
+function _coverAccountByWho(who) {
+  const name = (_COVER_ACC_PREFIX + who).toLowerCase();
+  return (S.accounts || []).find(a => a.type === 'prestamo' && String(a.name).toLowerCase() === name);
+}
+// Alta: la deuda de la persona sube por el total de la compra (crea la cuenta "A cobrar · <quién>" si no existe).
+function _coverApply(ch) {
+  let acc = _coverAccountByWho(ch.cover.who);
+  if (!acc) { acc = { id: uid(), name: _COVER_ACC_PREFIX + ch.cover.who, type: 'prestamo', balance: 0, currency: 'ARS', icon: '🤝' }; S.accounts.push(acc); }
+  ch.cover.accountId = acc.id;
+  acc.balance = _ccRound(acc.balance + ch.amount);
+}
+// Baja/edición: resta de la cuenta a cobrar lo que todavía no se cobró.
+function _coverRevert(ch) {
+  const acc = (S.accounts || []).find(a => a.id === ch.cover.accountId);
+  const unpaid = (ch.cover.periods || []).reduce((s, p) => s + (+p.amount || 0) - (+p.collected || 0), 0);
+  if (acc) acc.balance = _ccRound(acc.balance - unpaid);
+}
+
+// — Formulario —
+function _coverOn() {
+  const el = document.getElementById('ccChCover');
+  return !!el && el.checked && !!_txnPayCardId() && document.getElementById('ccChMode').value !== 'advance';
+}
+function _coverRowsSet(periods) {
+  const el = document.getElementById('ccCoverRows');
+  el.innerHTML = periods.map(p => `<div class="cc-cover-row">
+    <input type="month" class="inp cc-cover-m" aria-label="Mes que cubre" value="${escHtml(p.month || '')}" oninput="_coverRowEdit()">
+    <input type="number" step="0.01" min="0" class="inp cc-cover-a" aria-label="Monto de ese mes" placeholder="0" value="${p.amount > 0 ? escHtml(String(p.amount)) : ''}" oninput="_coverRowEdit()">
+    <button type="button" class="icon-btn" aria-label="Quitar este mes" onclick="removeCoverRow(this)">✕</button>
+  </div>`).join('');
+}
+function _coverRowsRead() {
+  return [...document.querySelectorAll('#ccCoverRows .cc-cover-row')].map(r => ({
+    month: r.querySelector('.cc-cover-m').value, amount: Number(r.querySelector('.cc-cover-a').value),
+  }));
+}
+function _coverReset() {
+  const g = (id) => document.getElementById(id);
+  g('ccChCover').checked = false;
+  g('ccCoverWho').value = 'Papá';
+  g('ccCoverRows').innerHTML = '';
+  _coverAuto = true;
+  _coverSyncUi();
+}
+// Muestra la opción solo en compras con tarjeta que no son "plata de un tercero", la traba si hay descuento elegido y abre/cierra el detalle.
+function _coverSyncUi() {
+  const g = (id) => document.getElementById(id);
+  const row = g('ccCoverRow');
+  if (!row) return;
+  const ok = !!_txnPayCardId() && g('ccChMode').value !== 'advance';
+  row.style.display = ok ? '' : 'none';
+  const cb = g('ccChCover');
+  const blocked = ok && !cb.checked && _txnDiscountPct() > 0;
+  cb.disabled = blocked;
+  g('ccCoverHint').style.display = blocked ? '' : 'none';
+  g('ccCoverBox').style.display = ok && cb.checked ? '' : 'none';
+}
+function onCoverToggle() {
+  if (_coverOn() && !document.querySelector('#ccCoverRows .cc-cover-row')) { _coverAuto = true; _coverRowsSet([{ month: '', amount: 0 }]); }
+  syncTxnDiscount();   // con "la cubre otra persona" no hay descuento ni reintegro
+  _coverSyncUi();
+  updateCardChargePreview();
+}
+function _coverRowEdit() { _coverAuto = false; updateCardChargePreview(); }
+// Mientras no se toque nada, la fila única copia el mes de la compra y el total.
+function _coverAutoSync() {
+  if (!_coverOn() || !_coverAuto) return;
+  const rows = document.querySelectorAll('#ccCoverRows .cc-cover-row');
+  if (rows.length !== 1) return;
+  const date = document.getElementById('ccChDate').value;
+  rows[0].querySelector('.cc-cover-m').value = /^\d{4}-\d{2}/.test(date) ? date.slice(0, 7) : '';
+  rows[0].querySelector('.cc-cover-a').value = document.getElementById('txnAmount').value;
+}
+function addCoverRow() {
+  _coverAuto = false;
+  const rows = _coverRowsRead();
+  const total = Number(document.getElementById('txnAmount').value) || 0;
+  const rest = _ccRound(total - rows.reduce((s, r) => s + (r.amount || 0), 0));
+  const last = rows.map(r => r.month).filter(Boolean).sort().pop() || document.getElementById('ccChDate').value.slice(0, 7);
+  let next = '';
+  if (/^\d{4}-\d{2}$/.test(last)) { const idx = +last.slice(0, 4) * 12 + (+last.slice(5, 7) - 1) + 1; next = `${Math.floor(idx / 12)}-${String(idx % 12 + 1).padStart(2, '0')}`; }
+  _coverRowsSet(rows.concat([{ month: next, amount: rest > 0 ? rest : 0 }]));
+  updateCardChargePreview();
+}
+function removeCoverRow(btn) {
+  if (document.querySelectorAll('#ccCoverRows .cc-cover-row').length <= 1) return;
+  _coverAuto = false;
+  btn.closest('.cc-cover-row').remove();
+  updateCardChargePreview();
+}
+// Carga una compra cubierta al editarla.
+function _coverLoad(ch) {
+  document.getElementById('ccChCover').checked = !!ch.cover;
+  if (!ch.cover) return;
+  document.getElementById('ccCoverWho').value = _coverWho(ch);
+  _coverRowsSet(ch.cover.periods);
+  _coverAuto = false;
+}
+function _coverSumHint(ch) {
+  const el = document.getElementById('ccCoverSum');
+  if (!el) return;
+  if (!ch.cover) { el.textContent = ''; return; }
+  if (!(ch.amount > 0)) { el.textContent = 'Cargá el monto de la compra para repartirlo en meses.'; return; }
+  const sum = ch.cover.periods.reduce((s, p) => s + _coverCents(p.amount || 0), 0), total = _coverCents(ch.amount), diff = Math.abs(sum - total) / 100;
+  el.textContent = sum === total ? `Los meses suman ${_ccPesos(total / 100)}: coincide con el total.`
+    : sum < total ? `Faltan ${_ccPesos(diff)} para llegar al total de ${_ccPesos(total / 100)}.`
+    : `Te pasás por ${_ccPesos(diff)} del total de ${_ccPesos(total / 100)}.`;
+}
+function _coverError(ch) {
+  const c = ch.cover;
+  if (!c.who) return 'Escribí quién cubre la compra.';
+  if (c.who.length > 40) return 'El nombre puede tener hasta 40 caracteres.';
+  if (ch.mode === 'advance') return 'La plata de un tercero no se combina con "La cubre otra persona".';
+  if (ch.discountPct || ch.refund) return 'Una compra que cubre otra persona no lleva descuento ni reintegro.';
+  if (!c.periods.length) return 'Agregá al menos un mes que cubre.';
+  const seen = new Set();
+  let cents = 0;
+  for (const p of c.periods) {
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(p.month)) return 'Elegí el mes de cada fila.';
+    if (seen.has(p.month)) return `El mes ${_ccMonthLabel(p.month)} está repetido: sumá los montos en una sola fila.`;
+    seen.add(p.month);
+    if (!(p.amount > 0) || !_ccTwoDecimals(p.amount)) return 'El monto de cada mes tiene que ser mayor a cero y tener hasta 2 decimales.';
+    cents += _coverCents(p.amount);
+  }
+  if (cents !== _coverCents(ch.amount)) return `Los meses suman ${_ccPesos(cents / 100)} y la compra es de ${_ccPesos(ch.amount)}: tienen que coincidir.`;
+  return null;
+}
+
+// — Tarjetas → Compras: etiqueta, estado por mes y "Deshacer cobro" —
+function _coverChargeHtml(ch) {
+  if (!ch.cover) return '';
+  const estado = (p) => {
+    const col = +p.collected || 0;
+    return col >= (+p.amount || 0) - 0.005 ? '✓ cobrado' : col > 0 ? `cobrado ${_ccPesos(col)} de ${_ccPesos(+p.amount || 0)}` : 'pendiente';
+  };
+  const meses = (ch.cover.periods || []).map(p => `<span class="cc-cover-st">${_ccMonthShort(p.month)} ${estado(p)}</span>`).join(' · ');
+  const cobros = (Array.isArray(S.coverCollections) ? S.coverCollections : []).filter(c => c && (c.applied || []).some(x => x.chargeId === ch.id)).map(c => {
+    const sum = _ccRound(c.applied.filter(x => x.chargeId === ch.id).reduce((s, x) => s + x.amount, 0));
+    return `<div class="cc-cover-col"><span>Cobro del ${_ccDate(c.date)} · ${_ccPesos(sum)}</span><button class="btn btn-sm btn-cover" onclick="undoCoverCollection('${escHtml(c.id)}')">Deshacer cobro</button></div>`;
+  }).join('');
+  return `<div class="cc-cover-info"><span class="disc-tag disc-tag-cover">La cubre ${escHtml(_coverWho(ch))}</span>
+    <div class="cc-meta">${meses}</div>${cobros}</div>`;
+}
+
+// — Cobro —
+// Reparto: a los períodos pendientes con month <= mes actual, del más viejo al más nuevo, hasta agotar el monto; lo que sobra es ingreso.
+function _coverPlan(accId, amount, today) {
+  const thisMonth = today.slice(0, 7), items = [];
+  (S.cardCharges || []).forEach(ch => {
+    if (!ch || !ch.cover || ch.cover.accountId !== accId) return;
+    ch.cover.periods.forEach(p => {
+      const rem = _coverCents(p.amount) - _coverCents(+p.collected || 0);
+      if (rem > 0 && p.month <= thisMonth) items.push({ ch, p, rem });
+    });
+  });
+  const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+  items.sort((a, b) => cmp(a.p.month, b.p.month) || cmp(a.ch.date, b.ch.date) || cmp(a.ch.id, b.ch.id));
+  let left = _coverCents(amount);
+  const applied = [];
+  for (const it of items) {
+    if (left <= 0) break;
+    const take = Math.min(left, it.rem);
+    applied.push({ chargeId: it.ch.id, month: it.p.month, amount: take / 100, full: take === it.rem });
+    left -= take;
+  }
+  return { applied, applyTotal: applied.reduce((s, x) => s + _coverCents(x.amount), 0) / 100, extra: left / 100 };
+}
+function _coverPlanText(plan, amount) {
+  if (!plan.applied.length) return `No hay cuotas vencidas pendientes: los ${_ccPesos(amount)} entran todos como ingreso.`;
+  const months = [...new Set(plan.applied.map(x => _ccMonthLabel(x.month)))];
+  const list = months.length === 1 ? months[0] : `${months.slice(0, -1).join(', ')} y ${months[months.length - 1]}`;
+  const partial = plan.applied.some(x => !x.full);
+  const what = partial ? `parte de ${months.length === 1 ? 'la cuota de' : 'las cuotas de'} ${list}` : `${months.length === 1 ? 'la cuota de' : 'las cuotas de'} ${list}`;
+  return `${_ccPesos(plan.applyTotal)} cubren ${what}` + (plan.extra > 0 ? ` · ${_ccPesos(plan.extra)} entran como ingreso` : '');
+}
+
+function openCoverCollect(accId) {
+  const rec = (S.accounts || []).find(a => a.id === accId);
+  if (!rec) return;
+  const g = (id) => document.getElementById(id);
+  g('cvAccId').value = accId;
+  g('cvTitle').textContent = `Registrar cobro · ${rec.name.replace(_COVER_ACC_PREFIX, '')}`;
+  g('cvAmount').value = '';
+  g('cvErr').textContent = '';
+  const ch = (S.cardCharges || []).find(c => c && c.cover && c.cover.accountId === accId);
+  const card = ch && (S.cards || []).find(c => c.id === ch.cardId);
+  const def = card ? card.payAccountId : '';
+  g('cvToAcc').innerHTML = '<option value="">— Elegí una cuenta —</option>'
+    + _ccAccounts().filter(a => a.id !== accId).map(a => `<option value="${escHtml(a.id)}"${a.id === def ? ' selected' : ''}>${a.icon || '🏦'} ${escHtml(a.name)} · ${fmtMoney(a.balance, a.currency)}</option>`).join('');
+  updateCoverCollectPreview();
+  openModal('modal-cover-collect');
+}
+function updateCoverCollectPreview() {
+  const el = document.getElementById('cvPreview');
+  const amount = Number(document.getElementById('cvAmount').value);
+  if (!(amount > 0) || !_ccTwoDecimals(amount)) { el.textContent = 'Cargá lo que recibiste para ver cómo se reparte.'; return; }
+  el.textContent = _coverPlanText(_coverPlan(document.getElementById('cvAccId').value, amount, getActiveDate()), amount);
+}
+function saveCoverCollect() {
+  const g = (id) => document.getElementById(id);
+  const err = (m) => { g('cvErr').textContent = m; };
+  const accId = g('cvAccId').value;
+  const rec = (S.accounts || []).find(a => a.id === accId);
+  if (!rec) { closeModal('modal-cover-collect'); showToast('Esa cuenta ya no existe'); return; }
+  const amount = Number(g('cvAmount').value);
+  if (!(amount > 0)) return err('El monto tiene que ser mayor a cero.');
+  if (!_ccTwoDecimals(amount)) return err('El monto puede tener como máximo 2 decimales.');
+  const to = _ccAccounts().find(a => a.id === g('cvToAcc').value && a.id !== accId);
+  if (!to) return err('Elegí la cuenta en pesos donde entra la plata.');
+  err('');
+  const today = getActiveDate(), plan = _coverPlan(accId, amount, today), id = uid(), who = rec.name.replace(_COVER_ACC_PREFIX, '');
+  plan.applied.forEach(x => {
+    const ch = S.cardCharges.find(c => c.id === x.chargeId);
+    const p = ch.cover.periods.find(q => q.month === x.month);
+    p.collected = _ccRound((+p.collected || 0) + x.amount);
+  });
+  to.balance = _ccRound(to.balance + plan.applyTotal);
+  rec.balance = _ccRound(rec.balance - plan.applyTotal);
+  let extraTxnId = '';
+  if (plan.extra > 0) {
+    extraTxnId = `cvx:${id}`;
+    S.transactions.unshift({ id: extraTxnId, date: today, name: `Extra · ${who}`, type: 'income', amount: plan.extra, currency: 'ARS', accountId: to.id, category: '', coverCollectionId: id });
+    to.balance = _ccRound(to.balance + plan.extra);
+  }
+  if (plan.applied.length) {   // sin nada aplicado el cobro es solo un ingreso: se borra como cualquier otro, no hay qué deshacer desde la compra
+    if (!Array.isArray(S.coverCollections)) S.coverCollections = [];
+    S.coverCollections.push({ id, date: today, accountId: accId, toAccountId: to.id, applied: plan.applied.map(x => ({ chargeId: x.chargeId, month: x.month, amount: x.amount })), extraTxnId });
+  }
+  snapshotNW();
+  closeModal('modal-cover-collect');
+  saveState(); renderFinanzasTab();
+  showToast('Cobro registrado');
+}
+function undoCoverCollection(id) {
+  const col = (S.coverCollections || []).find(c => c && c.id === id);
+  if (!col) return;
+  const applied = _ccRound((col.applied || []).reduce((s, x) => s + x.amount, 0));
+  const to = (S.accounts || []).find(a => a.id === col.toAccountId);
+  const rec = (S.accounts || []).find(a => a.id === col.accountId);
+  const extra = col.extraTxnId ? (S.transactions || []).find(t => t && t.id === col.extraTxnId) : null;
+  let msg = `¿Deshacer el cobro del ${_ccDate(col.date)}? Los ${_ccPesos(applied)} aplicados vuelven a figurar como pendientes${rec ? ` en "${rec.name}"` : ''}${to ? ` y se descuentan de "${to.name}"` : ''}.`;
+  if (extra) msg += `\n\nTambién se quita el ingreso extra de ${_ccPesos(extra.amount)}.`;
+  if (!confirm(msg)) return;
+  // Solo se revierte lo que el mes todavía tiene cobrado: un registro que reaparece (sync) no mueve saldos dos veces.
+  let reverted = 0;
+  (col.applied || []).forEach(x => {
+    const ch = (S.cardCharges || []).find(c => c && c.id === x.chargeId);
+    const p = ch && ch.cover && ch.cover.periods.find(q => q.month === x.month);
+    if (!p) return;
+    const r = Math.min(x.amount, +p.collected || 0);
+    p.collected = _ccRound((+p.collected || 0) - r);
+    reverted += r;
+  });
+  reverted = _ccRound(reverted);
+  if (to) to.balance = _ccRound(to.balance - reverted);
+  if (rec) rec.balance = _ccRound(rec.balance + reverted);
+  if (extra) {
+    S.transactions = S.transactions.filter(t => t !== extra);
+    const dest = S.accounts.find(a => a.id === extra.accountId);
+    if (dest) dest.balance = _ccRound(dest.balance - extra.amount);
+  }
+  S.coverCollections = S.coverCollections.filter(c => c.id !== id);
+  snapshotNW(); saveState(); renderFinanzasTab();
+  showToast('Cobro deshecho', 4500);
 }
 
 // ── Pago de resumen manual (lo que ya se debía antes de empezar a usar el Centro, o pagos anticipados) ──
