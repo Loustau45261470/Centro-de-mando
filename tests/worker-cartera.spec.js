@@ -39,11 +39,12 @@ return __worker;`;
   const caches = { default: {
     async match(req) { const e = almacen.get(req.url); return e ? new Response(e.body, { status: e.status, headers: e.headers }) : undefined; },
     async put(req, res) { almacen.set(req.url, { body: await res.text(), status: res.status, headers: [...res.headers.entries()] }); },
+    async delete(req) { return almacen.delete(req.url); },
   } };
 
-  const llamadas = { token: 0, portafolio: 0, precio: 100, portafolioStatus: 200 };
+  const llamadas = { token: 0, portafolio: 0, precio: 100, portafolioStatus: 200, tokenStatus: 200 };
   const fetchFalso = async (url) => {
-    if (String(url).endsWith('/token')) { llamadas.token++; return new Response(JSON.stringify({ access_token: 'acc-' + llamadas.token }), { status: 200 }); }
+    if (String(url).endsWith('/token')) { llamadas.token++; return new Response(JSON.stringify({ access_token: 'acc-' + llamadas.token }), { status: llamadas.tokenStatus }); }
     if (String(url).includes('/portafolio/')) {
       llamadas.portafolio++;
       return new Response(JSON.stringify(portafolioIol(llamadas.precio)), { status: llamadas.portafolioStatus });
@@ -132,6 +133,39 @@ test.describe('Worker /cartera?fresh=1', () => {
     const r2 = await w.pedir();
     expect(r2.headers.get('x-cartera-fuente')).toBe('cache');
     expect(await precioDe(r2)).toBe(100);
+  });
+
+  test('un refresco forzado que falla también activa el freno de 30 s: no se golpea a IOL dos veces seguidas', async () => {
+    const w = armar();
+    w.llamadas.portafolioStatus = 500;
+    expect((await w.pedir('?fresh=1')).status).toBe(502);
+    await w.pedir('?fresh=1');
+    expect(w.llamadas.portafolio).toBe(1);
+  });
+
+  test('ingreso rechazado por IOL: no se reintenta con la contraseña durante 10 min (para no bloquear la cuenta)', async () => {
+    const w = armar();
+    const ahora = Date.now;
+    let t = ahora();
+    Date.now = () => t;
+    try {
+      w.llamadas.tokenStatus = 401;
+      const r1 = await w.pedir();
+      expect(r1.status).toBe(502);
+      expect(w.llamadas.token).toBe(1);
+      t += 60_000;
+      const r2 = await w.pedir('?fresh=1');
+      expect(r2.status).toBe(502);
+      expect((await r2.json()).message).toMatch(/no bloquear tu cuenta.*[0-9]+ min/);
+      expect(w.llamadas.token).toBe(1);               // no volvió a mandar la contraseña
+      w.llamadas.tokenStatus = 200;
+      t += 10 * 60_000;
+      const r3 = await w.pedir();
+      expect(r3.status).toBe(200);
+      expect(w.llamadas.token).toBe(2);
+    } finally {
+      Date.now = ahora;
+    }
   });
 
   test('CORS expone x-cartera-fuente y la auth sigue igual: fresh sin token, con token inválido o de otro uid no consulta IOL', async () => {
