@@ -319,8 +319,9 @@ function base64UrlToJson(b64url) {
 // Ojo: la Cache API no funciona en *.workers.dev (match no devuelve nada), así que
 // ahí los certificados se bajan en cada pedido. No es crítico: son públicos.
 async function getGoogleCerts() {
+  // La caché es solo una optimización (en workers.dev no guarda nada): si falla, se siguen bajando los certificados.
   const cache = caches.default;
-  const cached = await cache.match(CACHE_KEY_GOOGLE_CERTS);
+  const cached = await cache.match(CACHE_KEY_GOOGLE_CERTS).catch(() => null);
   if (cached) return cached.json();
   const res = await fetch(GOOGLE_CERTS_URL);
   if (!res.ok) throw new Error('no se pudieron obtener las claves públicas de Google (HTTP ' + res.status + ')');
@@ -330,7 +331,7 @@ async function getGoogleCerts() {
   const maxAge = m ? Math.min(parseInt(m[1], 10), 24 * 3600) : 3600;
   await cache.put(CACHE_KEY_GOOGLE_CERTS, new Response(JSON.stringify(certs), {
     headers: { 'content-type': 'application/json', 'cache-control': `max-age=${maxAge}` },
-  }));
+  })).catch(() => {});
   return certs;
 }
 
