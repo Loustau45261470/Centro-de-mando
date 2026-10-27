@@ -5390,6 +5390,7 @@ input:focus, select:focus, textarea:focus {
 .ten-act-bar .ci-meta { flex: 1 1 200px; min-width: 0; }
 .ten-act-btn { flex: none; }
 .ten-act-btn:disabled { opacity: .6; cursor: progress; }
+.ten-act-err { font-size: var(--fs-12); margin-top: 6px; overflow-wrap: anywhere; }
 .ten-orden-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
 .ten-orden-chip {
   font-family: var(--sans); font-size: var(--fs-12-5); font-weight: 700; padding: 6px 12px; border-radius: 999px;

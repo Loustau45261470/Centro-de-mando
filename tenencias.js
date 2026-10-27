@@ -36,6 +36,7 @@ const Tenencias = (() => {
   let _venta = null; // { t, generado } mientras el modal "Registrar venta" está abierto (null = ya se confirmó o se cerró)
   let _actualizando = false; // hay un "Actualizar" en vuelo: el botón se pinta deshabilitado aunque se repinte la pantalla
   let _estatico = null;      // último data/cartera/tenencias.json que cargó (lotes e historial para completar lo que llega en vivo)
+  let _errorVivo = null;     // por qué no llegó lo en vivo: se muestra DENTRO del overlay (el toast queda debajo, z-index 200 < 950)
 
   // El Worker devuelve un snapshot del portafolio: no trae lo que sale de la rutina semanal. Se completa por símbolo
   // desde el JSON estático; el valor en vivo manda si algún día el Worker lo trae. Sin estático, se muestra lo en vivo tal cual.
@@ -384,7 +385,8 @@ const Tenencias = (() => {
   function render(body, d, fuente) {
     _ctx = { body, d, fuente };
     const meta = metaFuente(d, fuente || 'estatico');
-    body.innerHTML = `<div class="ten-act-bar"><div class="ci-meta">${esc(meta)}</div>${botonActualizar()}</div>${header(d)}${donaHtml(d)}${tabla(d)}`;
+    const err = _errorVivo ? `<div class="text-danger ten-act-err" role="status">En vivo no disponible: ${esc(_errorVivo)}</div>` : '';
+    body.innerHTML = `<div class="ten-act-bar"><div class="ci-meta">${esc(meta)}</div>${botonActualizar()}</div>${err}${header(d)}${donaHtml(d)}${tabla(d)}`;
     pintarDona(body, d);
     body.querySelector('.ten-act-btn')?.addEventListener('click', () => actualizar(body));
     const toggle = sim => {
@@ -570,10 +572,13 @@ const Tenencias = (() => {
         _estatico ? Promise.resolve(_estatico) : estaticoOpcional(leerEstatico()),
       ]);
       if (!d || !Array.isArray(d.tenencias)) throw new Error('la respuesta de IOL tiene un formato inesperado.');
+      _errorVivo = null;
       if (_ctx && _ctx.body === body) render(body, fusionarEstatico(d, est), 'live-fresh');
     } catch (e) {
       console.warn('[tenencias] No se pudo forzar la actualización:', e && e.message ? e.message : e);
       showToast('No se pudo actualizar: ' + mensajeError(e), 5000);
+      _errorVivo = mensajeError(e);
+      if (_ctx && _ctx.body === body) render(body, _ctx.d, _ctx.fuente);
     } finally {
       _actualizando = false;
       pintarBoton(body);
@@ -609,6 +614,7 @@ const Tenencias = (() => {
   function renderInto(bx) {
     _openSimbolo = null;
     _orden = 'valorizado';
+    _errorVivo = null;
     bx.innerHTML = `<div class="empty-state">Cargando tenencias…</div>`;
     const estP = leerEstatico(); // en paralelo al Worker: completa lotes/semanal de lo en vivo, o es el fallback
     estP.catch(() => {});        // el error real se maneja en fetchEstatico; acá solo evita el "unhandled rejection"
@@ -624,6 +630,7 @@ const Tenencias = (() => {
       })
       .catch(e => {
         console.warn('[tenencias] Worker no disponible, cae a JSON estático:', e && e.message ? e.message : e);
+        _errorVivo = mensajeError(e);
         return fetchEstatico(bx, estP);
       });
   }
