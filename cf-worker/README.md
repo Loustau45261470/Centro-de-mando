@@ -9,6 +9,9 @@ Un Durable Object por timer (`TimerAlarm`), con una Alarm programada al
 timestamp exacto de fin. Sin polling, sin cron: el propio runtime de Cloudflare
 despierta al Durable Object en el momento justo.
 
+Un segundo Durable Object, `CarteraGate` (binding `CARTERA`, una sola instancia),
+guarda todo el estado de `/cartera` (ver abajo).
+
 ## Rutas
 
 - `POST /schedule/:id` y `POST /cancel/:id` — requieren `Authorization: Bearer <WORKER_SECRET>`.
@@ -36,18 +39,33 @@ lectura: nunca envía una orden a IOL.
   (no solo Tobías) podría pedir la cartera.
 - Login OAuth2 password grant de IOL (no de Firebase) contra `https://api.invertironline.com/token` con
   `env.IOL_USER` / `env.IOL_PASS` (nunca hardcodeadas, nunca en `wrangler.toml`).
-  El `access_token` queda cacheado (Cache API del Worker) ~14 min — no se pide uno
-  nuevo en cada request.
+  El `access_token` queda guardado ~14 min en el storage del Durable Object
+  `CarteraGate` — no se pide uno nuevo en cada request. Tras un ingreso rechazado
+  (`/token` no-OK) no se reintenta durante 10 min, para no bloquear la cuenta de IOL.
+- **El estado vive en `CarteraGate`, no en la Cache API.** La Cache API no funciona
+  en `*.workers.dev` ([doc oficial](https://developers.cloudflare.com/workers/runtime-apis/cache/):
+  solo los Workers en dominios propios tienen operaciones de caché funcionales) y este
+  Worker corre en `cdm-push-worker.tobiasloustau11.workers.dev`: con ella ni la caché ni
+  los frenos frenaban nada. El Worker principal verifica el ID token, el `OWNER_UID` y
+  que haya credenciales, y recién entonces le pasa al Durable Object solo `fresh`. Las
+  credenciales de IOL las lee el DO de `env`; nunca viajan en un body ni se guardan en
+  el storage. Una sola consulta a IOL puede estar en vuelo a la vez: los pedidos
+  simultáneos esperan esa misma consulta y reciben su resultado (un login y un
+  portafolio, no uno por pedido).
 - Portafolio: `GET https://api.invertironline.com/api/v2/portafolio/argentina`.
-  La respuesta transformada queda cacheada ~15 min (misma Cache API) — la API de
+  La respuesta transformada queda guardada ~15 min en el storage del DO — la API de
   IOL no se consulta en cada carga de la app.
 - **`GET /cartera?fresh=1` — forzar la actualización.** Misma auth. Salta la caché
-  de 15 min del portafolio y consulta IOL (reusa el `access_token` cacheado si sigue
-  vigente), guarda el resultado nuevo en la caché y lo devuelve. Freno anti-abuso: si
-  el último refresco forzado que sí consultó IOL fue hace menos de 30 s, responde lo
-  cacheado. Toda respuesta 200 trae el header `x-cartera-fuente` (`iol` = se consultó
-  IOL, `cache` = salió de la caché), expuesto por CORS. Sin `fresh` el comportamiento
+  de 15 min del portafolio y consulta IOL (reusa el `access_token` guardado si sigue
+  vigente), guarda el resultado nuevo y lo devuelve. Freno anti-abuso: cada intento
+  forzado, salga bien o mal, cuenta; si el último fue hace menos de 30 s, responde lo
+  guardado (o `429 too_soon` si no hay nada guardado porque el intento anterior falló).
+  Toda respuesta 200 trae el header `x-cartera-fuente` (`iol` = se consultó
+  IOL, `cache` = salió de lo guardado), expuesto por CORS. Sin `fresh` el comportamiento
   no cambia. Lo usa el botón "Actualizar" de Mis tenencias (timeout de 15 s).
+- La verificación del ID token baja los certificados públicos de Google con la Cache
+  API (`getGoogleCerts`); en `workers.dev` esa caché no funciona, así que se bajan en
+  cada pedido. No es crítico: son públicos y la descarga es liviana.
 - CORS restringido a `https://loustau45261470.github.io` (no `*`): expone datos
   financieros personales.
 - Devuelve la misma forma que `data/cartera/tenencias.json`, pero solo con los
@@ -76,6 +94,9 @@ CLOUDFLARE_API_TOKEN=<token> npx wrangler deploy
 
 El token y el Account ID viven en `C:\Users\Tobias\.secrets\cdm-api-keys.json`
 (clave `cloudflare`), nunca en este repo — es público.
+
+La migración `v2` de `wrangler.toml` (clase nueva `CarteraGate`) se aplica sola con
+ese mismo `wrangler deploy`; no hay pasos extra.
 
 ## Secrets del Worker (una sola vez, o al rotar claves)
 
