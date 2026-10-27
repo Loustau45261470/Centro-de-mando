@@ -6183,6 +6183,23 @@ input:focus, select:focus, textarea:focus {
 .cc-cal-dues li { margin: 2px 0; overflow-wrap: anywhere; }
 .cc-cal-exp { margin-top: 4px; font-size: var(--fs-12-5); color: var(--tt); }
 .cc-cal-exp b { color: var(--ts); font-family: var(--mono); font-weight: 700; }
+.cc-cal-det { list-style: none; margin: 0 0 4px; font-size: var(--fs-12-5); color: var(--tt); }
+/* Vencimientos de lo ya usado (pestana Tarjetas del overlay) */
+.cc-dues { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--border); }
+.cc-dues summary { cursor: pointer; color: var(--accent); font-size: var(--fs-13); font-weight: 600; }
+.cc-dues summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cc-due-list { list-style: none; margin: 8px 0 0; padding: 0; }
+.cc-due-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: var(--fs-13); }
+.cc-due-lbl { flex: 1; min-width: 0; color: var(--ts); overflow-wrap: anywhere; }
+.cc-due-amt { flex-shrink: 0; font-family: var(--mono); font-weight: 700; color: var(--tp); }
+.cc-due-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.cc-due-form select { flex: 1 1 100%; min-width: 0; }
+.cc-due-form input { flex: 1 1 120px; min-width: 0; }
+.cc-due-err { margin-top: 6px; }
+.cc-due-ctl { margin-top: 8px; font-size: var(--fs-13); color: var(--ts); overflow-wrap: anywhere; }
+.cc-due-ctl[data-tone="falta"] { color: var(--warn); }
+.cc-due-ctl[data-tone="ok"] { color: var(--ok); }
+.cc-due-ctl[data-tone="pasado"] { color: var(--danger); font-weight: 700; }
 
 /* ── Presupuesto: aviso de mes borrador (armado por la app, todavía sin llegar) ── */
 .budget-prov {

@@ -14,6 +14,8 @@
 //                mode: 'now1' | 'deferred' | 'nowInst' | 'advance'
 //   cardPayments [{ id, cardId, date, amount, accountId, kind:'auto'|'manual', key }]
 //                key = statementKey del resumen que se pagó
+//   cardDues     [{ id, cardId, due, amount }] — lo ya usado (saldo inicial) con la fecha en que vence:
+//                un registro por tarjeta y mes; due = día de vencimiento de la tarjeta en ese mes
 //
 // Fechas = 'YYYY-MM-DD'. Plata en pesos; los repartos se hacen en centavos
 // enteros (sin errores de float) y el resto va a la última cuota/mes.
@@ -123,23 +125,65 @@ const CMTarjetas = (() => {
     };
   }
 
-  // Suma de cuotas por vencimiento dentro de [fromISO, toISO] (inclusive),
-  // para mostrar "a pagar el 10/11". Ignora cargos de otra tarjeta o inválidos.
-  function dueTotals(card, charges, fromISO, toISO) {
+  const amountOk = a => typeof a === 'number' && isFinite(a) && a > 0 && a * 100 <= Number.MAX_SAFE_INTEGER;
+
+  // Fecha de vencimiento de la tarjeta en el mes (y, m), con el día clampado al último del mes.
+  const dueDateOf = (card, y, m) => fmt(y, m, clampDay(y, m, card.dueDay));
+
+  // Resumen al que pertenece un vencimiento (misma regla que statementOfMonth, al revés).
+  function statementKeyOfDue(card, p) {
+    const sm = addMonths(p.y, p.m, card.dueDay > card.closeDay ? 0 : -1);
+    return `${sm.y}-${pad(sm.m)}`;
+  }
+
+  // Próximos `count` vencimientos de la tarjeta a partir de fromISO (inclusive), por ejemplo para elegir uno en pantalla.
+  function upcomingDueDates(card, fromISO, count) {
+    const p = parseISO(fromISO);
+    if (!validateCard(card).ok || !p || !isInt(count) || count < 1 || count > MAX_N) return [];
+    const out = [];
+    for (let i = 0; i <= count && out.length < count; i++) {
+      const mo = addMonths(p.y, p.m, i);
+      const d = dueDateOf(card, mo.y, mo.m);
+      if (d >= fromISO) out.push(d);
+    }
+    return out;
+  }
+
+  // Suma por vencimiento dentro de [fromISO, toISO] (inclusive), para mostrar "a pagar el 10/11".
+  // Ignora cargos de otra tarjeta o inválidos. Con `dues` (lista de { cardId, due, amount }) suma también
+  // la deuda ya usada con fecha, y cada fila trae el detalle: installmentsAmount (cuotas) y debtAmount (deuda cargada).
+  // Sin `dues` (undefined o null) el resultado es el de siempre. `dues` que no sea lista da [].
+  function dueTotals(card, charges, fromISO, toISO, dues) {
     if (!validateCard(card).ok || !parseISO(fromISO) || !parseISO(toISO) || !Array.isArray(charges)) return [];
+    const withDues = dues !== undefined && dues !== null;
+    if (withDues && !Array.isArray(dues)) return [];
     const acc = new Map();
+    const slot = (dueDate, statementKey) => {
+      const cur = acc.get(dueDate) || { dueDate, statementKey, cents: 0, inst: 0, debt: 0 };
+      acc.set(dueDate, cur);
+      return cur;
+    };
     charges.forEach(ch => {
       if (!ch || ch.cardId !== card.id ||!validateCharge(ch).ok) return;
       installmentSchedule(card, ch).forEach(q => {
         if (q.dueDate < fromISO || q.dueDate > toISO) return;
-        const cur = acc.get(q.dueDate) || { dueDate: q.dueDate, statementKey: q.statementKey, cents: 0 };
-        cur.cents += Math.round(q.amount * 100);
-        acc.set(q.dueDate, cur);
+        const cur = slot(q.dueDate, q.statementKey), c = Math.round(q.amount * 100);
+        cur.cents += c; cur.inst += c;
       });
     });
+    if (withDues) {
+      dues.forEach(d => {
+        const p = d && typeof d === 'object' ? parseISO(d.due) : null;
+        if (!p || d.cardId !== card.id || !amountOk(d.amount) || d.due < fromISO || d.due > toISO) return;
+        const cur = slot(d.due, statementKeyOfDue(card, p)), c = Math.round(d.amount * 100);
+        cur.cents += c; cur.debt += c;
+      });
+    }
     return [...acc.values()]
       .sort((a, b) => (a.dueDate < b.dueDate ? -1 : 1))
-      .map(r => ({ dueDate: r.dueDate, statementKey: r.statementKey, amount: r.cents / 100 }));
+      .map(r => (withDues
+        ? { dueDate: r.dueDate, statementKey: r.statementKey, amount: r.cents / 100, installmentsAmount: r.inst / 100, debtAmount: r.debt / 100 }
+        : { dueDate: r.dueDate, statementKey: r.statementKey, amount: r.cents / 100 }));
   }
 
   // Forma del cargo (todo menos cardId): mensaje de error, o null si está bien.
@@ -168,6 +212,22 @@ const CMTarjetas = (() => {
     return { ok: true, error: null };
   }
 
+  // Para persistir un vencimiento de lo ya usado: la fecha tiene que ser el día de vencimiento de la tarjeta
+  // en ese mes (con clamp) y el monto mayor a 0 con 2 decimales como máximo. dueTotals es más permisivo
+  // a propósito: lo ya guardado sigue sumando aunque después se cambie el día de vencimiento.
+  function validateDue(card, d) {
+    const bad = error => ({ ok: false, error });
+    if (!validateCard(card).ok) return bad('Tarjeta inválida.');
+    if (!d || typeof d !== 'object') return bad('Vencimiento inválido.');
+    if (d.cardId !== card.id) return bad('El vencimiento es de otra tarjeta.');
+    const p = parseISO(d.due);
+    if (!p) return bad('Fecha inválida.');
+    if (d.due !== dueDateOf(card, p.y, p.m)) return bad('La fecha tiene que ser el día de vencimiento de la tarjeta.');
+    if (!amountOk(d.amount)) return bad('El monto tiene que ser mayor a 0.');
+    if (Math.round(d.amount * 100) / 100 !== d.amount) return bad('El monto puede tener como máximo 2 decimales.');
+    return { ok: true, error: null };
+  }
+
   function validateCard(c) {
     const bad = error => ({ ok: false, error });
     if (!c || typeof c !== 'object') return bad('Tarjeta inválida.');
@@ -178,7 +238,7 @@ const CMTarjetas = (() => {
     return { ok: true, error: null };
   }
 
-  return { statementFor, installmentSchedule, expenseSchedule, chargeEffects, dueTotals, validateCharge, validateCard };
+  return { statementFor, installmentSchedule, expenseSchedule, chargeEffects, dueTotals, upcomingDueDates, validateCharge, validateCard, validateDue };
 })();
 
 if (typeof window !== 'undefined') window.CMTarjetas = CMTarjetas;

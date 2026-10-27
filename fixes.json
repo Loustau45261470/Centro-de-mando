@@ -323,6 +323,13 @@
       "desc": "Editar desde Actividad un gasto materializado de tarjeta (cardChargeId, ids cc:*) lo desalineaba del cargo y, con cuenta asignada, descontaba el saldo dos veces al pagar la cuota. openEditTxn y saveEditTxn ahora lo bloquean con aviso y no modifican nada.",
       "file": "finanzas.js",
       "marker": "const _CC_EDIT_BLOCK_MSG"
+    },
+    {
+      "id": "card-dues-sync-rescue",
+      "fecha": "2026-10-26",
+      "desc": "S.cardDues (vencimientos de lo ya usado de cada tarjeta, id determinista cd:<tarjeta>:<fecha>) es clave nueva de primer nivel: se agrega a DEFAULT_STATE y a la lista de arrays con id de _rescueLocal para que un vencimiento cargado en un dispositivo no se pierda si la nube trae un estado sin el. Cubierto por tests/cardDues-sync.spec.js.",
+      "file": "app.js",
+      "marker": "'cardPayments','cardDues'"
     }
   ]
 }

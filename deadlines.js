@@ -235,14 +235,17 @@ const CMDeadlines = (() => {
     });
 
     // 10) Vencimientos de tarjeta: una entrada por (tarjeta, fecha) con lo que vence ese día,
-    //     de hoy a 12 meses. Sin motor o sin tarjetas/compras, el bloque se omite.
+    //     de hoy a 12 meses. Suma las cuotas de las compras y lo ya usado con fecha (S.cardDues) que vencen
+    //     ese día. Sin motor o sin tarjetas con compras ni vencimientos cargados, el bloque se omite.
     const motor = cardsEngine();
-    if (motor && Array.isArray(S.cards) && Array.isArray(S.cardCharges) && S.cardCharges.length) {
+    const cCharges = Array.isArray(S.cardCharges) ? S.cardCharges : [];
+    const cDues = Array.isArray(S.cardDues) ? S.cardDues : [];
+    if (motor && Array.isArray(S.cards) && (cCharges.length || cDues.length)) {
       const paid = new Set((Array.isArray(S.cardPayments) ? S.cardPayments : []).map(p => p && p.key));
       const end = addDays(today, 365);
       S.cards.forEach(card => {
         if (!card || !card.id) return;
-        motor.dueTotals(card, S.cardCharges, today, end).forEach(d => {
+        motor.dueTotals(card, cCharges, today, end, cDues).forEach(d => {
           if (!(d.amount > 0) || paid.has('auto:' + card.id + ':' + d.dueDate)) return;
           add({ id: 'tarj_' + card.id + '_' + d.dueDate, kind: 'tarjeta', kindLabel: 'Tarjeta', icon: '💳',
                 tab: 'finanzas', title: card.name + ' vence', sub: peso(d.amount) + ' a pagar',
