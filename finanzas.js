@@ -1402,11 +1402,27 @@ function _pfLog(fundId) { _pfEnsure(); if (!S.purchaseFundLog[fundId]) S.purchas
 function _pfSpendsOf(fundId) { _pfEnsure(); return S.purchaseFundSpends.filter(s => s.fundId === fundId); }
 function _pfFund(id) { _pfEnsure(); return S.purchaseFunds.find(f => f.id === id) || null; }
 
-// acumulado = Σ acreditado − Σ compras (nunca menor a 0)
+// disponible = Σ acreditado + lo ganado en el mes en curso (modo diario, todavía sin acreditar) − Σ compras.
+// Puede quedar negativo (desmarcar un día ya gastado no tiene piso).
 function pfAccumulated(fundId) {
-  const credited = Object.values(_pfLog(fundId)).reduce((s,e) => s + (+e.credited || 0), 0);
+  const log = _pfLog(fundId);
+  const credited = Object.values(log).reduce((s,e) => s + (+e.credited || 0), 0);
   const spent = _pfSpendsOf(fundId).reduce((s,x) => s + (+x.amount || 0), 0);
-  return Math.max(0, credited - spent);
+  return credited + pfLiveEarned(_pfFund(fundId)) - spent;
+}
+// Lo ganado en el mes en curso por un fondo diario: se puede gastar apenas se marca el hábito.
+// Al cierre lo acredita pfCatchUp (una sola transacción) y deja de contarse acá porque el mes ya tiene registro.
+function pfLiveEarned(fund) {
+  if (!fund || !fund.condition || fund.condition.type !== 'diario') return 0;
+  const mk = _pfMonthKey(new Date());
+  if (_pfLog(fund.id)[mk] !== undefined || pfConditionBroken(fund)) return 0;
+  return pfDailyEarned(fund, mk, true).earned;
+}
+// Margen para gastar por encima del disponible: 10% de lo máximo que el fondo junta en un mes.
+function pfSpendMargin(fund) {
+  if (!fund) return 0;
+  const max = fund.condition && fund.condition.type === 'diario' ? pfMonthlyCap(fund, _pfMonthKey(new Date())) : (+fund.monthlyAmount || 0);
+  return Math.round(max * 0.1);
 }
 
 // ── Resolución de la condición ──
@@ -1894,7 +1910,7 @@ function openFundSpend(fundId, spendId) {
   const sp = spendId ? S.purchaseFundSpends.find(s => s.id === spendId) : null;
   const avail = pfAccumulated(fundId) + (sp ? (+sp.amount || 0) : 0);
   document.getElementById('fund-spend-title').textContent = sp ? 'Editar compra' : `Compra de ${f.name}`;
-  document.getElementById('fundSpendAvail').textContent = `Disponible en el fondo: ${fmtMoney(avail, 'ARS')}`;
+  document.getElementById('fundSpendAvail').textContent = `Disponible en el fondo: ${fmtMoney(avail, 'ARS')} (podés pasarte hasta ${fmtMoney(pfSpendMargin(f), 'ARS')})`;
   document.getElementById('fundSpendDesc').value = sp ? sp.desc : '';
   document.getElementById('fundSpendAmount').value = sp ? (+sp.amount || '') : '';
   document.getElementById('fundSpendDate').value = sp ? sp.date : getActiveDate();
@@ -1912,7 +1928,7 @@ function saveFundSpend() {
   const date = document.getElementById('fundSpendDate').value || getActiveDate();
   const prev = _pfSpendId ? (+(S.purchaseFundSpends.find(s => s.id === _pfSpendId) || {}).amount || 0) : 0;
   const avail = pfAccumulated(fundId) + prev;
-  if (amount > avail) { showToast(`No alcanza: el fondo tiene ${fmtMoney(avail, 'ARS')}`, 3500); return; }
+  if (amount > avail + pfSpendMargin(f)) { showToast(`No alcanza: el fondo tiene ${fmtMoney(avail, 'ARS')} y el margen es ${fmtMoney(pfSpendMargin(f), 'ARS')}`, 3500); return; }
 
   if (_pfSpendId) {
     const sp = S.purchaseFundSpends.find(s => s.id === _pfSpendId);
