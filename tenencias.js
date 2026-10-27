@@ -230,6 +230,8 @@ const Tenencias = (() => {
   // Paleta fija y apagada, armónica con el tema oscuro; "Otros" va en gris.
   const DONA_COLORES = ['#38BDF8', '#34D399', '#818CF8', '#F5A623', '#F472B6', '#22D3EE', '#A3E635', '#FB7185', '#C084FC', '#FBBF24', '#2DD4BF', '#60A5FA'];
   const DONA_COLOR_OTROS = '#64748B';
+  // Más allá de la paleta fija, tonos nuevos por ángulo áureo (no se repite un color dentro de la dona).
+  const donaColor = i => i < DONA_COLORES.length ? DONA_COLORES[i] : `hsl(${Math.round((i * 137.5 + 20) % 360)}, 55%, 58%)`;
   const DONA_UMBRAL_OTROS = 2; // % por debajo del cual una posición se agrupa en "Otros"
   const DONA_VISTAS = [
     { id: 'total', lbl: 'Total cartera', centro: 'Total', vacio: 'Sin posiciones en la cartera' },
@@ -250,9 +252,15 @@ const Tenencias = (() => {
     for (const p of pos) {
       const pc = (p.v / total) * 100;
       if (pc < DONA_UMBRAL_OTROS) otros += p.v;
-      else items.push({ simbolo: p.simbolo, v: p.v, pct: pc, color: DONA_COLORES[items.length % DONA_COLORES.length] });
+      else items.push({ simbolo: p.simbolo, v: p.v, pct: pc, color: donaColor(items.length) });
     }
     if (otros > 0) items.push({ simbolo: 'Otros', v: otros, pct: (otros / total) * 100, color: DONA_COLOR_OTROS, otros: true });
+    // Redondeo a 1 decimal repartiendo el resto (mayor resto) para que la leyenda sume exactamente 100,0%.
+    const dec = items.map(it => Math.floor(it.pct * 10));
+    let falta = 1000 - dec.reduce((a, x) => a + x, 0);
+    items.map((it, i) => i).sort((a, b) => (items[b].pct * 10 - dec[b]) - (items[a].pct * 10 - dec[a]))
+      .forEach(i => { if (falta > 0) { dec[i]++; falta--; } });
+    items.forEach((it, i) => { it.pct = dec[i] / 10; });
     return { total, items };
   }
 
