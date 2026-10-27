@@ -29,6 +29,8 @@ const Tenencias = (() => {
 
   let _openSimbolo = null;
   let _orden = 'valorizado'; // 'valorizado' | 'rendimiento'
+  let _donaVista = 'total';  // 'total' | 'acciones' — vista del gráfico "Cartera actual" (se recuerda mientras dure la sesión)
+  let _donaChart = null;     // instancia Chart.js vigente (se destruye antes de crear otra)
   let _ctx = null;   // { body, d, fuente } del último render — para repintar después de registrar una venta
   let _venta = null; // { t, generado } mientras el modal "Registrar venta" está abierto (null = ya se confirmó o se cerró)
 
@@ -224,6 +226,100 @@ const Tenencias = (() => {
     </div>`;
   }
 
+  // ── Gráfico "Cartera actual": dona con las posiciones + leyenda ticker/%. ──
+  // Paleta fija y apagada, armónica con el tema oscuro; "Otros" va en gris.
+  const DONA_COLORES = ['#38BDF8', '#34D399', '#818CF8', '#F5A623', '#F472B6', '#22D3EE', '#A3E635', '#FB7185', '#C084FC', '#FBBF24', '#2DD4BF', '#60A5FA'];
+  const DONA_COLOR_OTROS = '#64748B';
+  // Más allá de la paleta fija, tonos nuevos por ángulo áureo (no se repite un color dentro de la dona).
+  const donaColor = i => i < DONA_COLORES.length ? DONA_COLORES[i] : `hsl(${Math.round((i * 137.5 + 20) % 360)}, 55%, 58%)`;
+  const DONA_UMBRAL_OTROS = 2; // % por debajo del cual una posición se agrupa en "Otros"
+  const DONA_VISTAS = [
+    { id: 'total', lbl: 'Total cartera', centro: 'Total', vacio: 'Sin posiciones en la cartera' },
+    { id: 'acciones', lbl: 'Solo acciones', centro: 'Acciones', vacio: 'Sin acciones ni CEDEARs en la cartera' }
+  ];
+
+  // Posiciones válidas de la vista (valorizado > 0), % sobre la suma de ESAS posiciones,
+  // de mayor a menor; las menores al umbral se agrupan al final como "Otros".
+  function donaDatos(d, vista) {
+    const solo = vista === 'acciones' ? GRUPOS[0].match : () => true;
+    const pos = (d.tenencias || []).filter(t => t && solo(t.tipo) && (num(t.valorizado) ?? 0) > 0)
+      .map(t => ({ simbolo: String(t.simbolo ?? '—'), v: num(t.valorizado) }))
+      .sort((a, b) => b.v - a.v);
+    const total = pos.reduce((a, p) => a + p.v, 0);
+    if (!total) return { total: 0, items: [] };
+    const items = [];
+    let otros = 0;
+    for (const p of pos) {
+      const pc = (p.v / total) * 100;
+      if (pc < DONA_UMBRAL_OTROS) otros += p.v;
+      else items.push({ simbolo: p.simbolo, v: p.v, pct: pc, color: donaColor(items.length) });
+    }
+    if (otros > 0) items.push({ simbolo: 'Otros', v: otros, pct: (otros / total) * 100, color: DONA_COLOR_OTROS, otros: true });
+    // Redondeo a 1 decimal repartiendo el resto (mayor resto) para que la leyenda sume exactamente 100,0%.
+    const dec = items.map(it => Math.floor(it.pct * 10));
+    let falta = 1000 - dec.reduce((a, x) => a + x, 0);
+    items.map((it, i) => i).sort((a, b) => (items[b].pct * 10 - dec[b]) - (items[a].pct * 10 - dec[a]))
+      .forEach(i => { if (falta > 0) { dec[i]++; falta--; } });
+    items.forEach((it, i) => { it.pct = dec[i] / 10; });
+    return { total, items };
+  }
+
+  function donaHtml(d) {
+    const vista = DONA_VISTAS.find(v => v.id === _donaVista) || DONA_VISTAS[0];
+    const { total, items } = donaDatos(d, vista.id);
+    const chips = DONA_VISTAS.map(v => `<button type="button" class="ten-orden-chip ${v.id === vista.id ? 'on' : ''}" data-dona="${v.id}" aria-pressed="${v.id === vista.id}">${v.lbl}</button>`).join('');
+    const cuerpo = !items.length
+      ? `<div class="empty-state ten-dona-vacio">${vista.vacio}</div>`
+      : `<div class="ten-dona-body">
+          <div class="ten-dona-chart"><canvas role="img" aria-label="Distribución de la cartera: ${esc(vista.lbl)}"></canvas>
+            <div class="ten-dona-centro"><span class="ten-dona-centro-lbl">${vista.centro}</span><span class="mono ten-dona-centro-num">${money(total, 0)}</span></div></div>
+          <ul class="ten-dona-leyenda">${items.map(it => `<li class="ten-dona-item"><span class="ten-dona-dot" style="background:${it.color}"></span><span class="mono ten-dona-sim">${esc(it.simbolo)}</span><span class="mono ten-dona-pct">${it.pct.toFixed(1)}%</span></li>`).join('')}</ul>
+        </div>`;
+    return `<div class="card ten-card ten-dona">
+      <div class="sec-label ten-grupo-lbl">Cartera actual</div>
+      <div class="ten-orden-chips ten-dona-chips" role="group" aria-label="Vista del gráfico">${chips}</div>
+      ${cuerpo}
+    </div>`;
+  }
+
+  // Pinta (o repinta) la tarjeta de la dona dentro de body. Destruye la instancia previa
+  // antes de crear otra: el canvas viejo ya no existe tras un innerHTML nuevo.
+  function pintarDona(body, d) {
+    if (_donaChart) { _donaChart.destroy(); _donaChart = null; }
+    const card = body.querySelector('.ten-dona');
+    if (!card) return;
+    card.querySelectorAll('.ten-orden-chip[data-dona]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (_donaVista === btn.dataset.dona) return;
+        _donaVista = btn.dataset.dona;
+        if (_donaChart) { _donaChart.destroy(); _donaChart = null; }
+        const tmp = document.createElement('div');
+        tmp.innerHTML = donaHtml(d);
+        card.replaceWith(tmp.firstElementChild);
+        pintarDona(body, d);
+        body.querySelector('.ten-dona .ten-orden-chip[data-dona="' + _donaVista + '"]')?.focus();
+      });
+    });
+    const canvas = card.querySelector('canvas');
+    if (!canvas || typeof Chart === 'undefined') return; // sin Chart.js queda la leyenda sola
+    const { items } = donaDatos(d, _donaVista);
+    _donaChart = new Chart(canvas.getContext('2d'), {
+      type: 'doughnut',
+      data: { labels: items.map(i => i.simbolo), datasets: [{ data: items.map(i => i.v), backgroundColor: items.map(i => i.color), borderWidth: 0, hoverOffset: 4 }] },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '68%',
+        _noCrosshair: true,
+        animation: { duration: 500, easing: 'easeOutQuart' },
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: c => ' ' + c.label + ' · ' + items[c.dataIndex].pct.toFixed(1) + '%' } }
+        }
+      }
+    });
+  }
+
   function tabla(d) {
     const todas = (d.tenencias || []);
     const totalVal = num((d.totales || {}).valorizado);
@@ -264,7 +360,8 @@ const Tenencias = (() => {
   function render(body, d, fuente) {
     _ctx = { body, d, fuente };
     const meta = metaFuente(d, fuente || 'estatico');
-    body.innerHTML = `<div class="ci-meta">${esc(meta)}</div>${header(d)}${tabla(d)}`;
+    body.innerHTML = `<div class="ci-meta">${esc(meta)}</div>${header(d)}${donaHtml(d)}${tabla(d)}`;
+    pintarDona(body, d);
     const toggle = sim => {
       _openSimbolo = _openSimbolo === sim ? null : sim;
       render(body, d, fuente);
