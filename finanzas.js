@@ -447,6 +447,7 @@ function _ccChargeHtml(ch) {
     <div class="cc-chg-head">
       <div class="cc-chg-name">${escHtml(ch.name || 'Compra con tarjeta')}</div>
       <div class="cc-chg-amt">${_ccPesos(ch.amount)}${_discTagHtml(ch)}</div>
+      <button class="icon-btn" aria-label="Editar compra" onclick="openEditCardCharge('${escHtml(ch.id)}')">${_EDIT_SVG}</button>
       <button class="icon-btn" aria-label="Borrar compra" onclick="deleteCardCharge('${escHtml(ch.id)}')">${_DEL_SVG}</button>
     </div>
     <div class="cc-meta">${escHtml(card ? card.name : 'Tarjeta eliminada')} · ${_ccDate(ch.date)} · ${_CC_MODES[ch.mode] || ''}</div>
@@ -961,6 +962,11 @@ function fillTxnPaymentSelect(selected) {
 // La llama openModal('modal-add-txn'): deja el formulario en su estado inicial.
 function initTxnForm() {
   const g = (id) => document.getElementById(id);
+  if (_txnEditChargeId) {   // venía de editar una compra: vuelve a modo alta y sin los datos de esa compra
+    _setTxnEditMode(null);
+    g('txnName').value = ''; g('txnAmount').value = '';
+    fillTxnCategorySelect('txnCategory', '');
+  }
   fillTxnPaymentSelect('');
   g('ccChDate').value = getActiveDate();
   g('ccChMode').value = 'now1';
@@ -1145,8 +1151,13 @@ function _saveTxnCardCharge() {
   const errEl = document.getElementById('ccChErr');
   const ch = _ccReadCharge();
   const error = _ccChargeError(ch);
-  if (error) { errEl.textContent = error; return; }
+  if (error) {
+    errEl.textContent = error;
+    if (_txnEditChargeId && !_txnPayCardId()) showToast(error);   // sin tarjeta elegida el panel (y su error) está oculto
+    return;
+  }
   errEl.textContent = '';
+  if (_txnEditChargeId) return _saveEditedCardCharge(ch);
   ch.id = uid();
   if (ch.mode === 'now1') delete ch.installments;
   if (!Array.isArray(S.cardCharges)) S.cardCharges = [];
@@ -1166,14 +1177,103 @@ function _saveTxnCardCharge() {
   else showToast('Compra con tarjeta guardada');
 }
 
-function deleteCardCharge(id) {
-  const ch = (S.cardCharges || []).find(c => c.id === id);
-  if (!ch) return;
+// Cuotas de la compra que ya tuvieron su pago automático (el dinero ya salió de la cuenta).
+function _ccPaidInstallments(ch) {
   const card = (S.cards || []).find(c => c.id === ch.cardId);
   const today = getActiveDate();
   const paidKeys = new Set((S.cardPayments || []).map(p => p && p.key));
-  const paid = (card ? CMTarjetas.installmentSchedule(card, ch) : [])
+  return (card ? CMTarjetas.installmentSchedule(card, ch) : [])
     .filter(q => q.dueDate <= today && paidKeys.has(`auto:${ch.cardId}:${q.dueDate}`));
+}
+
+// ── Editar una compra con tarjeta: reusa el formulario de alta (modal-add-txn) en "modo edición" ──
+// _txnEditChargeId = id de la compra que se está editando (null = alta normal). Se resetea en initTxnForm
+// (cada vez que se abre el formulario) y, con un observador, apenas el modal se cierra por cualquier vía.
+let _txnEditChargeId = null;
+let _txnEditObserver = null;
+const _CC_PAID_EDIT_MSG = 'Esta compra ya tiene cuotas pagadas: no se puede editar. Podés borrarla y cargarla de nuevo.';
+function _setTxnEditMode(id) {
+  _txnEditChargeId = id || null;
+  const g = (i) => document.getElementById(i);
+  g('txnModalTitle').textContent = id ? 'Editar compra' : 'Registrar movimiento';
+  g('txnSaveBtn').textContent = id ? 'Guardar cambios' : 'Registrar';
+  g('txnDeleteChargeBtn').style.display = id ? '' : 'none';
+  g('txnType').disabled = !!id;   // una compra con tarjeta es siempre un gasto
+}
+function _watchTxnModalClose() {
+  if (_txnEditObserver) return;
+  const modal = document.getElementById('modal-add-txn');
+  _txnEditObserver = new MutationObserver(() => {
+    if (_txnEditChargeId && !modal.classList.contains('open')) {
+      _setTxnEditMode(null);
+      document.getElementById('txnName').value = '';
+      document.getElementById('txnAmount').value = '';
+    }
+  });
+  _txnEditObserver.observe(modal, { attributes: true, attributeFilter: ['class'] });
+}
+
+function openEditCardCharge(id) {
+  const ch = (S.cardCharges || []).find(c => c.id === id);
+  if (!ch) return;
+  if (_ccPaidInstallments(ch).length) { showToast(_CC_PAID_EDIT_MSG, 5500); return; }
+  if (!(S.cards || []).some(c => c.id === ch.cardId)) { showToast('La tarjeta de esta compra ya no existe. Borrá la compra y cargala de nuevo.', 5500); return; }
+  const g = (i) => document.getElementById(i);
+  openModal('modal-add-txn');   // initTxnForm deja el formulario en modo alta; abajo se precarga la compra
+  _watchTxnModalClose();
+  _setTxnEditMode(id);
+  g('txnType').value = 'expense';
+  fillTxnPaymentSelect(_TXN_CARD_PREFIX + ch.cardId);
+  fillTxnCategorySelect('txnCategory', ch.category || '');
+  g('txnName').value = ch.name || '';
+  g('txnAmount').value = ch.discountPct > 0 && ch.amountOriginal > 0 ? ch.amountOriginal : ch.amount;   // con descuento se carga el total
+  g('ccChDate').value = ch.date;
+  g('ccChMode').value = ch.mode;
+  g('ccChInst').value = ch.installments || 3;
+  g('ccChMonths').value = ch.consumeMonths || 3;
+  g('ccChToAcc').innerHTML = _ccAccountOptions(ch.toAccountId || '', '— Elegí una cuenta —');
+  onTxnPaymentChange();
+  setTxnDiscount(ch.discountPct > 0 ? ch.discountPct : 0);
+}
+
+// Guarda la compra editada (la llama _saveTxnCardCharge con la compra ya leída y validada): reemplaza el cargo
+// conservando su id, rehace sus gastos y ajusta el saldo si es (o era) plata de un tercero.
+function _saveEditedCardCharge(ch) {
+  const idx = (S.cardCharges || []).findIndex(c => c.id === _txnEditChargeId);
+  if (idx < 0) { closeModal('modal-add-txn'); showToast('Esa compra ya no existe'); return; }
+  const old = S.cardCharges[idx];
+  if (_ccPaidInstallments(old).length) { closeModal('modal-add-txn'); showToast(_CC_PAID_EDIT_MSG, 5500); return; }
+  ch.id = old.id;
+  if (ch.mode === 'now1') delete ch.installments;
+  const oldAcc = old.mode === 'advance' ? S.accounts.find(a => a.id === old.toAccountId) : null;
+  if (oldAcc) oldAcc.balance = _ccRound(oldAcc.balance - old.amount);
+  S.cardCharges[idx] = ch;
+  S.transactions = (S.transactions || []).filter(t => t.cardChargeId !== old.id);
+  if (ch.mode === 'advance') {
+    const acc = S.accounts.find(a => a.id === ch.toAccountId);
+    acc.balance = _ccRound(acc.balance + ch.amount);
+  }
+  closeModal('modal-add-txn');
+  materializeCardExpenses();
+  snapshotNW();
+  saveState(); renderFinanzasTab();
+  const card = S.cards.find(c => c.id === ch.cardId);
+  if (cardUsed(card) > card.limit) showToast('Compra actualizada. Ojo: te pasaste del límite de la tarjeta', 5000);
+  else showToast('Compra actualizada');
+}
+
+// "Borrar compra" del formulario de edición: mismo confirm que en Tarjetas → Compras.
+function deleteCardChargeFromForm() {
+  const id = _txnEditChargeId;
+  if (!id) return;
+  deleteCardCharge(id);
+  if (!(S.cardCharges || []).some(c => c.id === id)) closeModal('modal-add-txn');
+}
+
+function deleteCardCharge(id) {
+  const ch = (S.cardCharges || []).find(c => c.id === id);
+  if (!ch) return;
+  const paid = _ccPaidInstallments(ch);
   const acc = ch.mode === 'advance' ? S.accounts.find(a => a.id === ch.toAccountId) : null;
   let msg = `¿Borrar la compra "${ch.name || 'Compra con tarjeta'}" de ${_ccPesos(ch.amount)}? Se quitan sus cuotas y sus gastos.`;
   if (acc) msg += `\n\nSe descuentan ${_ccPesos(ch.amount)} de "${acc.name}", que son los que habían entrado.`;
@@ -3493,7 +3593,11 @@ const _CC_EDIT_BLOCK_MSG = 'Este gasto viene de una compra con tarjeta. Para cam
 function openEditTxn(id) {
   const txn = S.transactions.find(t=>t.id===id);
   if (!txn) return;
-  if (txn.cardChargeId) { showToast(_CC_EDIT_BLOCK_MSG, 4500); return; }
+  if (txn.cardChargeId) {
+    // Gasto de una compra con tarjeta: se edita la compra (en el formulario de alta). Sin compra (huérfano) sigue bloqueado.
+    if ((S.cardCharges || []).some(c => c.id === txn.cardChargeId)) { openEditCardCharge(txn.cardChargeId); return; }
+    showToast(_CC_EDIT_BLOCK_MSG, 4500); return;
+  }
   document.getElementById('editTxnId').value = txn.id;
   document.getElementById('editTxnName').value = txn.name;
   document.getElementById('editTxnType').value = txn.type;
@@ -3595,7 +3699,7 @@ function deleteTransaction(id) {
 }
 
 function addTransaction() {
-  if (_txnPayCardId()) return _saveTxnCardCharge();
+  if (_txnEditChargeId || _txnPayCardId()) return _saveTxnCardCharge();
   const name=document.getElementById('txnName').value.trim();
   if (!name) { showToast('Escribe la descripción'); return; }
   const type=document.getElementById('txnType').value;
