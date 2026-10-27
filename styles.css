@@ -1026,6 +1026,9 @@ textarea { resize: vertical; min-height: 60px; }
 .modal-title { font-size: 18px; font-weight: 700; margin-bottom: 16px; }
 .modal-actions { display: flex; gap: 8px; margin-top: 16px; }
 .modal-actions .btn { flex: 1; justify-content: center; }
+/* Editar compra: "Borrar compra" va en su propia fila, debajo de Cancelar / Guardar cambios (a 375px no entran tres). */
+#modal-add-txn .modal-actions { flex-wrap: wrap; }
+#txnDeleteChargeBtn { flex: 1 0 100%; order: 1; }
 
 /* ── Gym split config ── */
 .split-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-bottom: 4px; }
