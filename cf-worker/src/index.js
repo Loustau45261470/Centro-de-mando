@@ -8,6 +8,7 @@
 //   POST /schedule/:id  { delaySeconds, subscription, title, body, tag }  — Bearer <WORKER_SECRET>
 //   POST /cancel/:id                                                      — Bearer <WORKER_SECRET>
 //   GET  /cartera  — cartera IOL en vivo — Bearer <ID token de Firebase Auth>, ver más abajo
+//                    (el estado — caché, token de IOL, frenos — vive en el Durable Object CarteraGate)
 //
 // :id identifica el timer — 'pomo' para el Pomodoro (uno a la vez), 'rtn-<exId>'
 // para cada descanso de gimnasio (puede haber varios en simultáneo).
@@ -105,16 +106,11 @@ const CARTERA_CORS_HEADERS = {
 };
 const IOL_TOKEN_URL = 'https://api.invertironline.com/token';
 const IOL_PORTAFOLIO_URL = 'https://api.invertironline.com/api/v2/portafolio/argentina';
-const CARTERA_CACHE_TTL_SECONDS = 900; // 15 min — no golpear la API de IOL en cada carga
-const IOL_TOKEN_TTL_SECONDS = 840; // el access_token de IOL dura ~15 min; 14 de margen
-// Requests sintéticas usadas solo como clave de la Cache API del Worker (no salen a la red).
-const CACHE_KEY_PORTAFOLIO = new Request('https://cdm-cartera-cache.internal/portafolio');
-const CACHE_KEY_TOKEN = new Request('https://cdm-cartera-cache.internal/token');
+const CARTERA_CACHE_TTL_MS = 900 * 1000; // 15 min — no golpear la API de IOL en cada carga
+const IOL_TOKEN_TTL_MS = 840 * 1000; // el access_token de IOL dura ~15 min; 14 de margen
 // ?fresh=1 salta la caché del portafolio, pero con freno anti-abuso: si el último refresco forzado
-// que sí consultó IOL fue hace menos de CARTERA_FRESH_MIN_INTERVAL_MS, se responde lo cacheado.
+// fue hace menos de CARTERA_FRESH_MIN_INTERVAL_MS, se responde lo cacheado.
 const CARTERA_FRESH_MIN_INTERVAL_MS = 30000;
-const CACHE_KEY_FRESH_LAST = new Request('https://cdm-cartera-cache.internal/fresh-last');
-const CACHE_KEY_LOGIN_FAIL = new Request('https://cdm-cartera-cache.internal/login-fail');
 const IOL_LOGIN_BACKOFF_MS = 10 * 60 * 1000;
 
 function jsonError(status, code, message) {
@@ -124,40 +120,99 @@ function jsonError(status, code, message) {
   });
 }
 
-async function getIolToken(env) {
-  const cache = caches.default;
-  const cached = await cache.match(CACHE_KEY_TOKEN);
-  if (cached) {
-    const { access_token, expires_at } = await cached.json();
-    if (access_token && expires_at > Date.now()) return access_token;
+// ── CarteraGate — todo el estado de /cartera vive acá (Durable Object, una sola instancia) ──
+// La Cache API no funciona en *.workers.dev (solo en dominios propios): con ella ni la caché
+// del portafolio ni los frenos frenaban nada y cada pedido iba a IOL con la contraseña. El
+// estado va en el storage del DO: portafolio cacheado, token de IOL, último refresco forzado
+// y último ingreso rechazado. Las credenciales llegan por env, nunca por el body ni al storage.
+// Un DO atiende pedidos intercalados mientras espera un fetch, así que una sola consulta a IOL
+// puede estar en vuelo a la vez (this.enVuelo): los pedidos que llegan mientras tanto reciben
+// el resultado de esa misma consulta en vez de disparar otro login u otro portafolio.
+export class CarteraGate {
+  constructor(state, env) {
+    this.state = state;
+    this.env = env;
+    this.enVuelo = null;
   }
-  // Tras un ingreso rechazado no se reintenta durante IOL_LOGIN_BACKOFF_MS: varios intentos fallidos
-  // seguidos con la contraseña podrían bloquear la cuenta de IOL.
-  const fallo = await cache.match(CACHE_KEY_LOGIN_FAIL);
-  if (fallo) {
-    const { at, status } = await fallo.json().catch(() => ({}));
-    const resta = typeof at === 'number' ? IOL_LOGIN_BACKOFF_MS - (Date.now() - at) : 0;
-    if (resta > 0) throw new Error(`IOL rechazó el último ingreso (HTTP ${status}). Para no bloquear tu cuenta, el próximo intento es en ${Math.ceil(resta / 60000)} min`);
+
+  async fetch(request) {
+    const url = new URL(request.url);
+    if (request.method !== 'POST' || url.pathname !== '/consultar') return new Response('not found', { status: 404 });
+    const { fresh } = await request.json().catch(() => ({}));
+    if (!this.enVuelo) {
+      const p = this.consultar(fresh === true);
+      this.enVuelo = p;
+      const liberar = () => { if (this.enVuelo === p) this.enVuelo = null; };
+      p.then(liberar, liberar);
+    }
+    const r = await this.enVuelo;
+    const headers = { 'content-type': 'application/json' };
+    if (r.fuente) headers['x-cartera-fuente'] = r.fuente;
+    return new Response(r.body, { status: r.status, headers });
   }
-  const res = await fetch(IOL_TOKEN_URL, {
-    method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ username: env.IOL_USER, password: env.IOL_PASS, grant_type: 'password' }),
-  });
-  if (!res.ok) {
-    await cache.put(CACHE_KEY_LOGIN_FAIL, new Response(JSON.stringify({ at: Date.now(), status: res.status }), {
-      headers: { 'content-type': 'application/json', 'cache-control': `max-age=${IOL_LOGIN_BACKOFF_MS / 1000}` },
-    }));
-    throw new Error('login IOL falló (HTTP ' + res.status + ')');
+
+  async consultar(fresh) {
+    const storage = this.state.storage;
+    const error = (status, code, message) => ({ status, body: JSON.stringify({ error: code, message }), fuente: null });
+
+    let forzar = fresh;
+    let frenado = false;
+    if (forzar) {
+      const ultimo = await storage.get('freshLast');
+      if (typeof ultimo === 'number' && Date.now() - ultimo < CARTERA_FRESH_MIN_INTERVAL_MS) { forzar = false; frenado = true; }
+    }
+    if (forzar) {
+      // El freno cuenta cada intento forzado, salga bien o mal: un IOL que falla tampoco se golpea más de una vez cada 30 s.
+      await storage.put('freshLast', Date.now());
+    } else {
+      const cached = await storage.get('portafolio');
+      if (cached && typeof cached.at === 'number' && Date.now() - cached.at < CARTERA_CACHE_TTL_MS) {
+        return { status: 200, body: cached.body, fuente: 'cache' };
+      }
+      // Frenado y sin nada guardado (el intento anterior falló): no se vuelve a consultar IOL todavía.
+      if (frenado) return error(429, 'too_soon', 'Esperá unos segundos antes de volver a actualizar.');
+    }
+
+    try {
+      const token = await this.getIolToken();
+      const res = await fetch(IOL_PORTAFOLIO_URL, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error('portafolio IOL falló (HTTP ' + res.status + ')');
+      const raw = await res.json();
+      const body = JSON.stringify(transformarPortafolio(raw));
+      await storage.put('portafolio', { body, at: Date.now() });
+      return { status: 200, body, fuente: 'iol' };
+    } catch (e) {
+      console.error('cartera error', e);
+      return error(502, 'iol_unavailable', 'No se pudo obtener la cartera desde IOL: ' + (e && e.message ? e.message : String(e)));
+    }
   }
-  await cache.delete(CACHE_KEY_LOGIN_FAIL);
-  const json = await res.json();
-  if (!json.access_token) throw new Error('login IOL no devolvió access_token');
-  await cache.put(CACHE_KEY_TOKEN, new Response(JSON.stringify({
-    access_token: json.access_token,
-    expires_at: Date.now() + IOL_TOKEN_TTL_SECONDS * 1000,
-  }), { headers: { 'content-type': 'application/json' } }));
-  return json.access_token;
+
+  async getIolToken() {
+    const storage = this.state.storage;
+    const cached = await storage.get('token');
+    if (cached && cached.access_token && cached.expires_at > Date.now()) return cached.access_token;
+    // Tras un ingreso rechazado no se reintenta durante IOL_LOGIN_BACKOFF_MS: varios intentos fallidos
+    // seguidos con la contraseña podrían bloquear la cuenta de IOL.
+    const fallo = await storage.get('loginFail');
+    if (fallo) {
+      const resta = typeof fallo.at === 'number' ? IOL_LOGIN_BACKOFF_MS - (Date.now() - fallo.at) : 0;
+      if (resta > 0) throw new Error(`IOL rechazó el último ingreso (HTTP ${fallo.status}). Para no bloquear tu cuenta, el próximo intento es en ${Math.ceil(resta / 60000)} min`);
+    }
+    const res = await fetch(IOL_TOKEN_URL, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ username: this.env.IOL_USER, password: this.env.IOL_PASS, grant_type: 'password' }),
+    });
+    if (!res.ok) {
+      await storage.put('loginFail', { at: Date.now(), status: res.status });
+      throw new Error('login IOL falló (HTTP ' + res.status + ')');
+    }
+    await storage.delete('loginFail');
+    const json = await res.json();
+    if (!json.access_token) throw new Error('login IOL no devolvió access_token');
+    await storage.put('token', { access_token: json.access_token, expires_at: Date.now() + IOL_TOKEN_TTL_MS });
+    return json.access_token;
+  }
 }
 
 // ── Verificación del ID token de Firebase Auth (RS256), sin librerías ──
@@ -261,6 +316,8 @@ function base64UrlToJson(b64url) {
 
 // Certificados de Google, cacheados respetando su propio Cache-Control (los
 // rotan; cachear más tiempo del que ellos indican serviría un cert revocado).
+// Ojo: la Cache API no funciona en *.workers.dev (match no devuelve nada), así que
+// ahí los certificados se bajan en cada pedido. No es crítico: son públicos.
 async function getGoogleCerts() {
   const cache = caches.default;
   const cached = await cache.match(CACHE_KEY_GOOGLE_CERTS);
@@ -382,41 +439,20 @@ async function handleCartera(request, env) {
     return jsonError(500, 'missing_credentials', 'El Worker no tiene configuradas las credenciales de IOL (secrets IOL_USER / IOL_PASS).');
   }
 
-  const cache = caches.default;
-  let forzar = new URL(request.url).searchParams.get('fresh') === '1';
-  let frenado = false;
-  if (forzar) {
-    const ultimo = await cache.match(CACHE_KEY_FRESH_LAST);
-    if (ultimo) {
-      const { at } = await ultimo.json().catch(() => ({}));
-      if (typeof at === 'number' && Date.now() - at < CARTERA_FRESH_MIN_INTERVAL_MS) { forzar = false; frenado = true; }
-    }
-  }
-  if (forzar) {
-    // El freno cuenta cada intento forzado, salga bien o mal: un IOL que falla tampoco se golpea más de una vez cada 30 s.
-    await cache.put(CACHE_KEY_FRESH_LAST, new Response(JSON.stringify({ at: Date.now() }), {
-      headers: { 'content-type': 'application/json', 'cache-control': 'max-age=60' },
-    }));
-  } else {
-    const cached = await cache.match(CACHE_KEY_PORTAFOLIO);
-    if (cached) return new Response(cached.body, { status: 200, headers: { ...CARTERA_CORS_HEADERS, 'content-type': 'application/json', 'x-cartera-fuente': 'cache' } });
-    // Frenado y sin nada guardado (el intento anterior falló): no se vuelve a consultar IOL todavía.
-    if (frenado) return jsonError(429, 'too_soon', 'Esperá unos segundos antes de volver a actualizar.');
-  }
-
+  // Autorizado: el resto (caché, frenos, login a IOL) lo decide CarteraGate. Solo se le pasa `fresh`.
+  const fresh = new URL(request.url).searchParams.get('fresh') === '1';
   try {
-    const token = await getIolToken(env);
-    const res = await fetch(IOL_PORTAFOLIO_URL, { headers: { Authorization: `Bearer ${token}` } });
-    if (!res.ok) throw new Error('portafolio IOL falló (HTTP ' + res.status + ')');
-    const raw = await res.json();
-    const body = JSON.stringify(transformarPortafolio(raw));
-
-    await cache.put(CACHE_KEY_PORTAFOLIO, new Response(body, {
-      headers: { 'content-type': 'application/json', 'cache-control': `max-age=${CARTERA_CACHE_TTL_SECONDS}` },
-    }));
-    return new Response(body, { status: 200, headers: { ...CARTERA_CORS_HEADERS, 'content-type': 'application/json', 'x-cartera-fuente': 'iol' } });
+    const gate = env.CARTERA.get(env.CARTERA.idFromName('cartera'));
+    const res = await gate.fetch('https://do/consultar', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ fresh }),
+    });
+    const h = new Headers(res.headers);
+    Object.entries(CARTERA_CORS_HEADERS).forEach(([k, v]) => h.set(k, v));
+    return new Response(res.body, { status: res.status, headers: h });
   } catch (e) {
-    console.error('cartera error', e);
+    console.error('cartera gate error', e);
     return jsonError(502, 'iol_unavailable', 'No se pudo obtener la cartera desde IOL: ' + (e && e.message ? e.message : String(e)));
   }
 }

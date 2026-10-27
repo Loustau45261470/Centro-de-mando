@@ -7,6 +7,14 @@ account_id = "670b8efbac8b8c275e2a849e9f130bee"
 name = "TIMER"
 class_name = "TimerAlarm"
 
+[[durable_objects.bindings]]
+name = "CARTERA"
+class_name = "CarteraGate"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["TimerAlarm"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["CarteraGate"]

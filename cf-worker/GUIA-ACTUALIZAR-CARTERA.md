@@ -119,7 +119,7 @@ Tiene que terminar mostrando una dirección `https://cdm-push-worker.tobiasloust
 
 1. Abrí el Centro de Mando (en la compu o en el iPhone): <https://loustau45261470.github.io/Centro-de-mando/>
 2. Finanzas → **Cartera** → pestaña **Mis tenencias** → botón **Actualizar**.
-3. Si sale bien, abajo del total dice "Actualizado a las HH:MM" con la hora de ahora.
+3. Si sale bien, arriba del total dice "Actualizado a las HH:MM" con la hora de ahora.
 4. Avisame. Yo comparo lo que trajo el botón con tu cartera real (la leo con el conector de IOL en modo solo lectura), para confirmar que los números coinciden.
 
 ### Si algo sale mal
@@ -131,7 +131,7 @@ Tiene que terminar mostrando una dirección `https://cdm-push-worker.tobiasloust
 | "Este endpoint es privado" | El UID cargado no es el tuyo | Volvé a copiar el UID (A3) y repetí la tercera línea de B3 |
 | "No se pudo obtener la cartera desde IOL… login IOL falló" | IOL rechazó el ingreso: contraseña mal escrita, IOL pidió un código de verificación o la API se desactivó | Repetí la línea de `IOL_PASS` en B3. El Worker reintenta solo a los 10 min |
 | "…Para no bloquear tu cuenta, el próximo intento es en N min" | Hubo un ingreso rechazado hace poco y el Worker está esperando a propósito | Esperá esos minutos. Si cambiaste algo en B3, después tocá Actualizar |
-| "Esperá unos segundos antes de volver a actualizar" | Tocaste Actualizar dos veces en menos de 30 segundos | Esperá medio minuto |
+| "Esperá unos segundos antes de volver a actualizar" | El intento anterior falló y tocaste Actualizar de nuevo en menos de 30 segundos | Esperá medio minuto. Si el intento anterior había salido bien, un segundo toque antes de 30 segundos no muestra este mensaje: muestra lo mismo que ya tenías, sin consultar IOL |
 | `wrangler` pide login otra vez o da "Authentication error" | La terminal perdió la conexión con Cloudflare | Repetí B2 |
 
 Si te aparece algo que no está en la tabla, copiame el mensaje, **sin** tus credenciales.
