@@ -5385,6 +5385,11 @@ input:focus, select:focus, textarea:focus {
 .ten-hero-lbl { font-family: var(--mono); font-size: var(--fs-12-5); text-transform: uppercase; letter-spacing: .14em; color: var(--ts); opacity: .85; }
 .ten-hero-num { font-size: 36px; font-weight: 800; letter-spacing: -.03em; line-height: 1.2; margin-top: 4px; color: var(--hud-bright); text-shadow: 0 0 18px var(--hud-dim), 0 0 36px rgba(56,189,248,.12); }
 .ten-hero-var { font-size: var(--fs-13); font-weight: 600; margin-top: 7px; }
+/* Barra superior de Mis tenencias: línea de fuente + botón Actualizar (ten-act). */
+.ten-act-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; }
+.ten-act-bar .ci-meta { flex: 1 1 200px; min-width: 0; }
+.ten-act-btn { flex: none; }
+.ten-act-btn:disabled { opacity: .6; cursor: progress; }
 .ten-orden-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
 .ten-orden-chip {
   font-family: var(--sans); font-size: var(--fs-12-5); font-weight: 700; padding: 6px 12px; border-radius: 999px;
