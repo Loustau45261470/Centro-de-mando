@@ -49,7 +49,7 @@ const guardarEdicionDirecta = (page, id, { monto, cuenta }) => page.evaluate(({ 
   saveEditTxn();
 }, { id, monto, cuenta });
 
-test('1) editar un gasto de tarjeta no abre el modal y avisa; el gasto queda igual', async ({ cmPage, consoleErrors }) => {
+test('1) editar un gasto de tarjeta no abre el modal de edición común: abre la compra en el formulario de alta y no cambia nada hasta guardar', async ({ cmPage, consoleErrors }) => {
   await preparar(cmPage);
   await cargarCompra(cmPage, { monto: 5000, nombre: 'Compra tarjeta' });
   const g = (await gastosTarjeta(cmPage))[0];
@@ -57,15 +57,18 @@ test('1) editar un gasto de tarjeta no abre el modal y avisa; el gasto queda igu
   const antes = await snapshot(cmPage);
 
   await cmPage.evaluate((id) => openEditTxn(id), g.id);
-  await expect(cmPage.locator('#toast')).toContainText(AVISO);
+  await expect(cmPage.locator('#modal-add-txn')).toHaveClass(/open/);
+  await expect(cmPage.locator('#txnModalTitle')).toHaveText('Editar compra');
   await expect(cmPage.locator('#modal-edit-txn')).not.toHaveClass(/open/);
   expect(await snapshot(cmPage)).toBe(antes);
+  await cmPage.click('#modal-add-txn button:has-text("Cancelar")');
 
   // También con el lápiz de la lista de Movimientos.
-  await cmPage.evaluate(() => { document.getElementById('toast').classList.remove('show'); txnActiveMonth = '2026-10'; renderActivity(); });
+  await cmPage.evaluate(() => { txnActiveMonth = '2026-10'; renderActivity(); });
   await cmPage.locator('#activityList .activity-row', { hasText: 'Compra tarjeta' }).locator('button[title="Editar"]').dispatchEvent('click');
-  await expect(cmPage.locator('#toast')).toContainText(AVISO);
+  await expect(cmPage.locator('#modal-add-txn')).toHaveClass(/open/);
   await expect(cmPage.locator('#modal-edit-txn')).not.toHaveClass(/open/);
+  expect(await snapshot(cmPage)).toBe(antes);
   expect(consoleErrors).toEqual([]);
 });
 
@@ -84,7 +87,6 @@ test('3) tras el bloqueo, pagar la cuota deja el saldo correcto (500.000 - 5.000
   await preparar(cmPage);
   await cargarCompra(cmPage, { monto: 5000, nombre: 'Compra tarjeta' });
   const g = (await gastosTarjeta(cmPage))[0];
-  await cmPage.evaluate((id) => openEditTxn(id), g.id);
   await guardarEdicionDirecta(cmPage, g.id, { monto: 9999, cuenta: 'uala' });
   expect(await saldo(cmPage, 'uala')).toBe(500000);
   expect(await cmPage.evaluate(() => S.cardCharges[0].amount)).toBe(5000);
@@ -190,8 +192,10 @@ test.describe('390px', () => {
     const g = (await gastosTarjeta(cmPage))[0];
     await cmPage.evaluate(() => { txnActiveMonth = '2026-10'; renderActivity(); });
     await expect(cmPage.locator('#activityList .disc-tag')).toBeVisible();
+    // Con una cuota ya pagada la compra no se edita y el aviso se ve (también en pantalla angosta).
+    await irA(cmPage, '2026-11-10');
     await cmPage.evaluate((id) => openEditTxn(id), g.id);
-    await expect(cmPage.locator('#toast')).toContainText(AVISO);
+    await expect(cmPage.locator('#toast')).toContainText('Esta compra ya tiene cuotas pagadas: no se puede editar.');
     const pg = await cmPage.evaluate(() => ({ sw: document.body.scrollWidth, cw: document.documentElement.clientWidth }));
     expect(pg.sw).toBeLessThanOrEqual(pg.cw + 1);
     expect(consoleErrors).toEqual([]);
