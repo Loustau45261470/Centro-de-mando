@@ -6280,3 +6280,34 @@ input:focus, select:focus, textarea:focus {
 .df-table .df-total th, .df-table .df-total td { color: var(--tp); border-bottom-width: 2px; }
 .df-flow { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 10px; font-weight: 700; color: var(--ts); }
 .df-flow b { font-family: var(--mono); font-size: var(--fs-16); color: var(--tp); overflow-wrap: anywhere; }
+
+/* ── Diagnóstico de sincronización (sync-diagnostico.js) ── */
+.sdiag-ov { position: fixed; inset: 0; z-index: 10000; display: none; background: rgba(2,5,10,0.82); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.sdiag-ov.open { display: flex; justify-content: center; align-items: flex-start; }
+.sdiag-panel { box-sizing: border-box; width: min(720px, 100%); height: 100%; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; padding: calc(16px + env(safe-area-inset-top, 0px)) 16px calc(24px + env(safe-area-inset-bottom, 0px)); background: linear-gradient(180deg, rgba(10,16,26,0.98), rgba(6,10,18,0.99)); color: var(--tp); overflow-wrap: anywhere; }
+.sdiag-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.sdiag-title { margin: 0; font-size: var(--fs-16); font-weight: 800; letter-spacing: .02em; }
+.sdiag-x { flex: 0 0 auto; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border); background: rgba(255,255,255,0.05); color: var(--tp); font-size: var(--fs-14); cursor: pointer; }
+.sdiag-intro { margin: 8px 0 12px; font-size: var(--fs-13); color: var(--ts); line-height: 1.45; }
+.sdiag-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.sdiag-btn { padding: 10px 16px; min-height: 44px; border-radius: 10px; border: 1px solid var(--hud-dim); background: rgba(56,189,248,0.14); color: var(--tp); font-size: var(--fs-14); font-weight: 700; cursor: pointer; }
+.sdiag-btn-sec { background: rgba(255,255,255,0.05); border-color: var(--border); font-weight: 600; }
+.sdiag-msg { min-height: 18px; margin: 8px 0 0; font-size: var(--fs-12-5); color: var(--ok); }
+.sdiag-copia { display: block; box-sizing: border-box; width: 100%; height: 160px; margin: 8px 0 0; padding: 8px; border-radius: 8px; border: 1px solid var(--border); background: rgba(0,0,0,0.4); color: var(--tp); font-family: monospace; font-size: 12px; }
+.sdiag-copia[hidden] { display: none; }
+.sdiag-h { margin: 20px 0 8px; font-size: var(--fs-12-5); letter-spacing: .12em; text-transform: uppercase; color: var(--tt); font-weight: 700; }
+.sdiag-dl { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px 0; margin: 0; }
+.sdiag-dl dt { margin-top: 8px; font-size: var(--fs-12-5); color: var(--tt); }
+.sdiag-dl dd { margin: 0; font-size: var(--fs-14); color: var(--ts); }
+.sdiag-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.sdiag-item { padding: 9px 10px; border-radius: 9px; border: 1px solid var(--border); background: rgba(255,255,255,0.03); min-width: 0; }
+.sdiag-row { display: flex; gap: 10px; align-items: baseline; }
+.sdiag-ev { display: flex; gap: 10px; align-items: baseline; }
+.sdiag-time { flex: 0 0 auto; font-family: monospace; font-size: var(--fs-12-5); color: var(--hud); }
+.sdiag-what { min-width: 0; font-size: var(--fs-13); color: var(--tp); line-height: 1.4; }
+.sdiag-sub { margin-top: 4px; font-size: var(--fs-12-5); color: var(--ts); line-height: 1.5; }
+.sdiag-chip { display: inline-block; margin: 0 4px 3px 0; padding: 1px 8px; border-radius: 99px; border: 1px solid var(--border); background: rgba(56,189,248,0.10); font-size: var(--fs-12); color: var(--tp); }
+.sdiag-muted { color: var(--tt); font-size: var(--fs-12-5); }
+.sdiag-ev-apply .sdiag-what, .sdiag-ev-snapshot-descartado .sdiag-what { color: var(--warn); }
+/* El panel de ajustes (◐) crece con cada botón y en un iPhone chico no entraba: sin scroll el botón del diagnóstico quedaba fuera de pantalla. */
+#theme-panel-inner { max-height: calc(100vh - 76px); max-height: calc(100dvh - 76px); overflow-y: auto; -webkit-overflow-scrolling: touch; }

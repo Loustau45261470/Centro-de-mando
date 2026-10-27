@@ -419,6 +419,145 @@ function _dataMetric(st) {
   return n;
 }
 
+// ── Visibilidad del sync (SOLO registra: ninguna de estas funciones decide, muta estado ni tira) ─────────
+// _syncEvents: línea de tiempo con milisegundos de lo que hace ESTE dispositivo (guardar, volver a primer
+// plano, recibir cambios). Se ve en "Diagnóstico de sincronización" (sync-diagnostico.js) o con diagEvents().
+function _dgStamp(ms) {
+  const d = new Date(ms), p = (n, l) => String(n).padStart(l || 2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds()) + '.' + p(d.getMilliseconds(), 3);
+}
+function _dgLogRead(key) {
+  try { const l = JSON.parse(localStorage.getItem(key) || '[]'); return Array.isArray(l) ? l : []; } catch (e) { return []; }
+}
+function _syncEv(tipo, extra) {
+  try {
+    const now = Date.now();
+    const log = _dgLogRead('_syncEvents');
+    log.unshift(Object.assign({ ts: now, t: _dgStamp(now), tipo }, extra || {}));
+    localStorage.setItem('_syncEvents', JSON.stringify(log.slice(0, 80)));
+  } catch (e) {}
+}
+// Primeras funciones de la app que llamaron (stack recortado): "fn archivo:línea < fn archivo:línea".
+function _dgOrigin() {
+  try {
+    const skip = ['_dgOrigin', '_syncEvSave', '_syncEv', 'saveState', 'Error'];
+    const out = [];
+    String(new Error().stack || '').split('\n').forEach(ln => {
+      if (out.length >= 2) return;
+      const m = ln.match(/^\s*at\s+(?:async\s+)?(?:(.+?)\s+\()?(.*?):(\d+):(\d+)\)?\s*$/) || ln.match(/^\s*(.*?)@(.*?):(\d+):(\d+)\s*$/);
+      if (!m) return;
+      const fn = (m[1] || '').trim();
+      if (skip.includes(fn)) return;
+      out.push((fn || 'anónima') + ' ' + m[2].split('?')[0].split('/').pop() + ':' + m[3]);
+    });
+    return out.join(' < ').slice(0, 140);
+  } catch (e) { return '?'; }
+}
+// Un saveState() = una línea; llamadas seguidas desde el mismo origen se suman en "n" (si no, tapan el resto).
+function _syncEvSave() {
+  try {
+    const origen = _dgOrigin(), now = Date.now(), log = _dgLogRead('_syncEvents'), last = log[0];
+    if (last && last.tipo === 'saveState' && last.origen === origen && now - (last.ts2 || last.ts) < 3000) {
+      last.n = (last.n || 1) + 1; last.ts2 = now; last.t2 = _dgStamp(now);
+      localStorage.setItem('_syncEvents', JSON.stringify(log));
+      return;
+    }
+    _syncEv('saveState', { origen, n: 1, conf: _lastSyncedSavedAt !== null, timer: !!_fbSaveTid, vuelo: _fbSaveInProgress });
+  } catch (e) {}
+}
+// Mapa clave-de-primer-nivel → JSON (para saber QUÉ secciones difieren; no se guarda el contenido).
+function _dgKeyMap(o) {
+  const m = {};
+  try {
+    if (o && typeof o === 'object') Object.keys(o).forEach(k => { if (k === '_savedAt' || k === '_wid') return; try { m[k] = JSON.stringify(o[k]); } catch (e) { m[k] = '?'; } });
+  } catch (e) {}
+  return m;
+}
+function _dgDiffKeys(a, b) {
+  const out = [];
+  new Set([...Object.keys(a), ...Object.keys(b)]).forEach(k => { if (a[k] !== b[k]) out.push(k); });
+  return out;
+}
+function _dgHash(x) {
+  try { const s = JSON.stringify(x) || ''; let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36); } catch (e) { return '?'; }
+}
+// Conteo de ítems de una clave de gimnasio/hábitos (no el contenido).
+function _dgCount(k, v) {
+  try {
+    if (v == null) return 0;
+    if (k === 'routineLog') return Object.values(v).reduce((n, a) => n + (Array.isArray(a) ? a.length : 0), 0);
+    if (k === 'workoutLog') return Object.keys(v).length;
+    if (k === 'habitTrackers') { let n = 0; Object.values(v).forEach(arr => Array.isArray(arr) && arr.forEach(h => { n += Object.keys(h && h.days || {}).length; })); return n; }
+    if (k === 'activeRtnSession') return Object.values(v.exSets || {}).reduce((n, a) => n + (Array.isArray(a) ? a.length : 0), 0);
+    return Array.isArray(v) ? v.length : Object.keys(v).length;
+  } catch (e) { return -1; }
+}
+// Sesión de gimnasio activa (S.activeRtnSession, rutinas.js): inicio, cantidad de ejercicios/series y huellas del orden y del contenido.
+function _dgSes(st) {
+  try {
+    const a = st && st.activeRtnSession;
+    if (!a || typeof a !== 'object') return null;
+    return { t: a.startedAt || null, ex: Array.isArray(a.exOrder) ? a.exOrder.length : null, sets: _dgCount('activeRtnSession', a), ord: _dgHash(a.exOrder), h: _dgHash(a) };
+  } catch (e) { return null; }
+}
+const _DG_CNT_KEYS = ['routineLog', 'workoutLog', 'habitTrackers', 'activeRtnSession'];
+function _dgCnts(base, local, cloud, saved) {
+  const o = {};
+  _DG_CNT_KEYS.forEach(k => {
+    o[k] = { b: base ? _dgCount(k, base[k]) : null, l: _dgCount(k, local[k]), c: cloud ? _dgCount(k, cloud[k]) : null, s: _dgCount(k, saved[k]) };
+  });
+  return o;
+}
+// Detalle de un write para _saveDiag. kFromLocal usa la misma regla que _mergeStates pero NO se usa para decidir.
+function _dgSaveDetail(base, local, cloud, saved, branch) {
+  const o = {};
+  try {
+    const mB = base ? _dgKeyMap(base) : null, mL = _dgKeyMap(local), mC = cloud ? _dgKeyMap(cloud) : null, mS = _dgKeyMap(saved);
+    o.kLocal = mB ? _dgDiffKeys(mL, mB) : null;
+    o.kCloud = (mB && mC) ? _dgDiffKeys(mC, mB) : null;
+    o.kWrite = mC ? _dgDiffKeys(mS, mC) : null;
+    if (branch === 'merge3way' && mB && mC) {
+      o.kFromLocal = [];
+      new Set([...Object.keys(local || {}), ...Object.keys(cloud || {})]).forEach(k => {
+        if (k === '_savedAt' || k === '_wid') return;
+        if (mL[k] !== mB[k] && mC[k] === mB[k]) o.kFromLocal.push(k);
+      });
+    }
+    o.cnt = _dgCnts(base, local, cloud, saved);
+    o.ses = { b: _dgSes(base), l: _dgSes(local), c: _dgSes(cloud), s: _dgSes(saved) };
+  } catch (e) {}
+  return o;
+}
+// onSnapshot que se descarta por save en vuelo: solo se registra si NO es el eco de un write propio.
+function _dgSnapDrop(snap) {
+  try {
+    const d = snap && snap.exists ? snap.data() : null;
+    if (!d || (d._wid && d._wid === _lastWriteId)) return;
+    _syncEv('snapshot-descartado', { dev: d._dev || null, cloudSavedAt: d._savedAt || null, timer: !!_fbSaveTid, vuelo: _fbSaveInProgress });
+  } catch (e) {}
+}
+// Antes/después de _applyRemoteState: qué secciones cambió y cuáles cambios locales sin subir pisó (kPisadas).
+function _dgApplyPre() {
+  try {
+    const src = window._applySrc || 'otro'; window._applySrc = null;
+    return { src, prev: S, base: _lastSyncedState, t0: Date.now(), timer: !!_fbSaveTid, vuelo: _fbSaveInProgress };
+  } catch (e) { return null; }
+}
+function _dgApplyPost(pre, savedAt) {
+  try {
+    if (!pre) return;
+    const mP = _dgKeyMap(pre.prev), mN = _dgKeyMap(S), mB = pre.base ? _dgKeyMap(pre.base) : null;
+    const kRecibe = _dgDiffKeys(mN, mP), kLocalSinSubir = mB ? _dgDiffKeys(mP, mB) : null;
+    _syncEv('apply', {
+      src: pre.src, savedAt: savedAt || null, dev: (window._ultimaEscritura && window._ultimaEscritura.dev) || null,
+      kRecibe, kLocalSinSubir, kPisadas: kLocalSinSubir ? kLocalSinSubir.filter(k => kRecibe.includes(k)) : null,
+      items: { antes: _dataMetric(pre.prev), despues: _dataMetric(S) },
+      cnt: _dgCnts(pre.base, pre.prev, S, S), ses: { antes: _dgSes(pre.prev), despues: _dgSes(S) },
+      timer: pre.timer, vuelo: pre.vuelo, ms: Date.now() - pre.t0,
+    });
+  } catch (e) {}
+}
+
 // Backup diario: copia el estado de la NUBE (antes de pisarlo) a appdata/bak_<fecha>; rota ~14 días.
 async function _maybeBackup(cloudStateRaw) {
   if (!cloudStateRaw) return;
@@ -550,6 +689,8 @@ const _fbDoSave = async (opts = {}) => {
     const _isFlush = !!opts.flush;
     const localObj = JSON.parse(JSON.stringify(S));
     const sessionConfirmed = _lastSyncedSavedAt !== null;
+    let _dgRes = 'abortado'; const _dgT0 = Date.now();   // visibilidad: resultado del intento (solo registro)
+    _syncEv('guardar-inicio', { flush: _isFlush, conf: sessionConfirmed, forzado: _forceSaveOnce });
     try {
       let cloudRaw = null, cloudData = null, cloudReadFailed = false, cloudFromCache = false;
       try {
@@ -570,6 +711,7 @@ const _fbDoSave = async (opts = {}) => {
       if (_offline && !_forceSaveOnce) {
         localStorage.setItem('_pendingCloudSave', '1');
         _warnCloudSavePending(cloudReadFailed ? 'read-failed' : 'from-cache');
+        _dgRes = 'pendiente-' + (cloudReadFailed ? 'lectura-fallo' : 'cache');
         return;
       }
 
@@ -626,6 +768,7 @@ const _fbDoSave = async (opts = {}) => {
             _reRenderAll();
           } else if (cloudM > 50 && localM < cloudM * 0.2) {
             showToast('⚠️ Estado local muy pequeño — recargá. Si es intencional: forzarGuardado()', 14000);
+            _dgRes = 'bloqueado-estado-chico';
             return;
           }
         } catch (e) {}
@@ -644,9 +787,14 @@ const _fbDoSave = async (opts = {}) => {
           localItems: _dataMetric(localObj), cloudItems: _cItems, saveItems: _dataMetric(toSave),
           baseItems: (() => { try { return _dataMetric(_lastSyncedState); } catch (e) { return -1; } })(),
           snapDrops: window._snapDrops || 0,
+          ts: Date.now(), tm: _dgStamp(Date.now()), flush: _isFlush,
         };
+        // Visibilidad: qué claves difieren (kLocal/kCloud/kWrite), de cuáles se tomó lo local (kFromLocal) y conteos de gym/hábitos.
+        let _dgCloudObj = null; try { _dgCloudObj = cloudRaw ? JSON.parse(cloudRaw) : null; } catch (e) {}
+        Object.assign(rec, _dgSaveDetail(_lastSyncedState, localObj, _dgCloudObj, toSave, _writeBranch));
         const log = JSON.parse(localStorage.getItem('_saveDiag') || '[]');
         log.unshift(rec); localStorage.setItem('_saveDiag', JSON.stringify(log.slice(0, 40)));
+        _syncEv('guardar-rama', { rama: _writeBranch, divergio: !!_cloudDiverged, conf: sessionConfirmed, items: { l: rec.localItems, c: rec.cloudItems, s: rec.saveItems }, kWrite: rec.kWrite || null });
       } catch (e) {}
 
       const _forzado = _forceSaveOnce;
@@ -662,6 +810,7 @@ const _fbDoSave = async (opts = {}) => {
       const _TECHO = (window.CMArchivo && window.CMArchivo.BLOQUEO) || 1000000;
       if (_stateStr.length > _TECHO && !_forzado) {
         localStorage.setItem('_pendingCloudSave', '1');
+        _dgRes = 'bloqueado-tamano';
         console.error('[fbSave] BLOQUEADO: el estado pesa ' + Math.round(_stateStr.length / 1024) +
                       ' KB y el límite de Firestore es 1024 KB. Archivá un año (CMArchivo) o forzarGuardado().');
         showToast('⚠️ No se pudo guardar en la nube: el espacio está lleno. Tus datos siguen en este dispositivo.', 10000);
@@ -673,6 +822,7 @@ const _fbDoSave = async (opts = {}) => {
       _lastWriteId = wid;
       const savedAt = Date.now();
       const _onWriteOk = () => {
+        _dgRes = 'ok'; _syncEv('guardado-ok', { savedAt, ms: Date.now() - _dgT0 });
         _lastSyncedSavedAt = savedAt;
         _lastSyncedState = JSON.parse(_stateStr);
         try { localStorage.setItem('_lastSyncedStateStr', _stateStr); } catch (e) {}
@@ -688,6 +838,7 @@ const _fbDoSave = async (opts = {}) => {
         const _res = await Promise.race([_setP, new Promise(r => setTimeout(() => r('__fbsave_timeout__'), 15000))]);
         if (_res === '__fbsave_timeout__') {
           localStorage.setItem('_pendingCloudSave', '1');
+          _dgRes = 'timeout-15s';
           _warnCloudSavePending('write-timeout');
           _setP.then(() => { if (savedAt > (_lastSyncedSavedAt || 0)) _onWriteOk(); })
                .catch(e => console.warn('[fbSave-late]', e.code, e.message));
@@ -696,6 +847,7 @@ const _fbDoSave = async (opts = {}) => {
         }
       } catch (e) {
         console.warn('[fbSave]', e.code, e.message);
+        _dgRes = 'error-' + (e.code || 'desconocido');
         localStorage.setItem('_pendingCloudSave', '1');
         showToast(e.code === 'permission-denied'
           ? '⚠️ Sin permiso para guardar en la nube — iniciá sesión'
@@ -703,6 +855,7 @@ const _fbDoSave = async (opts = {}) => {
       }
     } finally {
       _fbSaveInProgress = false;
+      _syncEv('guardar-fin', { res: _dgRes, ms: Date.now() - _dgT0 });
     }
 };
 
@@ -733,7 +886,7 @@ function _fbFlush() {
 // Guarda un snapshot post-write (fire-and-forget). Mantiene los últimos 20.
 async function _saveSnap(stateStr, savedAt) {
   try {
-    await _db.collection('appdata').doc('snap_' + savedAt).set({ state: stateStr, savedAt });
+    await _db.collection('appdata').doc('snap_' + savedAt).set({ state: stateStr, savedAt, _dev: _devInfo() });  // _dev: solo informativo (qué dispositivo escribió el snap)
     // Trim: mantener solo los últimos 20 snaps
     const q = await _db.collection('appdata').get();
     const snaps = q.docs
@@ -768,6 +921,12 @@ window.diagLoad = function () {
 window.diagApply = function () {
   let l = []; try { l = JSON.parse(localStorage.getItem('_applyDiag') || '[]'); } catch (e) {}
   console.table(l); console.log('snapDrops:', window._snapDrops || 0); return l;
+};
+
+// Línea de tiempo con milisegundos de lo que hace este dispositivo (ver _syncEv). diagEvents() en consola.
+window.diagEvents = function () {
+  const l = _dgLogRead('_syncEvents');
+  console.table(l.map(e => ({ t: e.t, tipo: e.tipo, res: e.res || e.rama || e.src || e.origen || '', n: e.n || '' }))); return l;
 };
 
 // ── Recuperación manual (consola del navegador) ───────────────────────────────
@@ -865,6 +1024,7 @@ function _reRenderAll() {
 // ── Apply incoming remote state safely ───────────────────
 function _applyRemoteState(raw, savedAt) {
   try {
+    const _dgPre = _dgApplyPre();   // visibilidad: foto de antes (solo registro)
     const incoming = JSON.parse(raw);
     S = incoming;
     if (savedAt != null) {
@@ -892,30 +1052,37 @@ function _applyRemoteState(raw, savedAt) {
       localStorage.setItem('_applyDiag', JSON.stringify(_ad.slice(0, 30)));
     } catch (e) {}
     showToast('🔄 Sincronizado');
-  } catch(e) { console.warn('[sync] applyRemoteState error:', e); }
+    _dgApplyPost(_dgPre, savedAt);
+  } catch(e) { console.warn('[sync] applyRemoteState error:', e); _syncEv('apply-error', { msg: String((e && e.message) || e).slice(0, 120) }); }
 }
 
 // ── Real-time Firestore listener ──────────────────────────
 function _startFirestoreSync() {
   _DOC().onSnapshot(snap => {
     if (snap.exists) _registrarEscritura(snap.data()._dev, snap.data()._savedAt);  // solo informativo
-    if (_fbSaveTid || _fbSaveInProgress) { window._snapDrops = (window._snapDrops || 0) + 1; return; }  // save en vuelo — descarta update remoto
+    if (_fbSaveTid || _fbSaveInProgress) { window._snapDrops = (window._snapDrops || 0) + 1; _dgSnapDrop(snap); return; }  // save en vuelo — descarta update remoto
     if (!snap.exists || !snap.data()?.state) return;
     if (snap.data()._wid && snap.data()._wid === _lastWriteId) return;  // eco propio
+    window._applySrc = 'onSnapshot';   // visibilidad: quién pidió el apply (solo registro)
     _applyRemoteState(snap.data().state, snap.data()._savedAt);
   }, () => {/* onSnapshot auto-reintenta en errores de red */});
 }
 
 // ── On visibility restore (iOS kills WS in background) ───
 async function _syncOnFocus() {
-  if (_fbSaveTid || _fbSaveInProgress) { window._snapDrops = (window._snapDrops || 0) + 1; return; }
+  const _dgT0 = Date.now();   // visibilidad: inicio/fin y resultado (solo registro)
+  _syncEv('sync-inicio', { timer: !!_fbSaveTid, vuelo: _fbSaveInProgress, conf: _lastSyncedSavedAt !== null, lastSynced: _lastSyncedSavedAt });
+  if (_fbSaveTid || _fbSaveInProgress) { window._snapDrops = (window._snapDrops || 0) + 1; _syncEv('sync-fin', { res: 'descartado-save-en-vuelo', ms: 0 }); return; }
   try {
     const snap = await _DOC().get();
     if (snap.exists) _registrarEscritura(snap.data()._dev, snap.data()._savedAt);  // solo informativo
-    if (!snap.exists || !snap.data()?.state) return;
-    if (snap.data()._wid && snap.data()._wid === _lastWriteId) return;  // ya tenemos este estado
+    const _dgInfo = { dev: snap.exists ? (snap.data()._dev || null) : null, cloudSavedAt: snap.exists ? (snap.data()._savedAt || null) : null, lastSynced: _lastSyncedSavedAt, cache: !!(snap.metadata && snap.metadata.fromCache), ms: Date.now() - _dgT0 };
+    if (!snap.exists || !snap.data()?.state) { _syncEv('sync-fin', Object.assign({ res: 'sin-documento' }, _dgInfo)); return; }
+    if (snap.data()._wid && snap.data()._wid === _lastWriteId) { _syncEv('sync-fin', Object.assign({ res: 'sin-cambios-eco-propio' }, _dgInfo)); return; }  // ya tenemos este estado
+    window._applySrc = 'syncOnFocus';   // visibilidad: quién pidió el apply (solo registro)
     _applyRemoteState(snap.data().state, snap.data()._savedAt);
-  } catch(e) {}
+    _syncEv('sync-fin', Object.assign({ res: 'aplicado' }, _dgInfo));
+  } catch(e) { _syncEv('sync-fin', { res: 'error', msg: String((e && (e.code || e.message)) || e).slice(0, 120), ms: Date.now() - _dgT0 }); }
 }
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -966,6 +1133,10 @@ async function loadState() {
   try {
     const _ld = { t: new Date().toLocaleString('es-AR'), src: _loadSrc, lastSynced: _lastSyncedSavedAt, items: _dataMetric(S), err: _loadErr || null, uid: (_auth.currentUser && _auth.currentUser.uid) || null };
     localStorage.setItem('_loadDiag', JSON.stringify(_ld));
+    // Visibilidad: evento de arranque (fuente, savedAt, cuánto pasó desde el último uso y cuántos datos tenía la copia local previa).
+    let _dgLocalItems = null; try { _dgLocalItems = _dataMetric(JSON.parse(localStorage.getItem('lifedash_v2') || 'null')); } catch (e) {}
+    const _dgPrev = _dgLogRead('_syncEvents')[0];
+    _syncEv('boot', { src: _loadSrc, lastSynced: _lastSyncedSavedAt, items: _ld.items, localItems: _dgLocalItems, pend: !!localStorage.getItem('_pendingCloudSave'), err: _loadErr || null, sinUsoMs: _dgPrev ? Date.now() - (_dgPrev.ts2 || _dgPrev.ts) : null, ses: _dgSes(S) });
   } catch (e) {}
   // Merge defaults for any missing keys
   Object.keys(DEFAULT_STATE).forEach(k => {
@@ -1041,6 +1212,7 @@ function _migrateQToT() {
   return changed;
 }
 function saveState() {
+  _syncEvSave();   // visibilidad: quién llamó y cuándo (solo registro)
   localStorage.setItem('lifedash_v2', JSON.stringify(S));
   _fbSave();
 }
@@ -4026,6 +4198,16 @@ setInterval(() => {
 }, 60000);
 setInterval(() => { checkReminderNotifications(); refreshRemindersView(); }, 60000);
 setInterval(() => { if (!Object.keys(_rtnTimers).length) _msHub.showReminders(); }, 60000);
+// Visibilidad del sync (solo registra): cuánto estuvo oculta la app y en qué orden pasa todo al volver.
+// Se registra ANTES que el listener de abajo, así "visible" queda antes del inicio de _syncOnFocus.
+let _dgHiddenAt = null;
+document.addEventListener('visibilitychange', () => {
+  try {
+    if (document.hidden) { _dgHiddenAt = Date.now(); _syncEv('oculta', { timer: !!_fbSaveTid, vuelo: _fbSaveInProgress }); }
+    else { _syncEv('visible', { ocultaMs: _dgHiddenAt ? Date.now() - _dgHiddenAt : null }); _dgHiddenAt = null; }
+  } catch (e) {}
+});
+window.addEventListener('pagehide', () => _syncEv('pagehide', { timer: !!_fbSaveTid, vuelo: _fbSaveInProgress }));
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) { checkReminderNotifications(); _syncOnFocus(); _msHub.showReminders(); }
   else { _fbFlush(); }   // al ocultar: subir cambios pendientes sin esperar el debounce de 2s
