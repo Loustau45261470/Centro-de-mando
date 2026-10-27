@@ -434,7 +434,7 @@ function _syncEv(tipo, extra) {
     const now = Date.now();
     const log = _dgLogRead('_syncEvents');
     log.unshift(Object.assign({ ts: now, t: _dgStamp(now), tipo }, extra || {}));
-    localStorage.setItem('_syncEvents', JSON.stringify(log.slice(0, 80)));
+    localStorage.setItem('_syncEvents', JSON.stringify(log.slice(0, 300)));
   } catch (e) {}
 }
 // Primeras funciones de la app que llamaron (stack recortado): "fn archivo:línea < fn archivo:línea".
@@ -1053,7 +1053,7 @@ function _applyRemoteState(raw, savedAt) {
     } catch (e) {}
     showToast('🔄 Sincronizado');
     _dgApplyPost(_dgPre, savedAt);
-  } catch(e) { console.warn('[sync] applyRemoteState error:', e); _syncEv('apply-error', { msg: String((e && e.message) || e).slice(0, 120) }); }
+  } catch(e) { console.warn('[sync] applyRemoteState error:', e); _syncEv('apply-error', { msg: String((e && e.name) || 'Error') }); } // sin e.message: el de JSON.parse trae un pedazo del estado
 }
 
 // ── Real-time Firestore listener ──────────────────────────
