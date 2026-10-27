@@ -5518,6 +5518,12 @@ input:focus, select:focus, textarea:focus {
   #activity-card .card-title > .card-collapse-chevron { position: absolute; top: 11px; right: 14px; }
   #activity-card .card-title .flex { flex: 0 0 100%; column-gap: 4px; }
 }
+/* ≤400px: va después del bloque de arriba (que fija column-gap 4px) para poder achicar el espacio entre botones;
+   deja margen para fuentes de emoji más anchas que la de Windows (Android/Linux) */
+@media (max-width: 400px) {
+  #activity-card .card-title .btn { padding: 4.5px 3px; }
+  #activity-card .card-title .flex { column-gap: 2px; }
+}
 /* 900-1279px: la card de dos columnas es justo para los tres con la letra Geist; menos aire lateral para que no baje "+ Movimiento" */
 @media (min-width: 900px) and (max-width: 1279px) {
   #activity-card .card-title .btn { padding: 4.5px 7px; letter-spacing: .02em; }
