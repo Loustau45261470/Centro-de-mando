@@ -314,3 +314,26 @@ test('10) #toast se ve por encima de un overlay abierto y de un modal', async ({
   expect(arriba).toBe(true);
   expect(await cmPage.evaluate(() => getComputedStyle(document.getElementById('toast')).pointerEvents)).toBe('none');
 });
+
+test.describe('a 375px', () => {
+  test.use({ viewport: { width: 375, height: 812 } });
+  test('11) en "Editar compra" los botones entran en el ancho: Borrar compra en su propia fila', async ({ cmPage }) => {
+    await preparar(cmPage);
+    await cargar(cmPage, { monto: 5000, nombre: 'Compra angosta', fecha: '2026-10-29' });
+    await lapizDeMovimiento(cmPage, 'Compra angosta');
+    await expect(modalAlta(cmPage)).toHaveClass(/open/);
+    const m = await cmPage.evaluate(() => {
+      const box = document.querySelector('#modal-add-txn .modal-actions');
+      const r = box.getBoundingClientRect();
+      const btns = [...box.querySelectorAll('button')].filter((b) => b.offsetParent).map((b) => {
+        const q = b.getBoundingClientRect(); return { id: b.id || b.textContent.trim(), l: q.left, r: q.right, t: q.top };
+      });
+      return { sw: box.scrollWidth, cw: box.clientWidth, left: r.left, right: r.right, btns, vw: window.innerWidth };
+    });
+    expect(m.sw).toBeLessThanOrEqual(m.cw);
+    for (const b of m.btns) { expect(b.l).toBeGreaterThanOrEqual(m.left - 1); expect(b.r).toBeLessThanOrEqual(m.right + 1); }
+    const del = m.btns.find((b) => b.id === 'txnDeleteChargeBtn');
+    const save = m.btns.find((b) => b.id === 'txnSaveBtn');
+    expect(del.t).toBeGreaterThan(save.t);
+  });
+});
