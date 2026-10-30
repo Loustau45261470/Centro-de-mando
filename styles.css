@@ -2959,7 +2959,29 @@ body.font-jakarta  { --sans: "Plus Jakarta Sans", sans-serif; }
 .proy-add-confirm-btn svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
 
 /* ── Modal de detalle ── */
-#modal-proy-detail .modal { max-width: 480px; }
+#modal-proy-detail .modal { max-width: 680px; margin: 0 auto; max-height: 94vh; }
+#modal-proy-detail .pd-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+#modal-proy-detail .pd-title {
+  flex: 1; min-width: 0; background: none; border: none; border-bottom: 1px solid transparent;
+  color: var(--tp); font: inherit; font-size: 19px; font-weight: 700; padding: 4px 0; outline: none;
+}
+#modal-proy-detail .pd-title:focus { border-bottom-color: var(--border); }
+#modal-proy-detail .pd-close {
+  flex-shrink: 0; width: 36px; height: 36px; border-radius: 10px; border: none; cursor: pointer;
+  background: rgba(255,255,255,.06); color: var(--ts); font-size: 15px;
+}
+#modal-proy-detail .pd-close:hover { background: rgba(255,255,255,.12); color: var(--tp); }
+#modal-proy-detail .pd-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+#modal-proy-detail .pd-meta .inp { min-width: 0; }
+#modal-proy-detail .pd-prog { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 16px; }
+#modal-proy-detail .pd-prog button {
+  min-height: 38px; border-radius: 10px; border: 1px solid var(--border); cursor: pointer;
+  background: rgba(255,255,255,.03); color: var(--ts); font: inherit; font-size: 13px; font-weight: 600;
+}
+#modal-proy-detail .pd-prog button.on { background: rgba(56,189,248,.16); border-color: rgba(56,189,248,.55); color: var(--tp); }
+/* Los textos crecen con el contenido (workspace.js _pdGrow): se leen enteros, sin scroll interno. */
+#modal-proy-detail .pd-text { resize: none; overflow: hidden; min-height: 96px; line-height: 1.5; }
+#modal-proy-detail .pd-status { font-size: 12px; color: var(--tt); text-align: right; margin-top: 4px; }
 
 /* ══════════════════════════════════════════════════════════
    PROYECTOS — overrides por tab (terminal aesthetic)

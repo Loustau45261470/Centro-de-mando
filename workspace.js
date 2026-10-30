@@ -389,8 +389,41 @@
 
   function selAll(el) { const r = document.createRange(); r.selectNodeContents(el); const s = window.getSelection(); s.removeAllRanges(); s.addRange(r); }
 
+  // El detalle se guarda solo: al escribir (con una pausa corta) y al salir de cada campo.
+  // Los textos crecen con su contenido para leerlos enteros sin scroll interno.
+  function _pdGrow(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 2 + 'px'; }
+  function _pdSetProg(v) {
+    document.querySelectorAll('#proyDetailProg button').forEach(b => b.classList.toggle('on', +b.dataset.v === v));
+  }
+  function _pdProg() {
+    const b = document.querySelector('#proyDetailProg button.on');
+    return b ? +b.dataset.v : 0;
+  }
+  let _pdTimer = null;
+  // El avance solo se escribe si se tocó un botón: así un 35% viejo no se pisa al editar un texto.
+  let _pdProgTouched = false;
+  const _pdSave = () => window.proyDetailSave();
+  function _pdQueue() { clearTimeout(_pdTimer); _pdTimer = setTimeout(_pdSave, 500); }
+
+  (function _pdWire() {
+    const m = document.getElementById('modal-proy-detail');
+    if (!m) return;
+    m.querySelectorAll('textarea').forEach(t => t.addEventListener('input', () => _pdGrow(t)));
+    m.querySelectorAll('.pd-title, textarea').forEach(el => {
+      el.addEventListener('input', _pdQueue);
+      el.addEventListener('change', _pdSave);
+    });
+    ['proyDetailPriority', 'proyDetailDue'].forEach(id => document.getElementById(id).addEventListener('change', _pdSave));
+    document.getElementById('proyDetailProg').addEventListener('click', e => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      _pdSetProg(+b.dataset.v);
+      _pdProgTouched = true;
+      _pdSave();
+    });
+  })();
+
   function openDetailModal(tab, node) {
-    document.getElementById('proyDetailModalTitle').textContent = 'Detalles — ' + node.label;
     document.getElementById('proyDetailTab').value      = tab;
     document.getElementById('proyDetailId').value       = node.id;
     document.getElementById('proyDetailLabel').value    = node.label;
@@ -398,32 +431,44 @@
     document.getElementById('proyDetailNotes').value    = node.notes || '';
     document.getElementById('proyDetailPriority').value = node.priority || '';
     document.getElementById('proyDetailDue').value      = node.dueDate || '';
+    // Un avance viejo cargado con la barra (ej. 35%) se muestra en el escalón de 25 más cercano.
     const _dp = node.done ? 100 : (+node.progress || 0);
-    document.getElementById('proyDetailProg').value = _dp;
-    document.getElementById('proyDetailProgVal').textContent = _dp;
+    _pdSetProg(Math.round(_dp / 25) * 25);
+    _pdProgTouched = false;
+    document.getElementById('proyDetailStatus').textContent = 'Se guarda solo';
     openModal('modal-proy-detail');
+    document.querySelectorAll('#modal-proy-detail textarea').forEach(_pdGrow);
   }
 
+  window.proyDetailClose = function() {
+    clearTimeout(_pdTimer);
+    proyDetailSave();
+    closeModal('modal-proy-detail');
+  };
+
   window.proyDetailSave = function() {
+    clearTimeout(_pdTimer);
     const tab   = document.getElementById('proyDetailTab').value;
     const id    = document.getElementById('proyDetailId').value;
-    const label = document.getElementById('proyDetailLabel').value.trim();
-    if (!label) { showToast('Escribe un título'); return; }
-    const node = findById(trees[tab], id);
+    const node = findById(trees[tab] || [], id);
     if (!node) return;
-    node.label       = label;
+    // Sin título no se pisa el anterior; el resto se guarda igual.
+    const label = document.getElementById('proyDetailLabel').value.trim();
+    if (label) node.label = label;
     node.description = document.getElementById('proyDetailDesc').value.trim();
     node.notes       = document.getElementById('proyDetailNotes').value.trim();
     const newPriority = document.getElementById('proyDetailPriority').value;
     if (newPriority === '1' && node.priority !== '1' && window.JARVIS) JARVIS.onPrioritySet();
     node.priority    = newPriority;
     node.dueDate     = document.getElementById('proyDetailDue').value;
-    const _newP = +document.getElementById('proyDetailProg').value || 0;
-    const _oldP = node.done ? 100 : (+node.progress || 0);
-    node.progress = _newP;
-    if (_newP > _oldP) { node.advances = node.advances || []; node.advances.push(getActiveDate()); }
+    if (_pdProgTouched) {
+      const _newP = _pdProg();
+      const _oldP = node.done ? 100 : (+node.progress || 0);
+      node.progress = _newP;
+      if (_newP > _oldP) { node.advances = node.advances || []; node.advances.push(getActiveDate()); }
+    }
     saveTree(tab, trees[tab]);
-    closeModal('modal-proy-detail');
+    document.getElementById('proyDetailStatus').textContent = 'Guardado ✓';
     renderProyectos(tab);
     if (typeof renderReminders === 'function') renderReminders(tab);
   };

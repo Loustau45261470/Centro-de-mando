@@ -21,7 +21,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-<link rel="stylesheet" href="styles.css?v=229">
+<link rel="stylesheet" href="styles.css?v=230">
 <link rel="stylesheet" href="gamemode.css">
 <link rel="stylesheet" href="overlay-core.css">
 <link rel="stylesheet" href="speed-dial.css?v=2">
@@ -1458,37 +1458,31 @@
   </div>
 </div>
 
-<!-- Proyecto: editar detalle de nodo -->
-<div class="modal-overlay" id="modal-proy-detail" onclick="if(event.target===this)closeModal('modal-proy-detail')">
+<!-- Proyecto: detalle de nodo — se guarda solo, sin botón Guardar -->
+<div class="modal-overlay" id="modal-proy-detail" onclick="if(event.target===this)proyDetailClose()">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-title" id="proyDetailModalTitle">Detalles del proyecto</div>
+    <div class="pd-head">
+      <input class="pd-title" id="proyDetailLabel" placeholder="Título..." aria-label="Título">
+      <button class="pd-close" type="button" onclick="proyDetailClose()" aria-label="Cerrar">✕</button>
+    </div>
     <input type="hidden" id="proyDetailTab">
     <input type="hidden" id="proyDetailId">
-    <div class="field"><label>Título</label><input class="inp" id="proyDetailLabel" placeholder="Nombre..."></div>
-    <div class="field"><label>Descripción</label><textarea class="inp" id="proyDetailDesc" rows="3" placeholder="Describe el proyecto, tarea u objetivo..." style="resize:vertical"></textarea></div>
-    <div class="field"><label>Notas / Sub-puntos</label><textarea class="inp" id="proyDetailNotes" rows="2" placeholder="Pasos, referencias, detalles extras..." style="resize:vertical"></textarea></div>
-    <div class="input-row" style="gap:10px">
-      <div class="field" style="flex:1"><label>Prioridad</label>
-        <select class="inp" id="proyDetailPriority">
-          <option value="">— Sin prioridad —</option>
-          <option value="1">🔴 Alta</option>
-          <option value="2">🟠 Media</option>
-          <option value="3">🔵 Baja</option>
-        </select>
-      </div>
-      <div class="field" style="flex:1"><label>Fecha límite</label>
-        <input class="inp" type="date" id="proyDetailDue">
-      </div>
+    <div class="pd-meta">
+      <select class="inp" id="proyDetailPriority" aria-label="Prioridad">
+        <option value="">Sin prioridad</option>
+        <option value="1">🔴 Alta</option>
+        <option value="2">🟠 Media</option>
+        <option value="3">🔵 Baja</option>
+      </select>
+      <input class="inp" type="date" id="proyDetailDue" aria-label="Fecha límite">
     </div>
-    <div class="field"><label>Avance — <span id="proyDetailProgVal">0</span>%</label>
-      <input type="range" id="proyDetailProg" min="0" max="100" step="5" value="0"
-        style="width:100%" oninput="document.getElementById('proyDetailProgVal').textContent=this.value">
+    <div class="pd-prog" id="proyDetailProg" role="group" aria-label="Avance">
+      <button type="button" data-v="0">0%</button><button type="button" data-v="25">25%</button><button type="button" data-v="50">50%</button><button type="button" data-v="75">75%</button><button type="button" data-v="100">100%</button>
     </div>
-    <div class="modal-actions">
-      <button class="btn btn-ghost" onclick="closeModal('modal-proy-detail')">Cancelar</button>
-      <button class="btn btn-primary" onclick="proyDetailSave()">Guardar</button>
-    </div>
+    <div class="field"><label for="proyDetailDesc">Descripción</label><textarea class="inp pd-text" id="proyDetailDesc" rows="4" placeholder="Describe el proyecto, tarea u objetivo..."></textarea></div>
+    <div class="field"><label for="proyDetailNotes">Notas / Sub-puntos</label><textarea class="inp pd-text" id="proyDetailNotes" rows="3" placeholder="Pasos, referencias, detalles extras..."></textarea></div>
+    <div class="pd-status" id="proyDetailStatus">Se guarda solo</div>
   </div>
 </div>
 
@@ -1902,7 +1896,7 @@
 <script src="sync-diagnostico.js?v=1"></script>
 <script src="archivo.js?v=1"></script>
 <script src="undo.js?v=1"></script>
-<script src="workspace.js?v=197"></script>
+<script src="workspace.js?v=198"></script>
 <script src="abogacia.js?v=4"></script>
 <script src="correlativas.js?v=2"></script>
 <script src="habitos.js?v=6"></script>
