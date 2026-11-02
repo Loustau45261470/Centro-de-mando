@@ -3851,6 +3851,16 @@ function renderActivity() {
   const empty = document.getElementById('activityEmpty');
   const accMap = {};
   S.accounts.forEach(a => accMap[a.id] = a);
+  // De dónde salió la plata: la cuenta, la tarjeta de la compra o "Prestamos amorcito". Sin medio de pago, queda vacío.
+  const cardOf = {};
+  (S.cardCharges || []).forEach(ch => { const c = ch && (S.cards || []).find(k => k.id === ch.cardId); if (c) cardOf[ch.id] = c; });
+  const srcOf = (t) => {
+    const acc = t.accountId ? accMap[t.accountId] : null;
+    if (acc) return `${acc.icon || '🏦'} ${escHtml(acc.name)}`;
+    if (t.accountId === 'prestamos_amorcito') return '💙 Prestamos amorcito';
+    const card = t.cardChargeId ? cardOf[t.cardChargeId] : null;
+    return card ? `💳 ${escHtml(card.name)}` : '';
+  };
 
   let filteredForList = txnHistCatFilter ? filtered.filter(t => t.category === txnHistCatFilter) : filtered;
   if (txnHistVerdictFilter === 'none') filteredForList = filteredForList.filter(t => t.type === 'expense' && !t.verdict);
@@ -3878,7 +3888,7 @@ function renderActivity() {
     if (colHdr) colHdr.style.display = '';
     list.innerHTML = filteredForList.map(t => {
       const cat = getCatInfo(t.category, t.type);
-      const acc = t.accountId ? accMap[t.accountId] : null;
+      const src = srcOf(t);
       const catBadge = t.category
         ? `<span style="font-size:var(--fs-12-5);padding:1px 7px;border-radius:99px;font-weight:700;background:${cat.color};border:1px solid ${cat.border};color:var(--ts);margin-left:4px">${escHtml(cat.icon)} ${escHtml(cat.label)}</span>`
         : '';
@@ -3893,7 +3903,7 @@ function renderActivity() {
         <div class="act-icon" style="background:${t.type==='income'?'rgba(107,227,164,.1)':'rgba(255,107,107,.1)'}">${escHtml(cat.icon||(t.type==='income'?'💚':'🔴'))}</div>
         <div class="act-info">
           <div class="act-name" style="display:flex;align-items:center;flex-wrap:wrap;gap:2px">${escHtml(t.name)}${catBadge}${pendingBadge}</div>
-          <div class="act-date">${fmtDate(t.date)}${acc?` <span style="color:var(--ts)">· ${acc.icon||'🏦'} ${acc.name}</span>`:''}</div>
+          <div class="act-date">${fmtDate(t.date)}${src?` <span style="color:var(--ts)">· ${src}</span>`:''}</div>
         </div>
         <div style="display:flex;align-items:center;gap:6px">
           ${verdictBtns}
