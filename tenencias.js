@@ -284,6 +284,31 @@ const Tenencias = (() => {
     return { total, items };
   }
 
+  // Ganancia o pérdida de la vista: $ = suma de lo ganado; % = esa suma sobre lo que costó (valorizado − ganado),
+  // ponderado por plata y no promedio simple. Las posiciones sin precio de compra no entran y se cuentan aparte.
+  function gananciaVista(d, vista) {
+    const solo = vista === 'acciones' ? GRUPOS[0].match : () => true;
+    let gan = 0, costo = 0, con = 0, sin = 0;
+    (d.tenencias || []).filter(t => t && solo(t.tipo) && (num(t.valorizado) ?? 0) > 0).forEach(t => {
+      const rm = num(t.rendimientoMonto);
+      if (num(t.ppc) == null || rm == null) { sin++; return; }
+      gan += rm; costo += num(t.valorizado) - rm; con++;
+    });
+    return { gan, pct: costo > 0 ? (gan / costo) * 100 : null, con, sin };
+  }
+
+  function gananciaHtml(d) {
+    const filas = DONA_VISTAS.map(v => {
+      const g = gananciaVista(d, v.id);
+      if (!g.con) return `<div class="ten-gan-fila"><span class="ten-gan-lbl">${v.lbl}</span><span class="mono text-ter">—</span></div>`;
+      const cls = g.gan > 0 ? 'text-ok' : g.gan < 0 ? 'text-danger' : 'text-ter';
+      const signo = g.gan > 0 ? '+' : '';
+      const nota = g.sin ? `<span class="ten-gan-nota">${g.sin} sin precio de compra, no ${g.sin === 1 ? 'entra' : 'entran'}</span>` : '';
+      return `<div class="ten-gan-fila"><span class="ten-gan-lbl">${v.lbl}${nota}</span><span class="mono ${cls}">${g.pct == null ? '' : pct(g.pct) + ' · '}${signo}${money(g.gan, 0)}</span></div>`;
+    }).join('');
+    return `<div class="ten-gan" aria-label="Ganancia o pérdida respecto de lo invertido">${filas}</div>`;
+  }
+
   function donaHtml(d) {
     const vista = DONA_VISTAS.find(v => v.id === _donaVista) || DONA_VISTAS[0];
     const { total, items } = donaDatos(d, vista.id);
@@ -298,6 +323,7 @@ const Tenencias = (() => {
     return `<div class="card ten-card ten-dona">
       <div class="sec-label ten-grupo-lbl">Cartera actual</div>
       <div class="ten-orden-chips ten-dona-chips" role="group" aria-label="Vista del gráfico">${chips}</div>
+      ${gananciaHtml(d)}
       ${cuerpo}
     </div>`;
   }

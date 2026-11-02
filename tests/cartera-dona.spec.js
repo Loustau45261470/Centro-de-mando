@@ -142,3 +142,25 @@ test.describe('Dona "Cartera actual" en Mis tenencias', () => {
     expect(consoleErrors).toEqual([]);
   });
 });
+
+// Ganancia o pérdida junto a la dona: ponderada por plata (suma ganada / suma costada), no promedio simple de %.
+test('ganancia total y de solo acciones: % sobre lo invertido y $; lo que no tiene precio de compra no entra y se avisa', async ({ cmPage: page, consoleErrors }) => {
+  const g = (simbolo, tipo, valorizado, rendimientoMonto) => ({ ...pos(simbolo, tipo, valorizado), rendimientoMonto, rendimientoPct: 1 });
+  await abrir(page, fixtureDe([
+    g('AAA', 'CEDEARS', 300000, 100000),     // costó 200.000
+    g('BBB', 'ACCIONES', 100000, -20000),    // costó 120.000
+    g('BONO', 'TIT. PUBLICOS', 100000, -30000), // costó 130.000
+    { ...pos('SINPPC', 'CEDEARS', 50000), ppc: null, rendimientoMonto: null, rendimientoPct: null },
+  ]));
+  const filas = await page.$$eval('#cov-pane-tenencias .ten-gan-fila', (fs) => fs.map((f) => f.innerText.replace(/\s+/g, ' ').trim()));
+  // Total: +50.000 sobre 450.000 = +11,11 %. Acciones: +80.000 sobre 320.000 = +25,00 %.
+  expect(filas[0]).toContain('Total cartera');
+  expect(filas[0]).toContain('+11.11%');
+  expect(filas[0]).toContain('+$50.000');
+  expect(filas[1]).toContain('Solo acciones');
+  expect(filas[1]).toContain('+25.00%');
+  expect(filas[1]).toContain('+$80.000');
+  expect(filas[0]).toContain('1 sin precio de compra');
+  await expect(page.locator('#cov-pane-tenencias .ten-gan-fila').first().locator('.text-ok')).toBeVisible();
+  expect(consoleErrors).toEqual([]);
+});
