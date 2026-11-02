@@ -44,7 +44,8 @@ async function cargar(page, c, pct) {
 
 // El lápiz del movimiento en la lista de Movimientos del mes en curso.
 async function lapizDeMovimiento(page, nombre) {
-  await page.evaluate(() => { renderActivity(); });
+  // El mes de la lista se elige recién acá: con la lista vacía, un mes sin movimientos cae al mes real del reloj.
+  await page.evaluate(() => { txnActiveMonth = getActiveDate().slice(0, 7); renderActivity(); });
   await page.locator('#activityList .activity-row', { hasText: nombre }).locator('button[title="Editar"]').dispatchEvent('click');
 }
 

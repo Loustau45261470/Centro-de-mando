@@ -322,16 +322,20 @@ test('11) Movimientos: el gasto muestra "reintegro 25%" con su aria-label, el in
   await preparar(cmPage);
   await compraNaranja(cmPage);
   await gastoComun(cmPage, { nombre: 'Cena', monto: 10000, cuenta: 'efe', cuentaReintegro: 'efe' });
-  await cmPage.evaluate(() => { renderActivity(); });
+  // La compra es de octubre y el gasto común del mes real: cada fila se mira en la lista de su mes.
+  const verMes = (nombre) => cmPage.evaluate((n) => { txnActiveMonth = S.transactions.find((t) => t.name === n).date.slice(0, 7); renderActivity(); }, nombre);
+  await verMes('Zapatillas');
 
   const filaCompra = cmPage.locator('#activityList .activity-row', { hasText: 'Zapatillas' }).filter({ hasNotText: /Reintegro \d+% ·/ });
   const tag = filaCompra.locator('.disc-tag.disc-tag-refund');
   await expect(tag).toHaveText('reintegro 25%');
   await expect(tag).toHaveAttribute('aria-label', /^Con reintegro de \$10[.,]?250 a Ualá$/);
 
+  await verMes('Cena');
   const filaComun = cmPage.locator('#activityList .activity-row', { hasText: 'Cena' }).filter({ hasNotText: /Reintegro \d+% ·/ });
   await expect(filaComun.locator('.disc-tag-refund')).toHaveAttribute('aria-label', /^Con reintegro de \$2[.,]?500 a Efectivo$/);
 
+  await verMes('Reintegro 25% · Zapatillas');
   const filaIngreso = cmPage.locator('#activityList .activity-row', { hasText: 'Reintegro 25% · Zapatillas' });
   await expect(filaIngreso).toHaveCount(1);
   await expect(filaIngreso.locator('.disc-tag')).toHaveCount(0);
