@@ -15,7 +15,8 @@
 //   cardPayments [{ id, cardId, date, amount, accountId, kind:'auto'|'manual', key }]
 //                key = statementKey del resumen que se pagó
 //   cardDues     [{ id, cardId, due, amount }] — lo ya usado (saldo inicial) con la fecha en que vence:
-//                un registro por tarjeta y mes; due = día de vencimiento de la tarjeta en ese mes
+//                un registro por tarjeta y mes; due = día de vencimiento de la tarjeta en ese mes.
+//                setAt (opcional) = día en que se cargó: el monto ya incluye las cuotas de compras hasta ese día
 //
 // Fechas = 'YYYY-MM-DD'. Plata en pesos; los repartos se hacen en centavos
 // enteros (sin errores de float) y el resto va a la última cuota/mes.
@@ -158,6 +159,10 @@ const CMTarjetas = (() => {
     const withDues = dues !== undefined && dues !== null;
     if (withDues && !Array.isArray(dues)) return [];
     const acc = new Map();
+    // Vencimiento cargado a mano con fecha de carga (setAt): ese monto ya incluye las cuotas de las compras hechas
+    // hasta ese día; solo se suman las de compras posteriores.
+    const setAtOf = new Map();
+    if (withDues) dues.forEach(d => { if (d && d.cardId === card.id && parseISO(d.setAt)) setAtOf.set(d.due, d.setAt); });
     const slot = (dueDate, statementKey) => {
       const cur = acc.get(dueDate) || { dueDate, statementKey, cents: 0, inst: 0, debt: 0 };
       acc.set(dueDate, cur);
@@ -167,6 +172,7 @@ const CMTarjetas = (() => {
       if (!ch || ch.cardId !== card.id ||!validateCharge(ch).ok) return;
       installmentSchedule(card, ch).forEach(q => {
         if (q.dueDate < fromISO || q.dueDate > toISO) return;
+        if (setAtOf.has(q.dueDate) && ch.date <= setAtOf.get(q.dueDate)) return;
         const cur = slot(q.dueDate, q.statementKey), c = Math.round(q.amount * 100);
         cur.cents += c; cur.inst += c;
       });

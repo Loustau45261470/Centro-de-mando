@@ -11,9 +11,9 @@ const NARANJA = { id: 'nar', name: 'Naranja', limit: 1000000, closeDay: 27, dueD
 const MP = { id: 'mp', name: 'Mercado Pago', limit: 425000, closeDay: 5, dueDay: 10, openingUsed: 357000 };
 const NOW1 = { id: 'now1', cardId: 'nar', date: '2026-10-15', amount: 50000, mode: 'now1', name: 'Un pago' };
 const DUES3 = [
-  { id: 'cd:nar:2026-11-10', cardId: 'nar', due: '2026-11-10', amount: 300000 },
-  { id: 'cd:nar:2026-12-10', cardId: 'nar', due: '2026-12-10', amount: 200000 },
-  { id: 'cd:nar:2027-01-10', cardId: 'nar', due: '2027-01-10', amount: 100000 },
+  { id: 'cd:nar:2026-11-10', cardId: 'nar', due: '2026-11-10', amount: 300000, setAt: '2026-10-01' },
+  { id: 'cd:nar:2026-12-10', cardId: 'nar', due: '2026-12-10', amount: 200000, setAt: '2026-10-01' },
+  { id: 'cd:nar:2027-01-10', cardId: 'nar', due: '2027-01-10', amount: 100000, setAt: '2026-10-01' },
 ];
 
 async function preparar(page, { hoy = '2026-10-26', pagarDesde = null, cards = [NARANJA], cargos = [], dues = [], pagos = [], tab = 'tarjetas' } = {}) {
@@ -60,9 +60,9 @@ test('alta: tres vencimientos de Naranja y el control dice cuánto falta asignar
   await expect(sec.locator('.cc-due-ctl')).toHaveText('Cargaste $0 de $865.000 usados · te faltan $865.000 por asignar');
   // El selector ofrece los próximos 12 vencimientos de la tarjeta (día 10) desde hoy.
   const valores = await cmPage.locator('#ccDueSel-nar option').evaluateAll((os) => os.map((o) => o.value));
-  expect(valores).toHaveLength(12);
+  expect(valores).toHaveLength(24);
   expect(valores[0]).toBe('2026-11-10');
-  expect(valores[11]).toBe('2027-10-10');
+  expect(valores[23]).toBe('2028-10-10');
 
   await cargar(cmPage, '2026-11-10', 300000);
   await cargar(cmPage, '2026-12-10', 200000);
@@ -71,7 +71,7 @@ test('alta: tres vencimientos de Naranja y el control dice cuánto falta asignar
   await expect(sec.locator('.cc-due-row .cc-due-amt')).toHaveText(['$300.000', '$200.000', '$100.000']);
   await expect(sec.locator('.cc-due-row').first()).toContainText('noviembre 2026 · vence el 10/11');
   await expect(sec.locator('.cc-due-ctl')).toHaveText('Cargaste $600.000 de $865.000 usados · te faltan $265.000 por asignar');
-  expect(await dues(cmPage)).toEqual(DUES3);   // ids determinísticos, sin otros campos
+  expect(await dues(cmPage)).toEqual(DUES3.map((d) => ({ ...d, setAt: '2026-10-26' })));   // ids determinísticos; setAt = día en que se cargó
   // El mes cargado se marca en el selector
   await expect(cmPage.locator('#ccDueSel-nar option[value="2026-11-10"]')).toContainText('ya cargado');
   expect(consoleErrors).toEqual([]);
@@ -184,9 +184,9 @@ test('calendario: el 10/11 suma la deuda cargada y las cuotas, con detalle, y la
   await preparar(cmPage, { cargos: [NOW1], dues: DUES3, tab: 'calendario' });
   await expect(mes(cmPage, '2026-11').locator('.cc-cal-total')).toHaveText('A pagar $350.000');
   await expect(mes(cmPage, '2026-11').locator('.cc-cal-due')).toHaveText(['10/11 · Naranja · $350.000']);
-  await expect(mes(cmPage, '2026-11').locator('.cc-cal-det')).toHaveText('Cuotas de compras $50.000 + lo ya usado $300.000');
+  await expect(mes(cmPage, '2026-11').locator('.cc-cal-det')).toHaveText('Compras nuevas $50.000 + lo que cargaste $300.000');
   await expect(mes(cmPage, '2026-12').locator('.cc-cal-due')).toHaveText(['10/12 · Naranja · $200.000']);
-  await expect(mes(cmPage, '2026-12').locator('.cc-cal-det')).toHaveText('lo ya usado $200.000');
+  await expect(mes(cmPage, '2026-12').locator('.cc-cal-det')).toHaveText('lo que cargaste $200.000');
   await expect(mes(cmPage, '2027-01').locator('.cc-cal-total')).toHaveText('A pagar $100.000');
   await expect(mes(cmPage, '2027-02')).toContainText('Nada para pagar');
   // "A pagar el DD/MM" de la tarjeta
@@ -207,7 +207,7 @@ test('calendario: el 10/11 suma la deuda cargada y las cuotas, con detalle, y la
 test('calendario: solo deuda cargada (sin compras) también se calcula', async ({ cmPage }) => {
   await preparar(cmPage, { dues: DUES3, tab: 'calendario' });
   await expect(mes(cmPage, '2026-11').locator('.cc-cal-total')).toHaveText('A pagar $300.000');
-  await expect(mes(cmPage, '2026-11').locator('.cc-cal-det')).toHaveText('lo ya usado $300.000');
+  await expect(mes(cmPage, '2026-11').locator('.cc-cal-det')).toHaveText('lo que cargaste $300.000');
 });
 
 test('pago automático: el 10/11 paga cuotas + deuda en un solo pago, una sola vez, desde la cuenta de pago', async ({ cmPage, consoleErrors }) => {
@@ -439,5 +439,26 @@ test('montos guardados como texto o fechas imposibles tampoco cuentan (mismo cri
   ] });
   await abrirSeccion(cmPage);
   await expect(seccion(cmPage).locator('.cc-due-ctl')).toHaveText('Cargaste $100.000 de $865.000 usados · te faltan $765.000 por asignar');
+  expect(consoleErrors).toEqual([]);
+});
+
+// Monto cargado a mano (p. ej. el total del resumen del banco): las compras ya cargadas hasta ese día van incluidas,
+// solo se suman las posteriores. Los vencimientos viejos sin setAt se toman como cargados hoy.
+test('monto cargado a mano: no suma las compras ya cargadas, solo las nuevas', async ({ cmPage, consoleErrors }) => {
+  const RIVER = { id: 'riv', cardId: 'nar', date: '2026-11-03', amount: 72000, mode: 'nowInst', installments: 12, name: 'Camiseta' };
+  await preparar(cmPage, { hoy: '2026-11-04', cargos: [RIVER], dues: [{ id: 'cd:nar:2026-12-10', cardId: 'nar', due: '2026-12-10', amount: 308000 }], tab: 'calendario' });
+  // Sin setAt: se toma como cargado hoy, y la camiseta (del 03/11) ya está incluida en los 308.000
+  expect(await dues(cmPage)).toEqual([{ id: 'cd:nar:2026-12-10', cardId: 'nar', due: '2026-12-10', amount: 308000, setAt: '2026-11-04' }]);
+  await expect(mes(cmPage, '2026-12').locator('.cc-cal-due')).toHaveText(['10/12 · Naranja · $308.000']);
+  // Enero no tiene monto a mano: la cuota de la camiseta se suma como siempre
+  await expect(mes(cmPage, '2027-01').locator('.cc-cal-due')).toHaveText(['10/01 · Naranja · $6.000']);
+  // Compra nueva del 05/11: se suma encima de lo cargado
+  await cmPage.evaluate(() => {
+    window.getActiveDate = () => '2026-11-05';
+    S.cardCharges.push({ id: 'n', cardId: 'nar', date: '2026-11-05', amount: 10000, mode: 'now1', name: 'Nueva' });
+    renderFinanzasTab();
+  });
+  await expect(mes(cmPage, '2026-12').locator('.cc-cal-due')).toHaveText(['10/12 · Naranja · $318.000']);
+  await expect(mes(cmPage, '2026-12').locator('.cc-cal-det')).toHaveText('Compras nuevas $10.000 + lo que cargaste $308.000');
   expect(consoleErrors).toEqual([]);
 });

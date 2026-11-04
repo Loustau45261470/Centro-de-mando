@@ -367,6 +367,9 @@ const _ccTwoDecimals = (n) => Math.round(n * 100) / 100 === n;
 // Ambas son idempotentes (ids determinísticos), así dos dispositivos que corran lo mismo no duplican.
 function cardsCatchUp() {
   if (!window.CMTarjetas || !Array.isArray(S.transactions) || !Array.isArray(S.accounts)) return;
+  // Vencimientos cargados antes de que existiera setAt: se toman como cargados hoy (incluyen las compras ya cargadas).
+  const unstamped = (Array.isArray(S.cardDues) ? S.cardDues : []).filter(d => d && !d.setAt);
+  if (unstamped.length) { const t = getActiveDate(); unstamped.forEach(d => { d.setAt = t; }); saveState(); }
   materializeCardExpenses();
   applyCardAutoPayments();
 }
@@ -505,7 +508,7 @@ function _ccCalendarHtml(today, cards) {
     m.dues.sort((a, b) => (a.dueDate < b.dueDate ? -1 : a.dueDate > b.dueDate ? 1 : (a.name < b.name ? -1 : 1)));
     const dues = m.dues.map(d => `<li class="cc-cal-due">${_ccDM(d.dueDate)} · ${escHtml(d.name)} · ${_ccPesos(d.amount)}</li>`
       + (d.paid > 0 ? `<li class="cc-cal-det">Ya adelantaste ${_ccPesos(d.paid)}</li>`
-        : d.debt > 0 ? `<li class="cc-cal-det">${d.inst > 0 ? `Cuotas de compras ${_ccPesos(d.inst)} + ` : ''}lo ya usado ${_ccPesos(d.debt)}</li>` : '')).join('');
+        : d.debt > 0 ? `<li class="cc-cal-det">${d.inst > 0 ? `Compras nuevas ${_ccPesos(d.inst)} + ` : ''}lo que cargaste ${_ccPesos(d.debt)}</li>` : '')).join('');
     const pct = max ? Math.round(m.cents * 100 / max) : 0;
     return `<div class="cc-cal-m" data-month="${mk}">
       <div class="cc-cal-head"><span class="cc-cal-label">${_ccMonthLabel(mk)}</span>${m.cents
@@ -881,12 +884,12 @@ function _ccDuesSecHtml(c, today) {
     return `<li class="cc-due-row" data-due="${due}"><span class="cc-due-lbl">${escHtml(_ccDueLabel(d.due))}${tag}</span><b class="cc-due-amt">${_ccPesos(+d.amount || 0)}</b>${edit}<button class="icon-btn" aria-label="Borrar vencimiento" onclick="deleteCardDue('${cid}','${due}')">${_DEL_SVG}</button></li>`;
   }).join('');
   const taken = new Set(mine.map(d => d.due));
-  const opts = CMTarjetas.upcomingDueDates(c, today, 12)
+  const opts = CMTarjetas.upcomingDueDates(c, today, 24)
     .map(d => `<option value="${escHtml(d)}">${escHtml(_ccDueLabel(d))}${taken.has(d) ? ' · ya cargado' : ''}</option>`).join('');
   const ctl = _ccDueControl(c);
   return `<details class="cc-dues" data-dues-card="${cid}"${_ccDuesOpen.has(c.id) ? ' open' : ''} ontoggle="_ccDuesToggle('${cid}',this.open)">
     <summary>Vencimientos de lo ya usado</summary>
-    <p class="cc-hint">Cargá cuánto pagás de esta tarjeta cada mes por lo que ya usaste. Si elegís un mes que ya cargaste, se cambia el monto.</p>
+    <p class="cc-hint">Cargá cuánto pagás de esta tarjeta cada mes (podés poner el total del resumen del banco). Las compras que ya cargaste en el Centro hasta ese día se toman incluidas; solo se suman las nuevas. Si elegís un mes que ya cargaste, se cambia el monto.</p>
     ${rows ? `<ul class="cc-due-list">${rows}</ul>` : ''}
     <div class="cc-due-form">
       <select class="inp" id="ccDueSel-${cid}" aria-label="Mes de vencimiento">${opts}</select>
@@ -912,12 +915,13 @@ function saveCardDue(cardId) {
   if (!_ccTwoDecimals(amount)) return err('El monto puede tener como máximo 2 decimales.');
   if (_ccDuePaid(card.id, due)) return err(`El vencimiento del ${_ccDate(due)} ya tiene un pago registrado: no se puede cargar ni cambiar.`);
   if (due < getActiveDate()) return err('Ese vencimiento ya pasó. Cargá solo vencimientos de hoy en adelante.');
-  const rec = { id: _ccDueId(card.id, due), cardId: card.id, due, amount };
+  const setAt = getActiveDate();   // el monto cargado ya incluye las compras hasta hoy: solo se suman las nuevas
+  const rec = { id: _ccDueId(card.id, due), cardId: card.id, due, amount, setAt };
   const v = CMTarjetas.validateDue(card, rec);
   if (!v.ok) return err(v.error);
   if (!Array.isArray(S.cardDues)) S.cardDues = [];
   const ex = S.cardDues.find(d => d && d.cardId === card.id && d.due === due);
-  if (ex) ex.amount = amount; else S.cardDues.push(rec);
+  if (ex) { ex.amount = amount; ex.setAt = setAt; } else S.cardDues.push(rec);
   _ccDueOkAt = Date.now();
   _ccDuesOpen.add(card.id);
   saveState(); renderFinanzasTab();
