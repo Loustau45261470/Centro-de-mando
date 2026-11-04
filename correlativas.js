@@ -178,16 +178,17 @@ const Correlativas = (() => {
     const row = _row(code);
     const subId = _SUBID_ALL[code];
     const siblings = _siblings(code);
+    const pickAnt = siblings.length ? (S.carrera.pick[subId] || code) : null;   // opción que estaba aprobada (fila compartida)
+    const antes = _fotoEstados();
 
+    // El `done` de la fila pasa siempre por los mismos helpers que usan el resto de los caminos (Progreso, Finales).
     if (target === 'aprobada') {
-      if (row) row.sub.done = true;
+      if (row) _aplicarAprobada(row.sub, subId, null, siblings.length ? code : null, {});
       delete S.carrera.regular[code];
-    } else if (target === 'regular') {
-      if (row) row.sub.done = false;
-      S.carrera.regular[code] = true;
     } else {
-      if (row) row.sub.done = false;
-      delete S.carrera.regular[code];
+      if (row && row.sub.done) _aplicarDesaprobada(row.sub, subId, pickAnt);
+      if (target === 'regular') S.carrera.regular[code] = true;
+      else delete S.carrera.regular[code];
     }
 
     if (siblings.length) {
@@ -200,8 +201,10 @@ const Correlativas = (() => {
     }
 
     saveState();
-    if (typeof renderLawProgress === 'function') renderLawProgress();
-    render();
+    _registrarDesbloqueo(antes, subId);
+    repintar();
+    const av = avisoDesbloqueo();
+    if (av && typeof showToast === 'function') showToast(av, 4500);
   }
 
   // ══════════ Lectura/escritura del plan para otras secciones (Finales, Pomodoro) ══════════
@@ -291,34 +294,111 @@ const Correlativas = (() => {
     return { proximos, resto: mats.filter(m => !enTop.has(m.id)) };
   }
 
-  // Aprueba una materia por id de fila de S.lawProgress con su nota (misma fuente que el plan de carrera):
-  // done=true + grade, y deja de figurar como regularizada. Guarda y refresca plan y correlativas.
-  // Fila compartida (seminarios): hay que saber QUÉ opción se aprobó (`code`, o la ya elegida en
-  // S.carrera.pick); se comporta como setEstado(code,'aprobada'): pick = code y las hermanas sin regularidad.
-  // Sin opción conocida no toca nada y devuelve false.
-  function aprobarMateria(subId, nota, code) {
-    ensureCarrera();
-    let sub = null;
+  // ══════════ Aprobar / desaprobar: UN solo camino ══════════
+  // Lo usan el ✓ del plan y la casilla de la pantalla principal (Finales → notaGuardar), la casilla de Progreso de
+  // carrera (toggleLawSubject) y los botones del Plan de carrera (setEstado). Aprobar: done + doneAt (fecha en que se
+  // aprobó, para el Seguimiento de avance) y cierra el final activo de esa materia (historial, marcado `aprobo`).
+  // Desaprobar: done=false, borra doneAt y reactiva el final que había cerrado la aprobación. No toca la nota.
+  const _hoy = () => (typeof getActiveDate === 'function' ? getActiveDate() : new Date().toISOString().slice(0, 10));
+  function _subPorId(subId) {
     for (const y of ((S.lawProgress && S.lawProgress.years) || [])) {
-      sub = (y.subjects || []).find(s => s.id === subId);
-      if (sub) break;
+      const sub = (y.subjects || []).find(s => s.id === subId);
+      if (sub) return sub;
     }
-    if (!sub) return false;
-    const opciones = opcionesDeFila(subId).map(o => o.code);
-    if (opciones.length) {
-      const elegida = opciones.includes(code) ? code : S.carrera.pick[subId];
-      if (!opciones.includes(elegida)) return false;
-      S.carrera.pick[subId] = elegida;
-    }
+    return null;
+  }
+  // Los helpers _aplicar* solo mutan el estado (sin guardar ni repintar): quien llama lo hace una vez.
+  // `elegida` = código de la opción aprobada en una fila compartida (seminarios); null = no se sabe cuál / fila normal.
+  function _aplicarAprobada(sub, subId, nota, elegida, opts) {
+    const yaEra = !!sub.done;
     sub.done = true;
+    if (!yaEra || !sub.doneAt) {
+      const f = opts && opts.fecha;
+      sub.doneAt = f && f <= _hoy() ? f : _hoy();
+    }
     const n = parseFloat(String(nota).replace(',', '.'));
     if (!isNaN(n)) sub.grade = Math.max(1, Math.min(10, Math.round(n * 10) / 10));
-    Object.keys(_SUBID_ALL).forEach(c => { if (_SUBID_ALL[c] === subId) delete S.carrera.regular[c]; });
-    saveState();
-    if (typeof renderLawProgress === 'function') renderLawProgress();
-    if (typeof renderLawMilestones === 'function') renderLawMilestones();
-    if (typeof renderQObjForTab === 'function') renderQObjForTab('conocimiento'); // objetivos trimestrales enlazados a materias
+    const compartidaSinOpcion = opcionesDeFila(subId).length > 0 && !elegida;
+    if (!compartidaSinOpcion) Object.keys(_SUBID_ALL).forEach(c => { if (_SUBID_ALL[c] === subId) delete S.carrera.regular[c]; });
+    if (window.Finales && Finales.alAprobar) Finales.alAprobar(subId, elegida, opts && opts.finalId);
+  }
+  function _aplicarDesaprobada(sub, subId, code) {
+    sub.done = false;
+    delete sub.doneAt;
+    if (window.Finales && Finales.alDesaprobar) Finales.alDesaprobar(subId, code);
+  }
+
+  // Materias que se destrabaron con el último cambio (para avisar y resaltar en el Plan de carrera).
+  const _RANGO = { bloqueada: 0, cursando: 0, cursar: 1, libre: 2, rendir: 2, aprobada: 3 };
+  let _desbloq = [], _nuevas = new Set(), _nuevasTimer = null;
+  function _fotoEstados() {
+    const o = {};
+    CORR_SUBJECTS.forEach(s => { o[s.code] = computeStatus(s); });
+    return o;
+  }
+  function _registrarDesbloqueo(antes, subId) {
+    const despues = _fotoEstados();
+    const codes = CORR_SUBJECTS.filter(s => _SUBID_ALL[s.code] !== subId && despues[s.code] !== 'aprobada'
+      && _RANGO[despues[s.code]] > _RANGO[antes[s.code]]).map(s => s.code);
+    _desbloq = codes.map(nombrePorCodigo);
+    _nuevas = new Set(codes);
+    clearTimeout(_nuevasTimer);
+    if (codes.length) _nuevasTimer = setTimeout(() => { _nuevas = new Set(); }, 4000);
+  }
+  // '🔓 Se destrabó: A, B y 1 más' del último cambio ('' si no destrabó nada).
+  function avisoDesbloqueo() {
+    if (!_desbloq.length) return '';
+    const v = _desbloq.slice(0, 3).join(', ') + (_desbloq.length > 3 ? ' y ' + (_desbloq.length - 3) + ' más' : '');
+    return '🔓 Se destrabó: ' + v;
+  }
+
+  // Repinta todo lo que depende de la carrera: Progreso, Plan de carrera, Plan de materias (overlay), Finales de
+  // Conocimiento, Seguimiento de avance y objetivos trimestrales enlazados. Las funciones que no existen se saltean.
+  function repintar() {
     render();
+    if (typeof renderLawMilestones === 'function') renderLawMilestones();
+    if (typeof renderQObjForTab === 'function') renderQObjForTab('conocimiento');
+    if (window.Finales && Finales.refresh) Finales.refresh();            // incluye Progreso (su línea "Próximo final")
+    else if (typeof renderLawProgress === 'function') renderLawProgress();
+  }
+
+  // Aprueba una materia por id de fila de S.lawProgress (misma fuente que el plan de carrera). `nota` opcional.
+  // Fila compartida (seminarios): hay que saber QUÉ opción se aprobó (`code`, o la ya elegida en S.carrera.pick);
+  // se comporta como setEstado(code,'aprobada'): pick = code y las hermanas sin regularidad. Sin opción conocida no
+  // toca nada y devuelve false, salvo `opts.sinOpcion` (casilla de Progreso): marca la fila sin elegir opción,
+  // no toca S.carrera.pick ni cierra finales de seminarios.
+  // opts: { fecha: ISO en que se aprobó (final), finalId: final que está aprobando (no se cierra acá), sinOpcion }.
+  function aprobarMateria(subId, nota, code, opts) {
+    opts = opts || {};
+    ensureCarrera();
+    const sub = _subPorId(subId);
+    if (!sub) return false;
+    const opciones = opcionesDeFila(subId).map(o => o.code);
+    let elegida = null;
+    if (opciones.length) {
+      elegida = opciones.includes(code) ? code : S.carrera.pick[subId];
+      if (!opciones.includes(elegida)) {
+        if (!opts.sinOpcion) return false;
+        elegida = null;
+      } else S.carrera.pick[subId] = elegida;
+    }
+    const antes = _fotoEstados();
+    _aplicarAprobada(sub, subId, nota, elegida, opts);
+    saveState();
+    _registrarDesbloqueo(antes, subId);
+    repintar();
+    return true;
+  }
+  // Desaprueba una materia (inverso de aprobarMateria). Devuelve false si no existe la fila.
+  function desaprobarMateria(subId) {
+    ensureCarrera();
+    const sub = _subPorId(subId);
+    if (!sub) return false;
+    const antes = _fotoEstados();
+    _aplicarDesaprobada(sub, subId, S.carrera.pick[subId] || null);
+    saveState();
+    _registrarDesbloqueo(antes, subId);
+    repintar();
     return true;
   }
 
@@ -444,7 +524,7 @@ const Correlativas = (() => {
     const own = estado(subj.code);
     // El stagger se corta a los 12 ítems: con 49 materias, si no, la última entra un segundo tarde.
     const btn = (val, lbl) => `<button class="corr-btn ${own === val ? 'on' : ''}" aria-pressed="${own === val}" onclick="Correlativas.setEstado('${subj.code}','${val}')">${lbl}</button>`;
-    return `<div class="corr-card st-${status}" style="--cb:${meta.color};animation-delay:${Math.min(idx, 12) * 25}ms">
+    return `<div class="corr-card st-${status}${_nuevas.has(subj.code) ? ' corr-card-nueva' : ''}" style="--cb:${meta.color};animation-delay:${Math.min(idx, 12) * 25}ms">
       <div class="corr-card-top">
         <div class="corr-card-name">${esc(dispName(subj))}</div>
         <span class="corr-badge">${meta.badge}</span>
@@ -515,6 +595,6 @@ const Correlativas = (() => {
     }).join('');
   }
 
-  return { open, setEstado, setFiltroAnio, setFiltroEstado, setSearch, ensureCarrera, materiasDelPlan, opcionesDeFila, agruparPorFecha, aprobarMateria, estado, computeStatus, evalReqCursar, evalCorrelativasRendir };
+  return { open, setEstado, setFiltroAnio, setFiltroEstado, setSearch, ensureCarrera, materiasDelPlan, opcionesDeFila, agruparPorFecha, aprobarMateria, desaprobarMateria, avisoDesbloqueo, repintar, estado, computeStatus, evalReqCursar, evalCorrelativasRendir };
 })();
 window.Correlativas = Correlativas;

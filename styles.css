@@ -6450,3 +6450,11 @@ input:focus, select:focus, textarea:focus {
 .metas-ayer-aviso{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px 12px;padding:10px 14px;border-left:3px solid var(--warn)}
 .metas-ayer-aviso .maa-txt{font-size:var(--fs-13);color:var(--tp)}
 .metas-ayer-aviso .maa-acc{display:flex;gap:6px}
+
+/* Progreso de carrera: próximo final de las materias que faltan del año (finales.js → proximoDe). */
+.law-next-final { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--border); font-size: var(--fs-12-5); color: var(--tt); font-family: var(--mono); }
+.law-next-final strong { color: var(--ts); font-weight: 600; }
+/* Plan de carrera: materias que recién se destrabaron al aprobar otra (se apagan solas a los pocos segundos). */
+.corr-card.corr-card-nueva { border-color: var(--c-conocimiento); box-shadow: 0 0 0 2px color-mix(in srgb, var(--c-conocimiento) 28%, transparent); animation: corr-in .5s cubic-bezier(.2,.7,.3,1) both, corr-destrabada 3.6s ease-out .4s both; }
+@keyframes corr-destrabada { 0%, 55% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--c-conocimiento) 45%, transparent), 0 0 18px color-mix(in srgb, var(--c-conocimiento) 35%, transparent); } 100% { box-shadow: 0 0 0 0 transparent; border-color: var(--border); } }
+@media (prefers-reduced-motion: reduce) { .corr-card.corr-card-nueva { animation: none; } }

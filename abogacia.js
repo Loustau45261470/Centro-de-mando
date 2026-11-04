@@ -19,6 +19,9 @@ function renderLawProgress() {
     const yPct   = yTotal ? Math.round(yDone / yTotal * 100) : 0;
     const yGrades = y.subjects.map(s => s.grade).filter(g => g != null && !isNaN(g));
     const yAvg = yGrades.length ? yGrades.reduce((a, b) => a + (+b), 0) / yGrades.length : null;
+    // Final activo más cercano de las materias que faltan de este año (Finales); nada si no hay.
+    const prox = window.Finales && Finales.proximoDe ? Finales.proximoDe(y.subjects.filter(s => !s.done).map(s => s.id)) : null;
+    const proxHtml = prox ? `<div class="law-next-final">Próximo final: <strong>${escHtml(prox.materia)}</strong> · ${prox.fecha.slice(8, 10)}/${prox.fecha.slice(5, 7)} (${prox.dias === 0 ? 'hoy' : prox.dias === 1 ? 'mañana' : prox.dias + ' días'})</div>` : '';
     return `<div class="law-year-slide">
       <div class="law-nav">
         <button class="law-nav-btn" onclick="lawNav(-1)" ${yi === 0 ? 'style="visibility:hidden"' : ''}>‹ Anterior</button>
@@ -41,6 +44,7 @@ function renderLawProgress() {
               onchange="toggleLawSubject('${y.id}','${sub.id}')">
           </div>`).join('')}
       </div>
+      ${proxHtml}
     </div>`;
   });
 
@@ -118,7 +122,9 @@ function setLawGrade(yearId, subId, value) {
   if (!sub) return;
   const v = parseFloat(String(value).replace(',', '.'));
   sub.grade = (value === '' || isNaN(v)) ? null : Math.max(1, Math.min(10, Math.round(v * 10) / 10));
-  saveState(); renderLawProgress();
+  saveState();
+  // La nota también se ve en el Plan de materias ("Rendida · 8"): se repinta todo lo conectado.
+  if (window.Correlativas && Correlativas.repintar) Correlativas.repintar(); else renderLawProgress();
 }
 
 function toggleLawSubject(yearId, subId) {
@@ -126,8 +132,10 @@ function toggleLawSubject(yearId, subId) {
   if (!y) return;
   const sub = y.subjects.find(s => s.id === subId);
   if (!sub) return;
-  sub.done = !sub.done;
-  saveState(); renderLawProgress();
+  // Mismo camino que el ✓ del plan y el Plan de carrera (Correlativas): guarda, cierra/reactiva el final y repinta todo.
+  // Fila compartida (seminarios) sin opción elegida: no se adivina cuál; se marca la fila y no se toca S.carrera.pick.
+  if (sub.done) Correlativas.desaprobarMateria(subId);
+  else Correlativas.aprobarMateria(subId, null, null, { sinOpcion: true });
   if (sub.done) {
     const allYearDone = y.subjects.every(s => s.done);
     if (allYearDone) {
@@ -150,7 +158,8 @@ function toggleLawSubject(yearId, subId) {
       setTimeout(() => el.remove(), 4000);
       showToast('🎓 ¡Año completo!', 4000);
     } else {
-      showToast(`✓ ${sub.name}`);
+      const av = Correlativas.avisoDesbloqueo();
+      showToast(`✓ ${sub.name}` + (av ? ' · ' + av : ''), av ? 4500 : 3000);
     }
   }
 }
@@ -213,6 +222,29 @@ function _lawTargetDeISO(iso) {
   return +m[3] + ' de ' + mes.charAt(0).toUpperCase() + mes.slice(1) + ' ' + m[1];
 }
 
+// "Real" de cada punto del Seguimiento de avance sin número cargado a mano → { [id]: { val, kind } }.
+//  · punto futuro: sin valor (no figura).
+//  · último punto ya vencido (el vigente): la cuenta actual de aprobadas, kind 'actual'.
+//  · puntos vencidos anteriores: aprobadas con doneAt <= fecha del punto, kind 'fecha'. Las aprobadas SIN doneAt (datos
+//    viejos) cuentan desde el principio: no se puede saber cuándo fue. Si NINGUNA aprobada tiene doneAt, no hay con qué
+//    calcular por fecha y queda la cuenta actual (kind 'actual'), como antes.
+// Devuelve también `sinFecha` (aprobadas sin doneAt). Una sola función para la tabla, el historial y el gráfico.
+function _lawRealPorHito(ms, today) {
+  const aprobadas = S.lawProgress.years.flatMap(y => y.subjects).filter(s => s.done);
+  const sinFecha = aprobadas.filter(s => !s.doneAt).length;
+  const hayFechas = sinFecha < aprobadas.length;
+  const pad = n => String(n).padStart(2, '0');
+  const pastIdx = ms.reduce((last, m, i) => _parseMilestoneDate(m.date) <= today ? i : last, -1);
+  const out = { sinFecha };
+  ms.forEach((m, i) => {
+    if (m.real !== null || i > pastIdx || _parseMilestoneDate(m.date) > today) return;
+    if (i === pastIdx || !hayFechas) { out[m.id] = { val: aprobadas.length, kind: 'actual' }; return; }
+    const d = _parseMilestoneDate(m.date), iso = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    out[m.id] = { val: aprobadas.filter(s => !s.doneAt || s.doneAt <= iso).length, kind: 'fecha' };
+  });
+  return out;
+}
+
 function renderLawMilestones() {
   const wrap = document.getElementById('law-milestones-wrap');
   if (!wrap) return;
@@ -228,14 +260,17 @@ function renderLawMilestones() {
   const lag = currentDone - expectedToday;
   const lagColor = lag >= 0 ? 'var(--ok)' : 'var(--danger)';
   const lagSign  = lag > 0 ? '+' : '';
+  const realMap  = _lawRealPorHito(ms, today);
+  const hayFecha = ms.some(m => realMap[m.id] && realMap[m.id].kind === 'fecha');
+  const notaFecha = hayFecha ? `<div style="font-size:var(--fs-12-5);color:var(--tt);margin-top:4px">† Según la fecha en que se aprobó cada materia${realMap.sinFecha ? `; las ${realMap.sinFecha} sin fecha cargada cuentan desde el principio` : ''}</div>` : '';
 
   const PENCIL = `<svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
   const TRASH  = `<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>`;
 
   // Table rows
   const _msRow = m => {
-    const isPast   = _parseMilestoneDate(m.date) <= today;
-    const realVal  = m.real !== null ? m.real : (isPast ? currentDone : null);
+    const info     = realMap[m.id];
+    const realVal  = m.real !== null ? m.real : (info ? info.val : null);
     const realDisp = realVal !== null ? realVal : '—';
     const diff     = realVal !== null ? realVal - m.expected : null;
     let diffClass = 'diff-neu', diffDisp = '—';
@@ -245,7 +280,7 @@ function renderLawMilestones() {
     }
     return `<tr>
       <td style="font-family:var(--mono);font-size:var(--fs-12-5)">${m.date}</td>
-      <td class="num">${realDisp}${m.real === null && isPast ? '<sup style="font-size:var(--fs-12-5);color:var(--tt)">*</sup>' : ''}</td>
+      <td class="num">${realDisp}${info ? `<sup style="font-size:var(--fs-12-5);color:var(--tt)">${info.kind === 'fecha' ? '†' : '*'}</sup>` : ''}</td>
       <td class="num" style="color:var(--ok)">${m.expected}</td>
       <td class="diff ${diffClass}">${diffDisp}</td>
       <td style="padding:4px 4px 4px 0;white-space:nowrap">
@@ -272,7 +307,7 @@ function renderLawMilestones() {
       <table class="law-tbl">
         <thead><tr><th>Fecha</th><th style="text-align:center">Real</th><th style="text-align:center">Esperado</th><th style="text-align:center">Dif.</th><th></th></tr></thead>
         <tbody>${ms.map(_msRow).join('')}</tbody>
-      </table>` : '<p class="empty-state">Sin puntos registrados</p>';
+      </table>${notaFecha}` : '<p class="empty-state">Sin puntos registrados</p>';
   }
 
   wrap.innerHTML = `<div class="card">
@@ -300,6 +335,7 @@ function renderLawMilestones() {
       <tbody>${rowsHTML}</tbody>
     </table>
     <div style="font-size:var(--fs-12-5);color:var(--tt);margin-top:8px">* Valor actual del progreso registrado</div>
+    ${notaFecha}
     <button class="bsum-full" onclick="if(window.openLawMsHistorial)openLawMsHistorial()">
       Ver historial completo${hiddenN > 0 ? ` (${hiddenN} punto${hiddenN > 1 ? 's' : ''} más)` : ''} →
     </button>
@@ -312,11 +348,7 @@ function renderLawMilestones() {
     if (_lawMilestoneChart) { _lawMilestoneChart.destroy(); _lawMilestoneChart = null; }
     const labels  = ms.map(m => m.label);
     const planned = ms.map(m => m.expected);
-    const real    = ms.map(m => {
-      if (m.real !== null) return m.real;
-      if (_parseMilestoneDate(m.date) <= today) return currentDone;
-      return null;
-    });
+    const real    = ms.map(m => (m.real !== null ? m.real : (realMap[m.id] ? realMap[m.id].val : null)));
     _lawMilestoneChart = new Chart(canvas.getContext('2d'), {
       type: 'line',
       data: {

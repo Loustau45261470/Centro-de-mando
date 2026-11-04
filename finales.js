@@ -507,7 +507,8 @@ const Finales = (() => {
       ${hist.length ? hist.map(filaHist).join('') : '<div class="empty-state" style="padding:8px 0">Todavía no rendiste ningún final.</div>'}`;
   }
 
-  function refresh() { renderList(); renderPrincipal(); rerender(); if (typeof refreshRemindersView === 'function') refreshRemindersView('conocimiento'); }
+  // También repinta Progreso de carrera: su línea "Próximo final" sale de los finales activos.
+  function refresh() { renderList(); renderPrincipal(); rerender(); if (typeof renderLawProgress === 'function') renderLawProgress(); if (typeof refreshRemindersView === 'function') refreshRemindersView('conocimiento'); }
 
   // ══════════ CRUD ══════════
   function edit(id) { _editId = id; setTab('historial', false); renderList(); }
@@ -522,7 +523,7 @@ const Finales = (() => {
     f.materia = m.materia; f.subjectId = m.subjectId; f.fecha = fecha; f.tipo = tipo;
     if (m.codigo) f.codigo = m.codigo; else delete f.codigo;
     // Editar la fecha reactiva un final vencido/rendido.
-    if (f.done && diasRest(fecha) >= 0) { f.done = false; f.doneEl = null; }
+    if (f.done && diasRest(fecha) >= 0) { f.done = false; f.doneEl = null; delete f.aprobo; }
     // Final vinculado al Plan de Materias: la fila copia fecha y tipo; si tiene plan de estudio y cambió la fecha, se reacomoda.
     const movio = fecha !== fechaAntes;
     const fila = filaDe(f);
@@ -536,8 +537,10 @@ const Finales = (() => {
     refresh();
   }
   // Pasa el final al historial. `aviso` reemplaza al toast por defecto.
-  function cerrar(f, aviso) {
+  // `aprobo` = el cierre es la aprobación de la materia (la marca permite reactivarlo si después se desmarca la materia).
+  function cerrar(f, aviso, aprobo) {
     f.done = true; f.doneEl = hoy();
+    if (aprobo) f.aprobo = true; else delete f.aprobo;
     if (f.plan) borrarBloques(f, hoy());
     saveState();
     notify(aviso || ('✅ ' + f.materia + ' → historial'));
@@ -588,14 +591,50 @@ const Finales = (() => {
     const sid = subjectIdDe(f);
     cerrarModalNota();
     if (!sid) { cerrar(f); return; }
-    if (!Correlativas.aprobarMateria(sid, n, f.codigo)) {
+    // finalId: este final lo cierra `cerrar` más abajo (no lo cierra la carrera → sin bucle); fecha: cuándo se aprobó.
+    if (!Correlativas.aprobarMateria(sid, n, f.codigo, { fecha: f.fecha, finalId: f.id })) {
       // Fila compartida (seminarios) sin saber cuál opción se aprobó: no se adivina, la carrera no se toca.
       const compartida = Correlativas.opcionesDeFila(sid).length > 0;
       cerrar(f, compartida ? '✅ ' + f.materia + ' → historial. Elegí cuál seminario aprobaste en el plan' : undefined);
       return;
     }
     f.subjectId = sid;
-    cerrar(f, '🎓 ' + f.materia + ' aprobada con ' + (Math.round(n * 10) / 10) + ' → carrera actualizada');
+    const av = Correlativas.avisoDesbloqueo();
+    cerrar(f, '🎓 ' + f.materia + ' aprobada con ' + (Math.round(n * 10) / 10) + ' → carrera actualizada' + (av ? ' · ' + av : ''), true);
+  }
+
+  // ── Conexión con la carrera (Progreso de carrera / Plan de carrera aprueban sin pasar por el modal de nota) ──
+  // Cierran / reactivan finales SIN guardar ni repintar: quien llama (Correlativas) lo hace una sola vez.
+  // Fila compartida (seminarios): solo se tocan los finales de la opción `code`; sin opción conocida no se toca ninguno.
+  const compartidaSid = sid => !!(window.Correlativas && Correlativas.opcionesDeFila(sid).length);
+  function alAprobar(sid, code, exceptoId) {
+    const comp = compartidaSid(sid);
+    let plan = false;
+    activos().forEach(f => {
+      if (f.id === exceptoId || subjectIdDe(f) !== sid) return;
+      if (comp && (!code || f.codigo !== code)) return;
+      f.done = true; f.doneEl = hoy(); f.aprobo = true;
+      if (f.plan) { borrarBloques(f, hoy()); plan = true; }
+    });
+    if (plan) refrescarPlanner();
+  }
+  // Reactiva el final más reciente que cerró la aprobación de esa materia (marca `aprobo`). true si reactivó alguno.
+  function alDesaprobar(sid, code) {
+    const comp = compartidaSid(sid);
+    const f = historial().filter(x => x.aprobo && subjectIdDe(x) === sid && (!comp || !code || x.codigo === code))
+      .sort((a, b) => ((b.doneEl || '') + b.fecha).localeCompare((a.doneEl || '') + a.fecha))[0];
+    if (!f) return false;
+    f.done = false; f.doneEl = null; delete f.aprobo;
+    return true;
+  }
+  // Final activo más cercano (de hoy en adelante) entre las materias `ids` (ids de S.lawProgress): { materia, fecha, dias } o null.
+  function proximoDe(ids) {
+    const set = new Set(ids);
+    for (const f of activos()) {   // ya vienen por fecha ascendente
+      const sid = subjectIdDe(f), dias = diasRest(f.fecha);
+      if (sid && set.has(sid) && dias >= 0) return { materia: f.materia, fecha: f.fecha, dias };
+    }
+    return null;
   }
   // Sin nota o desaprobado: el final pasa al historial y la carrera no se toca.
   function notaMasTarde() {
@@ -616,7 +655,7 @@ const Finales = (() => {
   }
   function reactivar(id) {
     const f = ensureF().find(x => x.id === id); if (!f) return;
-    f.done = false; f.doneEl = null;
+    f.done = false; f.doneEl = null; delete f.aprobo;
     saveState();
     notify('↩ ' + f.materia + ' reactivado (si ya figura aprobada en la carrera, se cambia desde el plan)');
     refresh();
@@ -634,7 +673,7 @@ const Finales = (() => {
     refresh(); if (tenia) refrescarPlanner();
   }
 
-  return { renderPrincipal, renderPrep, estadoPlanDe, open, edit, cancelEdit, saveEdit, done, reactivar, del, onSelMateria, subjectIdDe, notaGuardar, notaMasTarde, notaDesaprobe, activos, planAbrir, planCerrar, planGuardar, planBorrar, reacomodar, bloquesDe, progreso, TIPOS, estadoFila, sincronizarDesdePlan, alGuardarFila, activoDeFila, sueltos, editarSuelto };
+  return { refresh, alAprobar, alDesaprobar, proximoDe, renderPrincipal, renderPrep, estadoPlanDe, open, edit, cancelEdit, saveEdit, done, reactivar, del, onSelMateria, subjectIdDe, notaGuardar, notaMasTarde, notaDesaprobe, activos, planAbrir, planCerrar, planGuardar, planBorrar, reacomodar, bloquesDe, progreso, TIPOS, estadoFila, sincronizarDesdePlan, alGuardarFila, activoDeFila, sueltos, editarSuelto };
 })();
 window.Finales = Finales;
 window.openFinalesOverlay = Finales.open;
