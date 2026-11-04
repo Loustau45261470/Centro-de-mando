@@ -1,46 +1,31 @@
-// Toggle de hábito: marcar la celda de hoy en el calendario del hábito activo
-// y verificar que el cambio persiste en localStorage (lifedash_v2).
+// Marcar un hábito: tocar la celda de hoy abre el menú, elegir "Hecho" persiste en
+// localStorage (lifedash_v2). Usa el hábito sembrado de Salud (el de "vida" ya no existe).
 'use strict';
 const { test, expect } = require('./support/fixtures');
 
-test('marcar un hábito persiste en localStorage', async ({ cmPage }) => {
-  await cmPage.click('.nav-btn[data-tab="vida"]');
-  await expect(cmPage.locator('#tab-vida')).toHaveClass(/active/);
-
-  const cell = cmPage.locator('#habit-cal-vida .study-cal-day.today-cell .study-cal-dot');
-  await expect(cell).toBeVisible();
-
-  const before = await cmPage.evaluate(() => {
-    const habit = S.habitTrackers.vida.find((h) => h.id === 'habit-lectura');
-    const today = window.getActiveDate();
-    return habit.days[today] || null;
+const leer = (page) =>
+  page.evaluate(() => {
+    const h = S.habitTrackers.salud.find((x) => x.id === 'habit-entrenamientos');
+    return h.days[window.getActiveDate()] || null;
   });
+
+test('marcar un hábito persiste en localStorage', async ({ cmPage }) => {
+  await cmPage.click('.nav-btn[data-tab="salud"]');
+  await expect(cmPage.locator('#tab-salud')).toHaveClass(/active/);
+
+  const cell = cmPage.locator('#habit-cal-salud .study-cal-day.today-cell .study-cal-dot');
+  await expect(cell).toBeVisible();
+  expect(await leer(cmPage)).toBeNull();
 
   await cell.click();
+  await cmPage.locator('.hdm-menu .hdm-item[data-st="done"]').click();
 
-  await expect
-    .poll(async () =>
-      cmPage.evaluate(() => {
-        const habit = S.habitTrackers.vida.find((h) => h.id === 'habit-lectura');
-        const today = window.getActiveDate();
-        return habit.days[today] || null;
-      })
-    )
-    .not.toBe(before);
-
-  const afterInMemory = await cmPage.evaluate(() => {
-    const habit = S.habitTrackers.vida.find((h) => h.id === 'habit-lectura');
-    const today = window.getActiveDate();
-    return habit.days[today] || null;
-  });
+  await expect.poll(() => leer(cmPage)).toBe('done');
 
   const persisted = await cmPage.evaluate(() => {
-    const raw = localStorage.getItem('lifedash_v2');
-    const state = JSON.parse(raw);
-    const habit = state.habitTrackers.vida.find((h) => h.id === 'habit-lectura');
-    const today = window.getActiveDate();
-    return habit.days[today] || null;
+    const state = JSON.parse(localStorage.getItem('lifedash_v2'));
+    const h = state.habitTrackers.salud.find((x) => x.id === 'habit-entrenamientos');
+    return h.days[window.getActiveDate()] || null;
   });
-
-  expect(persisted).toBe(afterInMemory);
+  expect(persisted).toBe('done');
 });

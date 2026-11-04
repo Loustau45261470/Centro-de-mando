@@ -807,7 +807,7 @@
       if (prev === 'done') return `"${habit.name}" ya estaba marcado como hecho el ${date}.`;
       habit.days[date] = 'done';
       saveState();
-      // Mismos refrescos que toggleHabitDay (habitos.js); la celebración queda afuera (necesita el click).
+      // Mismos refrescos que setHabitDay (habitos.js); la celebración queda afuera (necesita el click).
       try { if (typeof renderHabitCal === 'function') renderHabitCal(sec); } catch (e) {}
       try { if (typeof renderHabitsCard === 'function') renderHabitsCard(sec); } catch (e) {}
       try { if (typeof checkAchievements === 'function') checkAchievements(); } catch (e) {}

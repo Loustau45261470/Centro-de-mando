@@ -469,7 +469,7 @@ function renderHabitCal(section) {
     cells += `<div class="study-cal-day${dayCls}">
       <div class="study-cal-num">${d}</div>
       <div class="study-cal-dot ${dotCls}"
-        ${!isFuture?`onclick="toggleHabitDay('${section}','${habit.id}','${ds}',event)"`:''}>${txt}</div>
+        ${!isFuture?`onclick="openHabitDayMenu(this,'${section}','${habit.id}','${ds}',event)"`:''}>${txt}</div>
     </div>`;
   }
 
@@ -604,20 +604,126 @@ function _renderHabitChart(section, habit) {
   });
 }
 
-function toggleHabitDay(section, habitId, ds, ev) {
+// Aplica un estado a un día del hábito: 'done' | 'partial' | 'missed' | 'rest' | null (borrar).
+// El festejo salta solo al pasar a "hecho" en el día activo (no al rellenar días viejos).
+function setHabitDay(section, habitId, ds, estado, ev) {
   const habit = _getHabits(section).find(h => h.id === habitId);
   if (!habit) return;
-  const cur = habit.days[ds];
-  if (cur==='done'||cur==='studied') habit.days[ds]='partial';
-  else if (cur==='partial') habit.days[ds]='missed';
-  else if (cur==='missed')  habit.days[ds]='rest';
-  else if (cur==='rest')    delete habit.days[ds];
-  else                      habit.days[ds]='done';
+  if (!habit.days) habit.days = {};
+  const prev = habit.days[ds];
+  if (estado) habit.days[ds] = estado; else delete habit.days[ds];
   saveState(); renderHabitCal(section); checkAchievements();
-  if (habit.days[ds]==='done' && ds===getActiveDate() && typeof celebrateHabit==='function')
+  const eraHecho = prev==='done'||prev==='studied';
+  if (estado==='done' && !eraHecho && ds===getActiveDate() && typeof celebrateHabit==='function')
     celebrateHabit(habit.name, habit.emoji, habitCurrentStreak(habit.days, ds), ev);
   // Las actividades del planner vinculadas a este hábito muestran su estado: repintar.
   if (typeof renderDayPlanner === 'function') renderDayPlanner();
+}
+
+// ── Menú de un día del calendario de hábitos ─────────────────
+// Un toque abre el menú (popover anclado a la celda; hoja inferior en pantallas angostas);
+// elegir aplica el estado y cierra. Un solo menú a la vez.
+const HABIT_DAY_OPTS = [
+  { st:'done',    label:'Hecho',      sw:'hdm-sw-done',    txt:'✓' },
+  { st:'partial', label:'Parcial',    sw:'hdm-sw-partial', txt:'½' },
+  { st:'missed',  label:'No lo hice', sw:'hdm-sw-missed',  txt:'✗' },
+  { st:'rest',    label:'Descanso',   sw:'hdm-sw-rest',    txt:'—' },
+];
+let _hdm = null;   // menú abierto: { el, back, key, onOutside, onKey, onClose }
+
+function closeHabitDayMenu() {
+  if (!_hdm) return;
+  document.removeEventListener('pointerdown', _hdm.onOutside, true);
+  document.removeEventListener('keydown', _hdm.onKey, true);
+  window.removeEventListener('resize', _hdm.onClose);
+  window.removeEventListener('scroll', _hdm.onClose, true);
+  _hdm.el.remove();
+  if (_hdm.back) _hdm.back.remove();
+  _hdm = null;
+}
+
+function openHabitDayMenu(anchor, section, habitId, ds, ev) {
+  const key = section + '|' + habitId + '|' + ds;
+  if (_hdm && _hdm.key === key) { closeHabitDayMenu(); return; }   // volver a tocar la celda cierra
+  closeHabitDayMenu();
+  const habit = _getHabits(section).find(h => h.id === habitId);
+  if (!habit || ds > getActiveDate()) return;
+  const cur = (habit.days || {})[ds];
+  const curNorm = cur === 'studied' ? 'done' : cur;
+  const sheet = window.matchMedia('(max-width: 480px)').matches;
+
+  const el = document.createElement('div');
+  el.className = 'hdm-menu' + (sheet ? ' hdm-sheet' : '');
+  el.setAttribute('role', 'menu');
+  el.setAttribute('aria-label', 'Marcar ' + habit.name + ' · ' + fmtDate(ds));
+  const item = (st, label, swCls, txt) => {
+    const on = st !== '' && st === curNorm;
+    return `<button type="button" role="menuitem" class="hdm-item${on?' is-current':''}${st===''?' hdm-clear':''}" data-st="${st}"${on?' aria-current="true"':''}>
+      <span class="hdm-sw ${swCls}">${txt}</span><span class="hdm-label">${label}</span>${on?'<span class="hdm-check">●</span>':''}
+    </button>`;
+  };
+  el.innerHTML = `<div class="hdm-title">${escHtml(habit.emoji||'')} ${escHtml(habit.name)} · ${escHtml(fmtDate(ds))}</div>`
+    + HABIT_DAY_OPTS.map(o => item(o.st, o.label, o.sw, o.txt)).join('')
+    + (cur ? item('', 'Borrar', 'hdm-sw-clear', '⌫') : '');
+
+  let back = null;
+  if (sheet) { back = document.createElement('div'); back.className = 'hdm-back'; document.body.appendChild(back); }
+  document.body.appendChild(el);
+
+  const rect0 = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : null;
+  el.addEventListener('click', e => {
+    const b = e.target.closest('.hdm-item');
+    if (!b) return;
+    const st = b.dataset.st || null;
+    closeHabitDayMenu();
+    // El festejo (destello) sale de la celda: la celda vieja se repinta, así que se le pasa su posición.
+    setHabitDay(section, habitId, ds, st, rect0 ? { currentTarget: { getBoundingClientRect: () => rect0 } } : null);
+  });
+
+  const onOutside = e => {
+    if (el.contains(e.target)) return;
+    if (anchor && anchor.contains && anchor.contains(e.target)) return;   // el click de la celda lo resuelve (cierra)
+    closeHabitDayMenu();
+  };
+  const onKey = e => {
+    if (e.key === 'Escape') { e.stopPropagation(); closeHabitDayMenu(); return; }
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    e.preventDefault();
+    const items = [...el.querySelectorAll('.hdm-item')];
+    const i = items.indexOf(document.activeElement);
+    const n = e.key === 'ArrowDown' ? (i + 1) % items.length : (i - 1 + items.length) % items.length;
+    items[n].focus();
+  };
+  // Popover: si la celda se mueve (scroll/resize real) el menú quedaría flotando suelto → cerrar.
+  // La hoja inferior es modal (tiene fondo) y no necesita seguir a la celda.
+  const onClose = e => {
+    if (e && e.target && e.target !== window && e.target !== document && el.contains(e.target)) return;
+    if (rect0 && anchor.isConnected) {
+      const r = anchor.getBoundingClientRect();
+      if (Math.abs(r.top - rect0.top) < 1 && Math.abs(r.left - rect0.left) < 1) return;
+    }
+    closeHabitDayMenu();
+  };
+  _hdm = { el, back, key, onOutside, onKey, onClose };
+  document.addEventListener('pointerdown', onOutside, true);
+  document.addEventListener('keydown', onKey, true);
+  if (!sheet) {
+    window.addEventListener('resize', onClose);
+    window.addEventListener('scroll', onClose, true);
+  }
+
+  if (!sheet && anchor && anchor.getBoundingClientRect) {
+    const r = anchor.getBoundingClientRect(), m = 8;
+    const w = el.offsetWidth, h = el.offsetHeight;
+    const vw = document.documentElement.clientWidth, vh = window.innerHeight;
+    const left = Math.max(m, Math.min(r.left + r.width / 2 - w / 2, vw - w - m));
+    let top = r.bottom + 6;
+    if (top + h > vh - m) top = r.top - h - 6;      // no entra abajo: arriba
+    top = Math.max(m, Math.min(top, vh - h - m));
+    el.style.left = left + 'px'; el.style.top = top + 'px';
+  }
+  const first = el.querySelector('.hdm-item.is-current') || el.querySelector('.hdm-item');
+  if (first) first.focus({ preventScroll: true });
 }
 
 function _habitMonthNav(section, dir) {
