@@ -6206,6 +6206,8 @@ input:focus, select:focus, textarea:focus {
 .cc-due b { color: var(--tp); font-family: var(--mono); }
 .cc-warnline { margin-top: 6px; font-size: var(--fs-12-5); color: var(--warn); }
 .cc-pane-bar { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.cc-card-filter { width: auto; min-width: 0; max-width: 100%; margin-left: auto; padding-top: 6px; padding-bottom: 6px; }
+.cc-due-paid { color: var(--ts); font-size: var(--fs-12-5); }
 .cc-due-card { padding: 8px 0 10px; border-bottom: 1px solid var(--border); }
 .cc-due-card .cc-name { font-size: var(--fs-13); }
 .cc-sec { margin-top: 10px; padding: 12px 0 6px; border-top: 1px solid var(--border); font-size: var(--fs-13); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ts); }

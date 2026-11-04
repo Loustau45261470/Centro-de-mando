@@ -241,12 +241,12 @@ const CMDeadlines = (() => {
     const cCharges = Array.isArray(S.cardCharges) ? S.cardCharges : [];
     const cDues = Array.isArray(S.cardDues) ? S.cardDues : [];
     if (motor && Array.isArray(S.cards) && (cCharges.length || cDues.length)) {
-      const paid = new Set((Array.isArray(S.cardPayments) ? S.cardPayments : []).map(p => p && p.key));
       const end = addDays(today, 365);
       S.cards.forEach(card => {
         if (!card || !card.id) return;
-        motor.dueTotals(card, cCharges, today, end, cDues).forEach(d => {
-          if (!(d.amount > 0) || paid.has('auto:' + card.id + ':' + d.dueDate)) return;
+        // pendingDues descuenta los pagos: el automático y los adelantos ("Registrar pago de resumen").
+        motor.pendingDues(card, cCharges, today, end, cDues, S.cardPayments).forEach(d => {
+          if (!(d.amount > 0)) return;
           add({ id: 'tarj_' + card.id + '_' + d.dueDate, kind: 'tarjeta', kindLabel: 'Tarjeta', icon: '💳',
                 tab: 'finanzas', title: card.name + ' vence', sub: peso(d.amount) + ' a pagar',
                 date: d.dueDate, allDay: true, priority: 'high' });

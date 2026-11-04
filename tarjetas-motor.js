@@ -186,6 +186,35 @@ const CMTarjetas = (() => {
         : { dueDate: r.dueDate, statementKey: r.statementKey, amount: r.cents / 100 }));
   }
 
+  // Lo que falta pagar de cada vencimiento en [fromISO, toISO], descontando los pagos de `payments`.
+  // El pago automático (key auto:<tarjeta>:<fecha>) cierra su vencimiento. Cada pago manual (adelanto) va al
+  // primer vencimiento de ese día o posterior, y lo que sobra pasa al siguiente. Mismas filas que dueTotals con
+  // amount = lo que falta y paidAmount = lo ya cubierto; los vencimientos ya cubiertos no salen.
+  function pendingDues(card, charges, fromISO, toISO, dues, payments) {
+    if (!parseISO(fromISO)) return [];
+    const all = dueTotals(card, charges, '1900-01-01', toISO, dues);
+    const autoBy = new Map(), manual = [];
+    (Array.isArray(payments) ? payments : []).forEach(p => {
+      if (!p) return;
+      const c = Math.round((+p.amount || 0) * 100);
+      // El automático se reconoce por la key (ya trae la tarjeta), igual que antes; el manual, por cardId.
+      if (typeof p.key === 'string' && p.key.startsWith(`auto:${card.id}:`)) autoBy.set(p.key, (autoBy.get(p.key) || 0) + c);
+      else if (p.cardId === card.id && !(typeof p.key === 'string' && p.key.startsWith('auto:')) && parseISO(p.date) && c > 0) manual.push({ date: p.date, c });
+    });
+    manual.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+    let pool = 0, i = 0;
+    const out = [];
+    all.forEach(r => {
+      while (i < manual.length && manual[i].date <= r.dueDate) pool += manual[i++].c;
+      const total = Math.round(r.amount * 100), auto = autoBy.get(`auto:${card.id}:${r.dueDate}`);
+      let left = Math.max(0, total - (auto || 0));
+      const use = Math.min(pool, left); pool -= use; left -= use;
+      if (auto !== undefined) left = 0;
+      if (r.dueDate >= fromISO && left > 0) out.push({ ...r, amount: left / 100, paidAmount: (total - left) / 100 });
+    });
+    return out;
+  }
+
   // Forma del cargo (todo menos cardId): mensaje de error, o null si está bien.
   function chargeError(c) {
     if (!c || typeof c !== 'object') return 'Cargo inválido.';
@@ -238,7 +267,7 @@ const CMTarjetas = (() => {
     return { ok: true, error: null };
   }
 
-  return { statementFor, installmentSchedule, expenseSchedule, chargeEffects, dueTotals, upcomingDueDates, validateCharge, validateCard, validateDue };
+  return { statementFor, installmentSchedule, expenseSchedule, chargeEffects, dueTotals, pendingDues, upcomingDueDates, validateCharge, validateCard, validateDue };
 })();
 
 if (typeof window !== 'undefined') window.CMTarjetas = CMTarjetas;

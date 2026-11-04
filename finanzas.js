@@ -416,7 +416,8 @@ function applyCardAutoPayments() {
   S.cards.forEach(card => {
     const acc = card.payAccountId && (S.accounts || []).find(a => a.id === card.payAccountId);
     if (!acc) return;
-    CMTarjetas.dueTotals(card, charges, '1900-01-01', today, dues).forEach(d => {
+    // Solo lo que falta: si adelantaste el pago ("Registrar pago de resumen"), no se descuenta dos veces.
+    CMTarjetas.pendingDues(card, charges, '1900-01-01', today, dues, S.cardPayments).forEach(d => {
       const key = `auto:${card.id}:${d.dueDate}`;
       if (have.has(key)) return;
       S.cardPayments.push({ id: key, key, cardId: card.id, date: d.dueDate, amount: d.amount, accountId: acc.id, kind: 'auto' });
@@ -467,10 +468,11 @@ function _ccChargeHtml(ch) {
 // Calendario de pagos (etapa 6): 12 meses desde hoy. Solo muestra; no toca saldos ni crea gastos.
 // A pagar = cuotas que vencen ese mes y todavía no tienen pago automático. Gasto previsto = meses
 // futuros de compras con uso diferido que todavía no son un gasto real (el mes en curso ya lo es).
-function _ccCalendarHtml(today) {
+function _ccCalendarHtml(today, cards) {
   const head = '<div class="cc-sec">Calendario de pagos</div>';
-  const charges = (S.cardCharges || []).filter(Boolean);
-  const cDues = (Array.isArray(S.cardDues) ? S.cardDues : []).filter(Boolean);
+  const ids = new Set(cards.map(c => c.id));
+  const charges = (S.cardCharges || []).filter(ch => ch && ids.has(ch.cardId));
+  const cDues = (Array.isArray(S.cardDues) ? S.cardDues : []).filter(d => d && ids.has(d.cardId));
   if (!window.CMTarjetas || (!charges.length && !cDues.length)) {
     return head + '<p class="cc-hint" id="cardCalendar">Cuando cargues compras con tarjeta, acá vas a ver cuánto pagás cada mes.</p>' + _ccCalNote();
   }
@@ -483,11 +485,10 @@ function _ccCalendarHtml(today) {
   }
   const lastMk = months[11], ly = +lastMk.slice(0, 4), lm = +lastMk.slice(5, 7);
   const end = lastMk + '-' + new Date(Date.UTC(ly, lm, 0)).getUTCDate();
-  const paidKeys = new Set((S.cardPayments || []).map(p => p && p.key));
-  (S.cards || []).forEach(card => CMTarjetas.dueTotals(card, charges, today, end, cDues).forEach(d => {
+  cards.forEach(card => CMTarjetas.pendingDues(card, charges, today, end, cDues, S.cardPayments).forEach(d => {
     const m = byMonth[d.dueDate.slice(0, 7)];
-    if (!m || paidKeys.has(`auto:${card.id}:${d.dueDate}`)) return;
-    m.dues.push({ dueDate: d.dueDate, name: card.name, amount: d.amount, inst: d.installmentsAmount, debt: d.debtAmount });
+    if (!m) return;
+    m.dues.push({ dueDate: d.dueDate, name: card.name, amount: d.amount, inst: d.installmentsAmount, debt: d.debtAmount, paid: d.paidAmount });
     m.cents += Math.round(d.amount * 100);
   }));
   const thisMonth = today.slice(0, 7);
@@ -503,7 +504,8 @@ function _ccCalendarHtml(today) {
     const m = byMonth[mk], total = m.cents / 100;
     m.dues.sort((a, b) => (a.dueDate < b.dueDate ? -1 : a.dueDate > b.dueDate ? 1 : (a.name < b.name ? -1 : 1)));
     const dues = m.dues.map(d => `<li class="cc-cal-due">${_ccDM(d.dueDate)} · ${escHtml(d.name)} · ${_ccPesos(d.amount)}</li>`
-      + (d.debt > 0 ? `<li class="cc-cal-det">${d.inst > 0 ? `Cuotas de compras ${_ccPesos(d.inst)} + ` : ''}lo ya usado ${_ccPesos(d.debt)}</li>` : '')).join('');
+      + (d.paid > 0 ? `<li class="cc-cal-det">Ya adelantaste ${_ccPesos(d.paid)}</li>`
+        : d.debt > 0 ? `<li class="cc-cal-det">${d.inst > 0 ? `Cuotas de compras ${_ccPesos(d.inst)} + ` : ''}lo ya usado ${_ccPesos(d.debt)}</li>` : '')).join('');
     const pct = max ? Math.round(m.cents * 100 / max) : 0;
     return `<div class="cc-cal-m" data-month="${mk}">
       <div class="cc-cal-head"><span class="cc-cal-label">${_ccMonthLabel(mk)}</span>${m.cents
@@ -566,6 +568,10 @@ function _ccCompactHtml() {
     <div class="cc-lines">${lines}</div>`;
 }
 
+// Filtro por tarjeta de Compras y Calendario ('' = todas). Lo comparten las dos pestañas.
+let _ccCardFilter = '';
+function setCcCardFilter(id) { _ccCardFilter = id; renderCardsOverlay(); }
+
 // Contenido del overlay de Tarjetas (el armazón y las pestañas están en secciones-fab.js).
 // Reusa los mismos bloques de siempre: lista de compras, calendario de pagos y filas de cada tarjeta.
 function renderCardsOverlay() {
@@ -575,24 +581,29 @@ function renderCardsOverlay() {
   if (!pCompras || !pCal || !pTarj) return;
   const cards = Array.isArray(S.cards) ? S.cards : [];
   const today = getActiveDate();
-  const paidKeys = new Set((S.cardPayments || []).map(p => p && p.key));
+  if (_ccCardFilter && !cards.some(c => c.id === _ccCardFilter)) _ccCardFilter = '';
+  const shown = _ccCardFilter ? cards.filter(c => c.id === _ccCardFilter) : cards;
+  const filterHtml = cards.length > 1
+    ? `<select class="inp cc-card-filter" aria-label="Filtrar por tarjeta" onchange="setCcCardFilter(this.value)"><option value="">Todas las tarjetas</option>${
+      cards.map(c => `<option value="${escHtml(c.id)}"${c.id === _ccCardFilter ? ' selected' : ''}>${escHtml(c.name)}</option>`).join('')}</select>`
+    : '';
 
   // Compras
-  const charges = [...(S.cardCharges || [])].filter(Boolean)
+  const charges = [...(S.cardCharges || [])].filter(ch => ch && (!_ccCardFilter || ch.cardId === _ccCardFilter))
     .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : (a.id < b.id ? 1 : -1)));
-  pCompras.innerHTML = `<div class="cc-pane-bar"><button class="btn btn-primary btn-sm" onclick="openTxnCardForm()">+ Compra con tarjeta</button></div>
-    <div id="cardChargeList">${charges.length ? charges.map(_ccChargeHtml).join('') : '<p class="cc-hint">Todavía no cargaste compras con tarjeta.</p>'}</div>`;
+  pCompras.innerHTML = `<div class="cc-pane-bar"><button class="btn btn-primary btn-sm" onclick="openTxnCardForm()">+ Compra con tarjeta</button>${filterHtml}</div>
+    <div id="cardChargeList">${charges.length ? charges.map(_ccChargeHtml).join('') : `<p class="cc-hint">${_ccCardFilter ? 'Esta tarjeta no tiene compras cargadas.' : 'Todavía no cargaste compras con tarjeta.'}</p>`}</div>`;
 
-  // Calendario: lo que se paga en cada tarjeta y los 12 meses
-  const dueCards = cards.map(c => {
+  // Calendario: lo que se paga en cada tarjeta (ya descontado lo que adelantaste) y los 12 meses
+  const dueCards = shown.map(c => {
     const dues = window.CMTarjetas
-      ? CMTarjetas.dueTotals(c, S.cardCharges || [], today, '2999-12-31', Array.isArray(S.cardDues) ? S.cardDues : []).filter(d => !paidKeys.has(`auto:${c.id}:${d.dueDate}`)).slice(0, 2)
+      ? CMTarjetas.pendingDues(c, S.cardCharges || [], today, '2999-12-31', Array.isArray(S.cardDues) ? S.cardDues : [], S.cardPayments).slice(0, 2)
       : [];
     if (!dues.length) return '';
     return `<div class="cc-due-card" data-card-id="${escHtml(c.id)}"><div class="cc-name">${escHtml(c.name)}</div>${
-      dues.map(d => `<div class="cc-due">A pagar el ${_ccDM(d.dueDate)}: <b>${_ccPesos(d.amount)}</b></div>`).join('')}</div>`;
+      dues.map(d => `<div class="cc-due">A pagar el ${_ccDM(d.dueDate)}: <b>${_ccPesos(d.amount)}</b>${d.paidAmount > 0 ? ` <span class="cc-due-paid">· ya adelantaste ${_ccPesos(d.paidAmount)}</span>` : ''}</div>`).join('')}</div>`;
   }).join('');
-  pCal.innerHTML = dueCards + _ccCalendarHtml(today);
+  pCal.innerHTML = (filterHtml ? `<div class="cc-pane-bar">${filterHtml}</div>` : '') + dueCards + _ccCalendarHtml(today, shown);
 
   // Tarjetas
   if (!cards.length) {
@@ -3710,6 +3721,9 @@ function setTxnHistSort(mode) { txnHistSort = mode; renderActivity(); }
 // Mismo ciclo de vida que txnHistCatFilter: vive solo mientras el overlay está abierto.
 let txnHistVerdictFilter = '';
 function setTxnHistVerdict(v) { txnHistVerdictFilter = v; renderActivity(); }
+// Filtro por tarjeta (id de la tarjeta, '' = todos): deja solo las compras hechas con esa tarjeta.
+let txnHistCardFilter = '';
+function setTxnHistCard(id) { txnHistCardFilter = id; renderActivity(); }
 
 // Veredicto de un gasto: 👍 vale la pena / 👎 recortable. Es transversal a la categoría
 // (un gasto de "Comida" puede ser cualquiera de los dos), por eso no vive en TXN_CATEGORIES.
@@ -3865,6 +3879,15 @@ function renderActivity() {
   let filteredForList = txnHistCatFilter ? filtered.filter(t => t.category === txnHistCatFilter) : filtered;
   if (txnHistVerdictFilter === 'none') filteredForList = filteredForList.filter(t => t.type === 'expense' && !t.verdict);
   else if (txnHistVerdictFilter) filteredForList = filteredForList.filter(t => t.verdict === txnHistVerdictFilter);
+  const cardSel = document.getElementById('txnHistCardSel');
+  const cardsAll = Array.isArray(S.cards) ? S.cards : [];
+  if (txnHistCardFilter && !cardsAll.some(c => c.id === txnHistCardFilter)) txnHistCardFilter = '';
+  if (cardSel) {
+    cardSel.style.display = cardsAll.length ? '' : 'none';
+    cardSel.innerHTML = '<option value="">Todas las tarjetas</option>' + cardsAll.map(c => `<option value="${escHtml(c.id)}">💳 ${escHtml(c.name)}</option>`).join('');
+    cardSel.value = txnHistCardFilter;
+  }
+  if (txnHistCardFilter) filteredForList = filteredForList.filter(t => t.cardChargeId && cardOf[t.cardChargeId] && cardOf[t.cardChargeId].id === txnHistCardFilter);
   if (txnHistSort === 'amount') filteredForList = [...filteredForList].sort((a, b) => (+b.amount || 0) - (+a.amount || 0));
 
   // Total recortable del mes: solo ARS (mismo criterio que getMonthlyExpenses) para no

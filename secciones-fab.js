@@ -72,7 +72,7 @@ function _sfPopulateHistCatFilter() {
 }
 function _sfEnsureHistorial() {
   if (typeof CMOverlay === 'undefined') return null;
-  const { overlay, body } = CMOverlay.build({ id: 'ov-historial', accent: '#22C55E', onClose: () => { if (typeof txnHistCatFilter !== 'undefined') { txnHistCatFilter = ''; txnHistSort = 'date'; txnHistVerdictFilter = ''; _sfPopulateHistCatFilter(); if (typeof renderActivity === 'function') renderActivity(); } } });
+  const { overlay, body } = CMOverlay.build({ id: 'ov-historial', accent: '#22C55E', onClose: () => { if (typeof txnHistCatFilter !== 'undefined') { txnHistCatFilter = ''; txnHistSort = 'date'; txnHistVerdictFilter = ''; txnHistCardFilter = ''; _sfPopulateHistCatFilter(); if (typeof renderActivity === 'function') renderActivity(); } } });
   if (!overlay._sfBuilt) {
     body.innerHTML = `<div class="cm-ov-head"><div class="cm-ov-eyebrow">FINANZAS · HISTORIAL</div><div class="cm-ov-title">Historial de movimientos</div></div>
       <div class="txn-hist-filters">
@@ -88,6 +88,7 @@ function _sfEnsureHistorial() {
           <option value="bad">👎 Recortables</option>
           <option value="none">Sin clasificar</option>
         </select>
+        <select class="txn-hist-cat-filter" id="txnHistCardSel" aria-label="Filtrar por tarjeta" onchange="setTxnHistCard(this.value)" style="display:none"></select>
         <span class="txn-hist-bad-total" id="txnHistBadTotal" style="display:none"></span>
       </div>
       <div class="cm-ov-host" id="ov-historial-host"></div>`;
