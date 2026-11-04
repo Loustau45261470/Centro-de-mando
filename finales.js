@@ -4,6 +4,9 @@
 // Carga en overlay (materia, fecha, tipo de examen de lista fija); los activos
 // se reflejan en la sección principal como "Materia · días restantes" ordenado
 // por urgencia. Vencidos se marcan; el check "done" los pasa a historial.
+// La materia se elige del plan de carrera (S.lawProgress, no aprobadas) y se guarda
+// con `subjectId`; al aprobar el final se pide la nota y se marca la materia en la
+// carrera. "Otra (escribir)" deja el texto libre de siempre.
 // Datos en S.sgc.finales — no toca la lógica de sync.
 // ════════════════════════════════════════════════════════════════════════
 
@@ -13,9 +16,30 @@ const Finales = (() => {
   const hoy = () => (typeof getActiveDate === 'function' ? getActiveDate() : new Date().toISOString().slice(0, 10));
   const diasRest = fecha => Math.round((new Date(fecha + 'T12:00:00') - new Date(hoy() + 'T12:00:00')) / 86400000);
   const fmtF = iso => iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(2, 4) : '—';
+  const addDias = (iso, n) => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+  const fmtHoras = h => (Math.round(h * 10) / 10).toString().replace('.', ',');
   const notify = m => (typeof showToast === 'function' ? showToast(m) : alert(m));
 
   let _editId = null;   // id del final en edición dentro del overlay
+  let _notaId = null;   // id del final que espera la nota en el modal
+
+  const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/\s+/g, ' ').trim();
+  const OTRA = '__otra';
+
+  // Materias del plan de carrera (todas, con `done`); [] si el plan no está disponible.
+  const plan = () => (window.Correlativas && Correlativas.materiasDelPlan) ? Correlativas.materiasDelPlan(false) : [];
+
+  // Materia del plan a la que apunta un final: por subjectId, o (finales viejos) por nombre
+  // exacto normalizado (tildes/mayúsculas). null si no coincide — el final sigue como texto libre.
+  function subjectIdDe(f) {
+    if (!f) return null;
+    const mats = plan();
+    if (f.subjectId && mats.some(m => m.id === f.subjectId)) return f.subjectId;
+    const n = norm(f.materia);
+    if (!n) return null;
+    const m = mats.find(x => norm(x.name) === n);
+    return m ? m.id : null;
+  }
 
   function ensureF() {
     if (!S.sgc) S.sgc = {};
@@ -51,12 +75,17 @@ const Finales = (() => {
     const list = activos();
     let rows;
     if (list.length) {
+      const desde = addDias(hoy(), -29);
       rows = '<div class="fin-list">' + list.map((f, i) => {
         const c = conteo(diasRest(f.fecha));
+        const sid = subjectIdDe(f);
+        const horas = (sid && window.Pomodoro) ? Pomodoro.horasPorMateria(sid, desde, hoy()) : null;
+        const estudio = horas == null ? '' : `<div class="fin-item-estudio">${fmtHoras(horas)} h estudiadas (últimos 30 días)</div>`;
         return `<div class="fin-item ${c.urgent ? 'urgent' : ''}" style="animation-delay:${i * 60}ms">
           <div class="fin-item-main">
             <div class="fin-item-name">${esc(f.materia)}</div>
             <div class="fin-item-meta"><span class="fin-tipo-badge">${esc(f.tipo)}</span><span>${fmtF(f.fecha)}</span></div>
+            ${estudio}
           </div>
           <div class="fin-count">${c.html}</div>
         </div>`;
@@ -91,17 +120,54 @@ const Finales = (() => {
     const inp = 'background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:7px 9px;font-size:var(--fs-12-5);color:inherit';
     el.innerHTML = `
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
-        <input id="fin-materia" placeholder="Materia" style="${inp};flex:1;min-width:140px">
+        ${selectorMateria('fin', null, '', inp)}
         <input id="fin-fecha" type="date" value="${hoy()}" style="${inp}">
         <select id="fin-tipo" style="${inp}">${TIPOS.map(t => `<option value="${t}">${t}</option>`).join('')}</select>
         <button class="btn btn-sm" onclick="Finales.add()">+ Agregar</button>
       </div>`;
   }
 
+  // Selector de materia (plan no aprobado, ordenado por año) + "Otra (escribir)" con texto libre.
+  // `sid` = materia actual (se mantiene en la lista aunque ya esté aprobada). Sin plan → solo texto.
+  function selectorMateria(pre, sid, texto, inp) {
+    const mats = plan().filter(m => !m.done || m.id === sid);
+    if (!mats.length) return `<input id="${pre}-materia" value="${esc(texto)}" placeholder="Materia" style="${inp};flex:1;min-width:140px">`;
+    const otra = !sid && !!texto;
+    const grupos = [];
+    mats.forEach(m => {
+      let g = grupos.find(x => x.anio === m.anio);
+      if (!g) { g = { anio: m.anio, label: m.yearLabel, items: [] }; grupos.push(g); }
+      g.items.push(m);
+    });
+    const opts = grupos.map(g => `<optgroup label="${esc(g.label)}">${g.items.map(m => `<option value="${esc(m.id)}" ${m.id === sid ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}</optgroup>`).join('');
+    return `<select id="${pre}-materia-sel" onchange="Finales.onSelMateria('${pre}')" aria-label="Materia" style="${inp};flex:1;min-width:140px;max-width:100%">
+        <option value="" ${!sid && !otra ? 'selected' : ''}>Elegí la materia…</option>${opts}<option value="${OTRA}" ${otra ? 'selected' : ''}>Otra (escribir)</option>
+      </select>
+      <input id="${pre}-materia" value="${esc(texto)}" placeholder="Nombre de la materia" style="${inp};flex:1;min-width:140px;${otra ? '' : 'display:none'}">`;
+  }
+  function onSelMateria(pre) {
+    const sel = document.getElementById(pre + '-materia-sel'), txt = document.getElementById(pre + '-materia');
+    if (!sel || !txt) return;
+    txt.style.display = sel.value === OTRA ? '' : 'none';
+    if (sel.value === OTRA) txt.focus();
+  }
+  // Lee el selector: { materia, subjectId } o null si falta elegir (ya avisó).
+  function leerMateria(pre) {
+    const sel = document.getElementById(pre + '-materia-sel');
+    const texto = (document.getElementById(pre + '-materia')?.value || '').trim();
+    if (sel && sel.value && sel.value !== OTRA) {
+      const m = plan().find(x => x.id === sel.value);
+      if (m) return { materia: m.name, subjectId: m.id };
+    }
+    if (sel && !sel.value) { notify('Elegí la materia'); return null; }
+    if (!texto) { notify(pre === 'fin' ? 'Escribí el nombre de la materia' : 'La materia no puede quedar vacía'); return null; }
+    return { materia: texto, subjectId: subjectIdDe({ materia: texto }) };
+  }
+
   function filaEdit(f) {
     const inp = 'background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:6px 8px;font-size:var(--fs-12-5);color:inherit';
     return `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:8px;border:1px solid var(--accent,#6B8EFF);border-radius:8px;margin-bottom:6px">
-      <input id="fin-e-materia" value="${esc(f.materia)}" style="${inp};flex:1;min-width:120px">
+      ${selectorMateria('fin-e', subjectIdDe(f), f.materia, inp)}
       <input id="fin-e-fecha" type="date" value="${f.fecha}" style="${inp}">
       <select id="fin-e-tipo" style="${inp}">${TIPOS.map(t => `<option value="${t}" ${t === f.tipo ? 'selected' : ''}>${t}</option>`).join('')}</select>
       <button class="btn btn-sm" onclick="Finales.saveEdit('${f.id}')">Guardar</button>
@@ -146,45 +212,100 @@ const Finales = (() => {
 
   // ══════════ CRUD ══════════
   function add() {
-    const materia = (document.getElementById('fin-materia')?.value || '').trim();
     const fecha = document.getElementById('fin-fecha')?.value || '';
     const tipo = document.getElementById('fin-tipo')?.value || TIPOS[0];
-    if (!materia) { notify('Escribí el nombre de la materia'); return; }
+    const m = leerMateria('fin'); if (!m) return;
     if (!fecha) { notify('Elegí la fecha del final'); return; }
-    ensureF().push({ id: uid(), materia, fecha, tipo, done: false, doneEl: null });
+    ensureF().push({ id: uid(), materia: m.materia, subjectId: m.subjectId, fecha, tipo, done: false, doneEl: null });
     saveState();
-    document.getElementById('fin-materia').value = '';
-    notify('🎓 Final agregado: ' + materia);
+    notify('🎓 Final agregado: ' + m.materia);
+    renderForm(); // limpia el formulario
     refresh();
   }
   function edit(id) { _editId = id; renderList(); }
   function cancelEdit() { _editId = null; renderList(); }
   function saveEdit(id) {
     const f = ensureF().find(x => x.id === id); if (!f) { cancelEdit(); return; }
-    const materia = (document.getElementById('fin-e-materia')?.value || '').trim();
     const fecha = document.getElementById('fin-e-fecha')?.value || '';
     const tipo = document.getElementById('fin-e-tipo')?.value || f.tipo;
-    if (!materia) { notify('La materia no puede quedar vacía'); return; }
+    const m = leerMateria('fin-e'); if (!m) return;
     if (!fecha) { notify('Elegí una fecha'); return; }
-    f.materia = materia; f.fecha = fecha; f.tipo = tipo;
+    f.materia = m.materia; f.subjectId = m.subjectId; f.fecha = fecha; f.tipo = tipo;
     // Editar la fecha reactiva un final vencido/rendido.
     if (f.done && diasRest(fecha) >= 0) { f.done = false; f.doneEl = null; }
     saveState(); _editId = null;
     notify('✏️ Final actualizado');
     refresh();
   }
-  function done(id) {
-    const f = ensureF().find(x => x.id === id); if (!f) return;
+  // Pasa el final al historial. `aviso` reemplaza al toast por defecto.
+  function cerrar(f, aviso) {
     f.done = true; f.doneEl = hoy();
     saveState();
-    notify('✅ ' + f.materia + ' → historial');
+    notify(aviso || ('✅ ' + f.materia + ' → historial'));
     refresh();
+  }
+  // Final con materia del plan todavía no aprobada → pide la nota (modal); si no, solo historial.
+  function done(id) {
+    const f = ensureF().find(x => x.id === id); if (!f || f.done) return;
+    const sid = subjectIdDe(f);
+    const m = sid && plan().find(x => x.id === sid);
+    if (m && !m.done) { pedirNota(f, m); return; }
+    cerrar(f);
+  }
+
+  // ── Modal de nota (reusa .modal-overlay/.modal; z-index por encima de los overlays) ──
+  function pedirNota(f, m) {
+    let ov = document.getElementById('modal-final-nota');
+    if (!ov) {
+      ov = document.createElement('div');
+      ov.className = 'modal-overlay'; ov.id = 'modal-final-nota';
+      ov.addEventListener('click', e => { if (e.target === ov) notaMasTarde(); });
+      document.body.appendChild(ov);
+    }
+    _notaId = f.id;
+    ov.innerHTML = `<div class="modal">
+      <div class="modal-handle"></div>
+      <div class="modal-title">${esc(m.name)}</div>
+      <div class="field"><label>Si aprobaste, ¿con qué nota? (1 a 10)</label>
+        <input class="inp" id="fin-nota" type="number" inputmode="decimal" min="1" max="10" step="0.5" placeholder="Ej: 8" onkeydown="if(event.key==='Enter')Finales.notaGuardar()"></div>
+      <div class="modal-actions" style="flex-wrap:wrap">
+        <button class="btn btn-ghost" onclick="Finales.notaMasTarde()">Sin cargar nota</button>
+        <button class="btn btn-ghost" onclick="Finales.notaDesaprobe()">Desaprobé / no rendí</button>
+        <button class="btn btn-primary" onclick="Finales.notaGuardar()">Guardar nota</button>
+      </div>
+    </div>`;
+    ov.classList.add('open');
+    setTimeout(() => document.getElementById('fin-nota')?.focus(), 50);
+  }
+  function cerrarModalNota() {
+    document.getElementById('modal-final-nota')?.classList.remove('open');
+    const id = _notaId; _notaId = null;
+    return ensureF().find(x => x.id === id);
+  }
+  function notaGuardar() {
+    const f = ensureF().find(x => x.id === _notaId); if (!f) { cerrarModalNota(); return; }
+    const n = parseFloat(String(document.getElementById('fin-nota')?.value || '').replace(',', '.'));
+    if (isNaN(n) || n < 1 || n > 10) { notify('Poné una nota entre 1 y 10'); return; }
+    const sid = subjectIdDe(f);
+    cerrarModalNota();
+    if (!sid || !Correlativas.aprobarMateria(sid, n)) { cerrar(f); return; }
+    f.subjectId = sid;
+    cerrar(f, '🎓 ' + f.materia + ' aprobada con ' + (Math.round(n * 10) / 10) + ' → carrera actualizada');
+  }
+  // Sin nota o desaprobado: el final pasa al historial y la carrera no se toca.
+  function notaMasTarde() {
+    const f = cerrarModalNota(); if (!f) return;
+    cerrar(f, '✅ ' + f.materia + ' → historial (la carrera no se tocó; cargala desde el plan)');
+  }
+  function notaDesaprobe() {
+    const f = cerrarModalNota(); if (!f) return;
+    cerrar(f, '✅ ' + f.materia + ' → historial (sin cambios en la carrera)');
   }
   function reactivar(id) {
     const f = ensureF().find(x => x.id === id); if (!f) return;
     f.done = false; f.doneEl = null;
     saveState();
-    notify('↩ ' + f.materia + ' reactivado');
+    notify('↩ ' + f.materia + ' reactivado (si ya figura aprobada en la carrera, se cambia desde el plan)');
     refresh();
   }
   function del(id) {
@@ -197,7 +318,7 @@ const Finales = (() => {
     refresh();
   }
 
-  return { renderPrincipal, open, add, edit, cancelEdit, saveEdit, done, reactivar, del };
+  return { renderPrincipal, open, add, edit, cancelEdit, saveEdit, done, reactivar, del, onSelMateria, subjectIdDe, notaGuardar, notaMasTarde, notaDesaprobe, activos };
 })();
 window.Finales = Finales;
 window.openFinalesOverlay = Finales.open;

@@ -204,6 +204,41 @@ const Correlativas = (() => {
     render();
   }
 
+  // ══════════ Lectura/escritura del plan para otras secciones (Finales, Pomodoro) ══════════
+  // Materias del plan en el orden del plan (por año). `done` = aprobada. Los datos salen del
+  // estado (S.lawProgress), nunca del código.
+  function materiasDelPlan(soloPendientes) {
+    ensureCarrera();
+    const out = [];
+    ((S.lawProgress && S.lawProgress.years) || []).forEach((y, i) => (y.subjects || []).forEach(s => {
+      if (soloPendientes && s.done) return;
+      out.push({ id: s.id, name: s.name, anio: i + 1, yearLabel: y.label, done: !!s.done });
+    }));
+    return out;
+  }
+
+  // Aprueba una materia por id de fila de S.lawProgress con su nota (misma fuente que el plan de carrera):
+  // done=true + grade, y deja de figurar como regularizada. Guarda y refresca plan y correlativas.
+  function aprobarMateria(subId, nota) {
+    ensureCarrera();
+    let sub = null;
+    for (const y of ((S.lawProgress && S.lawProgress.years) || [])) {
+      sub = (y.subjects || []).find(s => s.id === subId);
+      if (sub) break;
+    }
+    if (!sub) return false;
+    sub.done = true;
+    const n = parseFloat(String(nota).replace(',', '.'));
+    if (!isNaN(n)) sub.grade = Math.max(1, Math.min(10, Math.round(n * 10) / 10));
+    Object.keys(_SUBID_ALL).forEach(c => { if (_SUBID_ALL[c] === subId) delete S.carrera.regular[c]; });
+    saveState();
+    if (typeof renderLawProgress === 'function') renderLawProgress();
+    if (typeof renderLawMilestones === 'function') renderLawMilestones();
+    if (typeof renderQObjForTab === 'function') renderQObjForTab('conocimiento'); // objetivos trimestrales enlazados a materias
+    render();
+    return true;
+  }
+
   // ══════════ Motor de correlatividades (portado tal cual del dashboard original) ══════════
   function evalReqCursar(reqCursar) {
     if (!reqCursar || !reqCursar.length) return true;
@@ -397,6 +432,6 @@ const Correlativas = (() => {
     }).join('');
   }
 
-  return { open, setEstado, setFiltroAnio, setFiltroEstado, setSearch, ensureCarrera, estado, computeStatus, evalReqCursar, evalCorrelativasRendir };
+  return { open, setEstado, setFiltroAnio, setFiltroEstado, setSearch, ensureCarrera, materiasDelPlan, aprobarMateria, estado, computeStatus, evalReqCursar, evalCorrelativasRendir };
 })();
 window.Correlativas = Correlativas;

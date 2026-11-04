@@ -5,12 +5,15 @@
 // localStorage. Ciclos automáticos: estudio → descanso → … → estudio (sin
 // descanso tras el último). Aviso al fin de cada bloque: beep + toast + voz.
 // Estado del timer efímero: pausar/reanudar/reiniciar; se pausa al cerrar.
+// Cada sesión puede llevar la materia del plan de carrera (subjectId + nombre);
+// `horasPorMateria` suma las horas estudiadas por materia en un rango de fechas.
 // ════════════════════════════════════════════════════════════════════════
 
 const Pomodoro = (() => {
   const CFG_KEY = 'cdm_pomodoro_cfg';
   const DEF = { study: 25, brk: 5, cycles: 4 };
   const MAX_CYCLES = 6;
+  const MAT_KEY = 'cdm_pomodoro_materia';   // última materia elegida (conveniencia por dispositivo)
 
   let cfg = loadCfg();
   let phase = 'idle';          // 'idle' | 'study' | 'break' | 'done'
@@ -26,6 +29,9 @@ const Pomodoro = (() => {
   let histContainer = null;
   let histView = 'day';       // 'day' | 'week' | 'month'
   let histChartInst = null;
+  let materiaSel = null;       // materia elegida en el selector (null = todavía no eligió: se sugiere una)
+  let runSubjectId = '';       // materia de la sesión en curso (fijada al iniciar)
+  let runMateria = '';         // y su nombre
 
   function loadCfg() {
     try {
@@ -37,6 +43,37 @@ const Pomodoro = (() => {
   function saveCfg() { try { localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); } catch (e) {} }
   const clampMin = (v, d) => { const n = parseInt(v, 10); return Number.isFinite(n) && n >= 1 ? n : d; };
   const clampCycles = v => { const n = parseInt(v, 10); return Number.isFinite(n) ? Math.max(1, Math.min(MAX_CYCLES, n)) : DEF.cycles; };
+
+  // ── Materia (opcional) ──
+  function loadMateria() { try { return localStorage.getItem(MAT_KEY) || ''; } catch (e) { return ''; } }
+  function saveMateria(v) { try { localStorage.setItem(MAT_KEY, v || ''); } catch (e) {} }
+  const planMaterias = () => (window.Correlativas && Correlativas.materiasDelPlan) ? Correlativas.materiasDelPlan(false) : [];
+  const materiasPend = () => planMaterias().filter(m => !m.done);
+  // Materia del selector: la elegida; si no eligió, la del próximo final activo con materia del plan,
+  // o la última elegida. Solo vale si la materia sigue sin aprobar. '' = sin materia.
+  function materiaActual() {
+    const pend = materiasPend();
+    const ok = id => !!id && pend.some(m => m.id === id);
+    if (materiaSel !== null) return ok(materiaSel) ? materiaSel : '';
+    if (window.Finales && Finales.activos) {
+      for (const f of Finales.activos()) { const sid = Finales.subjectIdDe(f); if (ok(sid)) return sid; }
+    }
+    const last = loadMateria();
+    return ok(last) ? last : '';
+  }
+  function setMateria(v) { materiaSel = v || ''; saveMateria(materiaSel); render(); }
+
+  // Horas estudiadas en una materia entre dos fechas ISO (inclusive; null = sin límite). Puro: lee solo S.pomodoroHistory.
+  function horasPorMateria(subjectId, desdeISO, hastaISO) {
+    if (!subjectId || typeof S === 'undefined' || !Array.isArray(S.pomodoroHistory)) return 0;
+    const min = S.pomodoroHistory.reduce((a, e) => {
+      if (!e || e.subjectId !== subjectId) return a;
+      if (desdeISO && e.date < desdeISO) return a;
+      if (hastaISO && e.date > hastaISO) return a;
+      return a + (e.minutes || 0);
+    }, 0);
+    return min / 60;
+  }
 
   // ── Avisos ──
   let _ac = null;
@@ -74,8 +111,9 @@ const Pomodoro = (() => {
     try {
       if (typeof S === 'undefined') return;
       S.pomodoroHistory = S.pomodoroHistory || [];
-      S.pomodoroHistory.push({ id: uid(), date: today, minutes, full: !!full, ts: Date.now() });
+      S.pomodoroHistory.push({ id: uid(), date: today, minutes, full: !!full, ts: Date.now(), subjectId: runSubjectId || null, materia: runMateria || null });
       saveState(); // no depender de que markHabitDay llegue a guardar
+      if (window.Finales) Finales.renderPrincipal(); // horas estudiadas por materia
     } catch (e) {}
   }
   function deleteSession(id) {
@@ -185,6 +223,8 @@ const Pomodoro = (() => {
   }
   function start() {
     saveCfg();
+    runSubjectId = materiaActual();
+    runMateria = runSubjectId ? ((planMaterias().find(m => m.id === runSubjectId) || {}).name || '') : '';
     phase = 'study'; cycle = 1; remaining = cfg.study * 60; phaseEndsAt = Date.now() + remaining * 1000; paused = false;
     sessionBlocks = 0; sessionMinutes = 0; sessionEarly = false;
     startTick(); render();
@@ -211,6 +251,7 @@ const Pomodoro = (() => {
   });
 
   // ── Render ──
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   const fmt = s => { const m = Math.floor(Math.max(0, s) / 60), ss = Math.max(0, s) % 60; return String(m).padStart(2, '0') + ':' + String(ss).padStart(2, '0'); };
   const stepper = (field, label, unit, val) => `
     <div class="pomo-stepper">
@@ -224,6 +265,23 @@ const Pomodoro = (() => {
     </div>`;
 
   function mount(el) { container = el; render(); }
+
+  function selectorMateriaHtml() {
+    const pend = materiasPend();
+    if (!pend.length) return '';
+    const sel = materiaActual();
+    const grupos = [];
+    pend.forEach(m => {
+      let g = grupos.find(x => x.anio === m.anio);
+      if (!g) { g = { anio: m.anio, label: m.yearLabel, items: [] }; grupos.push(g); }
+      g.items.push(m);
+    });
+    const opts = grupos.map(g => `<optgroup label="${esc(g.label)}">${g.items.map(m => `<option value="${esc(m.id)}" ${m.id === sel ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}</optgroup>`).join('');
+    return `<div class="pomo-materia">
+      <label class="pomo-materia-lbl" for="pomo-materia-sel">Materia</label>
+      <select id="pomo-materia-sel" class="inp" onchange="Pomodoro.setMateria(this.value)"><option value="" ${sel ? '' : 'selected'}>Sin materia</option>${opts}</select>
+    </div>`;
+  }
 
   function render() {
     if (!container) return;
@@ -239,6 +297,7 @@ const Pomodoro = (() => {
           ${stepper('brk', 'Descanso', 'min', cfg.brk)}
           ${stepper('cycles', 'Ciclos', '1–' + MAX_CYCLES, cfg.cycles)}
         </div>
+        ${selectorMateriaHtml()}
         <div style="text-align:center"><button class="pomo-start" onclick="Pomodoro.start()">▶ Iniciar Pomodoro</button></div>`;
       return;
     }
@@ -255,6 +314,7 @@ const Pomodoro = (() => {
             ${paused ? '<div class="pomo-paused-tag">⏸ EN PAUSA</div>' : ''}
           </div>
         </div>
+        ${runMateria ? `<div class="pomo-materia-tag">📖 ${esc(runMateria)}</div>` : ''}
         <div class="pomo-controls">
           <button class="pomo-start" onclick="Pomodoro.togglePause()">${paused ? '▶ Reanudar' : '⏸ Pausar'}</button>
           <button class="btn btn-ghost btn-sm" onclick="Pomodoro.reset()">■ Reiniciar</button>
@@ -435,6 +495,7 @@ const Pomodoro = (() => {
     });
   }
 
-  return { mount, start, bump, togglePause, reset, endSession, pauseOnHide, onShow, mountHistory, setHistView, deleteSession };
+  return { mount, start, bump, togglePause, reset, endSession, pauseOnHide, onShow, mountHistory, setHistView, deleteSession, setMateria, horasPorMateria };
 })();
 window.Pomodoro = Pomodoro;
+window.horasPorMateria = Pomodoro.horasPorMateria; // helper puro (lo usa el plan de estudio)

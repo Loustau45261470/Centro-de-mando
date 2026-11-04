@@ -5621,6 +5621,10 @@ input:focus, select:focus, textarea:focus {
 .pomo-run:not(.paused) .pomo-time { animation: pomo-breathe 2.6s ease-in-out infinite; }
 .pomo-cyc { font-size: var(--fs-12-5); color: var(--tt); letter-spacing: .09em; margin-top: 4px; }
 .pomo-paused-tag { font-size: var(--fs-12-5); font-weight: 800; letter-spacing: .16em; color: var(--warn); margin-top: 4px; }
+.pomo-materia { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; margin: -4px 0 18px; }
+.pomo-materia-lbl { font-size: var(--fs-12-5); color: var(--tt); letter-spacing: .09em; text-transform: uppercase; font-weight: 700; }
+.pomo-materia .inp { width: auto; max-width: 100%; min-width: 0; flex: 0 1 320px; }
+.pomo-materia-tag { text-align: center; font-size: var(--fs-12-5); color: var(--ts); margin: 12px 0 -4px; }
 .pomo-controls { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
 .pomo-done { text-align: center; font-size: var(--fs-12-5); font-weight: 800; letter-spacing: .05em; color: var(--ok);
   padding: 9px 14px; margin-bottom: 14px; border: 1px solid rgba(16,224,124,.35); border-radius: 11px;
@@ -5987,6 +5991,7 @@ input:focus, select:focus, textarea:focus {
 .fin-item-name { font-size: var(--fs-16); font-weight: 700; letter-spacing: -.01em; color: var(--tp, #EDF4FF);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fin-item-meta { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: var(--fs-12-5); color: var(--tt); }
+.fin-item-estudio { margin-top: 4px; font-size: var(--fs-12-5); color: var(--ts); }
 .fin-tipo-badge { font-size: var(--fs-12-5); font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
   padding: 2px 9px; border-radius: 999px; background: rgba(107,142,255,.14); color: var(--c-conocimiento, #6B8EFF);
   border: 1px solid rgba(107,142,255,.28); }
