@@ -42,6 +42,7 @@ const DEFAULT_STATE = {
   cardDues: [],        // [{ id:'cd:<cardId>:<due>', cardId, due:'YYYY-MM-DD', amount }] — lo ya usado de cada tarjeta con la fecha en que vence (un registro por tarjeta y mes)
   seasonals: [],       // [{ id, name, month(1-12), amount, category }] — gastos estacionales (regalos, cumpleaños...): se cargan solos en el presupuesto de su mes
   carteraTx: [],       // [{ id, simbolo, fecha, ts, unidades, precio, costoUnit, costo, resultado, fechaCompra, cierra }] — ventas de activos de la cartera. SOLO se agrega, nunca se borra
+  rendimientoFlujos: [], // [{ id, fecha:'YYYY-MM-DD', tipo:'aporte'|'retiro'|'cobro', monto, moneda:'ARS'|'USD' }] — aportes/retiros/cobros de IOL cargados a mano para el rendimiento como inversor (rendimiento.js); IOL no los informa
   budgets: {},         // { 'YYYY-MM': { fixed:[{id,name,category,unit,v1,v2,v3}], reserved:[{id,name,category,amount}] } }
   txnCategories: {},   // { catId: { label, icon, color, section } } — categorías de transacción gestionables por el usuario
   txnCategoriesSeeded: false, // true una vez que ensureTxnCategories() sembró los defaults — distingue "nunca sembrado" de "usuario borró todo" (un {} vacío es truthy y no alcanza, ver fixes.json)

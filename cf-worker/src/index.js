@@ -11,6 +11,10 @@
 //                    (el estado — caché, token de IOL, frenos — vive en el Durable Object CarteraGate)
 //   GET  /datos/<archivo>.json — archivos privados de la cartera (repo privado de GitHub) — Bearer <ID token de Firebase Auth>
 //                    mismo gate que /cartera (solo el dueño); ver handleDatos() más abajo
+//   GET  /rendimiento/operaciones?desde=YYYY-MM-DD  — operaciones de IOL desde esa fecha + efectivo de la cuenta (solo lectura)
+//   GET  /rendimiento/cierres?fecha=YYYY-MM-DD&s=SIM:MERCADO,...  — precio de cierre de cada símbolo ese día (serie histórica de IOL)
+//   GET  /rendimiento/mercado?desde=YYYY-MM-DD  — MEP, SPY, IPC INDEC y CPI EE.UU. (fuentes públicas) — mismo gate que /cartera
+//                    las tres comparten el token de IOL y el estado de CarteraGate; ver handleRendimiento() más abajo
 //
 // :id identifica el timer — 'pomo' para el Pomodoro (uno a la vez), 'rtn-<exId>'
 // para cada descanso de gimnasio (puede haber varios en simultáneo).
@@ -135,10 +139,17 @@ export class CarteraGate {
     this.state = state;
     this.env = env;
     this.enVuelo = null;
+    this.tokenEnVuelo = null;
+    this.vuelos = new Map(); // /rendimiento: pedidos idénticos simultáneos comparten una sola consulta
   }
 
   async fetch(request) {
     const url = new URL(request.url);
+    if (request.method === 'POST' && url.pathname.startsWith('/rendimiento/')) {
+      const params = await request.json().catch(() => ({}));
+      const r = await this.rendimiento(url.pathname.slice('/rendimiento/'.length), params);
+      return new Response(r.body, { status: r.status, headers: { 'content-type': 'application/json' } });
+    }
     if (request.method !== 'POST' || url.pathname !== '/consultar') return new Response('not found', { status: 404 });
     const { fresh } = await request.json().catch(() => ({}));
     if (!this.enVuelo) {
@@ -189,7 +200,18 @@ export class CarteraGate {
     }
   }
 
-  async getIolToken() {
+  // Un solo ingreso a IOL a la vez: /cartera y las rutas de /rendimiento pueden llegar juntas y no deben gastar dos logins.
+  getIolToken() {
+    if (!this.tokenEnVuelo) {
+      const p = this.getIolTokenSinDedupe();
+      this.tokenEnVuelo = p;
+      const liberar = () => { if (this.tokenEnVuelo === p) this.tokenEnVuelo = null; };
+      p.then(liberar, liberar);
+    }
+    return this.tokenEnVuelo;
+  }
+
+  async getIolTokenSinDedupe() {
     const storage = this.state.storage;
     const cached = await storage.get('token');
     if (cached && cached.access_token && cached.expires_at > Date.now()) return cached.access_token;
@@ -214,6 +236,280 @@ export class CarteraGate {
     if (!json.access_token) throw new Error('login IOL no devolvió access_token');
     await storage.put('token', { access_token: json.access_token, expires_at: Date.now() + IOL_TOKEN_TTL_MS });
     return json.access_token;
+  }
+
+  // ── /rendimiento/*: solo lectura de IOL (operaciones, estado de cuenta, serie histórica) + fuentes públicas ──
+  // Pedidos idénticos simultáneos comparten una sola consulta (this.vuelos), igual que /cartera.
+  async rendimiento(ruta, params) {
+    const clave = ruta + '|' + JSON.stringify(params || {});
+    let p = this.vuelos.get(clave);
+    if (!p) {
+      p = this.rendimientoUnico(ruta, params || {});
+      this.vuelos.set(clave, p);
+      const liberar = () => { if (this.vuelos.get(clave) === p) this.vuelos.delete(clave); };
+      p.then(liberar, liberar);
+    }
+    return p;
+  }
+
+  async rendimientoUnico(ruta, params) {
+    const ok = obj => ({ status: 200, body: JSON.stringify(obj) });
+    const error = (status, code, message) => ({ status, body: JSON.stringify({ error: code, message }) });
+    try {
+      if (ruta === 'operaciones') return ok(await this.rndOperaciones(params.desde));
+      if (ruta === 'cierres') return ok(await this.rndCierres(params.fecha, params.items));
+      if (ruta === 'mercado') return ok(await this.rndMercado(params.desde));
+      return error(404, 'not_found_route', 'Ruta de rendimiento inexistente.');
+    } catch (e) {
+      console.error('rendimiento error', ruta, e);
+      return error(502, 'iol_unavailable', 'No se pudo completar la consulta: ' + (e && e.message ? e.message : String(e)));
+    }
+  }
+
+  // GET a la API de IOL con el token compartido. Si IOL lo rechaza (venció antes de lo previsto) se pide uno nuevo UNA vez.
+  async iolGet(path) {
+    const storage = this.state.storage;
+    for (let intento = 0; intento < 2; intento++) {
+      const token = await this.getIolToken();
+      const res = await fetch(IOL_API + path, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.status === 401 && intento === 0) { await storage.delete('token'); continue; }
+      if (!res.ok) throw new Error('IOL respondió HTTP ' + res.status + ' en ' + path.split('?')[0]);
+      return res.json();
+    }
+    throw new Error('IOL rechazó el token');
+  }
+
+  async cacheado(clave, ttlMs, fn) {
+    const storage = this.state.storage;
+    const hit = await storage.get(clave);
+    if (hit && typeof hit.at === 'number' && Date.now() - hit.at < ttlMs) return hit.valor;
+    const valor = await fn();
+    await storage.put(clave, { at: Date.now(), valor });
+    return valor;
+  }
+
+  // Operaciones terminadas desde `desde` + comisión de cada compra/venta (detalle por número, guardado para siempre) + efectivo.
+  async rndOperaciones(desde) {
+    const storage = this.state.storage;
+    return this.cacheado('rnd:ops:' + desde, RND_OPS_TTL_MS, async () => {
+      const hasta = sumarDias(hoyAr(), 1);
+      const lista = await this.iolGet(`/operaciones?filtro.estado=terminadas&filtro.fechaDesde=${desde}&filtro.fechaHasta=${hasta}&filtro.pais=argentina`);
+      const filas = Array.isArray(lista) ? lista : [];
+      const operaciones = [];
+      let pendientes = 0, detallesPedidos = 0;
+      for (const o of filas) {
+        const op = normalizarOperacion(o);
+        if (!op) continue;
+        if (op.tipo === 'compra' || op.tipo === 'venta') {
+          let det = await storage.get('rnd:det:' + op.numero);
+          if (!det && detallesPedidos < RND_MAX_DETALLES) {
+            detallesPedidos++;
+            try {
+              det = extraerDetalle(await this.iolGet('/operaciones/' + encodeURIComponent(op.numero)));
+              await storage.put('rnd:det:' + op.numero, det);
+            } catch (e) { console.error('detalle operacion', op.numero, e && e.message); }
+          }
+          if (det) { op.comision = det.comision; if (det.moneda) op.moneda = det.moneda; } else pendientes++;
+        }
+        operaciones.push(op);
+      }
+      let efectivo = null;
+      try { efectivo = transformarEstadoCuenta(await this.iolGet('/estadocuenta')); } catch (e) { console.error('estadocuenta', e && e.message); }
+      return { desde, generado: new Date().toISOString(), operaciones, efectivo, comisionesPendientes: pendientes };
+    });
+  }
+
+  // Cierre de cada símbolo en `fecha`. Un día ya cerrado no cambia: se guarda para siempre. El de hoy no se guarda (puede ser intradía).
+  async rndCierres(fecha, items) {
+    const storage = this.state.storage;
+    const guardar = fecha < hoyAr();
+    const cierres = {};
+    let fallidos = 0;
+    const cola = items.slice();
+    const trabajar = async () => {
+      while (cola.length) {
+        const { simbolo, mercado } = cola.shift();
+        const clave = `rnd:cierre:${fecha}:${mercado}:${simbolo}`;
+        const hit = guardar ? await storage.get(clave) : undefined;
+        if (hit !== undefined) { cierres[simbolo] = hit; continue; }
+        try {
+          const serie = await this.iolGet(`/${encodeURIComponent(mercado)}/Titulos/${encodeURIComponent(simbolo)}/Cotizacion/seriehistorica/${fecha}/${sumarDias(fecha, 1)}/sinAjustar`);
+          const cierre = cierreDelDia(serie, fecha);
+          cierres[simbolo] = cierre;
+          if (guardar && cierre != null) await storage.put(clave, cierre);
+        } catch (e) { fallidos++; cierres[simbolo] = null; console.error('cierre', simbolo, e && e.message); }
+      }
+    };
+    await Promise.all([trabajar(), trabajar(), trabajar()]);
+    return { fecha, generado: new Date().toISOString(), cierres, fallidos };
+  }
+
+  // MEP, SPY, IPC y CPI (todo público). Cada fuente falla por separado y se informa en `errores`; solo se guarda si todas anduvieron.
+  async rndMercado(desde) {
+    const storage = this.state.storage;
+    const clave = 'rnd:mercado:' + desde;
+    const hit = await storage.get(clave);
+    if (hit && typeof hit.at === 'number' && Date.now() - hit.at < RND_MERCADO_TTL_MS) return hit.valor;
+    const [mep, spy, ipc, cpi] = await Promise.allSettled([traerMep(desde), traerSpy(desde), traerIpc(desde), traerCpi(desde)]);
+    const errores = {};
+    const val = (r, nombre) => { if (r.status === 'fulfilled') return r.value; errores[nombre] = r.reason && r.reason.message ? r.reason.message : String(r.reason); return null; };
+    const valor = { desde, generado: new Date().toISOString(), mep: val(mep, 'mep'), spy: val(spy, 'spy'), ipc: val(ipc, 'ipc'), cpi: val(cpi, 'cpi'), errores };
+    if (!Object.keys(errores).length) await storage.put(clave, { at: Date.now(), valor });
+    return valor;
+  }
+}
+
+// ── Utilidades de /rendimiento ──
+const IOL_API = 'https://api.invertironline.com/api/v2';
+const RND_OPS_TTL_MS = 5 * 60 * 1000;
+const RND_MERCADO_TTL_MS = 10 * 60 * 1000;
+const RND_MAX_DETALLES = 25; // detalles de operación sin guardar que se piden por consulta (límite de subrequests del Worker)
+const hoyAr = () => new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10); // fecha en Argentina (UTC-3)
+const sumarDias = (fecha, n) => new Date(Date.parse(fecha + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10);
+const numOrNull = v => (v == null || v === '' || isNaN(v)) ? null : Number(v);
+const esUsd = s => /dolar|usd/i.test(String(s == null ? '' : s));
+
+// Tipo de movimiento de IOL → 'compra' | 'venta' | 'dividendo' | 'renta' | 'amortizacion' | 'otro' (por el texto: la lista exacta de tipos no está verificada).
+function clasificarOperacion(tipoCrudo) {
+  const t = String(tipoCrudo == null ? '' : tipoCrudo).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  if (/dividendo/.test(t)) return 'dividendo';
+  if (/amortiz|pago de rescate/.test(t)) return 'amortizacion';
+  if (/renta|cupon/.test(t)) return 'renta';
+  if (/venta|rescate/.test(t)) return 'venta';
+  if (/compra|suscrip/.test(t)) return 'compra';
+  return 'otro';
+}
+
+// Fila de /api/v2/operaciones → forma que consume rendimiento-calc.js. La comisión se completa después con el detalle.
+function normalizarOperacion(o) {
+  if (!o || o.numero == null) return null;
+  const crudo = o.fechaOperada || o.fechaAprobada || o.fechaOrden || null;
+  const fecha = crudo ? String(crudo).slice(0, 10) : null;
+  if (!fecha) return null;
+  const cant = numOrNull(o.cantidadOperada) ?? numOrNull(o.cantidad);
+  const precio = numOrNull(o.precioOperado) ?? numOrNull(o.precio);
+  return {
+    numero: o.numero,
+    fecha,
+    fechaHora: String(crudo).length > 10 ? String(crudo) : null,
+    tipo: clasificarOperacion(o.tipo),
+    tipoCrudo: o.tipo ?? null,
+    simbolo: o.simbolo ?? null,
+    mercado: o.mercado ?? null,
+    moneda: esUsd(o.moneda) ? 'USD' : 'ARS',
+    cantidad: cant,
+    precio,
+    monto: numOrNull(o.montoOperado) ?? numOrNull(o.monto),
+    comision: null,
+  };
+}
+
+// Detalle de una operación: comisión = suma de aranceles (neto + IVA). Sin el campo `aranceles` la comisión queda en null (desconocida), nunca en 0.
+function extraerDetalle(d) {
+  const ar = d && Array.isArray(d.aranceles) ? d.aranceles : null;
+  const comision = ar ? ar.reduce((a, x) => a + (numOrNull(x && x.neto) || 0) + (numOrNull(x && x.iva) || 0), 0) : null;
+  return { comision, moneda: d && d.moneda ? (esUsd(d.moneda) ? 'USD' : 'ARS') : null };
+}
+
+// /api/v2/estadocuenta → efectivo por moneda. `saldo` incluye lo pendiente de liquidar; `disponible` es lo disponible hoy.
+function transformarEstadoCuenta(d) {
+  const cuentas = Array.isArray(d && d.cuentas) ? d.cuentas : [];
+  const out = { ARS: { disponible: 0, saldo: 0 }, USD: { disponible: 0, saldo: 0 } };
+  let hay = false;
+  for (const c of cuentas) {
+    if (!c) continue;
+    const mon = esUsd(c.moneda) || esUsd(c.tipo) ? 'USD' : 'ARS';
+    out[mon].disponible += numOrNull(c.disponible) || 0;
+    out[mon].saldo += numOrNull(c.saldo) || 0;
+    hay = true;
+  }
+  return hay ? out : null;
+}
+
+// Serie histórica de IOL → cierre (ultimoPrecio) de la barra de ese día, o null si no hay (feriado / aún sin cierre).
+function cierreDelDia(serie, fecha) {
+  const arr = Array.isArray(serie) ? serie : [];
+  let r = null;
+  for (const x of arr) if (x && String(x.fechaHora || '').slice(0, 10) === fecha) r = x;
+  const v = r ? numOrNull(r.ultimoPrecio) : null;
+  return v != null && v > 0 ? v : null;
+}
+
+async function pedirOk(url, headers) {
+  const res = await fetch(url, { headers: { Accept: 'application/json', 'User-Agent': 'Mozilla/5.0 (compatible; cdm-push-worker)', ...(headers || {}) } });
+  if (!res.ok) throw new Error('HTTP ' + res.status + ' en ' + new URL(url).host);
+  return res;
+}
+
+// Dólar MEP (venta) por día desde 7 días antes de `desde`, y el valor actual (dolarapi si es más nuevo que el último día publicado).
+async function traerMep(desde) {
+  const corte = sumarDias(desde, -7);
+  const arr = await (await pedirOk('https://api.argentinadatos.com/v1/cotizaciones/dolares/bolsa')).json();
+  const serie = (Array.isArray(arr) ? arr : []).filter(r => r && r.fecha >= corte && numOrNull(r.venta) > 0).map(r => ({ fecha: r.fecha, venta: Number(r.venta) }));
+  if (!serie.length) throw new Error('argentinadatos no devolvió MEP');
+  let actual = serie[serie.length - 1];
+  try {
+    const d = await (await pedirOk('https://dolarapi.com/v1/dolares/bolsa')).json();
+    const f = String(d && d.fechaActualizacion || '').slice(0, 10);
+    if (f > actual.fecha && numOrNull(d.venta) > 0) actual = { fecha: f, venta: Number(d.venta) };
+  } catch (_) { /* con el último día publicado alcanza */ }
+  return { serie, actual };
+}
+
+// SPY diario (cierre y cierre ajustado por dividendos) desde Yahoo Finance. Sin API oficial: se prueban dos hosts.
+async function traerSpy(desde) {
+  const p1 = Math.floor(Date.parse(desde + 'T00:00:00Z') / 1000) - 12 * 86400;
+  const p2 = Math.floor(Date.now() / 1000) + 86400;
+  let ultimoError = null;
+  for (const host of ['query1', 'query2']) {
+    try {
+      const j = await (await pedirOk(`https://${host}.finance.yahoo.com/v8/finance/chart/SPY?period1=${p1}&period2=${p2}&interval=1d&includeAdjustedClose=true`)).json();
+      const r = j && j.chart && j.chart.result && j.chart.result[0];
+      if (!r || !Array.isArray(r.timestamp)) throw new Error('respuesta sin datos');
+      const off = (r.meta && r.meta.gmtoffset) || 0;
+      const close = r.indicators.quote[0].close;
+      const adj = r.indicators.adjclose && r.indicators.adjclose[0] ? r.indicators.adjclose[0].adjclose : null;
+      const out = [];
+      r.timestamp.forEach((ts, i) => {
+        const c = numOrNull(close[i]);
+        if (c == null) return;
+        out.push({ fecha: new Date((ts + off) * 1000).toISOString().slice(0, 10), close: c, adj: adj && numOrNull(adj[i]) != null ? Number(adj[i]) : c });
+      });
+      if (!out.length) throw new Error('serie vacía');
+      return out;
+    } catch (e) { ultimoError = e; }
+  }
+  throw new Error('Yahoo Finance: ' + (ultimoError && ultimoError.message));
+}
+
+// IPC mensual del INDEC (variación %) publicado hasta hoy, desde 2 meses antes de `desde`.
+async function traerIpc(desde) {
+  const corte = sumarDias(desde, -70).slice(0, 7);
+  const arr = await (await pedirOk('https://api.argentinadatos.com/v1/finanzas/indices/inflacion')).json();
+  return (Array.isArray(arr) ? arr : []).filter(r => r && String(r.fecha).slice(0, 7) >= corte && numOrNull(r.valor) != null).map(r => ({ mes: String(r.fecha).slice(0, 7), pct: Number(r.valor) }));
+}
+
+// CPI-U EE.UU. (todos los ítems, sin desestacionalizar, nivel mensual): FRED en CSV; si falla, la API pública del BLS.
+async function traerCpi(desde) {
+  const corte = sumarDias(desde, -70).slice(0, 7);
+  try {
+    const txt = await (await pedirOk(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=CPIAUCNS&cosd=${corte}-01`)).text();
+    const out = [];
+    for (const linea of txt.split('\n').slice(1)) {
+      const [f, v] = linea.trim().split(',');
+      if (f && numOrNull(v) != null) out.push({ mes: f.slice(0, 7), nivel: Number(v) });
+    }
+    if (!out.length) throw new Error('CSV vacío');
+    return out;
+  } catch (e) {
+    const y = Number(corte.slice(0, 4));
+    const j = await (await pedirOk(`https://api.bls.gov/publicAPI/v1/timeseries/data/CUUR0000SA0?startyear=${y}&endyear=${new Date().getUTCFullYear()}`)).json();
+    const datos = j && j.Results && j.Results.series && j.Results.series[0] ? j.Results.series[0].data : [];
+    const out = datos.filter(d => /^M(0[1-9]|1[0-2])$/.test(d.period) && numOrNull(d.value) != null)
+      .map(d => ({ mes: d.year + '-' + d.period.slice(1), nivel: Number(d.value) })).filter(d => d.mes >= corte)
+      .sort((a, b) => (a.mes < b.mes ? -1 : 1));
+    if (!out.length) throw new Error('FRED y BLS sin datos de CPI');
+    return out;
   }
 }
 
@@ -534,10 +830,68 @@ async function handleCartera(request, env) {
   }
 }
 
+// ── GET /rendimiento/{operaciones,cierres,mercado} — datos para la pestaña "Rendimiento" de Cartera ──
+// Mismo gate que /cartera (ID token de Firebase + OWNER_UID). Solo lectura: jamás se envía una orden a IOL.
+// Los parámetros se validan ACÁ (formato estricto) antes de armar cualquier URL hacia IOL o hacia las fuentes públicas.
+const RND_FECHA_RE = /^\d{4}-\d{2}-\d{2}$/;
+const RND_SIMBOLO_RE = /^[A-Za-z0-9._-]{1,15}$/;
+const RND_MERCADO_RE = /^[A-Za-z_]{2,20}$/;
+const RND_MAX_SIMBOLOS = 30;
+
+async function handleRendimiento(request, env, ruta) {
+  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CARTERA_CORS_HEADERS });
+  if (request.method !== 'GET') return jsonError(405, 'method_not_allowed', 'Este endpoint solo acepta GET.');
+
+  const denegado = await autorizarDueno(request, env);
+  if (denegado) return denegado;
+
+  const q = new URL(request.url).searchParams;
+  const fechaOk = f => RND_FECHA_RE.test(f || '') && !isNaN(Date.parse(f + 'T00:00:00Z')) && f >= '2020-01-01' && f <= sumarDias(hoyAr(), 1);
+  let params;
+  if (ruta === 'operaciones' || ruta === 'mercado') {
+    const desde = q.get('desde');
+    if (!fechaOk(desde)) return jsonError(400, 'bad_param', 'Falta el parámetro desde (YYYY-MM-DD) o no es válido.');
+    params = { desde };
+  } else if (ruta === 'cierres') {
+    const fecha = q.get('fecha');
+    if (!fechaOk(fecha)) return jsonError(400, 'bad_param', 'Falta el parámetro fecha (YYYY-MM-DD) o no es válido.');
+    const items = [];
+    for (const par of String(q.get('s') || '').split(',').filter(Boolean)) {
+      const [simbolo, mercado] = par.split(':');
+      if (!RND_SIMBOLO_RE.test(simbolo || '') || !RND_MERCADO_RE.test(mercado || '')) return jsonError(400, 'bad_param', 'Símbolo o mercado inválido en s.');
+      items.push({ simbolo, mercado });
+    }
+    if (!items.length || items.length > RND_MAX_SIMBOLOS) return jsonError(400, 'bad_param', `s debe traer entre 1 y ${RND_MAX_SIMBOLOS} símbolos (SIM:MERCADO).`);
+    params = { fecha, items };
+  } else {
+    return jsonError(404, 'not_found_route', 'Ruta de rendimiento inexistente.');
+  }
+
+  if (ruta !== 'mercado' && (!env.IOL_USER || !env.IOL_PASS)) {
+    return jsonError(500, 'missing_credentials', 'El Worker no tiene configuradas las credenciales de IOL (secrets IOL_USER / IOL_PASS).');
+  }
+  try {
+    const gate = env.CARTERA.get(env.CARTERA.idFromName('cartera'));
+    const res = await gate.fetch('https://do/rendimiento/' + ruta, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+    const h = new Headers(res.headers);
+    Object.entries(CARTERA_CORS_HEADERS).forEach(([k, v]) => h.set(k, v));
+    h.set('Cache-Control', 'private, no-store');
+    return new Response(res.body, { status: res.status, headers: h });
+  } catch (e) {
+    console.error('rendimiento gate error', e);
+    return jsonError(502, 'iol_unavailable', 'No se pudo completar la consulta: ' + (e && e.message ? e.message : String(e)));
+  }
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === '/cartera') return handleCartera(request, env);
+    if (url.pathname.startsWith('/rendimiento/')) return handleRendimiento(request, env, url.pathname.slice('/rendimiento/'.length));
     if (url.pathname.startsWith('/datos/')) return handleDatos(request, env);
 
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS_HEADERS });

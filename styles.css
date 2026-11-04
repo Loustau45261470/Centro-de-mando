@@ -5703,11 +5703,13 @@ input:focus, select:focus, textarea:focus {
 }
 
 /* ── Cartera: registrar venta + pestaña Historial (tres pestañas: el layout base de overlay-core.css es de dos) ── */
-#ov-cartera .plov-tabs { grid-template-columns: repeat(3, 1fr); }
-#ov-cartera .plov-tab { min-width: 0; padding: 10px 6px; }
-#ov-cartera .plov-tab-ink { width: calc((100% - 16px) / 3); }
-#ov-cartera .plov-tabs[data-on="analisis"] .plov-tab-ink { left: calc(8px + (100% - 16px) / 3); }
-#ov-cartera .plov-tabs[data-on="historial"] .plov-tab-ink { left: calc(12px + 2 * (100% - 16px) / 3); }
+#ov-cartera .plov-tabs { grid-template-columns: repeat(4, 1fr); }
+#ov-cartera .plov-tab { min-width: 0; padding: 10px 4px; font-size: var(--fs-13); line-height: 1.2; }
+#ov-cartera .plov-tab-ink { width: calc((100% - 20px) / 4); }
+#ov-cartera .plov-tabs[data-on="analisis"] .plov-tab-ink { left: calc(8px + (100% - 20px) / 4); }
+#ov-cartera .plov-tabs[data-on="historial"] .plov-tab-ink { left: calc(12px + 2 * (100% - 20px) / 4); }
+#ov-cartera .plov-tabs[data-on="rendimiento"] .plov-tab-ink { left: calc(16px + 3 * (100% - 20px) / 4); }
+@media (max-width: 480px) { #ov-cartera .plov-tab { font-size: var(--fs-12-5); } }
 #ov-tarjetas .plov-tabs { grid-template-columns: repeat(3, 1fr); }
 #ov-tarjetas .plov-tab { min-width: 0; padding: 10px 6px; }
 #ov-tarjetas .plov-tab-ink { width: calc((100% - 16px) / 3); }
@@ -6613,3 +6615,48 @@ input:focus, select:focus, textarea:focus {
 .corr-card.corr-card-nueva { border-color: var(--c-conocimiento); box-shadow: 0 0 0 2px color-mix(in srgb, var(--c-conocimiento) 28%, transparent); animation: corr-in .5s cubic-bezier(.2,.7,.3,1) both, corr-destrabada 3.6s ease-out .4s both; }
 @keyframes corr-destrabada { 0%, 55% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--c-conocimiento) 45%, transparent), 0 0 18px color-mix(in srgb, var(--c-conocimiento) 35%, transparent); } 100% { box-shadow: 0 0 0 0 transparent; border-color: var(--border); } }
 @media (prefers-reduced-motion: reduce) { .corr-card.corr-card-nueva { animation: none; } }
+
+/* ═══════════════ RENDIMIENTO COMO INVERSOR (pestaña de Cartera, rendimiento.js) ═══════════════ */
+.rnd { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.rnd-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; }
+.rnd-mon { margin: 0; }
+.rnd-hero .ten-hero-num.text-ok { color: var(--ok); }
+.rnd-hero .ten-hero-num.text-danger { color: var(--danger); }
+.rnd-hero-sub { color: var(--ts); font-weight: 500; }
+.rnd-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.rnd-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.rnd-card { background: var(--card); border: 1px solid var(--border); border-radius: 11px; padding: 12px 12px 11px; min-width: 0; }
+.rnd-card-lbl { font-size: var(--fs-12-5); color: var(--ts); text-transform: uppercase; letter-spacing: .07em; }
+.rnd-card-num { font-size: 20px; font-weight: 800; letter-spacing: -.02em; line-height: 1.25; margin-top: 4px; overflow-wrap: anywhere; }
+.rnd-card-sub { font-size: var(--fs-12); color: var(--ts); margin-top: 5px; line-height: 1.35; opacity: .9; }
+.rnd-otros { font-size: var(--fs-12-5); color: var(--ts); margin-top: -4px; }
+.rnd-sec { margin: 0; padding: 12px 14px 14px; min-width: 0; background: var(--card); border: 1px solid var(--border); border-radius: 14px; }
+.rnd-ref { padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,.05); }
+.rnd-ref:last-of-type { border-bottom: 0; }
+.rnd-ref-top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; font-size: var(--fs-14); }
+.rnd-ref-nom { flex: 1 1 140px; min-width: 0; font-weight: 600; }
+.rnd-ref-dif { min-width: 92px; text-align: right; font-weight: 700; }
+.rnd-ref-nota, .rnd-nota { font-size: var(--fs-12); color: var(--ts); line-height: 1.4; margin-top: 3px; opacity: .9; }
+.rnd-pie { margin-top: 0; }
+.rnd-vacio { font-size: var(--fs-13); color: var(--ts); padding: 6px 0; }
+.rnd-venta { display: grid; grid-template-columns: 78px minmax(0, 1fr) auto minmax(0, 1.2fr); gap: 8px; align-items: baseline; padding: 7px 0; font-size: var(--fs-13); border-bottom: 1px solid rgba(255,255,255,.05); }
+.rnd-venta-s { overflow-wrap: anywhere; }
+.rnd-venta-g { text-align: right; overflow-wrap: anywhere; }
+.rnd-venta-p { font-size: var(--fs-12); opacity: .85; }
+.rnd-flujo { display: grid; grid-template-columns: 78px minmax(0, 1fr) auto auto; gap: 8px; align-items: center; padding: 6px 0; font-size: var(--fs-13); border-bottom: 1px solid rgba(255,255,255,.05); }
+.rnd-flujo-m { text-align: right; }
+.rnd-flujo-del { padding: 4px 8px; min-width: 32px; min-height: 32px; line-height: 1; }
+.rnd-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.rnd-form .inp, .rnd-form select { padding: 9px 10px; font-size: var(--fs-14); min-width: 0; }
+.rnd-f-add { grid-column: 1 / -1; justify-self: end; }
+.rnd-advs { margin: 0; padding-left: 18px; font-size: var(--fs-12-5); color: var(--ts); line-height: 1.45; }
+.rnd-advs li + li { margin-top: 4px; }
+.rnd-error { display: flex; flex-direction: column; align-items: center; gap: 12px; overflow-wrap: anywhere; }
+@media (max-width: 700px) { .rnd-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 480px) {
+  .rnd-card-num { font-size: 17px; }
+  .rnd-grid-2 { grid-template-columns: minmax(0, 1fr); }
+  .rnd-venta { grid-template-columns: 70px minmax(0, 1fr) minmax(0, 1.3fr); }
+  .rnd-venta-c { display: none; }
+  .rnd-ref-dif { min-width: 0; margin-left: auto; }
+}

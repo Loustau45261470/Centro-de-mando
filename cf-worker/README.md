@@ -17,6 +17,7 @@ guarda todo el estado de `/cartera` (ver abajo).
 - `POST /schedule/:id` y `POST /cancel/:id` — requieren `Authorization: Bearer <WORKER_SECRET>`.
 - `GET /cartera` — requiere `Authorization: Bearer <ID token de Firebase Auth>` (ver abajo). **No** usa `WORKER_SECRET`.
 - `GET /datos/<archivo>.json` — mismo gate que `/cartera`; archivos privados de la cartera (ver abajo).
+- `GET /rendimiento/operaciones`, `/rendimiento/cierres`, `/rendimiento/mercado` — mismo gate que `/cartera`; datos de la pestaña "Rendimiento" (ver abajo).
 
 `:id` identifica el timer: `pomo` para el Pomodoro (uno a la vez), `rtn-<exId>`
 para cada descanso de gimnasio (puede haber varios en simultáneo).
@@ -171,6 +172,46 @@ curl -i -H "Authorization: Bearer <ID_TOKEN>" https://cdm-push-worker.tobiaslous
 ```
 
 Sin el header debe dar 401; con el token correcto, el JSON de las tenencias.
+
+## `GET /rendimiento/*` — rendimiento como inversor
+
+Alimentan la pestaña "Rendimiento" de Cartera (`rendimiento.js` + `rendimiento-calc.js`). **Auth idéntica a `/cartera`** (`autorizarDueno`:
+ID token de Firebase + `uid === OWNER_UID`; 401 / 403 / 500). Solo lectura: nunca se envía una orden a IOL. Comparten el estado de
+`CarteraGate` (mismo token de IOL: `getIolToken` ahora evita dos logins simultáneos; el comportamiento de `/cartera` no cambia). Parámetros con
+formato estricto (400 `bad_param`). CORS y `Cache-Control: private, no-store` como `/datos`.
+
+- `GET /rendimiento/operaciones?desde=YYYY-MM-DD` — `GET /api/v2/operaciones?filtro.estado=terminadas&filtro.fechaDesde=…&filtro.pais=argentina`,
+  más el detalle de cada compra/venta (`GET /api/v2/operaciones/{numero}`, para la comisión = suma de `aranceles` neto + IVA) y
+  `GET /api/v2/estadocuenta` (efectivo por moneda: `disponible` y `saldo`; la app usa `saldo`). Lista y efectivo se guardan 5 min; cada detalle, para siempre.
+  Máx. 25 detalles nuevos por consulta (límite de subrequests): si quedan más, `comisionesPendientes > 0` y se completan en la siguiente.
+  Devuelve `{ desde, generado, operaciones:[{numero,fecha,fechaHora,tipo,tipoCrudo,simbolo,mercado,moneda,cantidad,precio,monto,comision}], efectivo, comisionesPendientes }`.
+  `tipo` = compra | venta | dividendo | renta | amortizacion | otro (clasificado por el texto del tipo de IOL).
+- `GET /rendimiento/cierres?fecha=YYYY-MM-DD&s=SIM:MERCADO,SIM:MERCADO` — cierre (`ultimoPrecio`) de cada símbolo ese día:
+  `GET /api/v2/{mercado}/Titulos/{simbolo}/Cotizacion/seriehistorica/{fecha}/{fecha+1}/sinAjustar`. Un día ya cerrado se guarda para siempre; el de hoy no
+  (puede ser intradía). `null` si no hay barra. Hasta 30 símbolos.
+- `GET /rendimiento/mercado?desde=YYYY-MM-DD` — fuentes públicas, guardado 10 min solo si todas respondieron (si no, `errores` dice cuál falló):
+  MEP venta diario (`api.argentinadatos.com`, con `dolarapi.com` para el valor del día), SPY diario con cierre ajustado por dividendos
+  (Yahoo Finance `v8/finance/chart`, sin API oficial), IPC INDEC mensual (`api.argentinadatos.com`) y CPI-U de EE.UU. (FRED `CPIAUCNS` en CSV; respaldo: API pública v1 del BLS).
+
+**Sin NADA de esto verificado contra la cuenta real de IOL** (no hubo credenciales en el desarrollo): los nombres de campo de operaciones / detalle / estado de
+cuenta y de la serie histórica salen de la documentación de la API v2 y de la memoria, y los tests usan respuestas inventadas con esa forma. Revisar la primera
+respuesta real (ver "Probar" abajo). Si IOL no informa dividendos/rentas o aranceles, la pestaña lo avisa y se pueden cargar a mano ahí mismo.
+
+**Para volver a desplegar** (cambió `src/index.js`; no hay secrets ni migraciones nuevas, `GH_DATA_TOKEN` ya alcanza para `rendimiento-base.json`):
+
+```bash
+cd cf-worker
+CLOUDFLARE_API_TOKEN=<token> npx wrangler deploy
+```
+
+**Probar** (ID token fresco: `await _auth.currentUser.getIdToken()` en la consola con la app abierta):
+
+```bash
+curl -H "Authorization: Bearer <ID_TOKEN>" "https://cdm-push-worker.tobiasloustau11.workers.dev/rendimiento/operaciones?desde=2026-11-04"
+curl -H "Authorization: Bearer <ID_TOKEN>" "https://cdm-push-worker.tobiasloustau11.workers.dev/rendimiento/mercado?desde=2026-11-04"
+```
+
+Mientras el Worker viejo siga publicado, la pestaña dice "Falta publicar el servidor" (las rutas nuevas responden 401 sin JSON).
 
 ## Cliente
 
