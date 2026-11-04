@@ -183,7 +183,7 @@ const GM_SKILLS = [
   // 💰 Finanzas
   { id: 'economista',       cat: 'finanzas', name: 'Economista', xp: () => gmKwDays(['aprendizaje econ', 'económic', 'economic']) * 10 + gmKwStreakBonus(['aprendizaje econ', 'económic', 'economic']) },
   { id: 'riqueza',          cat: 'finanzas', name: 'Riqueza', xp: () => gmRiquezaXp() },
-  { id: 'gerente',          cat: 'finanzas', name: 'Gerente de finanzas', xp: () => gmKwDays(['austeridad']) * 10 + gmKwDays(['registro financiero']) * 8 + gmKwStreakBonus(['austeridad', 'registro financiero']) + gmFixedPaidCount() * 5 },
+  { id: 'gerente',          cat: 'finanzas', name: 'Gerente de finanzas', xp: () => gmKwDays(['austeridad']) * 10 + gmKwDays(['registro financiero']) * 8 + gmKwStreakBonus(['austeridad', 'registro financiero']) },
   // 🙏 Espíritu
   { id: 'fe',               cat: 'espiritu', name: 'Fe', xp: () => gmEvCount('mision') * 5 + gmEvCount('lectura') * 5 + gmEvCount('reflexion') * 15 },
   { id: 'templanza',        cat: 'espiritu', name: 'Templanza', xp: null },

@@ -31,6 +31,16 @@ test('1) no queda ningún modal, campo ni función de gastos fijos', async ({ cm
   expect(consoleErrors).toEqual([]);
 });
 
+test('1b) el modo juego calcula el XP de todas las habilidades sin llamar a funciones borradas', async ({ cmPage, consoleErrors }) => {
+  await irAFinanzas(cmPage);
+  const errores = await cmPage.evaluate(() => GM_SKILLS.filter((s) => s.xp).flatMap((s) => {
+    // GM es null en el fixture (las habilidades de espíritu/vínculos lo leen): acá solo importa que no falte ninguna función
+    try { s.xp(); return []; } catch (e) { return e instanceof ReferenceError ? [s.id + ': ' + e.message] : []; }
+  }));
+  expect(errores).toEqual([]);
+  expect(consoleErrors).toEqual([]);
+});
+
 test('2) el estado inicial no trae las claves y la búsqueda global ignora los datos viejos', async ({ cmPage, consoleErrors }) => {
   await irAFinanzas(cmPage);
   const r = await cmPage.evaluate((fijos) => {
