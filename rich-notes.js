@@ -93,7 +93,7 @@ function _rnParse(lines, interactive, rnId) {
       const check = (interactive && rnId)
         ? `<input type="checkbox" class="rn-todo-check" ${checked ? 'checked' : ''} onclick="rnToggleCheckLine(this, ${i})">`
         : `<span class="rn-todo-check-static${checked ? ' checked' : ''}"></span>`;
-      listBuf.push(`<li class="rn-todo-item${checked ? ' rn-todo-done' : ''}">${check}<span class="rn-todo-text">${rnInline(m[2])}</span></li>`);
+      listBuf.push(`<li class="rn-todo-item${checked ? ' rn-todo-done' : ''}"><span class="rn-todo-text">${rnInline(m[2])}</span>${check}</li>`);
       i++; continue;
     }
 

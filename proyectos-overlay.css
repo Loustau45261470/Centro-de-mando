@@ -156,11 +156,12 @@
 }
 .po-task:hover { transform: translateX(2px); border-color: color-mix(in oklab, var(--po-accent) 40%, var(--border)); }
 .po-check {
-  width: 24px; height: 24px; flex: none; border-radius: 8px; cursor: pointer;
+  position: relative; width: 16px; height: 16px; padding: 0; flex: none; border-radius: 5px; cursor: pointer;
   background: rgba(10,16,30,.6); border: 1.5px solid var(--border-h); color: #001;
   display: grid; place-items: center; transition: background .15s, border-color .15s;
 }
-.po-check svg { width: 15px; height: 15px; }
+.po-check svg { width: 11px; height: 11px; }
+.po-check::after { content: ''; position: absolute; inset: -8px; } /* zona de toque de 32px sin agrandar la casilla */
 .po-task.done .po-check { background: var(--ok); border-color: var(--ok); box-shadow: 0 0 14px -3px var(--ok); }
 .po-task-main { flex: 1; min-width: 0; text-align: left; background: none; border: none; cursor: pointer; display: flex; flex-direction: column; gap: 1px; }
 .po-task-ttl { font-size: var(--fs-14-5); font-weight: 600; color: var(--tp); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

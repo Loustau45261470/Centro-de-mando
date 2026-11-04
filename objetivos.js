@@ -511,9 +511,9 @@ function renderQObjForTab(tabName) {
 
     const goalsHTML = goals.length
       ? goals.map((g, i) => `<div class="monthly-goal-item${g.done?' done':''}">
-          <input type="checkbox" ${g.done?'checked':''} onchange="toggleMonthlyGoal('${tabName}','${monthKey}',${i})">
           <span class="mg-text">${g.text}</span>
           <button class="mg-del" onclick="deleteMonthlyGoal('${tabName}','${monthKey}',${i})">✕</button>
+          <input type="checkbox" ${g.done?'checked':''} onchange="toggleMonthlyGoal('${tabName}','${monthKey}',${i})" aria-label="Marcar meta mensual">
         </div>`).join('')
       : `<div class="empty-state" style="font-size:var(--fs-12-5);padding:14px 0;text-align:center">Sin metas para ${_MONTH_SHORT[mn]} ${yr}</div>`;
 
@@ -572,7 +572,6 @@ function toggleQObjCat(bodyId, rowEl) {
 
 function qobjItemHTML(periodId, o) {
   return `<div class="qobj-item${o.done?' done':''}">
-    <input type="checkbox" ${o.done?'checked':''} onchange="toggleQObj('${periodId}',${o.id})">
     <div class="qobj-item-body">
       <span class="qobj-item-text">${o.text}</span>
       ${qobjLinkHTML(periodId, o.link)}
@@ -581,6 +580,7 @@ function qobjItemHTML(periodId, o) {
       <button class="qobj-act-btn" onclick="openEditQObj('${periodId}',${o.id})" title="Editar">✎</button>
       <button class="qobj-act-btn" onclick="deleteQObj('${periodId}',${o.id})" title="Eliminar">✕</button>
     </div>
+    <input type="checkbox" ${o.done?'checked':''} onchange="toggleQObj('${periodId}',${o.id})" aria-label="Marcar objetivo">
   </div>`;
 }
 

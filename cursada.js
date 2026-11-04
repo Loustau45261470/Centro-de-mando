@@ -53,15 +53,15 @@ const Cursada = (() => {
   function filaCard(it, i) {
     const venc = diasRest(it.fecha) < 0;
     return `<div class="curs-item ${venc ? 'venc' : ''}" style="animation-delay:${i * 60}ms">
-      <label class="curs-check" title="Marcar hecho">
-        <input type="checkbox" onclick="Cursada.done('${it.id}')">
-      </label>
       ${badge(it)}
       <div class="curs-item-main">
         <div class="curs-item-name">${esc(it.materia)}${it.titulo ? ' · ' + esc(it.titulo) : ''}</div>
         <div class="curs-item-meta">${fmtF(it.fecha)}${it.hora ? ' · ' + esc(it.hora) : ''}</div>
       </div>
       <div class="curs-item-est">${etiqueta(it)}</div>
+      <label class="curs-check" title="Marcar hecho">
+        <input type="checkbox" onclick="Cursada.done('${it.id}')" aria-label="Marcar hecho">
+      </label>
     </div>`;
   }
 
@@ -148,13 +148,13 @@ const Cursada = (() => {
     if (_editId === it.id) return filaEdit(it);
     const rep = it.repeat === 'weekly' ? `<span style="font-size:var(--fs-12-5);color:var(--tt)"> · 🔁 semanal${it.hechas ? ` (${it.hechas})` : ''}</span>` : '';
     return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px;border:1px solid rgba(255,255,255,.08);border-radius:8px;margin-bottom:6px">
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;min-width:0">
-        <input type="checkbox" onclick="Cursada.done('${it.id}')" title="Marcar hecho" style="width:16px;height:16px;cursor:pointer;flex-shrink:0">
+      <label for="curs-chk-${it.id}" style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;min-width:0;text-align:left">
         <span style="font-size:var(--fs-12-5)">${badge(it)} <b>${esc(it.materia)}</b>${it.titulo ? ` <span style="color:var(--tt)">· ${esc(it.titulo)}</span>` : ''} <span style="font-size:var(--fs-12-5);color:var(--tt)">· ${fmtF(it.fecha)}${it.hora ? ' ' + esc(it.hora) : ''}${rep}</span></span>
       </label>
       <span style="white-space:nowrap;font-size:var(--fs-12-5)">${etiqueta(it)}
         <button class="btn btn-ghost btn-sm" style="padding:2px 6px" onclick="Cursada.edit('${it.id}')">✎</button>
         <button class="btn btn-ghost btn-sm" style="padding:2px 6px;opacity:.6" onclick="Cursada.del('${it.id}')">🗑</button></span>
+      <input type="checkbox" id="curs-chk-${it.id}" onclick="Cursada.done('${it.id}')" title="Marcar hecho" style="width:16px;height:16px;cursor:pointer;flex-shrink:0;margin:0">
     </div>`;
   }
 

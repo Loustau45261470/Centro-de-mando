@@ -480,7 +480,7 @@ function renderLawPlan(keepSort) {
           <td class="law-plan-name">${e.subject}</td>
           <td>${_lawFechaCell(e)}</td>
           <td style="padding:4px 8px;white-space:nowrap">
-            <div style="display:flex;gap:2px">
+            <div style="display:flex;gap:2px;justify-content:flex-end">
               ${(() => { const fa = F && F.activoDeFila ? F.activoDeFila(e.id) : null; return fa ? btnRendida(fa.id) : ''; })()}
               <button class="icon-btn" onclick="openEditLawPlan('${e.id}')">${PENCIL}</button>
               <button class="icon-btn" onclick="deleteLawPlan('${e.id}')">${TRASH}</button>
@@ -491,7 +491,7 @@ function renderLawPlan(keepSort) {
           <td class="law-plan-name">${escHtml(f.materia)}</td>
           <td><div class="law-tags">${_lawTargetTag(_lawTargetDeISO(f.fecha))}<span class="law-tag law-tag-mini">${escHtml(f.tipo)}</span></div></td>
           <td style="padding:4px 8px;white-space:nowrap">
-            <div style="display:flex;gap:2px">
+            <div style="display:flex;gap:2px;justify-content:flex-end">
               ${btnRendida(f.id)}
               <button class="icon-btn" onclick="Finales.editarSuelto('${f.id}')">${PENCIL}</button>
               <button class="icon-btn" onclick="Finales.del('${f.id}')">${TRASH}</button>

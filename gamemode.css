@@ -66,8 +66,8 @@
 .gm-mission { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 10px; background: var(--card); font-size: var(--fs-13); color: var(--ts); }
 .gm-mission.done { color: var(--tp); }
 .gm-mission.done .gm-check { background: var(--ok); border-color: var(--ok); color: #001; }
-.gm-check { width: 18px; height: 18px; border-radius: 6px; border: 1.5px solid var(--border-h); display: grid; place-items: center; font-size: var(--fs-12-5); flex-shrink: 0; }
-.gm-mission-txt { flex: 1; min-width: 0; }
+.gm-check { width: 16px; height: 16px; border-radius: 5px; border: 1.5px solid var(--border-h); display: grid; place-items: center; font-size: var(--fs-12-5); flex-shrink: 0; }
+.gm-mission-txt { flex: 1; min-width: 0; text-align: left; }
 .gm-mission-xp { font-family: var(--mono); color: var(--accent); font-size: var(--fs-12-5); }
 .gm-weekly-h, .gm-perfect { font-size: var(--fs-12-5); color: var(--tt); margin-top: 12px; display: block; }
 .gm-perfect { color: var(--warn); font-weight: 600; margin-top: 8px; }
@@ -305,8 +305,8 @@
 .gm-ev-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .gm-ev { display: flex; align-items: center; gap: 9px; padding: 9px 11px; border-radius: 10px; background: var(--card); border: 1px solid var(--border); font-size: var(--fs-13); color: var(--ts); cursor: pointer; }
 .gm-ev.on { color: var(--tp); border-color: var(--border-h); background: var(--card-h); }
-.gm-ev input { accent-color: var(--accent); }
-.gm-ev-txt { flex: 1; min-width: 0; }
+.gm-ev input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; flex-shrink: 0; }
+.gm-ev-txt { flex: 1; min-width: 0; text-align: left; }
 .gm-ev-xp { font-family: var(--mono); color: var(--accent); font-size: var(--fs-12-5); }
 
 /* ── Toasts ── */

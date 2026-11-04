@@ -1566,10 +1566,10 @@ function renderMetasReadonly() {
   const done = goals.filter(g => g.done).length;
   body.innerHTML = `<div class="mrd-prog"><span class="mrd-prog-num">${done}</span><span class="mrd-prog-sep">/</span><span class="mrd-prog-tot">${goals.length}</span><span class="mrd-prog-lbl">completadas</span></div>`
     + sortGoalsView(goals).map(({ g, i: idx }) => `<div class="mrd-item${g.done ? ' done' : ''}">
-        <button class="mrd-check" onclick="toggleGoal('${escHtml(date)}',${idx})" aria-label="Marcar meta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></button>
         ${g.time ? `<span class="mrd-time">${fmtGoalTime(g.time)}</span>` : ''}
         <span class="mrd-prio" style="background:${PRIORITY_COLOR[g.priority] || '#666'}"></span>
         <span class="mrd-text">${escHtml(g.text)}</span>
+        <button class="mrd-check" onclick="toggleGoal('${escHtml(date)}',${idx})" aria-label="Marcar meta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></button>
       </div>`).join('');
 }
 
@@ -1620,11 +1620,11 @@ function buildGoalItem(g, idx, date, readOnly) {
   li.dataset.idx = idx;
   li.innerHTML = `
     <span class="goal-drag" title="Arrastrar">⋮⋮</span>
-    <span class="check-box ${g.done?'checked':''}" data-idx="${idx}" data-date="${date}"></span>
     <span class="goal-priority" style="background:${PRIORITY_COLOR[g.priority]||'#666'}"></span>
     ${g.time ? `<span class="goal-time-badge">${fmtGoalTime(g.time)}</span>` : ''}
     <span class="goal-text-el">${g.text}</span>
     <button class="goal-del" data-idx="${idx}" data-date="${date}" title="Eliminar">×</button>
+    <span class="check-box ${g.done?'checked':''}" data-idx="${idx}" data-date="${date}"></span>
   `;
   // Checkbox click
   li.querySelector('.check-box').addEventListener('click', () => { toggleGoal(date, idx); });
@@ -2357,9 +2357,9 @@ function plannerBlockHTML(date, t, hourPx, compact, lay) {
     style="top:${top}px;height:${height}px;${pos}--area-c:var(${colorVar})"
     ${isGoal ? '' : `onclick="openPlanModal('${escHtml(date)}','${rid}')"`} title="${escHtml(t.text)} · ${range} · ${label} · ${prioCfg.label}${t.habit ? ' · Hábito' : ''}">
     <div class="pcal-head">
-      <label class="pcal-check" onclick="event.stopPropagation()"><input type="checkbox" aria-label="Marcar como hecha: ${escHtml(t.text)}"${t.done ? ' checked' : ''} onchange="plannerToggleTask('${escHtml(date)}','${rid}',event)"></label>
       <div class="pcal-text">${hIcon}${escHtml(t.text) || '<span class="pcal-empty">Sin título</span>'}</div>
       ${isGoal ? '' : `<button class="pcal-del" onclick="event.stopPropagation();plannerDeleteTask('${escHtml(date)}','${rid}')" title="Eliminar" aria-label="Eliminar">✕</button>`}
+      <label class="pcal-check" onclick="event.stopPropagation()"><input type="checkbox" aria-label="Marcar como hecha: ${escHtml(t.text)}"${t.done ? ' checked' : ''} onchange="plannerToggleTask('${escHtml(date)}','${rid}',event)"></label>
     </div>
     ${compact ? '' : `<div class="pcal-foot"><span class="pcal-prio-tag">${isGoal ? 'Meta · ' + prioCfg.label : prioCfg.label}</span></div>`}
   </div>`;
@@ -2433,9 +2433,9 @@ function plannerListRowHTML(date, t) {
     style="--area-c:var(${isGoal ? '--hud' : areaCfg.cssVar})"
     ${isGoal ? '' : `onclick="openPlanModal('${escHtml(date)}','${rid}')"`} title="${escHtml(t.text)} · ${label} · ${prioCfg.label}">
     <span class="pcal-row-time">${range}</span>
-    <label class="pcal-check" onclick="event.stopPropagation()"><input type="checkbox" aria-label="Marcar como hecha: ${escHtml(t.text)}"${t.done ? ' checked' : ''} onchange="plannerToggleTask('${escHtml(date)}','${rid}',event)"></label>
     <div class="pcal-text">${hIcon}${escHtml(t.text) || '<span class="pcal-empty">Sin título</span>'}</div>
     ${isGoal ? '<span class="pcal-row-tag">Meta</span>' : `<button class="pcal-del" onclick="event.stopPropagation();plannerDeleteTask('${escHtml(date)}','${rid}')" title="Eliminar" aria-label="Eliminar">✕</button>`}
+    <label class="pcal-check" onclick="event.stopPropagation()"><input type="checkbox" aria-label="Marcar como hecha: ${escHtml(t.text)}"${t.done ? ' checked' : ''} onchange="plannerToggleTask('${escHtml(date)}','${rid}',event)"></label>
   </div>`;
 }
 function buildDayList(containerEl, date) {
@@ -2958,12 +2958,12 @@ function renderDieta() {
   const rows = S.dieta.reglas.map(r => {
     const on = done.includes(r.id);
     return `<div class="sub-row diet-rule${on ? ' on' : ''}">
-      <label class="ptask-check"><input type="checkbox" ${on ? 'checked' : ''} onchange="toggleDietaRegla('${r.id}')"></label>
       <div class="sub-info"><div class="sub-name">${r.text}</div></div>
       <div class="flex gap-8">
         <button class="icon-btn" onclick="openDietaReglaModal('${r.id}')" title="Editar">✎</button>
         <button class="icon-btn" onclick="deleteDietaRegla('${r.id}')" title="Eliminar">${_DEL_SVG}</button>
       </div>
+      <label class="ptask-check"><input type="checkbox" ${on ? 'checked' : ''} onchange="toggleDietaRegla('${r.id}')"></label>
     </div>`;
   }).join('') || '<p class="empty-state">Sin reglas de alimentación. Agregá la primera con “+ Regla”.</p>';
 

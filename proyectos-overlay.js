@@ -155,12 +155,12 @@ function _poFolderCard(n, i) {
 function _poTaskRow(n) {
   const has = (n.children || []).filter(c => !c.done).length;
   return `<div class="po-task${n.done ? ' done' : ''}">
-    <button class="po-check" onclick="poToggleDone('${n.id}')" aria-label="Completar">${n.done ? PO_ICONS.task : ''}</button>
     <button class="po-task-main" onclick="poDrill('${n.id}')">
       <span class="po-task-ttl">${_poEsc(n.label || '(sin título)')}</span>
       ${has ? `<span class="po-task-sub">${has} item${has > 1 ? 's' : ''}</span>` : ''}
     </button>
     <span class="po-task-chev">${PO_ICONS.chev}</span>
+    <button class="po-check" onclick="poToggleDone('${n.id}')" aria-label="Completar">${n.done ? PO_ICONS.task : ''}</button>
   </div>`;
 }
 function _poEmpty(txt) { return `<div class="po-empty">${txt}</div>`; }

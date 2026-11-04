@@ -103,7 +103,7 @@ function gmRenderBuffs() {
 
 // ── Zona 3 — Misiones del día (agrupadas por categoría) ──────────────────
 function _gmMissionRow(m) {
-  return `<div class="gm-mission ${m.completada ? 'done' : ''}"><span class="gm-check">${m.completada ? '✓' : ''}</span><span class="gm-mission-txt">${_gmEsc(m.texto)}</span>${m.xp ? `<span class="gm-mission-xp">+${m.xp}</span>` : ''}</div>`;
+  return `<div class="gm-mission ${m.completada ? 'done' : ''}"><span class="gm-mission-txt">${_gmEsc(m.texto)}</span>${m.xp ? `<span class="gm-mission-xp">+${m.xp}</span>` : ''}<span class="gm-check">${m.completada ? '✓' : ''}</span></div>`;
 }
 function gmRenderDaily() {
   const groups = GM.misiones_diarias || [];
@@ -521,9 +521,9 @@ function gmRenderManual() {
   const today = getActiveDate();
   const log = GM.espiritu_vinculos_log[today] || {};
   const rows = GM_EV_FIELDS.map(f => `<label class="gm-ev ${log[f.key] ? 'on' : ''}">
-      <input type="checkbox" ${log[f.key] ? 'checked' : ''} onchange="gmToggleEV('${f.key}', this)">
       <span class="gm-ev-ico">${GM_CAT_META[f.cat].icon}</span>
       <span class="gm-ev-txt">${_gmEsc(f.label)}</span><span class="gm-ev-xp">+${f.xp}</span>
+      <input type="checkbox" ${log[f.key] ? 'checked' : ''} onchange="gmToggleEV('${f.key}', this)">
     </label>`).join('');
   return `<div class="gm-card card"><div class="gm-card-h"><span>Espíritu &amp; Vínculos · hoy</span></div><div class="gm-ev-list">${rows}</div></div>`;
 }
