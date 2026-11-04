@@ -1291,7 +1291,8 @@ function renderTabHeader(metaId) {
 function switchTab(tab, btn) {
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('tab-' + tab).classList.add('active');
+  const _panel = document.getElementById('tab-' + tab);
+  _panel.classList.add('active');
   btn.classList.add('active');
   currentTab = tab;
   if (!chartsInited[tab]) { initChartsForTab(tab); chartsInited[tab] = true; }
@@ -1310,6 +1311,7 @@ function switchTab(tab, btn) {
   if (tab === 'vida'     && typeof renderCorrelacionesCard === 'function') renderCorrelacionesCard();
   if (tab === 'ia'       && typeof renderErroresCard === 'function')       renderErroresCard();
   if (tab === 'finanzas' && typeof renderProyeccionCard === 'function')    renderProyeccionCard();
+  if (window.CMMotion) CMMotion.enterPanel(_panel);   // entrada escalonada + count-up de totales (motion.js)
   requestAnimationFrame(() => { armScrollReveal(); _armTooltips(document.getElementById('tab-' + tab)); });
 }
 
@@ -4230,6 +4232,7 @@ function showSparkle(x, y) {
 // INIT
 // ════════════════════════════════════════════════════════
 async function _initApp() {
+if (window.CMMotion) CMMotion.quiet(2500);   // el primer render de la app no anima altas de lista
 await loadState();
 _startFirestoreSync();
 if (typeof window._reloadProyectosFromState === 'function') window._reloadProyectosFromState();

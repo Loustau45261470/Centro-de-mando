@@ -30,6 +30,7 @@ const CMOverlay = (() => {
 
   function open(x) {
     const ov = _el(x); if (!ov) return;
+    if (window.CMMotion) CMMotion.quiet(700);   // el render del overlay no cuenta como "alta de fila"
     ov.classList.add('show');
     if (!_openStack.includes(ov)) _openStack.push(ov);
   }

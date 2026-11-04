@@ -271,24 +271,20 @@
       + `<circle cx="${last[0]}" cy="${last[1]}" r="2" fill="${color}"/></svg>`;
   }
 
-  // Count-up + flash de actualización sobre los valores de KPI
-  function _animateKVals(container, firstPaint){
-    container.querySelectorAll('.k-val').forEach(el=>{
-      const txt = el.textContent;
-      if (!firstPaint){ el.classList.remove('k-flash'); void el.offsetWidth; el.classList.add('k-flash'); return; }
-      if (txt.includes('/')) { el.classList.add('k-pop'); return; }
-      const m = txt.match(/-?\d[\d.]*/);
-      if (!m || !isFinite(parseFloat(m[0]))) { el.classList.add('k-pop'); return; }
-      const target = parseFloat(m[0]);
-      const dec = (m[0].split('.')[1]||'').length;
-      const pre = txt.slice(0, m.index), suf = txt.slice(m.index + m[0].length);
-      const dur = 720, t0 = performance.now();
+  // Count-up con el helper único de motion.js (≤400 ms, mismo formato, termina en el texto exacto).
+  // Primera pintura de la sección: pop + cuenta desde 0. Re-render posterior: solo si el valor CAMBIÓ
+  // (flash + cuenta desde el valor anterior); si no cambió, no se anima nada.
+  function _animateKVals(container, firstPaint, prevVals){
+    const M = window.CMMotion;
+    container.querySelectorAll('.k-val').forEach((el,i)=>{
+      if (!firstPaint){
+        if (!prevVals || prevVals[i] === el.textContent) return;
+        el.classList.remove('k-flash'); void el.offsetWidth; el.classList.add('k-flash');
+        if (M){ const pv = M.numFrom(prevVals[i]); if (pv != null) M.countUp(el, { from: pv }); }
+        return;
+      }
       el.classList.add('k-pop');
-      (function step(t){
-        const p = Math.min(1,(t-t0)/dur), e = 1-Math.pow(1-p,3);
-        el.textContent = pre + (target*e).toFixed(dec) + suf;
-        if (p<1) requestAnimationFrame(step); else el.textContent = txt;
-      })(performance.now());
+      if (M) M.countUp(el, { from: 0 });
     });
   }
 
@@ -322,8 +318,10 @@
       const ts = taskStats(sec);
       html = hb + tile(ts.pending,'Tareas',null) + tile(ts.overdue,'Vencidas',null) + ms;
     }
+    const prevVals = firstPaint ? null : Array.from(el.querySelectorAll('.k-val'), x => x.textContent);
     el.innerHTML = html;
-    try { _animateKVals(el, firstPaint); } catch(e){}
+    el.classList.toggle('kpi-enter', firstPaint);   // spark/barra solo se dibujan al entrar a la sección, no en cada render
+    try { _animateKVals(el, firstPaint, prevVals); } catch(e){}
     el.dataset.kpiInit = '1';
   }
 

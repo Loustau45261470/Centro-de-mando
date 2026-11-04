@@ -62,6 +62,12 @@
   /* ── Easing premium ── */
   --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  /* ── Tokens de motion (fuente única; motion.js los lee de acá) ──
+     fast = feedback instantáneo · base = cambios de estado · slow = entradas de overlay/hoja ·
+     exit = salidas (~75% de la entrada). Rise = recorrido vertical de las entradas. */
+  --dur-fast: 150ms; --dur-base: 220ms; --dur-slow: 300ms; --dur-exit: 160ms;
+  --motion-rise: 8px; --motion-stagger: 28ms;
+  --ease-out: var(--ease-out-quart);
   /* ── Tab accent colors ── */
   --c-jarvis:       #5CF6FF;
   --c-vida:         #0FB9D6;
@@ -152,22 +158,13 @@ body::after {
   z-index: 1;
 }
 .tab-panel { display: none; padding: 16px 16px 8px; min-height: 100%; }
-.tab-panel.active { display: block; animation: tab-fade-in 320ms var(--ease-out-expo) both; }
+/* El panel solo hace fade (solo se dispara al activarse la pestaña). La entrada escalonada de las
+   tarjetas (opacity + translateY, máx. 8) la hace motion.js con WAAPI sobre los nodos existentes en
+   switchTab: así un re-render por datos (saveState) nunca vuelve a animarlas, como sí hacía el CSS. */
+.tab-panel.active { display: block; animation: tab-fade-in var(--dur-base) var(--ease-out) both; }
 @keyframes tab-fade-in {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-.tab-panel.active .card { animation: card-slide-in 400ms var(--ease-out-expo) both; }
-.tab-panel.active .card:nth-child(1) { animation-delay: 20ms; }
-.tab-panel.active .card:nth-child(2) { animation-delay: 60ms; }
-.tab-panel.active .card:nth-child(3) { animation-delay: 100ms; }
-.tab-panel.active .card:nth-child(4) { animation-delay: 140ms; }
-.tab-panel.active .card:nth-child(5) { animation-delay: 180ms; }
-.tab-panel.active .card:nth-child(6) { animation-delay: 220ms; }
-.tab-panel.active .card:nth-child(n+7) { animation-delay: 260ms; }
-@keyframes card-slide-in {
-  from { opacity: 0; transform: translateY(14px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 /* ── Bottom Nav ── */
@@ -328,14 +325,15 @@ body::after {
 
 /* ── KPI: sparkline 14-días, count-up, flash, barra animada ── */
 .kpi-tile .k-spark { display: block; width: 100%; height: 15px; margin-top: 7px; overflow: visible; }
-.tab-panel.active .kpi-tile .k-spark { animation: spark-draw 760ms var(--ease-out-expo) both; animation-delay: 130ms; }
+/* spark/barra/valor solo se animan cuando jarvis-intel marca la tira como .kpi-enter (entrada a la sección), no en cada re-render */
+.kpi-strip.kpi-enter .kpi-tile .k-spark { animation: spark-draw var(--dur-slow) var(--ease-out-expo) both; animation-delay: 60ms; }
 @keyframes spark-draw { from { clip-path: inset(0 100% 0 0); opacity: 0; } to { clip-path: inset(0 0 0 0); opacity: 1; } }
 .kpi-tile .k-bar i { transform-origin: left center; }
-.tab-panel.active .kpi-tile .k-bar i { animation: kbar-grow 780ms var(--ease-out-expo) both; animation-delay: 160ms; }
+.kpi-strip.kpi-enter .kpi-tile .k-bar i { animation: kbar-grow var(--dur-slow) var(--ease-out-expo) both; animation-delay: 80ms; }
 @keyframes kbar-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-.k-val.k-pop { animation: k-pop 560ms var(--ease-out-expo) both; }
+.k-val.k-pop { animation: k-pop var(--dur-base) var(--ease-out-expo) both; }
 @keyframes k-pop { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
-.k-val.k-flash { animation: k-flash 620ms ease; }
+.k-val.k-flash { animation: k-flash var(--dur-slow) var(--ease-out-quart); }
 @keyframes k-flash { 0%,100% { filter: none; } 28% { filter: brightness(1.7); text-shadow: 0 0 22px currentColor; } }
 .card-title {
   font-size: var(--fs-14); font-weight: 700;
@@ -995,7 +993,7 @@ textarea { resize: vertical; min-height: 60px; }
   background: #13131a; border: 1px solid var(--border);
   border-radius: 20px 20px 0 0; padding: 20px 20px calc(20px + var(--safe-b));
   width: 100%; max-height: 90vh; overflow-y: auto;
-  animation: slideUp .3s cubic-bezier(.22,1,.36,1);
+  animation: slideUp var(--dur-slow) var(--ease-out-expo);
 }
 @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
 
@@ -1910,7 +1908,7 @@ textarea { resize: vertical; min-height: 60px; }
   border-radius:20px 20px 0 0;
   padding:20px 20px calc(20px + var(--safe-b));
   width:100%; max-height:88vh; overflow-y:auto;
-  animation:slideUp .3s cubic-bezier(.22,1,.36,1);
+  animation:slideUp var(--dur-slow) var(--ease-out-expo);
 }
 .ach-handle { width:40px;height:4px;border-radius:99px;background:rgba(255,255,255,.12);margin:0 auto 18px; }
 .ach-header-row { display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px; }
@@ -3999,8 +3997,7 @@ body.font-jakarta  { --sans: "Plus Jakarta Sans", sans-serif; }
 }
 #login-error:empty { animation: none; }
 @keyframes err-blink { from { opacity:1; } to { opacity:0.55; } }
-/* ── Kpi-strip animación de entrada ── */
-.tab-panel.active .kpi-strip { animation: card-slide-in 360ms var(--ease-out-expo) both; animation-delay: 10ms; }
+/* ── Kpi-strip: la entrada la hace motion.js (enterPanel) junto con las tarjetas ── */
 
 /* ── Scrollbar premium ── */
 #app::-webkit-scrollbar { width: 3px; }
@@ -4201,9 +4198,6 @@ body:has(#login-screen) #hud-frame { opacity: 0; }
   .tab-panel.active > [id^="reminders-wrap-"] {
     break-inside: avoid;
   }
-  /* desactivar la cascada por nth-child (en multicol el orden visual cambia) */
-  .tab-panel.active .card { animation: card-pop 420ms var(--ease-out-expo) both; animation-delay: 0ms !important; }
-  @keyframes card-pop { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: none; } }
 
   /* KPI strip más generoso en desktop */
   .kpi-strip { grid-template-columns: repeat(4, 1fr); gap: 12px; }
@@ -4555,7 +4549,7 @@ input:focus, select:focus, textarea:focus {
 }
 /* Entrada de modales: fade del backdrop (la caja ya desliza con su propio slideUp) */
 @keyframes modal-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
-.modal-overlay.open { animation: modal-backdrop-in .25s var(--ease-out-quart) both; }
+.modal-overlay.open, #ach-overlay.open, #gm-logros-overlay.show, #gm-tree-overlay.show { animation: modal-backdrop-in var(--dur-base) var(--ease-out-quart) both; }
 /* Scroll suave en el área principal */
 #app { scroll-behavior: smooth; }
 
@@ -4590,9 +4584,9 @@ input:focus, select:focus, textarea:focus {
 }
 
 /* ── Aparición al scroll: las cards bajo el pliegue entran al asomar en el viewport ── */
-.card.sr-armed { animation: none !important; opacity: 0; transform: translateY(26px);
-  transition: opacity .55s var(--ease-out-quart), transform .66s var(--ease-out-expo); will-change: opacity, transform; }
-.card.sr-armed.sr-in { opacity: 1; transform: none; }
+.card.sr-armed { animation: none !important; opacity: 0; transform: translateY(14px);
+  transition: opacity var(--dur-slow) var(--ease-out-quart), transform var(--dur-slow) var(--ease-out-expo); will-change: opacity, transform; }
+.card.sr-armed.sr-in { opacity: 1; transform: none; will-change: auto; }
 
 /* ── Escáner muscular 360 interactivo ── */
 @keyframes scanPass {
@@ -4836,13 +4830,14 @@ input:focus, select:focus, textarea:focus {
 #notas-overlay {
   position: fixed; inset: 0; z-index: 950;
   background:
-    radial-gradient(120% 80% at 50% -10%, rgba(56,100,200,.18), transparent 60%),
-    rgba(3,6,12,.0);
+    radial-gradient(120% 80% at 50% -10%, rgba(56,100,200,.22), transparent 60%),
+    rgba(3,6,12,.92);   /* el fondo ya es el final: la salida desvanece todo junto (antes el fondo se cortaba de golpe) */
   backdrop-filter: blur(0px); -webkit-backdrop-filter: blur(0px);
   opacity: 0; pointer-events: none;
-  transition: opacity .34s var(--ease-out-quart), backdrop-filter .34s var(--ease-out-quart);
+  transition: opacity var(--dur-exit) var(--ease-out-quart);   /* salida más corta que la entrada; sin animar backdrop-filter (caro en celu) */
 }
 #notas-overlay.show {
+  transition: opacity var(--dur-slow) var(--ease-out-quart);
   opacity: 1; pointer-events: auto;
   background:
     radial-gradient(120% 80% at 50% -10%, rgba(56,100,200,.22), transparent 60%),
@@ -4863,8 +4858,8 @@ input:focus, select:focus, textarea:focus {
   max-width: min(1400px, 96vw); margin: 0 auto; padding: max(20px, var(--safe-t, 0px)) 16px 20px;
   perspective: 1400px;
 }
-#notas-overlay.show #notas-panel { animation: nt-panel-in .4s var(--ease-out-expo) both; }
-@keyframes nt-panel-in { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+#notas-overlay.show #notas-panel { animation: nt-panel-in var(--dur-slow) var(--ease-out-expo) both; }
+@keyframes nt-panel-in { from { opacity: 0; transform: translateY(12px) scale(.992); } to { opacity: 1; transform: none; } }
 #notas-close {
   position: absolute; top: 16px; right: 16px; z-index: 5;
   width: 40px; height: 40px; border-radius: 12px;
@@ -5311,7 +5306,9 @@ input:focus, select:focus, textarea:focus {
 .bsum-gauge { width: 120px; height: 120px; transform: rotate(135deg); }
 .bsum-gauge circle { fill: none; stroke-width: 9; stroke-linecap: round; }
 .bsum-gauge-track { stroke: rgba(120,160,255,.12); stroke-dasharray: 235.6 314.16; }
-.bsum-gauge-val { stroke: var(--bsum-accent); stroke-dasharray: var(--dash); filter: drop-shadow(0 0 5px color-mix(in oklab, var(--bsum-accent) 80%, transparent)); animation: bsum-gauge-in 1s var(--ease-out-expo) both; }
+.bsum-gauge-val { stroke: var(--bsum-accent); stroke-dasharray: var(--dash); filter: drop-shadow(0 0 5px color-mix(in oklab, var(--bsum-accent) 80%, transparent)); }
+/* El medidor y las barras solo se dibujan en la ventana de entrada (html.mo-in: motion.js la abre al cambiar de sección / abrir overlay), no en cada re-render por datos */
+.mo-in .bsum-gauge-val { animation: bsum-gauge-in calc(var(--dur-slow) * 1.5) var(--ease-out-expo) both; }
 .bsum-gauge-val.over { stroke: var(--danger); filter: drop-shadow(0 0 5px var(--danger)); }
 @keyframes bsum-gauge-in { from { stroke-dasharray: 0 314.16; } }
 .bsum-gauge-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
@@ -5328,8 +5325,9 @@ input:focus, select:focus, textarea:focus {
 .bsum-fig-num2 { font-size: var(--fs-15); font-weight: 700; color: var(--ts); font-variant-numeric: tabular-nums; }
 .bsum-fig-num3 { font-size: var(--fs-15); font-weight: 700; font-variant-numeric: tabular-nums; }
 .bsum-trend { position: relative; padding-top: 8px; background: linear-gradient(rgba(120,160,255,.05) 1px, transparent 1px) 0 8px / 100% 25.5px; }
-.bsum-tspent { animation: bsum-bar-rise .7s var(--ease-out-expo) both; }
-@keyframes bsum-bar-rise { from { height: 0 !important; opacity: .35; } }
+.bsum-tspent { transform-origin: 50% 100%; }
+.mo-in .bsum-tspent { animation: bsum-bar-rise var(--dur-slow) var(--ease-out-expo) both; }
+@keyframes bsum-bar-rise { from { transform: scaleY(0); opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { .bsum-gauge-val, .bsum-tspent { animation: none !important; } }
 
 /* ════════════════════ FONDOS DE COMPRA · fila propia ════════════════════
@@ -6659,4 +6657,18 @@ input:focus, select:focus, textarea:focus {
   .rnd-venta { grid-template-columns: 70px minmax(0, 1fr) minmax(0, 1.3fr); }
   .rnd-venta-c { display: none; }
   .rnd-ref-dif { min-width: 0; margin-left: auto; }
+}
+
+/* ══════════════════════════════
+   MOTION — reducir movimiento
+   Apaga todo lo del sistema de motion (tokens en :root + motion.js). motion.js además chequea
+   matchMedia y no crea animaciones WAAPI (entrada de tarjetas, count-up, pop de casillas, altas de fila).
+══════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-fast: .01ms; --dur-base: .01ms; --dur-slow: .01ms; --dur-exit: .01ms; --motion-rise: 0px; --motion-stagger: 0ms; }
+  .tab-panel.active, .modal-overlay.open, #ach-overlay.open, #gm-logros-overlay.show, #gm-tree-overlay.show,
+  .modal, #ach-panel, #notas-overlay.show #notas-panel, .plov-pane,
+  .k-val.k-pop, .k-val.k-flash,
+  .kpi-strip.kpi-enter .kpi-tile .k-spark, .kpi-strip.kpi-enter .kpi-tile .k-bar i { animation: none !important; }
+  .card.sr-armed { transition: none; }
 }
