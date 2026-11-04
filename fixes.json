@@ -330,6 +330,13 @@
       "desc": "S.cardDues (vencimientos de lo ya usado de cada tarjeta, id determinista cd:<tarjeta>:<fecha>) es clave nueva de primer nivel: se agrega a DEFAULT_STATE y a la lista de arrays con id de _rescueLocal para que un vencimiento cargado en un dispositivo no se pierda si la nube trae un estado sin el. Cubierto por tests/cardDues-sync.spec.js.",
       "file": "app.js",
       "marker": "'cardPayments','cardDues'"
+    },
+    {
+      "id": "adelanto-pago-resumen",
+      "fecha": "2026-11-03",
+      "desc": "Un pago manual de resumen (adelanto) no descontaba el vencimiento: A pagar, calendario y recordatorios solo miraban la key auto:, y el pago automático del día volvía a cobrar el total. pendingDues (tarjetas-motor.js) reparte los pagos manuales al primer vencimiento de esa fecha o posterior. Cubierto por tests/adelanto-pago.spec.js.",
+      "file": "finanzas.js",
+      "marker": "CMTarjetas.pendingDues(card, charges, '1900-01-01', today"
     }
   ]
 }
