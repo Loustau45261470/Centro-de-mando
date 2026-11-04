@@ -694,15 +694,24 @@ function openHabitDayMenu(anchor, section, habitId, ds, ev) {
     const n = e.key === 'ArrowDown' ? (i + 1) % items.length : (i - 1 + items.length) % items.length;
     items[n].focus();
   };
-  // Popover: si la celda se mueve (scroll/resize real) el menú quedaría flotando suelto → cerrar.
-  // La hoja inferior es modal (tiene fondo) y no necesita seguir a la celda.
+  // Popover: si la celda se mueve (scroll/resize, o el scroll suave que sigue a un cambio de pestaña) el menú
+  // la acompaña; solo se cierra si la celda desaparece o sale de la pantalla. La hoja inferior es modal y no la sigue.
+  const place = () => {
+    const r = anchor.getBoundingClientRect(), m = 8;
+    const w = el.offsetWidth, h = el.offsetHeight;
+    const vw = document.documentElement.clientWidth, vh = window.innerHeight;
+    const left = Math.max(m, Math.min(r.left + r.width / 2 - w / 2, vw - w - m));
+    let top = r.bottom + 6;
+    if (top + h > vh - m) top = r.top - h - 6;      // no entra abajo: arriba
+    top = Math.max(m, Math.min(top, vh - h - m));
+    el.style.left = left + 'px'; el.style.top = top + 'px';
+  };
   const onClose = e => {
     if (e && e.target && e.target !== window && e.target !== document && el.contains(e.target)) return;
-    if (rect0 && anchor.isConnected) {
-      const r = anchor.getBoundingClientRect();
-      if (Math.abs(r.top - rect0.top) < 1 && Math.abs(r.left - rect0.left) < 1) return;
-    }
-    closeHabitDayMenu();
+    if (!anchor || !anchor.isConnected) { closeHabitDayMenu(); return; }
+    const r = anchor.getBoundingClientRect();
+    if (r.bottom < 0 || r.top > window.innerHeight) { closeHabitDayMenu(); return; }
+    place();
   };
   _hdm = { el, back, key, onOutside, onKey, onClose };
   document.addEventListener('pointerdown', onOutside, true);
@@ -712,16 +721,7 @@ function openHabitDayMenu(anchor, section, habitId, ds, ev) {
     window.addEventListener('scroll', onClose, true);
   }
 
-  if (!sheet && anchor && anchor.getBoundingClientRect) {
-    const r = anchor.getBoundingClientRect(), m = 8;
-    const w = el.offsetWidth, h = el.offsetHeight;
-    const vw = document.documentElement.clientWidth, vh = window.innerHeight;
-    const left = Math.max(m, Math.min(r.left + r.width / 2 - w / 2, vw - w - m));
-    let top = r.bottom + 6;
-    if (top + h > vh - m) top = r.top - h - 6;      // no entra abajo: arriba
-    top = Math.max(m, Math.min(top, vh - h - m));
-    el.style.left = left + 'px'; el.style.top = top + 'px';
-  }
+  if (!sheet && anchor && anchor.getBoundingClientRect) place();
   const first = el.querySelector('.hdm-item.is-current') || el.querySelector('.hdm-item');
   if (first) first.focus({ preventScroll: true });
 }

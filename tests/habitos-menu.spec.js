@@ -166,3 +166,20 @@ test('sin errores de consola al usar el menú', async ({ cmPage, consoleErrors }
   await menu(cmPage).locator('[data-st="rest"]').click();
   expect(consoleErrors).toEqual([]);
 });
+
+test('un scroll que mueve la celda (ej. el scroll suave tras cambiar de pestaña) no cierra el menú: lo acompaña', async ({ cmPage, isMobile }) => {
+  test.skip(isMobile, 'en mobile es hoja inferior: no sigue a la celda');
+  await cmPage.click('.nav-btn[data-tab="salud"]');
+  const c = await celdaHoy(cmPage, null);
+  await c.click();
+  await expect(menu(cmPage)).toHaveCount(1);
+  const antes = await menu(cmPage).evaluate((m) => m.getBoundingClientRect().top);
+  await cmPage.evaluate(() => { window.scrollBy(0, 40); window.dispatchEvent(new Event('scroll')); });
+  await cmPage.waitForTimeout(100);
+  await expect(menu(cmPage)).toHaveCount(1);
+  const despues = await menu(cmPage).evaluate((m) => m.getBoundingClientRect().top);
+  const celda = await c.evaluate((x) => x.getBoundingClientRect().bottom);
+  expect(Math.abs(despues - (celda + 6)) < 2 || despues !== antes).toBe(true);
+  await menu(cmPage).getByRole('menuitem', { name: /Parcial/ }).click();
+  expect(await estado(cmPage)).toBe('partial');
+});
