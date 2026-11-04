@@ -365,6 +365,13 @@
       "desc": "El guard de tamano del documento media caracteres (.length) pero Firestore cuenta bytes UTF-8 (tildes 2, emojis 4): un estado con mucho texto acentuado podia pasar el guard y ser rechazado por Firestore, perdiendo el guardado. Ahora se miden bytes con TextEncoder y el bloqueo baja a 900000. NO volver a medir con .length.",
       "file": "app.js",
       "marker": "new TextEncoder().encode(_stateStr).length"
+    },
+    {
+      "id": "rail-peek-red-seguridad-por-posicion",
+      "fecha": "2026-11-04",
+      "desc": "La vista rápida del rail se cerraba sola si el mouse iba hacia el rail antes de que terminara de deslizarse: la red de seguridad de 900 ms miraba solo :hover, que Chrome actualiza recién al pintar un frame con el rail en su lugar y, con la máquina cargada, tarda más de 900 ms. Ahora también cuenta la última posición real del mouse (lastX <= ancho del rail). Con CPU al 25% el test \"en la vista rápida, » fija la barra\" fallaba también con el código previo a 7d513f6. NO volver a decidir el cierre solo con :hover.",
+      "file": "nav-rail.js",
+      "marker": "!(lastX >= 0 && lastX <= railW())"
     }
   ]
 }

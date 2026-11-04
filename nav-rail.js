@@ -17,6 +17,7 @@
   var mqDesk = window.matchMedia('(min-width: 980px)');
   var mqRM = window.matchMedia('(prefers-reduced-motion: reduce)');
   var animTimer = null, peekTimer = null, closeTimer = null;
+  var lastX = -1;   // última posición X del mouse (para la red de seguridad del peek)
 
   function isOff() { return root.classList.contains('rail-off'); }
   function isPeek() { return root.classList.contains('rail-peek'); }
@@ -98,15 +99,18 @@
   function openPeek() {
     if (!isOff() || isPeek() || root.classList.contains('rail-hiding')) return;
     root.classList.add('rail-peek');
-    // red de seguridad: si el puntero nunca llegó a entrar al rail, se vuelve a esconder
+    // red de seguridad: si el puntero nunca llegó a entrar al rail, se vuelve a esconder.
+    // :hover se actualiza recién cuando se pinta un frame con el rail ya en su lugar (con la máquina cargada tarda
+    // más de 900 ms), así que también cuenta la última posición real del puntero: si está sobre el rail, se queda.
     clearTimeout(closeTimer);
-    closeTimer = setTimeout(function () { if (!nav.matches(':hover')) closePeek(); }, 900);
+    closeTimer = setTimeout(function () { if (!nav.matches(':hover') && !(lastX >= 0 && lastX <= railW())) closePeek(); }, 900);
   }
   function closePeek() {
     clearPeekTimers();
     root.classList.remove('rail-peek');
   }
 
+  document.addEventListener('pointermove', function (e) { if (e.pointerType === 'mouse') lastX = e.clientX; }, { passive: true, capture: true });
   zone.addEventListener('pointerenter', function (e) {
     if (e.pointerType !== 'mouse' || !isOff() || isPeek()) return;
     clearTimeout(peekTimer);
