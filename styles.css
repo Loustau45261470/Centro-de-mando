@@ -4301,6 +4301,143 @@ body:has(#login-screen) #hud-frame { opacity: 0; }
     animation: radar-ping 4s ease-out infinite;
   }
 }
+/* ═══════════════ RAIL OCULTABLE · desktop (nav-rail.js) ═══════════════
+   Estado en <html>: .rail-off (oculto, persistido) · .rail-peek (asoma al acercar el mouse al borde)
+   · .rail-hiding / .rail-showing (solo durante la animación). Todo con transform/opacity/filter. */
+.rail-toggle, #rail-edge { display: none; }
+@media (min-width: 980px) {
+  html { --rail-accent: var(--hud); }
+  html[data-rail-tab="jarvis"]       { --rail-accent: var(--c-jarvis); }
+  html[data-rail-tab="vida"]         { --rail-accent: var(--c-vida); }
+  html[data-rail-tab="finanzas"]     { --rail-accent: var(--c-finanzas); }
+  html[data-rail-tab="conocimiento"] { --rail-accent: var(--c-conocimiento); }
+  html[data-rail-tab="salud"]        { --rail-accent: var(--c-salud); }
+  html[data-rail-tab="ia"]           { --rail-accent: var(--c-ia); }
+
+  /* índice de escalonado de cada ícono (hijos: 1 = botón «, 2-7 = secciones, 8 = radar) */
+  #nav > :nth-child(2) { --ri: 0; } #nav > :nth-child(3) { --ri: 1; } #nav > :nth-child(4) { --ri: 2; }
+  #nav > :nth-child(5) { --ri: 3; } #nav > :nth-child(6) { --ri: 4; } #nav > :nth-child(7) { --ri: 5; }
+  #nav > :nth-child(8) { --ri: 5; --ro: .8; }
+
+  /* esquinas tipo visor (compartido por « y ⟩) */
+  .rail-toggle, .re-btn {
+    --vc: var(--rail-accent);
+    padding: 0; cursor: pointer; color: var(--rail-accent);
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid color-mix(in srgb, var(--rail-accent) 20%, transparent);
+    background:
+      linear-gradient(var(--vc), var(--vc)) 0 0 / 7px 2px no-repeat,
+      linear-gradient(var(--vc), var(--vc)) 0 0 / 2px 7px no-repeat,
+      linear-gradient(var(--vc), var(--vc)) 100% 0 / 7px 2px no-repeat,
+      linear-gradient(var(--vc), var(--vc)) 100% 0 / 2px 7px no-repeat,
+      linear-gradient(var(--vc), var(--vc)) 0 100% / 7px 2px no-repeat,
+      linear-gradient(var(--vc), var(--vc)) 0 100% / 2px 7px no-repeat,
+      linear-gradient(var(--vc), var(--vc)) 100% 100% / 7px 2px no-repeat,
+      linear-gradient(var(--vc), var(--vc)) 100% 100% / 2px 7px no-repeat,
+      color-mix(in srgb, var(--rail-accent) 6%, rgba(4,8,14,.78));
+    background-origin: border-box;
+    transition: box-shadow 200ms var(--ease-out-quart), color 200ms var(--ease-out-quart), border-color 200ms var(--ease-out-quart);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .rail-toggle:hover, .re-btn:hover, .rail-toggle:focus-visible, .re-btn:focus-visible {
+    border-color: color-mix(in srgb, var(--rail-accent) 55%, transparent);
+    box-shadow: 0 0 14px color-mix(in srgb, var(--rail-accent) 40%, transparent), inset 0 0 10px color-mix(in srgb, var(--rail-accent) 16%, transparent);
+    outline: none;
+  }
+  .rail-toggle svg, .re-btn svg {
+    width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 2.4;
+    stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 4px currentColor);
+  }
+
+  /* botón « arriba del rail */
+  .rail-toggle { position: absolute; top: 3px; left: calc(50% - 23px); width: 46px; height: 16px; z-index: 2; }
+  html.rail-off:not(.rail-hiding) .rail-toggle svg { transform: rotate(180deg); }   /* en el peek pasa a » (fijar) */
+
+  /* ── Oculto: el contenido ocupa todo el ancho; el rail queda fuera de pantalla y fuera del foco ── */
+  html.rail-off #app { left: 0; }
+  html.rail-off:not(.rail-hiding):not(.rail-peek) #nav {
+    transform: translateX(-100%); visibility: hidden; pointer-events: none;
+    transition: transform 220ms cubic-bezier(.4, 0, .2, 1), visibility 0s linear 220ms;
+  }
+
+  /* ── Peek: asoma flotando sobre el contenido ── */
+  html.rail-off.rail-peek:not(.rail-hiding) #nav {
+    transition: transform 220ms var(--ease-out-expo), visibility 0s;
+    border-right-color: color-mix(in srgb, var(--rail-accent) 45%, transparent);
+    box-shadow: 1px 0 0 color-mix(in srgb, var(--rail-accent) 30%, transparent), 16px 0 48px rgba(0,0,0,.72), 0 0 24px color-mix(in srgb, var(--rail-accent) 14%, transparent);
+  }
+  html.rail-off.rail-peek:not(.rail-hiding) #nav .nav-btn,
+  html.rail-off.rail-peek:not(.rail-hiding) #nav .rail-radar {
+    animation: rail-ico-on 150ms ease-out both; animation-delay: calc(50ms + var(--ri, 0) * 22ms);
+  }
+
+  /* ── Animación de ocultar: barrido de luz + íconos que se apagan de arriba hacia abajo + pliegue a la izquierda ── */
+  html.rail-hiding #nav { transform-origin: 0 50%; animation: rail-fold 230ms cubic-bezier(.55, 0, .8, .3) 110ms both; }
+  html.rail-hiding #nav .nav-btn, html.rail-hiding #nav .rail-radar {
+    animation: rail-ico-off 130ms ease-in both; animation-delay: calc(var(--ri, 0) * 30ms);
+  }
+  /* ── Animación de mostrar: se despliega y los íconos se encienden uno por uno ── */
+  html.rail-showing #nav { transform-origin: 0 50%; animation: rail-unfold 250ms var(--ease-out-expo) both; }
+  html.rail-showing #nav .nav-btn, html.rail-showing #nav .rail-radar {
+    animation: rail-ico-on 150ms ease-out both; animation-delay: calc(40ms + var(--ri, 0) * 28ms);
+  }
+  html.rail-hiding #nav::after, html.rail-showing #nav::after {
+    content: ''; position: absolute; left: 0; right: 0; top: 0; height: 84px; pointer-events: none; z-index: 3;
+    background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--rail-accent) 30%, transparent) 62%,
+                color-mix(in srgb, var(--rail-accent) 55%, #fff) 97%, transparent);
+    animation: rail-sweep 300ms linear both;
+  }
+
+  /* ── Oculto: línea de energía en el borde izquierdo + botón ⟩ ── */
+  #rail-edge { position: fixed; top: 38px; bottom: 0; left: 0; width: 0; z-index: 99; pointer-events: none; }
+  html.rail-off:not(.rail-hiding) #rail-edge { display: block; animation: rail-edge-in 260ms ease-out both; }
+  .re-zone { position: absolute; top: 0; bottom: 0; left: 0; width: 8px; pointer-events: auto; }
+  .re-line {
+    position: absolute; top: 0; bottom: 0; left: 0; width: 2px; overflow: hidden;
+    background: linear-gradient(180deg, transparent, var(--rail-accent) 14%, var(--rail-accent) 86%, transparent);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--rail-accent) 70%, transparent);
+  }
+  .re-spark {
+    position: absolute; left: 0; top: 0; width: 100%; height: 110px;
+    background: linear-gradient(180deg, transparent, #fff 78%, transparent);
+    opacity: .85; animation: rail-spark 5.5s cubic-bezier(.45, 0, .55, 1) infinite;
+  }
+  .re-glow {
+    position: absolute; top: 0; bottom: 0; left: 0; width: 34px;
+    background: linear-gradient(90deg, color-mix(in srgb, var(--rail-accent) 30%, transparent), transparent);
+    -webkit-mask: linear-gradient(180deg, transparent, #000 16%, #000 84%, transparent);
+            mask: linear-gradient(180deg, transparent, #000 16%, #000 84%, transparent);
+    animation: rail-pulse 3.6s ease-in-out infinite;
+  }
+  .re-btn { position: absolute; left: 0; top: calc(50% - 30px); width: 20px; height: 60px; pointer-events: auto; border-left: 0; }
+  .re-btn:hover { width: 24px; }
+
+  @keyframes rail-ico-off {
+    0%   { opacity: 1; filter: none; }
+    35%  { opacity: 1; filter: brightness(2.2) drop-shadow(0 0 8px currentColor); }
+    100% { opacity: 0; filter: brightness(.6); }
+  }
+  @keyframes rail-ico-on {
+    0%   { opacity: 0; filter: brightness(.6); }
+    55%  { opacity: 1; filter: brightness(2.2) drop-shadow(0 0 8px currentColor); }
+    100% { opacity: var(--ro, 1); filter: none; }
+  }
+  @keyframes rail-fold   { from { transform: none; opacity: 1; } to { transform: translateX(-100%) scaleX(.82); opacity: 0; } }
+  @keyframes rail-unfold { from { transform: translateX(-100%) scaleX(.82); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes rail-sweep  { 0% { transform: translateY(-84px); opacity: 0; } 12% { opacity: 1; } 88% { opacity: 1; } 100% { transform: translateY(100vh); opacity: 0; } }
+  @keyframes rail-spark  { 0%, 100% { transform: translateY(-120px); } 50% { transform: translateY(100vh); } }
+  @keyframes rail-pulse  { 0%, 100% { opacity: .3; } 50% { opacity: .95; } }
+  @keyframes rail-edge-in { from { opacity: 0; } to { opacity: 1; } }
+}
+/* Reducir movimiento: sin animaciones ni transiciones (el cambio es instantáneo) */
+@media (prefers-reduced-motion: reduce) {
+  html.rail-off #nav, html.rail-off.rail-peek #nav { transition: none !important; }
+  html.rail-hiding #nav, html.rail-showing #nav, html.rail-hiding #nav::after, html.rail-showing #nav::after,
+  html.rail-hiding #nav .nav-btn, html.rail-showing #nav .nav-btn, html.rail-peek #nav .nav-btn,
+  html.rail-hiding #nav .rail-radar, html.rail-showing #nav .rail-radar, html.rail-peek #nav .rail-radar,
+  #rail-edge, .re-spark, .re-glow { animation: none !important; }
+  .re-glow { opacity: .6; }
+}
 /* ═══════════════ SECCIÓN JARVIS CORE ═══════════════ */
 .nav-btn[data-tab="jarvis"].active,
 .nav-btn[data-tab="jarvis"].active svg { color: var(--c-jarvis); stroke: var(--c-jarvis); }
