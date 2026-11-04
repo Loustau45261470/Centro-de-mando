@@ -32,8 +32,8 @@ const SGC = (() => {
   let _cartera = null, _carteraP = null;
   function fetchCartera() {
     if (_carteraP) return _carteraP;
-    _carteraP = fetch('data/cartera/latest.json', { cache: 'no-store' })
-      .then(r => r.ok ? r.json() : null).then(d => { _cartera = d; return d; })
+    _carteraP = CMDatos.cartera('latest.json')
+      .then(d => { _cartera = d; return d; })
       .catch(() => null);
     return _carteraP;
   }

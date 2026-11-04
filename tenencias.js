@@ -3,15 +3,15 @@
 // MIS TENENCIAS — pestaña "Mis tenencias" (default) del overlay unificado
 // de Cartera (ver cartera-overlay.js). Muestra las posiciones REALES de la
 // cartera IOL de Tobías, generadas por una routine cloud semanal (lunes
-// 8:00 ART) que commitea data/cartera/tenencias.json. No escribe estado:
-// la única fuente es ese JSON servido por GitHub Pages. No construye su
+// 8:00 ART) que commitea tenencias.json en el repo privado de datos. No escribe
+// estado: la única fuente es ese JSON, que llega por CMDatos (datos-privados.js). No construye su
 // propio overlay: expone renderInto(container) para que cartera-overlay.js
 // la monte dentro de su pane. Distinto de CarteraInversion
 // (cartera-inversion.js, análisis mensual de CEDEARs con predicciones).
 // ════════════════════════════════════════════════════════════════════════
 
 const Tenencias = (() => {
-  const URL_JSON = 'data/cartera/tenencias.json';
+  const ARCHIVO_JSON = 'tenencias.json'; // se pide por CMDatos (Worker /datos/, repo privado)
   // Endpoint /cartera del Worker de push que ya existe (cf-worker/) — cartera IOL
   // en vivo, cacheada ~15 min. Constante fácil de cambiar si el Worker se muda.
   const URL_WORKER = 'https://cdm-push-worker.tobiasloustau11.workers.dev/cartera';
@@ -35,7 +35,7 @@ const Tenencias = (() => {
   let _ctx = null;   // { body, d, fuente } del último render — para repintar después de registrar una venta
   let _venta = null; // { t, generado } mientras el modal "Registrar venta" está abierto (null = ya se confirmó o se cerró)
   let _actualizando = false; // hay un "Actualizar" en vuelo: el botón se pinta deshabilitado aunque se repinte la pantalla
-  let _estatico = null;      // último data/cartera/tenencias.json que cargó (lotes e historial para completar lo que llega en vivo)
+  let _estatico = null;      // último tenencias.json que cargó (lotes e historial para completar lo que llega en vivo)
   let _errorVivo = null;     // por qué no llegó lo en vivo: se muestra DENTRO del overlay (el toast queda debajo, z-index 200 < 950)
 
   // El Worker devuelve un snapshot del portafolio: no trae lo que sale de la rutina semanal. Se completa por símbolo
@@ -559,9 +559,8 @@ const Tenencias = (() => {
   }
 
   function leerEstatico() {
-    return fetch(URL_JSON, { cache: 'no-store' })
-      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-      .then(d => { _estatico = d; return d; });
+    return CMDatos.carteraDetalle(ARCHIVO_JSON)
+      .then(r => { if (r.data == null) throw new Error('HTTP ' + r.status); _estatico = r.data; return r.data; });
   }
 
   // El estático solo completa lo en vivo: si no carga o tarda, se muestra igual lo que llegó del Worker.

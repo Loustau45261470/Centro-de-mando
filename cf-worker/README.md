@@ -16,6 +16,7 @@ guarda todo el estado de `/cartera` (ver abajo).
 
 - `POST /schedule/:id` y `POST /cancel/:id` — requieren `Authorization: Bearer <WORKER_SECRET>`.
 - `GET /cartera` — requiere `Authorization: Bearer <ID token de Firebase Auth>` (ver abajo). **No** usa `WORKER_SECRET`.
+- `GET /datos/<archivo>.json` — mismo gate que `/cartera`; archivos privados de la cartera (ver abajo).
 
 `:id` identifica el timer: `pomo` para el Pomodoro (uno a la vez), `rtn-<exId>`
 para cada descanso de gimnasio (puede haber varios en simultáneo).
@@ -23,7 +24,7 @@ para cada descanso de gimnasio (puede haber varios en simultáneo).
 ## `GET /cartera` — cartera IOL en vivo
 
 Consultada por `tenencias.js` (pestaña "Mis tenencias") con fallback automático
-a `data/cartera/tenencias.json` si esta ruta falla por cualquier motivo. Solo
+al `tenencias.json` privado (`/datos/`, ver más abajo) si esta ruta falla por cualquier motivo. Solo
 lectura: nunca envía una orden a IOL.
 
 - **Auth: ID token de Firebase, no el `WORKER_SECRET` compartido.** Este repo
@@ -138,12 +139,49 @@ Si falta algún secret, el token es inválido/de otro uid, o la cuenta IOL
 rechaza el login, devuelve un error HTTP con `{ error, message }` explicando
 cuál (401/403 por auth, 500 por secrets faltantes, 502 por IOL).
 
+## `GET /datos/<archivo>.json` — archivos privados de la cartera
+
+Sirve `tenencias.json`, `latest.json` y `<YYYY-MM>.json` desde el repo **privado**
+`Loustau45261470/centro-de-mando-datos` (archivos en la raíz), para que no vivan
+en el repo público del sitio. El cliente es `datos-privados.js` (`CMDatos.cartera(nombre)`).
+
+- **Auth idéntica a `/cartera`** (mismo helper, `autorizarDueno`): `Authorization: Bearer <ID token de Firebase>`
+  verificado de punta a punta + `uid === OWNER_UID`. 401 sin token / token inválido, 403 si el uid no es el del dueño.
+- `<archivo>` debe cumplir `^[A-Za-z0-9_-]+\.json$`; si no, 400 `bad_file` (sin subcarpetas ni `..`).
+- Lee `GET https://api.github.com/repos/<DATOS_REPO>/contents/<archivo>` con `Accept: application/vnd.github.raw`
+  y `Authorization: Bearer <GH_DATA_TOKEN>`. `DATOS_REPO` está en `[vars]` de `wrangler.toml` (no es secreto).
+- Errores: 500 `missing_gh_token` si falta el secret; 404 `not_found` si el archivo no existe en el repo privado;
+  502 `github_error` / `github_unavailable` si GitHub falla (token vencido, sin acceso al repo, caído).
+- Respuesta: el JSON tal cual, con `Cache-Control: private, no-store`. Caché corta (~5 min, `caches.default`)
+  que se consulta recién después de validar el token. Igual que arriba: en `*.workers.dev` la Cache API no
+  guarda nada, así que ahí cada pedido va a GitHub (son pocos y chicos); la caché solo sirve en dominio propio.
+- CORS igual que `/cartera` (solo el origen del sitio, `OPTIONS` incluido).
+
+**Puesta en marcha (una sola vez):**
+
+1. En GitHub: Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token.
+   Repository access: **Only select repositories** → solo `centro-de-mando-datos`. Permissions → Repository
+   permissions → **Contents: Read-only** (nada más). Copiar el token.
+2. Desde esta carpeta (`cf-worker/`): `npx wrangler secret put GH_DATA_TOKEN` y pegar el token cuando lo pida.
+3. `npx wrangler deploy`
+4. Probar con un ID token fresco (consola del navegador con la app abierta: `await _auth.currentUser.getIdToken()`):
+
+```bash
+curl -i -H "Authorization: Bearer <ID_TOKEN>" https://cdm-push-worker.tobiasloustau11.workers.dev/datos/tenencias.json
+```
+
+Sin el header debe dar 401; con el token correcto, el JSON de las tenencias.
+
 ## Cliente
+
+`datos-privados.js` (`CMDatos.cartera`) pide cada archivo de cartera a `/datos/<archivo>`. Mientras el repo
+público siga teniendo `data/cartera/`, cae a esa copia pública ante un Worker viejo / sin red / 401 / 5xx
+(fallback transitorio; se quita al borrar `data/cartera` del repo público). Ante 403 (otro usuario) no cae: devuelve null.
 
 `app.js` (`_schedulePushAlarm` / `_cancelPushAlarm`) llama a este Worker desde
 `pomodoro.js` y `rutinas.js`. Si no hay suscripción push activa, la llamada es
 un no-op silencioso — el cronómetro en la app sigue funcionando igual.
 
 `tenencias.js` llama a `/cartera` (constante `URL_WORKER`, timeout 6s) y, ante
-cualquier falla, cae a `data/cartera/tenencias.json` exactamente como antes de
-que existiera esta ruta.
+cualquier falla, muestra el `tenencias.json` de `/datos/` (vía `CMDatos`)
+exactamente como antes de que existiera esta ruta.

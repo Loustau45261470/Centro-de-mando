@@ -43,9 +43,6 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
 // Mockea Worker + estático y abre el overlay. `ctl` deja cambiar las respuestas durante el test.
 async function abrir(page, { estatico = FIX, normal = VIVO_NORMAL } = {}) {
   const ctl = { llamadas: [], fresh: { status: 200, body: VIVO_FRESH }, espera: null, estaticoStatus: estatico ? 200 : 404 };
-  await page.route('**/data/cartera/tenencias.json', (r) => ctl.estaticoStatus === 200
-    ? r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(estatico) })
-    : r.fulfill({ status: ctl.estaticoStatus, contentType: 'application/json', body: '{}' }));
   await page.route('**/cdm-push-worker.tobiasloustau11.workers.dev/**', async (r) => {
     const req = r.request();
     if (req.method() === 'OPTIONS') return r.fulfill({ status: 204, headers: CORS });
@@ -55,6 +52,12 @@ async function abrir(page, { estatico = FIX, normal = VIVO_NORMAL } = {}) {
     const resp = fresh ? ctl.fresh : { status: 200, body: normal };
     return r.fulfill({ status: resp.status, contentType: 'application/json', headers: { ...CORS, 'x-cartera-fuente': fresh ? 'iol' : 'cache' }, body: JSON.stringify(resp.body) });
   });
+  // El estático ahora es el archivo privado: lo sirve el Worker en /datos/ (registrado DESPUÉS del genérico, así gana). 404 = archivo inexistente.
+  await page.route('**/cdm-push-worker.tobiasloustau11.workers.dev/datos/tenencias.json', (r) => r.request().method() === 'OPTIONS'
+    ? r.fulfill({ status: 204, headers: CORS })
+    : ctl.estaticoStatus === 200
+      ? r.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify(estatico) })
+      : r.fulfill({ status: ctl.estaticoStatus, contentType: 'application/json', headers: CORS, body: '{"error":"not_found"}' }));
   await page.evaluate((c) => {
     _auth.currentUser.getIdToken = async () => 'token-de-prueba';
     S.accounts = JSON.parse(JSON.stringify(c));
@@ -208,6 +211,7 @@ test.describe('Botón Actualizar en Mis tenencias', () => {
     await page.route('**/cdm-push-worker.tobiasloustau11.workers.dev/**', async (r) => {
       const req = r.request();
       if (req.method() === 'OPTIONS') return r.fulfill({ status: 204, headers: CORS });
+      if (req.url().includes('/datos/')) return r.fallback(); // el archivo privado sigue sirviéndolo la ruta de /datos/
       const fresh = new URL(req.url()).searchParams.get('fresh') === '1';
       ctl.llamadas.push({ fresh });
       return fresh

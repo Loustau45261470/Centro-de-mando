@@ -320,7 +320,7 @@
   }
 
   // ────────────────────────────────────────────────────────────────────
-  // Cartera de inversión (data/cartera/<YYYY-MM>.json) — NO vive en `S`,
+  // Cartera de inversión (<YYYY-MM>.json, repo privado vía CMDatos) — NO vive en `S`,
   // así que no puede leerse de forma síncrona desde disco/red. Store en
   // memoria del módulo, poblado por precargarCartera() (async, la llama la
   // UI antes de renderizar — ver comentario en su definición). Las `calc`
@@ -468,7 +468,7 @@
       },
       _primer: () => _primerArr(S.nwHistory, 'date'),
     },
-    // ── Cartera de inversión (data/cartera/*.json) — requiere precargarCartera() ──
+    // ── Cartera de inversión (<YYYY-MM>.json) — requiere precargarCartera() ──
     {
       id: 'fin_cartera_valorizado', seccion: 'finanzas', label: 'Valorizado de cartera', unidad: 'ARS', dir: 'up',
       // Fundamental: para Tobías el valor de la cartera es una de las cifras que
@@ -1319,7 +1319,7 @@
     _primerGlobalCache = undefined;
   }
 
-  // Precarga asíncrona de data/cartera/<YYYY-MM>.json para los meses entre
+  // Precarga asíncrona de <YYYY-MM>.json (CMDatos, repo privado) para los meses entre
   // primerDatoGlobal() y hoy. NO se llama sola — el motor es síncrono a
   // propósito (valor()/matriz() no pueden depender de una Promise) así que
   // la UI (informes.js) es responsable de invocarla y esperarla ANTES de
@@ -1334,21 +1334,14 @@
   function precargarCartera() {
     const pg = primerDatoGlobal();
     if (!pg) return Promise.resolve();
-    const fetchFn = (typeof fetch === 'function') ? fetch
-      : (typeof global !== 'undefined' && typeof global.fetch === 'function') ? global.fetch
-      : null;
-    if (!fetchFn) return Promise.resolve(); // entorno sin fetch (ej. smoke test sin mock): cartera queda sin datos, no rompe
+    const datos = global.CMDatos;
+    if (!datos) return Promise.resolve(); // entorno sin CMDatos (ej. Node): cartera queda sin datos, no rompe
     const meses = _mesesEnRango(pg, _hoyStr());
     const tareas = meses.map(mk => {
       if (_carteraStore[mk] !== undefined) return Promise.resolve(); // ya resuelto (éxito o "no disponible")
-      return fetchFn(`data/cartera/${mk}.json`)
-        .then(res => {
-          if (!res || !res.ok) { _carteraStore[mk] = null; return; }
-          return res.json()
-            .then(data => { _carteraStore[mk] = data || null; })
-            .catch(() => { _carteraStore[mk] = null; }); // JSON malformado: mes no disponible, no rompe
-        })
-        .catch(() => { _carteraStore[mk] = null; }); // sin red / fetch rechazado: mes no disponible, no rompe
+      return datos.cartera(`${mk}.json`) // null = sin archivo, no autorizado, JSON malformado o sin red
+        .then(data => { _carteraStore[mk] = data || null; })
+        .catch(() => { _carteraStore[mk] = null; }); // mes no disponible, no rompe
     });
     return Promise.all(tareas).then(() => { invalidarCache(); });
   }

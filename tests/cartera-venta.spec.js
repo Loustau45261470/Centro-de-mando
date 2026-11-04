@@ -15,15 +15,21 @@ const CUENTAS = [
   { id: 'usd', name: 'Dólares', type: 'bank', balance: 10, currency: 'USD', icon: '💵' },
 ];
 
+const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization' };
+const RUTA_DATOS = '**/cdm-push-worker.tobiasloustau11.workers.dev/datos/tenencias.json';
+// tenencias.json llega por el Worker (/datos/, archivo privado); se registra después del genérico /** caído, así gana.
 async function servir(page, fixture) {
-  await page.unroute('**/data/cartera/tenencias.json').catch(() => {});
-  await page.route('**/data/cartera/tenencias.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fixture) }));
+  await page.unroute(RUTA_DATOS).catch(() => {});
+  await page.route(RUTA_DATOS, (r) => r.request().method() === 'OPTIONS'
+    ? r.fulfill({ status: 204, headers: CORS })
+    : r.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify(fixture) }));
 }
 
 // Mockea el JSON de tenencias, deja el Worker en vivo caído (cae al estático) y abre el overlay de Cartera.
 async function abrir(page, { fixture = FIX, cuentas = CUENTAS } = {}) {
+  await page.route('**/cdm-push-worker.tobiasloustau11.workers.dev/**', (r) => r.fulfill({ status: 503, contentType: 'application/json', headers: CORS, body: '{}' }));
   await servir(page, fixture);
-  await page.route('**/cdm-push-worker.tobiasloustau11.workers.dev/**', (r) => r.fulfill({ status: 503, contentType: 'application/json', body: '{}' }));
+  await page.evaluate(() => { _auth.currentUser.getIdToken = async () => 'token-de-prueba'; });
   await page.evaluate((c) => {
     S.accounts = JSON.parse(JSON.stringify(c));
     S.transactions = []; S.moves = []; S.carteraTx = [];
@@ -129,9 +135,9 @@ test.describe('Registrar venta', () => {
     await expect(page.locator('.ten-ventas .ten-venta-item').nth(1)).toContainText('1.600');
     await expect(page.locator('.ten-ventas')).toContainText('Ventas que registraste');
     // el activo sigue en cartera: todavía no hay nada en Historial
-    await page.click('.plov-tab[data-t="historial"]');
+    await page.click('#ov-cartera .plov-tab[data-t="historial"]');
     await expect(page.locator('#cov-pane-historial .empty-state')).toContainText('Todavía no vendiste');
-    await page.click('.plov-tab[data-t="tenencias"]');
+    await page.click('#ov-cartera .plov-tab[data-t="tenencias"]');
 
     // Segunda venta: las 6 restantes × 2300 → vendido 13.800, costo 10.800, resultado +3.000, cierra
     await vender(page, 'TESTB', 6, 2300);
@@ -142,7 +148,7 @@ test.describe('Registrar venta', () => {
     expect(s.inv).toBe(1000000 - 18000);
     expect(s.uala).toBe(200000 + 8800 + 13800);
 
-    await page.click('.plov-tab[data-t="historial"]');
+    await page.click('#ov-cartera .plov-tab[data-t="historial"]');
     const filas = page.locator('#cov-pane-historial .ten-hist-row');
     await expect(filas).toHaveCount(1);
     const hoyIso = await hoy(page);
@@ -242,7 +248,7 @@ test.describe('Escala y costo', () => {
     await vender(page, 'TESTLETRA', 60000, 130);
     tx = await page.evaluate(() => S.carteraTx);
     expect(tx[1]).toMatchObject({ costo: 72000, resultado: 6000, cierra: true });
-    await page.click('.plov-tab[data-t="historial"]');
+    await page.click('#ov-cartera .plov-tab[data-t="historial"]');
     await expect(page.locator('#cov-pane-historial .ten-hist-row')).toContainText('Compra s/d');
     await expect(page.locator('#cov-pane-historial .ten-hist-row')).toContainText('+8.33%'); // 10.000 / 120.000
   });
@@ -347,7 +353,7 @@ test.describe('Costo con lotes inconsistentes', () => {
     expect(await calc(page, 'TESTLETRA', 1000, 130)).toMatchObject({ fechaCompra: 's/d', origen: 'ppc', aviso: false });
     // y el historial lo muestra
     await vender(page, 'TESTF', 10, 800);
-    await page.click('.plov-tab[data-t="historial"]');
+    await page.click('#ov-cartera .plov-tab[data-t="historial"]');
     await expect(page.locator('#cov-pane-historial .ten-hist-row')).toContainText('Compra s/d');
   });
 
@@ -387,7 +393,7 @@ test.describe('Ciclos y desfase semanal', () => {
     expect(tx[1]).toMatchObject({ costoUnit: 2500, resultado: 100, cierra: false, fechaCompra: '2026-10-10' });
     expect(await page.evaluate(() => carteraCiclosCerrados())).toEqual(cerrado); // el cerrado quedó igual
     expect(await page.evaluate(() => carteraVentasAbiertas('TESTB').length)).toBe(1); // y la venta nueva es de un ciclo aparte
-    await page.click('.plov-tab[data-t="historial"]');
+    await page.click('#ov-cartera .plov-tab[data-t="historial"]');
     await expect(page.locator('#cov-pane-historial .ten-hist-row')).toHaveCount(1);
   });
 
@@ -428,7 +434,7 @@ test.describe('Seguridad y robustez', () => {
     await llenar(page, 5, 100);
     await page.click('#ventaConfirmar');
     await expect(page.locator('#modal-venta-activo')).not.toHaveClass(/open/);
-    await page.click('.plov-tab[data-t="historial"]');
+    await page.click('#ov-cartera .plov-tab[data-t="historial"]');
     await expect(page.locator('#cov-pane-historial .ten-hist-row')).toContainText('<img src=x');
     expect(await page.locator('#ov-cartera img').count()).toBe(0);
     expect(await page.evaluate(() => window.__xss)).toBeUndefined();
@@ -472,7 +478,7 @@ test.describe('Móvil 390px', () => {
     await page.click('#ventaConfirmar');
     await vender(page, 'TESTBONO', 100000, 1.3);
     await sinScroll();
-    await page.click('.plov-tab[data-t="historial"]');
+    await page.click('#ov-cartera .plov-tab[data-t="historial"]');
     await expect(page.locator('#cov-pane-historial .ten-hist-row')).toHaveCount(1);
     await sinScroll();
     // las tres pestañas caben en una fila

@@ -40,8 +40,17 @@ async function verAusencia(page, donde) {
   expect(r, donde).toEqual({ ids: [], html: false, visible: false });
 }
 
-// El overlay de Informes pide data/cartera/<mes actual>.json, que puede no existir todavía (404 ajeno a esta función): se sirve vacío.
-const sinCarteraDelMes = (page) => page.route('**/data/cartera/*.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }));
+// El overlay de Informes pide <mes actual>.json al Worker (/datos/), que puede no existir todavía (404 ajeno a esta función): se sirve vacío.
+const sinCarteraDelMes = async (page) => {
+  const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization' };
+  await page.evaluate(() => { _auth.currentUser.getIdToken = async () => 'token-de-prueba'; });
+  await page.route('**/cdm-push-worker.tobiasloustau11.workers.dev/cartera*', (r) => r.request().method() === 'OPTIONS'
+    ? r.fulfill({ status: 204, headers: CORS })
+    : r.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify({ generado: '2026-11-04T12:00:00Z', tenencias: [], totales: { valorizado: 0, variacionPct: null } }) }));
+  await page.route('**/cdm-push-worker.tobiasloustau11.workers.dev/datos/*', (r) => r.request().method() === 'OPTIONS'
+    ? r.fulfill({ status: 204, headers: CORS })
+    : r.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: '{}' }));
+};
 
 // Abre uno por uno los overlays del FAB de Finanzas (los de cada ítem del abanico) y comprueba la ausencia en cada uno.
 async function recorrerOverlays(page, alCadaUno) {

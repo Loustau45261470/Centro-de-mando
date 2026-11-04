@@ -9,6 +9,8 @@
 //   POST /cancel/:id                                                      — Bearer <WORKER_SECRET>
 //   GET  /cartera  — cartera IOL en vivo — Bearer <ID token de Firebase Auth>, ver más abajo
 //                    (el estado — caché, token de IOL, frenos — vive en el Durable Object CarteraGate)
+//   GET  /datos/<archivo>.json — archivos privados de la cartera (repo privado de GitHub) — Bearer <ID token de Firebase Auth>
+//                    mismo gate que /cartera (solo el dueño); ver handleDatos() más abajo
 //
 // :id identifica el timer — 'pomo' para el Pomodoro (uno a la vez), 'rtn-<exId>'
 // para cada descanso de gimnasio (puede haber varios en simultáneo).
@@ -417,10 +419,9 @@ function transformarPortafolio(data) {
   };
 }
 
-async function handleCartera(request, env) {
-  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CARTERA_CORS_HEADERS });
-  if (request.method !== 'GET') return jsonError(405, 'method_not_allowed', 'Este endpoint solo acepta GET.');
-
+// Gate compartido por /cartera y /datos/: Bearer ID token de Firebase Auth verificado de verdad + uid === env.OWNER_UID.
+// Devuelve null si el pedido es del dueño; si no, la Response de error que corresponde (401 / 403 / 500).
+async function autorizarDueno(request, env) {
   const authHeader = request.headers.get('Authorization') || '';
   const bearerMatch = /^Bearer (.+)$/.exec(authHeader);
   if (!bearerMatch) return jsonError(401, 'unauthorized', 'Falta el Authorization Bearer con el ID token de Firebase.');
@@ -435,6 +436,81 @@ async function handleCartera(request, env) {
     return jsonError(401, 'invalid_token', 'Token inválido: ' + (e && e.message ? e.message : String(e)));
   }
   if (uid !== env.OWNER_UID) return jsonError(403, 'forbidden', 'Este endpoint es privado.');
+  return null;
+}
+
+// ── GET /datos/<archivo>.json — archivos de la cartera que viven en un repo PRIVADO de GitHub ──
+// El repo del sitio es público: tenencias.json / latest.json / <YYYY-MM>.json no pueden estar ahí. Quedan en
+// DATOS_REPO (repo privado) y el Worker los lee con un token de GitHub de solo lectura (secret GH_DATA_TOKEN) SOLO
+// después de validar el mismo ID token que /cartera. La caché corta se consulta recién tras esa validación.
+const DATOS_REPO_DEFAULT = 'Loustau45261470/centro-de-mando-datos';
+const DATOS_ARCHIVO_RE = /^[A-Za-z0-9_-]+\.json$/;
+const DATOS_CACHE_TTL_S = 300; // 5 min
+const datosCacheKey = archivo => new Request('https://cdm-datos-cache.internal/datos/' + archivo);
+
+function datosOk(body) {
+  return new Response(body, {
+    status: 200,
+    headers: { ...CARTERA_CORS_HEADERS, 'content-type': 'application/json', 'Cache-Control': 'private, no-store' },
+  });
+}
+
+async function handleDatos(request, env) {
+  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CARTERA_CORS_HEADERS });
+  if (request.method !== 'GET') return jsonError(405, 'method_not_allowed', 'Este endpoint solo acepta GET.');
+
+  const denegado = await autorizarDueno(request, env);
+  if (denegado) return denegado;
+
+  const archivo = new URL(request.url).pathname.slice('/datos/'.length);
+  if (!DATOS_ARCHIVO_RE.test(archivo)) return jsonError(400, 'bad_file', 'Nombre de archivo inválido.');
+
+  if (!env.GH_DATA_TOKEN) return jsonError(500, 'missing_gh_token', 'El Worker no tiene configurado el secret GH_DATA_TOKEN.');
+
+  // Autorizado: recién ahora se mira la caché. En *.workers.dev la Cache API no guarda nada (ver getGoogleCerts): es solo una optimización.
+  let cache = null;
+  try {
+    cache = caches.default;
+    const hit = await cache.match(datosCacheKey(archivo));
+    if (hit) return datosOk(await hit.text());
+  } catch (_) { /* sin caché: se sigue contra GitHub */ }
+
+  let res;
+  try {
+    res = await fetch(`https://api.github.com/repos/${env.DATOS_REPO || DATOS_REPO_DEFAULT}/contents/${archivo}`, {
+      headers: {
+        Accept: 'application/vnd.github.raw',
+        Authorization: `Bearer ${env.GH_DATA_TOKEN}`,
+        'User-Agent': 'cdm-push-worker',
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+    });
+  } catch (e) {
+    console.error('datos fetch error', e);
+    return jsonError(502, 'github_unavailable', 'No se pudo consultar GitHub.');
+  }
+  if (res.status === 404) return jsonError(404, 'not_found', 'Ese archivo no existe.');
+  if (!res.ok) {
+    console.error('datos github HTTP', res.status);
+    return jsonError(502, 'github_error', 'GitHub respondió HTTP ' + res.status + ' (¿token vencido o sin acceso al repo?).');
+  }
+  const body = await res.text();
+  if (cache) {
+    try {
+      await cache.put(datosCacheKey(archivo), new Response(body, {
+        headers: { 'content-type': 'application/json', 'cache-control': `max-age=${DATOS_CACHE_TTL_S}` },
+      }));
+    } catch (_) { /* la caché es opcional */ }
+  }
+  return datosOk(body);
+}
+
+async function handleCartera(request, env) {
+  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CARTERA_CORS_HEADERS });
+  if (request.method !== 'GET') return jsonError(405, 'method_not_allowed', 'Este endpoint solo acepta GET.');
+
+  const denegado = await autorizarDueno(request, env);
+  if (denegado) return denegado;
 
   if (!env.IOL_USER || !env.IOL_PASS) {
     return jsonError(500, 'missing_credentials', 'El Worker no tiene configuradas las credenciales de IOL (secrets IOL_USER / IOL_PASS).');
@@ -462,6 +538,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === '/cartera') return handleCartera(request, env);
+    if (url.pathname.startsWith('/datos/')) return handleDatos(request, env);
 
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS_HEADERS });
 

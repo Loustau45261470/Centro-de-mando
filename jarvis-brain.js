@@ -9,11 +9,10 @@
   const TABS = ['vida', 'finanzas', 'salud', 'conocimiento', 'ia'];
   const THEMES = { '': '', original: '', normal: '', clasico: '', bloomberg: 'bloomberg', ambar: 'amber', amber: 'amber', radar: 'radar', infrarrojo: 'infrared', infrared: 'infrared' };
 
-  // Cartera de inversión (CEDEARs) — cargada una vez desde el JSON publicado por la routine cloud IOL.
+  // Cartera de inversión (CEDEARs) — cargada una vez desde el JSON publicado por la routine cloud IOL (vía CMDatos, repo privado).
   let _cartera = null;
   try {
-    fetch('data/cartera/latest.json', { cache: 'no-store' })
-      .then(r => r.ok ? r.json() : null)
+    CMDatos.cartera('latest.json')
       .then(j => { _cartera = j; })
       .catch(() => {});
   } catch (e) {}

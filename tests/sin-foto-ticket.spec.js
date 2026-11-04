@@ -52,8 +52,15 @@ test('4) no existen abrirGastoFoto ni CMGastoFoto en window ni botón/ids de la 
 });
 
 test('5) cargar Finanzas y abrir cada overlay del FAB no genera errores de consola', async ({ cmPage, consoleErrors }) => {
-  // El overlay de Informes pide data/cartera/<mes>.json, que puede no existir (404 ajeno a esta función): se sirve vacío.
-  await cmPage.route('**/data/cartera/*.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }));
+  // El overlay de Informes pide <mes>.json al Worker (/datos/), que puede no existir (404 ajeno a esta función): se sirve vacío.
+  const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization' };
+  await cmPage.evaluate(() => { _auth.currentUser.getIdToken = async () => 'token-de-prueba'; });
+  await cmPage.route('**/cdm-push-worker.tobiasloustau11.workers.dev/cartera*', (r) => r.request().method() === 'OPTIONS'
+    ? r.fulfill({ status: 204, headers: CORS })
+    : r.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify({ generado: '2026-11-04T12:00:00Z', tenencias: [], totales: { valorizado: 0, variacionPct: null } }) }));
+  await cmPage.route('**/cdm-push-worker.tobiasloustau11.workers.dev/datos/*', (r) => r.request().method() === 'OPTIONS'
+    ? r.fulfill({ status: 204, headers: CORS })
+    : r.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: '{}' }));
   await cmPage.click('.nav-btn[data-tab="finanzas"]');
   await expect(cmPage.locator('#tab-finanzas')).toHaveClass(/active/);
   const etiquetas = await cmPage.evaluate(() => [...document.querySelectorAll('#sd-finanzas .cm-sd-item')].map((b) => b.getAttribute('aria-label')));

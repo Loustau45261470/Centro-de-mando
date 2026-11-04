@@ -1,8 +1,10 @@
 // Gráfico "Cartera actual" (dona) de la pestaña "Mis tenencias" del overlay Cartera (tenencias.js).
 // Datos inventados acá mismo: nunca las posiciones reales. El Worker en vivo se mockea caído para que
-// Tenencias.renderInto caiga a la fuente estática (data/cartera/tenencias.json), también mockeada.
+// Tenencias.renderInto caiga a la fuente estática (tenencias.json, que llega por el Worker en /datos/), también mockeada.
 'use strict';
 const { test, expect } = require('./support/fixtures');
+
+const soloRuidoDeRed = (errores) => errores.filter((e) => !/Failed to load resource/.test(e));
 
 const pos = (simbolo, tipo, valorizado) => ({
   simbolo, descripcion: 'Posición de prueba ' + simbolo, tipo, cantidad: 1, comprometido: 0, precio: valorizado,
@@ -30,8 +32,13 @@ const TOTAL_ESPERADO = [['AAA', '36.4%'], ['BBB', '18.2%'], ['BONO', '16.3%'], [
 const ACCIONES_ESPERADO = [['AAA', '48.8%'], ['BBB', '24.4%'], ['CCC', '12.2%'], ['FFF', '12.2%'], ['Otros', '2.4%']];
 
 async function abrir(page, fixture = fixtureDe(TENENCIAS)) {
-  await page.route('**/data/cartera/tenencias.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fixture) }));
-  await page.route('**/cdm-push-worker.tobiasloustau11.workers.dev/**', (r) => r.fulfill({ status: 503, contentType: 'application/json', body: '{}' }));
+  const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization' };
+  // /cartera (en vivo) caída; /datos/tenencias.json (archivo privado) sirve el fixture. El genérico va primero: el de /datos/ lo pisa.
+  await page.route('**/cdm-push-worker.tobiasloustau11.workers.dev/**', (r) => r.fulfill({ status: 503, contentType: 'application/json', headers: CORS, body: '{}' }));
+  await page.route('**/cdm-push-worker.tobiasloustau11.workers.dev/datos/tenencias.json', (r) => r.request().method() === 'OPTIONS'
+    ? r.fulfill({ status: 204, headers: CORS })
+    : r.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify(fixture) }));
+  await page.evaluate(() => { _auth.currentUser.getIdToken = async () => 'token-de-prueba'; });
   await page.evaluate(() => CarteraOverlay.open());
   await expect(page.locator('#cov-pane-tenencias .ten-dona')).toBeVisible();
 }
@@ -68,7 +75,7 @@ test.describe('Dona "Cartera actual" en Mis tenencias', () => {
       });
       expect(info).toEqual({ type: 'doughnut', n: TOTAL_ESPERADO.length });
     }
-    expect(consoleErrors).toEqual([]);
+    expect(soloRuidoDeRed(consoleErrors)).toEqual([]); // el 503 mockeado de /cartera deja su línea de red
   });
 
   test('Solo acciones recalcula dona, centro y %; Total cartera vuelve; la vista sobrevive al repintado', async ({ cmPage: page, consoleErrors }) => {
@@ -97,7 +104,7 @@ test.describe('Dona "Cartera actual" en Mis tenencias', () => {
     expect(await leyenda(page)).toEqual(TOTAL_ESPERADO);
     expect(digitos(await centro(page))).toBe('1100000');
     expect(await instancias()).toBe(antes);
-    expect(consoleErrors).toEqual([]);
+    expect(soloRuidoDeRed(consoleErrors)).toEqual([]); // el 503 mockeado de /cartera deja su línea de red
   });
 
   test('sin acciones: la vista Solo acciones muestra un texto vacío en vez de la dona', async ({ cmPage: page, consoleErrors }) => {
@@ -111,7 +118,7 @@ test.describe('Dona "Cartera actual" en Mis tenencias', () => {
 
     await chip(page, 'total').click();
     await expect(page.locator('#cov-pane-tenencias .ten-dona canvas')).toHaveCount(1);
-    expect(consoleErrors).toEqual([]);
+    expect(soloRuidoDeRed(consoleErrors)).toEqual([]); // el 503 mockeado de /cartera deja su línea de red
   });
 
   test('a 320 px no hay desborde horizontal y la leyenda queda debajo de la dona', async ({ cmPage: page, consoleErrors }) => {
@@ -139,7 +146,7 @@ test.describe('Dona "Cartera actual" en Mis tenencias', () => {
       expect(m.leyDerecha).toBeLessThanOrEqual(m.cardDerecha + 0.5);
       expect(m.leyDebajo).toBe(true);
     }
-    expect(consoleErrors).toEqual([]);
+    expect(soloRuidoDeRed(consoleErrors)).toEqual([]); // el 503 mockeado de /cartera deja su línea de red
   });
 });
 
@@ -162,5 +169,5 @@ test('ganancia total y de solo acciones: % sobre lo invertido y $; lo que no tie
   expect(filas[1]).toContain('+$80.000');
   expect(filas[0]).toContain('1 sin precio de compra');
   await expect(page.locator('#cov-pane-tenencias .ten-gan-fila').first().locator('.text-ok')).toBeVisible();
-  expect(consoleErrors).toEqual([]);
+  expect(soloRuidoDeRed(consoleErrors)).toEqual([]); // el 503 mockeado de /cartera deja su línea de red
 });

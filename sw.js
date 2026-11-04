@@ -1,7 +1,7 @@
 // Centro de Mando — Service Worker
 // Maneja Web Push, clicks de notificación, y caché offline del app shell.
 
-const CACHE = 'cdm-shell-v361';
+const CACHE = 'cdm-shell-v362';
 const BASE  = '/Centro-de-mando/';
 const SHELL = [
   BASE,
@@ -15,6 +15,7 @@ const SHELL = [
   BASE + 'informes.css',
   BASE + 'negocios.css',
   BASE + 'app.js',
+  BASE + 'datos-privados.js',
   BASE + 'sync-diagnostico.js',
   BASE + 'errores.js',
   BASE + 'archivo.js',
@@ -132,8 +133,12 @@ self.addEventListener('fetch', event => {
     return;
   }
 
+  // Datos privados de la cartera (Worker /datos/<archivo>, requiere ID token): network-only. Nunca se guardan en la caché del SW.
+  if (url.pathname.startsWith('/datos/')) return;
+
   // Datos de cartera (JSON que commitea el agente cloud cada mes) → network-first,
   // fallback a caché para offline. Cache-first lo dejaría congelado en la 1ª versión.
+  // TRANSITORIO: copia pública que se borra del repo; quitar esta regla en el paso de limpieza de data/cartera.
   if (url.pathname.includes('/data/cartera/')) {
     event.respondWith(
       fetch(req)

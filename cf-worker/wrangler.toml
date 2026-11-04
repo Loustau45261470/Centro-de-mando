@@ -18,3 +18,7 @@ new_sqlite_classes = ["TimerAlarm"]
 [[migrations]]
 tag = "v2"
 new_sqlite_classes = ["CarteraGate"]
+
+[vars]
+# Repo PRIVADO con los archivos de la cartera (ruta GET /datos/<archivo>.json). No es un secreto; el token de GitHub va como secret GH_DATA_TOKEN.
+DATOS_REPO = "Loustau45261470/centro-de-mando-datos"

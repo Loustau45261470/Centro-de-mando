@@ -3,15 +3,15 @@
 // CARTERA DE INVERSIÓN — pestaña "Análisis mensual" del overlay unificado
 // de Cartera (ver cartera-overlay.js). Muestra el análisis mensual de
 // CEDEARs que genera la routine cloud (agente IOL) el 1° de cada mes
-// commiteando data/cartera/latest.json. No escribe estado: la única
-// fuente es ese JSON servido por GitHub Pages. No construye su propio
+// commiteando latest.json en el repo privado de datos. No escribe estado: la
+// única fuente es ese JSON, que llega por CMDatos (datos-privados.js). No construye su propio
 // overlay: expone renderInto(container) para que cartera-overlay.js la
 // monte dentro de su pane. Distinto de Tenencias (tenencias.js) — la foto
 // real de la cartera IOL, sin picks ni proyecciones.
 // ════════════════════════════════════════════════════════════════════════
 
 const CarteraInversion = (() => {
-  const URL_JSON = 'data/cartera/latest.json';
+  const ARCHIVO_JSON = 'latest.json'; // se pide por CMDatos (Worker /datos/, repo privado)
   const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -114,8 +114,8 @@ const CarteraInversion = (() => {
 
   function renderInto(bx) {
     bx.innerHTML = `<div class="empty-state">Cargando análisis…</div>`;
-    return fetch(URL_JSON, { cache: 'no-store' })
-      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    return CMDatos.carteraDetalle(ARCHIVO_JSON)
+      .then(r => { if (r.data == null) throw new Error('HTTP ' + r.status); return r.data; })
       .then(d => {
         try {
           render(bx, d);
