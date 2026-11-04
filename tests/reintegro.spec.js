@@ -51,8 +51,8 @@ async function gastoComun(page, { nombre = 'Cena', monto, cuenta = 'uala', pct =
   await abrirMovimiento(page, 'expense');
   await page.fill('#txnName', nombre);
   await page.fill('#txnAmount', String(monto));
+  await page.selectOption('#txnAccount', cuenta);   // primero el medio: el formulario recuerda el último y, si era una tarjeta, oculta la moneda
   await page.selectOption('#txnCurrency', 'ARS');
-  await page.selectOption('#txnAccount', cuenta);
   await pctChip(page, pct).click();
   if (reintegro) await tipo(page, REINTEGRO).click();
   if (cuentaReintegro) await page.selectOption('#txnRefundAcc', cuentaReintegro);

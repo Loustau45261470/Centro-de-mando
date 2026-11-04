@@ -591,25 +591,6 @@
       _primer: () => _primerObjMeses(S.budgets),
     },
     {
-      id: 'fin_gastos_fijos_pct', seccion: 'finanzas', label: '% gastos fijos cumplidos', unidad: 'pct', dir: 'up',
-      fundamental: false, minGran: 'M', agg: 'pct',
-      descripcion: 'De tus gastos fijos del mes (alquiler, servicios, etc.), a cuántos les marcaste que ya los pagaste.',
-      calc: (desde, hasta) => {
-        const fijos = _arr(S.fixedExpenses);
-        if (!fijos.length) return null;
-        let total = 0, hechos = 0, huboDatos = false;
-        _mesesEnRango(desde, hasta).forEach(mk => {
-          const log = S.fixedExpenseLog && S.fixedExpenseLog[mk];
-          if (!log) return;
-          huboDatos = true;
-          fijos.forEach(fe => { total++; if (log[fe.id]) hechos++; });
-        });
-        if (!huboDatos || !total) return null;
-        return Math.round((hechos / total) * 1000) / 10;
-      },
-      _primer: () => _primerObjMeses(S.fixedExpenseLog),
-    },
-    {
       id: 'fin_financecalendar_pct', seccion: 'finanzas', label: '% días con control financiero', unidad: 'pct', dir: 'up',
       fundamental: false, minGran: 'M', agg: 'pct',
       descripcion: 'De los días del período, en cuántos marcaste el calendario de control financiero.',

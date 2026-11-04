@@ -42,8 +42,6 @@ const DEFAULT_STATE = {
   cardDues: [],        // [{ id:'cd:<cardId>:<due>', cardId, due:'YYYY-MM-DD', amount }] — lo ya usado de cada tarjeta con la fecha en que vence (un registro por tarjeta y mes)
   seasonals: [],       // [{ id, name, month(1-12), amount, category }] — gastos estacionales (regalos, cumpleaños...): se cargan solos en el presupuesto de su mes
   carteraTx: [],       // [{ id, simbolo, fecha, ts, unidades, precio, costoUnit, costo, resultado, fechaCompra, cierra }] — ventas de activos de la cartera. SOLO se agrega, nunca se borra
-  fixedExpenses: [],   // [{ id, name, amount, currency, dayOfMonth }]
-  fixedExpenseLog: {}, // { 'YYYY-MM': { [expId]: true } }
   budgets: {},         // { 'YYYY-MM': { fixed:[{id,name,category,unit,v1,v2,v3}], reserved:[{id,name,category,amount}] } }
   txnCategories: {},   // { catId: { label, icon, color, section } } — categorías de transacción gestionables por el usuario
   txnCategoriesSeeded: false, // true una vez que ensureTxnCategories() sembró los defaults — distingue "nunca sembrado" de "usuario borró todo" (un {} vacío es truthy y no alcanza, ver fixes.json)
@@ -581,7 +579,7 @@ function _rescueLocal(cloudObj, localObj) {
   r.txnCategories = { ...(localObj.txnCategories||{}), ...(cloudObj.txnCategories||{}) };
   // Arrays con ID
   ['transactions','moves','cards','accounts','cardCharges','cardPayments','coverCollections','cardDues','subscriptions','orders','wishlist',
-   'photos','finObjectives','fixedExpenses','lawMilestones','routines','exerciseLibrary',
+   'photos','finObjectives','lawMilestones','routines','exerciseLibrary',
    'bodyWeight','exercises','seasonals','carteraTx'
   ].forEach(key => {
     const c = Array.isArray(cloudObj[key]) ? cloudObj[key] : [];
@@ -1043,6 +1041,7 @@ function _applyRemoteState(raw, savedAt) {
     });
     _migrateQToT();
     _migrateMonthlyGoals();
+    _migrateFixedExpenses();
     localStorage.setItem('lifedash_v2', JSON.stringify(S));
     _reRenderAll();
     if (typeof window._reloadProyectosFromState === 'function') window._reloadProyectosFromState();
@@ -1194,9 +1193,18 @@ async function loadState() {
   if (_proyMigrated) saveState();
   if (_migrateQToT()) saveState();
   if (_migrateMonthlyGoals()) saveState();
+  if (_migrateFixedExpenses()) saveState();
   // ── Presupuesto: init + auto-copia en cascada de los meses futuros del año real actual ──
   if (!S.budgets) S.budgets = {};
   ensureBudgetYear(new Date().getFullYear());
+}
+// Gastos fijos: función eliminada. Se borran sus dos claves solo si están vacías; con datos se dejan intactas.
+function _migrateFixedExpenses() {
+  let changed = false;
+  if (Array.isArray(S.fixedExpenses) && !S.fixedExpenses.length) { delete S.fixedExpenses; changed = true; }
+  const log = S.fixedExpenseLog;
+  if (log && typeof log === 'object' && !Object.keys(log).length) { delete S.fixedExpenseLog; changed = true; }
+  return changed;
 }
 function _migrateQToT() {
   if (!S.quarterlyObjectives) return false;
@@ -1524,13 +1532,13 @@ function renderGoals() {
   if (hasTimed) renderReminders('vida');
 }
 
-// Metas de hoy en la sección: solo lectura (ver + marcar). Crear/editar/borrar viven en Planificación (overlay).
+// Metas de hoy en la sección: ver, marcar y agregar (botón + Meta). Editar/borrar viven en Planificación (overlay).
 function renderMetasReadonly() {
   const body = document.getElementById('metasReadonlyBody'); if (!body) return;
   const date = getActiveDate();
   const goals = S.goals[date] || [];
   if (!goals.length) {
-    body.innerHTML = '<div class="mrd-empty">Sin metas para hoy. Abrí <b>Planificación</b> (🧍) para agregarlas.</div>';
+    body.innerHTML = '<div class="mrd-empty">Sin metas para hoy. Tocá <b>+ Meta</b> para agregar la primera.</div>';
     return;
   }
   const done = goals.filter(g => g.done).length;
@@ -2699,28 +2707,6 @@ function saveEditAccount() {
   acc.currency =  document.getElementById('editAccCurrency').value;
   acc.icon     =  document.getElementById('editAccIcon').value || '🏦';
   snapshotNW(); saveState(); renderFinanzasTab(); closeModal('modal-edit-account');
-}
-
-function openEditFixedExpense(id) {
-  const exp = S.fixedExpenses.find(e => e.id === id);
-  if (!exp) return;
-  document.getElementById('editFexpId').value       = id;
-  document.getElementById('editFexpName').value     = exp.name;
-  document.getElementById('editFexpAmount').value   = exp.amount;
-  document.getElementById('editFexpCurrency').value = exp.currency;
-  document.getElementById('editFexpDay').value      = exp.dayOfMonth;
-  openModal('modal-edit-fixed-expense');
-}
-function saveEditFixedExpense() {
-  const id = document.getElementById('editFexpId').value;
-  const exp = S.fixedExpenses.find(e => e.id === id);
-  if (!exp) return;
-  const name = document.getElementById('editFexpName').value.trim();
-  if (name) exp.name = name;
-  exp.amount     = +document.getElementById('editFexpAmount').value   || 0;
-  exp.currency   =  document.getElementById('editFexpCurrency').value;
-  exp.dayOfMonth = +document.getElementById('editFexpDay').value      || exp.dayOfMonth;
-  saveState(); renderFixedExpenses(); closeModal('modal-edit-fixed-expense');
 }
 
 function openEditWish(id) {

@@ -60,7 +60,7 @@
     if (typeof S === 'undefined' || !S) return 'no-state';
     const n = arr => (Array.isArray(arr) ? arr.length : 0);
     return [
-      n(S.transactions), n(S.fixedExpenses), n(S.orders), n(S.wishlist), n(S.accounts),
+      n(S.transactions), n(S.orders), n(S.wishlist), n(S.accounts),
       n(S.purchaseFunds),
       _sumValues(S.goals), _sumNested(S.monthlyGoals),
       ((S.quarterlyObjectives && S.quarterlyObjectives.periods) || []).reduce((s, p) => s + n(p.objectives), 0),
@@ -97,14 +97,6 @@
       subtitulo: (has('fmtMoney') ? fmtMoney(t.amount, t.currency) : (t.amount + ' ' + (t.currency || ''))) + (t.date ? ' · ' + t.date : ''),
       _ts: _ts(t.date), _hay: norm(t.name),
       ir: () => { nav('finanzas'); call('openEditTxn', t.id); },
-    }));
-
-    // Gastos fijos — app.js:37 fixedExpenses: [{ id, name, amount, currency, dayOfMonth }]
-    (S.fixedExpenses || []).forEach(e => out.push({
-      tipo: 'gastoFijo', seccion: SEC.MOVIMIENTOS, titulo: e.name || '(sin nombre)',
-      subtitulo: 'Gasto fijo · día ' + e.dayOfMonth,
-      _ts: -Infinity, _hay: norm(e.name),
-      ir: () => { nav('finanzas'); call('openEditFixedExpense', e.id); },
     }));
 
     // Pedidos — app.js:33 orders: [{ id, name, amount, currency, arrival, accountId, deducted }]

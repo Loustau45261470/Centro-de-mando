@@ -983,7 +983,16 @@ function fillTxnPaymentSelect(selected) {
   sel.value = [...sel.options].some(o => o.value === selected) ? selected : '';
 }
 
-// La llama openModal('modal-add-txn'): deja el formulario en su estado inicial.
+// Último medio de pago usado en un gasto nuevo (cuenta o tarjeta): el formulario de alta lo preselecciona.
+const _TXN_LAST_ACC_KEY = 'cm_lastTxnAccount';
+function _rememberTxnAccount() {
+  try { localStorage.setItem(_TXN_LAST_ACC_KEY, document.getElementById('txnAccount').value); } catch (e) {}
+}
+function _lastTxnAccount() {
+  try { return localStorage.getItem(_TXN_LAST_ACC_KEY) || ''; } catch (e) { return ''; }
+}
+
+// La llama openModal('modal-add-txn'): deja el formulario en su estado inicial (Gasto, pesos, último medio de pago usado).
 function initTxnForm() {
   const g = (id) => document.getElementById(id);
   if (_txnEditChargeId) {   // venía de editar una compra: vuelve a modo alta y sin los datos de esa compra
@@ -991,7 +1000,9 @@ function initTxnForm() {
     g('txnName').value = ''; g('txnAmount').value = '';
     fillTxnCategorySelect('txnCategory', '');
   }
-  fillTxnPaymentSelect('');
+  g('txnType').value = 'expense';
+  g('txnCurrency').value = 'ARS';
+  fillTxnPaymentSelect(_lastTxnAccount());   // si ese medio ya no existe, queda vacío
   g('ccChDate').value = getActiveDate();
   g('ccChMode').value = 'now1';
   g('ccChInst').value = '3';
@@ -1321,6 +1332,7 @@ function _saveTxnCardCharge() {
   }
   errEl.textContent = '';
   if (_txnEditChargeId) return _saveEditedCardCharge(ch);
+  _rememberTxnAccount();
   ch.id = uid();
   if (ch.mode === 'now1') delete ch.installments;
   if (!Array.isArray(S.cardCharges)) S.cardCharges = [];
@@ -2014,73 +2026,6 @@ function deleteWish(id) {
     descripcion: 'Objetivo eliminado',
     deshacer: () => { S.wishlist.splice(idx, 0, wish); renderWishlist(); }
   });
-}
-
-// ── Fixed Expenses ──
-function renderFixedExpenses() {
-  const list = document.getElementById('fixedExpenseList');
-  const empty = document.getElementById('fixedExpenseEmpty');
-  if (!list) return;
-  const now = new Date();
-  const monthKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-  const log = S.fixedExpenseLog[monthKey] || {};
-  if (!S.fixedExpenses.length) {
-    list.innerHTML = ''; empty.classList.remove('hidden');
-    document.getElementById('fixedExpenseTotal').textContent = '$0'; return;
-  }
-  empty.classList.add('hidden');
-  let total = 0;
-  list.innerHTML = S.fixedExpenses.map(exp => {
-    const paid = !!log[exp.id];
-    total += exp.amount;
-    return `<div class="sub-row">
-      <div class="sub-info">
-        <div class="sub-name">${exp.name}</div>
-        <div class="sub-detail">Día ${exp.dayOfMonth} · ${fmtMoney(exp.amount, exp.currency)}</div>
-      </div>
-      <div class="flex gap-8 items-center">
-        ${paid
-          ? '<span class="pill pill-ok" style="font-size:var(--fs-12-5)">✓ Pagado</span>'
-          : `<button class="btn btn-ghost btn-sm" onclick="markFixedExpensePaid('${exp.id}')" style="font-size:var(--fs-12-5)">Marcar pagado</button>`}
-        <button class="icon-btn" onclick="openEditFixedExpense('${exp.id}')"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
-        <button class="icon-btn" onclick="deleteFixedExpense('${exp.id}')"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg></button>
-      </div>
-    </div>`;
-  }).join('');
-  document.getElementById('fixedExpenseTotal').textContent = fmtMoney(total, 'ARS');
-}
-
-function addFixedExpense() {
-  const name = document.getElementById('fexpName').value.trim();
-  if (!name) { showToast('Escribe el nombre'); return; }
-  S.fixedExpenses.push({
-    id: uid(), name,
-    amount: +document.getElementById('fexpAmount').value || 0,
-    currency: document.getElementById('fexpCurrency').value,
-    dayOfMonth: +document.getElementById('fexpDay').value || 1
-  });
-  saveState(); renderFixedExpenses(); closeModal('modal-add-fixed-expense');
-  document.getElementById('fexpName').value = ''; document.getElementById('fexpAmount').value = '';
-  showToast('Gasto fijo agregado');
-}
-
-function deleteFixedExpense(id) {
-  const idx = S.fixedExpenses.findIndex(e => e.id === id);
-  const exp = idx > -1 ? S.fixedExpenses[idx] : null;
-  S.fixedExpenses = S.fixedExpenses.filter(e => e.id !== id);
-  saveState(); renderFixedExpenses();
-  if (window.CMUndo && exp) CMUndo.registrar({
-    descripcion: 'Gasto fijo eliminado',
-    deshacer: () => { S.fixedExpenses.splice(idx, 0, exp); renderFixedExpenses(); }
-  });
-}
-
-function markFixedExpensePaid(id) {
-  const now = new Date();
-  const monthKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-  if (!S.fixedExpenseLog[monthKey]) S.fixedExpenseLog[monthKey] = {};
-  S.fixedExpenseLog[monthKey][id] = true;
-  saveState(); renderFixedExpenses(); showToast('Marcado como pagado');
 }
 
 // ════════════════════════════════════════════════════════
@@ -4264,6 +4209,7 @@ function addTransaction(forcedDate) {
   if (pct && !refund) { txn.discountPct = pct; txn.amountOriginal = total; }
   if (refund) txn.refund = { pct, amount: _ccRound(total - _discountFinal(total, pct)), accountId: refundAcc, txnId: '' };
   S.transactions.unshift(txn);
+  if (type === 'expense' && !forcedDate) _rememberTxnAccount();
   if (refund) { _addRefund(txn, name, date); snapshotNW(); }   // el reintegro nunca va con un gasto pendiente: la opción no se ofrece en otro mes
   saveState(); renderFinanzasTab(); closeModal('modal-add-txn');
   document.getElementById('txnName').value='';
@@ -4274,12 +4220,11 @@ function addTransaction(forcedDate) {
     showSparkle(window.innerWidth/2, window.innerHeight*0.4);
     showToast('💰 ¡Ingreso registrado!', 2500);
   } else {
-    // Check budget alert (June 2026 mode: $500k limit)
-    const now = new Date();
-    const mk = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-    const monthExp = S.transactions.filter(t => t.type==='expense' && t.date && t.date.startsWith(mk)).reduce((s,t)=>s+t.amount,0);
-    const BUDGET_LIMIT = 500000;
-    if (monthExp >= BUDGET_LIMIT) {
+    // Aviso de presupuesto: gastos en ARS del mes contra el presupuesto real del mes (S.budgets). Sin presupuesto cargado no avisa.
+    const mk = _curMonthKey();
+    const monthExp = _spentMonth(mk);
+    const BUDGET_LIMIT = _budgetMonthTotal(mk);
+    if (BUDGET_LIMIT > 0 && monthExp >= BUDGET_LIMIT) {
       showFireEffect();
       const el = document.createElement('div');
       el.style.cssText = `
@@ -4293,12 +4238,12 @@ function addTransaction(forcedDate) {
       el.innerHTML = `
         <div style="font-size:32px;line-height:1;margin-bottom:6px">🔥💸🔥</div>
         <div style="font-size:18px;font-weight:900;letter-spacing:.06em;color:#ff3c3c;text-shadow:0 0 30px rgba(255,60,60,.9)">¡PRESUPUESTO SUPERADO!</div>
-        <div style="font-size:var(--fs-12-5);color:rgba(255,255,255,.7);margin-top:5px;font-weight:600">Gastos del mes: ${fmtMoney(monthExp,'ARS')} / $500.000</div>
+        <div style="font-size:var(--fs-12-5);color:rgba(255,255,255,.7);margin-top:5px;font-weight:600">Gastos del mes: ${fmtMoney(monthExp,'ARS')} / ${fmtMoney(BUDGET_LIMIT,'ARS')}</div>
       `;
       document.body.appendChild(el);
       setTimeout(() => el.remove(), 4200);
       showToast('🔥 ¡Límite mensual superado!', 4000);
-    } else if (monthExp >= BUDGET_LIMIT * 0.9) {
+    } else if (BUDGET_LIMIT > 0 && monthExp >= BUDGET_LIMIT * 0.9) {
       showToast(`⚠ Gastos al ${Math.round(monthExp/BUDGET_LIMIT*100)}% del límite mensual`, 3500);
     } else {
       showToast('Movimiento registrado');

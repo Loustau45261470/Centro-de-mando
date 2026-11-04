@@ -265,9 +265,12 @@
       </div>
     </div>
 
-    <!-- Metas de hoy (sección): solo lectura. Crear/editar viven en Planificación (overlay). -->
+    <!-- Metas de hoy (sección): ver, marcar y agregar. Editar/borrar viven en Planificación (overlay). -->
     <div class="card" id="metas-readonly-card">
-      <div class="card-title">🎯 Metas de hoy</div>
+      <div class="card-title">
+        <div class="flex items-center gap-8">🎯 Metas de hoy</div>
+        <button class="btn btn-ghost btn-sm" onclick="openAddGoalToday()">+ Meta</button>
+      </div>
       <div id="metasReadonlyBody"></div>
     </div>
 
@@ -1093,26 +1096,6 @@
   </div>
 </div>
 
-<!-- Add Fixed Expense -->
-<div class="modal-overlay" id="modal-add-fixed-expense">
-  <div class="modal">
-    <div class="modal-handle"></div>
-    <div class="modal-title">Agregar gasto fijo</div>
-    <div class="field"><label>Nombre</label><input class="inp" id="fexpName" placeholder="Ej: Alquiler, Gym, Internet…"></div>
-    <div class="input-row">
-      <div class="field" style="flex:1"><label>Monto</label><input class="inp" type="number" step="0.01" id="fexpAmount" placeholder="0.00"></div>
-      <div class="field" style="width:90px"><label>Moneda</label>
-        <select class="inp" id="fexpCurrency"><option>USD</option><option>EUR</option><option selected>ARS</option></select>
-      </div>
-    </div>
-    <div class="field"><label>Día del mes</label><input class="inp" type="number" min="1" max="31" id="fexpDay" placeholder="1"></div>
-    <div class="modal-actions">
-      <button class="btn btn-ghost" onclick="closeModal('modal-add-fixed-expense')">Cancelar</button>
-      <button class="btn btn-primary" onclick="addFixedExpense()">Agregar</button>
-    </div>
-  </div>
-</div>
-
 <!-- Fondo de compra: alta / edición (specs/fondos-de-compra.md) -->
 <div class="modal-overlay" id="modal-fund">
   <div class="modal">
@@ -1285,27 +1268,6 @@
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('modal-edit-account')">Cancelar</button>
       <button class="btn btn-primary" onclick="saveEditAccount()">Guardar</button>
-    </div>
-  </div>
-</div>
-
-<!-- Edit Fixed Expense -->
-<div class="modal-overlay" id="modal-edit-fixed-expense" onclick="if(event.target===this)closeModal('modal-edit-fixed-expense')">
-  <div class="modal">
-    <div class="modal-handle"></div>
-    <div class="modal-title">Editar gasto fijo</div>
-    <input type="hidden" id="editFexpId">
-    <div class="field"><label>Nombre</label><input class="inp" id="editFexpName"></div>
-    <div class="input-row">
-      <div class="field" style="flex:1"><label>Monto</label><input class="inp" type="number" step="0.01" id="editFexpAmount"></div>
-      <div class="field" style="width:90px"><label>Moneda</label>
-        <select class="inp" id="editFexpCurrency"><option>USD</option><option>EUR</option><option selected>ARS</option></select>
-      </div>
-    </div>
-    <div class="field"><label>Día del mes</label><input class="inp" type="number" min="1" max="31" id="editFexpDay"></div>
-    <div class="modal-actions">
-      <button class="btn btn-ghost" onclick="closeModal('modal-edit-fixed-expense')">Cancelar</button>
-      <button class="btn btn-primary" onclick="saveEditFixedExpense()">Guardar</button>
     </div>
   </div>
 </div>
@@ -1541,7 +1503,7 @@
     <div class="modal-title" id="txnModalTitle">Registrar movimiento</div>
     <div class="field"><label>Descripción</label><input class="inp" id="txnName" placeholder="Ej: Salario, Comida…"></div>
     <div class="field"><label>Tipo</label>
-      <select class="inp" id="txnType" onchange="onTxnTypeChange()"><option value="income">Ingreso 💚</option><option value="expense">Gasto 🔴</option></select>
+      <select class="inp" id="txnType" onchange="onTxnTypeChange()"><option value="income">Ingreso 💚</option><option value="expense" selected>Gasto 🔴</option></select>
     </div>
     <div id="txnMonthNotice" class="txn-month-notice" style="display:none"></div>
     <div class="field" id="txnCategoryRow"><label for="txnCategory">Categoría</label>
@@ -1552,7 +1514,7 @@
     <div class="input-row">
       <div class="field" style="flex:1"><label>Monto</label><input class="inp" type="number" step="0.01" id="txnAmount" placeholder="0.00" oninput="onTxnAmountInput()"></div>
       <div class="field" id="txnCurrencyRow" style="width:90px"><label>Moneda</label>
-        <select class="inp" id="txnCurrency" onchange="syncTxnDiscount()"><option>USD</option><option>EUR</option><option>ARS</option></select>
+        <select class="inp" id="txnCurrency" onchange="syncTxnDiscount()"><option>USD</option><option>EUR</option><option selected>ARS</option></select>
       </div>
     </div>
     <div class="field"><label for="txnAccount" id="txnAccountLbl">Cuenta</label><select class="inp" id="txnAccount" onchange="onTxnPaymentChange()"><option value="">— Ninguna —</option></select></div>
@@ -1892,7 +1854,7 @@
 
 <script src="errores.js?v=1"></script>
 <script src="deadlines.js?v=7"></script>
-<script src="app.js?v=200"></script>
+<script src="app.js?v=201"></script>
 <script src="sync-diagnostico.js?v=1"></script>
 <script src="archivo.js?v=1"></script>
 <script src="undo.js?v=1"></script>
@@ -1902,8 +1864,8 @@
 <script src="habitos.js?v=6"></script>
 <script src="rutinas.js"></script>
 <script src="tarjetas-motor.js?v=6"></script>
-<script src="finanzas.js?v=35"></script>
-<script src="proyeccion-mes.js?v=2"></script>
+<script src="finanzas.js?v=36"></script>
+<script src="proyeccion-mes.js?v=3"></script>
 <script src="recordatorios.js?v=10"></script>
 <script src="objetivos.js"></script>
 <script src="correlaciones.js?v=2"></script>
@@ -1926,7 +1888,7 @@
 
 <script src="jarvis-ears.js"></script>
 
-<script src="busqueda-global.js?v=2"></script>
+<script src="busqueda-global.js?v=3"></script>
 <script src="command-palette.js?v=1"></script>
 
 <script src="telemetry.js"></script>
@@ -1952,7 +1914,7 @@
 <script src="pomodoro.js?v=7"></script>
 <script src="finales.js?v=5"></script>
 <script src="secciones-fab.js?v=16"></script>
-<script src="informes-datos.js?v=5"></script>
+<script src="informes-datos.js?v=6"></script>
 <script src="informes.js?v=3"></script>
 <script src="revision-semanal.js?v=1"></script>
 

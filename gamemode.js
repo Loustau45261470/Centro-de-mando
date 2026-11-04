@@ -126,12 +126,6 @@ function gmRiquezaXp() {
   if (r >= 2) xp += 500;
   return xp;
 }
-function gmFixedPaidCount() {
-  let n = 0;
-  const log = S.fixedExpenseLog || {};
-  Object.keys(log).forEach(mk => Object.values(log[mk] || {}).forEach(v => { if (v) n++; }));
-  return n;
-}
 // Bonus por hitos de racha (una vez cada hito, según la racha más larga del hábito)
 const GM_STREAK_MILESTONES = [{ d: 7, xp: 20 }, { d: 30, xp: 50 }, { d: 90, xp: 150 }, { d: 365, xp: 500 }];
 // Corridas de racha: un día (pasado) no cumplido corta la corrida; 'rest' es neutral (puentea, no suma ni corta).

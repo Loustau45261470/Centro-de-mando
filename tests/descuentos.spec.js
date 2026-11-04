@@ -54,8 +54,8 @@ async function registrar(page, { tipo = 'expense', nombre = 'Compra', monto, cue
   await page.fill('#txnName', nombre);
   if (cat) await page.selectOption('#txnCategory', cat);
   await page.fill('#txnAmount', String(monto));
+  await page.selectOption('#txnAccount', cuenta);   // primero el medio: el formulario recuerda el último y, si era una tarjeta, oculta la moneda
   await page.selectOption('#txnCurrency', 'ARS');
-  await page.selectOption('#txnAccount', cuenta);
   if (pct) await elegir(page, pct);
   await page.click('#modal-add-txn button:has-text("Registrar")');
   await expect(page.locator('#modal-add-txn')).not.toHaveClass(/open/);
@@ -217,7 +217,8 @@ test('4c) plata de un tercero con mi tarjeta: sin selector de descuento y se gua
 test('5) ingreso: sin selector; cambiar de gasto a ingreso resetea el descuento y no se guarda', async ({ cmPage }) => {
   await preparar(cmPage);
   await abrirMovimiento(cmPage);
-  await expect(cmPage.locator('#txnType')).toHaveValue('income');
+  await expect(cmPage.locator('#txnType')).toHaveValue('expense');   // el formulario nuevo arranca en Gasto
+  await cmPage.selectOption('#txnType', 'income');
   await expect(cmPage.locator('#txnDiscountRow')).toBeHidden();
   await cmPage.selectOption('#txnType', 'expense');
   await expect(cmPage.locator('#txnDiscountRow')).toBeVisible();

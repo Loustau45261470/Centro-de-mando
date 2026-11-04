@@ -215,6 +215,8 @@ test('7) al cerrar o cancelar la edición, el formulario vuelve al modo alta y e
   await preparar(cmPage);
   await cargar(cmPage, { monto: 5000, nombre: 'Para cancelar', fecha: '2026-10-29' });
   const [orig] = await cargos(cmPage);
+  // El formulario nuevo recuerda el último medio usado (acá la tarjeta de la compra cargada): se borra para comprobar que de la edición no queda nada.
+  await cmPage.evaluate(() => localStorage.removeItem('cm_lastTxnAccount'));
 
   const abrirYVerificarAlta = async () => {
     await cmPage.click('#activity-card button:has-text("+ Movimiento")');

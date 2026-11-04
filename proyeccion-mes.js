@@ -7,17 +7,16 @@
 // Método:
 //   proyección al cierre = gasto real acumulado + comprometido + variable proyectado
 //   - "comprometido": gastos que van a caer sí o sí este mes y todavía no generaron
-//     transacción (gastos fijos sin marcar en fixedExpenseLog, pedidos con llegada
-//     este mes). Es determinístico, no se proyecta.
+//     transacción (pedidos con llegada este mes). Es determinístico, no se proyecta.
 //   - "variable proyectado": ritmo diario de gasto variable × días que faltan.
 //     El ritmo se calcula sobre DÍAS TRANSCURRIDOS (no días con movimiento): un día
 //     sin ninguna transacción cuenta como gasto 0 ese día, porque la ausencia de
 //     registro en una cuenta ya reconciliada es gasto que no ocurrió.
 //   - Las transacciones históricas "Sub: <nombre>" (cobros de suscripciones de cuando esa
 //     función existía) se excluyen del pool de "gasto variable": son cargos fijos, no un
-//     ritmo que deba extrapolarse hacia los días que faltan. Los gastos fijos
-//     (S.fixedExpenses) y los pedidos (S.orders) nunca generan una transacción en este
-//     código, así que no hay riesgo de que aparezcan también en el pool variable.
+//     ritmo que deba extrapolarse hacia los días que faltan. Los pedidos
+//     (S.orders) nunca generan una transacción en este código, así que no hay riesgo
+//     de que aparezcan también en el pool variable.
 //   - Antes del día 5 del mes no se proyecta (3-4 días de datos es ruido): se muestra
 //     solo lo comprometido.
 //   - Moneda: igual criterio que _spentMonth()/renderBudget() en finanzas.js
@@ -102,17 +101,12 @@
 
     // Comprometido: cae sí o sí este mes y todavía NO generó transacción (por eso no
     // puede duplicarse con gastoRealAcumulado/variables, que solo miran S.transactions).
-    const fixedExpenses = Array.isArray(S.fixedExpenses) ? S.fixedExpenses : [];
-    const fixedLog = (S.fixedExpenseLog && S.fixedExpenseLog[mesKey]) || {};
-    const comprFijos = fixedExpenses.filter(e => e && e.currency === 'ARS' && !fixedLog[e.id])
-      .reduce((s, e) => s + (+e.amount || 0), 0);
-
     const orders = Array.isArray(S.orders) ? S.orders : [];
     const comprPedidos = orders.filter(o => o && o.currency === 'ARS' && !o.deducted &&
         o.arrival && o.arrival.slice(0, 7) === mesKey)
       .reduce((s, o) => s + (+o.amount || 0), 0);
 
-    const comprometido = comprFijos + comprPedidos;
+    const comprometido = comprPedidos;
 
     const variableProy7 = ritmoDiario7 * diasRestantes;
     const variableProyMes = ritmoDiarioMes * diasRestantes;
@@ -140,7 +134,7 @@
     return {
       mes: mesKey, totalDias, diasTranscurridos, diasRestantes, disponible,
       gastoRealAcumulado,
-      comprometido, comprometidoDetalle: { fijos: comprFijos, pedidos: comprPedidos },
+      comprometido, comprometidoDetalle: { pedidos: comprPedidos },
       ritmoDiario7, ritmoDiarioMes,
       variableProy7, variableProyMes,
       proyeccion7, proyeccionMes,

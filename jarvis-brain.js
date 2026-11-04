@@ -309,13 +309,6 @@
     L.push('MOVIMIENTOS DEL MES: ingresos ' + inc + ' · gastos ' + exp);
     if (S.wishlist && S.wishlist.length) L.push('OBJETIVOS DE ADQUISICIÓN: ' + S.wishlist.map(w => `${w.name} (${w.amount} ${w.currency || ''})`).join(', '));
 
-    // Gastos fijos del mes y su estado de pago
-    const fe = (S.fixedExpenses || []).map(e => {
-      const paid = S.fixedExpenseLog && S.fixedExpenseLog[mk] && S.fixedExpenseLog[mk][e.id];
-      return `  [${paid ? 'PAGADO' : 'pendiente'}] ${e.name} ${e.amount} ${e.currency || ''} (día ${e.dayOfMonth || '?'})`;
-    });
-    if (fe.length) L.push('\nGASTOS FIJOS [' + mk + ']:\n' + fe.join('\n'));
-
     // Salud
     const healthBits = [];
     if (S.bodyWeight && S.bodyWeight.length) { const last = S.bodyWeight[S.bodyWeight.length - 1]; healthBits.push('peso: ' + last.value + last.unit + ' (' + last.date + ')'); }

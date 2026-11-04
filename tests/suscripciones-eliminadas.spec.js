@@ -146,9 +146,9 @@ test('4) los vencimientos y el ticker no avisan suscripciones, y los de tarjeta 
 // Estado de ejemplo del cálculo a mano (hoy = 15-oct-2026, 15 días transcurridos, 16 restantes):
 //   gasto real  = Comida 15.000 + Cine 9.000 + "Sub: Netflix" 6.000 (histórica) = 30.000
 //   variable    = 30.000 - 6.000 (la "Sub:" no cuenta como ritmo) = 24.000 → 1.600/día → 16 × 1.600 = 25.600
-//   comprometido = Gimnasio 40.000 (sin marcar) + Zapatillas 30.000 (llegan el 25) = 70.000
-//                  (con la función vieja sumaba además Spotify 4.500, que cobra el 25 y no tenía transacción: 74.500)
-//   proyección del mes = 30.000 + 70.000 + 25.600 = 125.600
+//   comprometido = Zapatillas 30.000 (llegan el 25) = 30.000
+//                  (con la función vieja sumaba además Spotify 4.500, que cobra el 25 y no tenía transacción: 34.500)
+//   proyección del mes = 30.000 + 30.000 + 25.600 = 85.600
 test('5) proyección del mes: "comprometido" ya no suma suscripciones y las "Sub: …" históricas no cuentan como gasto variable', async ({ cmPage, consoleErrors }) => {
   await irAFinanzas(cmPage);
   const d = await cmPage.evaluate(() => {
@@ -162,23 +162,18 @@ test('5) proyección del mes: "comprometido" ya no suma suscripciones y las "Sub
       { id: 't2', date: '2026-10-10', name: 'Cine', type: 'expense', amount: 9000, currency: 'ARS', accountId: 'bco' },
       { id: 't3', date: '2026-10-08', name: 'Sub: Netflix', type: 'expense', amount: 6000, currency: 'ARS', accountId: 'bco' },
     ];
-    S.fixedExpenses = [
-      { id: 'fx1', name: 'Gimnasio', amount: 40000, currency: 'ARS', dayOfMonth: 20 },
-      { id: 'fx2', name: 'Expensas', amount: 90000, currency: 'ARS', dayOfMonth: 5 },
-    ];
-    S.fixedExpenseLog = { '2026-10': { fx2: true } };
     S.orders = [{ id: 'o1', name: 'Zapatillas', amount: 30000, currency: 'ARS', arrival: '2026-10-25', deducted: false }];
     renderFinanzasTab();
     CMProyeccion.render();
-    return { calc: CMProyeccion.calcular('2026-10'), texto: document.getElementById('proyeccion-card').innerText, comp: fmtMoney(70000, 'ARS') };
+    return { calc: CMProyeccion.calcular('2026-10'), texto: document.getElementById('proyeccion-card').innerText, comp: fmtMoney(30000, 'ARS') };
   });
-  expect(d.calc.comprometido).toBe(70000);
-  expect(d.calc.comprometidoDetalle).toEqual({ fijos: 40000, pedidos: 30000 });
+  expect(d.calc.comprometido).toBe(30000);
+  expect(d.calc.comprometidoDetalle).toEqual({ pedidos: 30000 });
   expect(d.calc.gastoRealAcumulado).toBe(30000);
   expect(d.calc.ritmoDiarioMes).toBe(1600);        // la "Sub: Netflix" histórica queda fuera del ritmo variable
   expect(d.calc.variableProyMes).toBe(25600);
-  expect(d.calc.proyeccionMes).toBe(125600);
-  expect(d.calc.proyeccion7).toBeCloseTo(30000 + 70000 + (9000 / 7) * 16, 5);   // últimos 7 días (9 al 15): solo el cine
+  expect(d.calc.proyeccionMes).toBe(85600);
+  expect(d.calc.proyeccion7).toBeCloseTo(30000 + 30000 + (9000 / 7) * 16, 5);   // últimos 7 días (9 al 15): solo el cine
   expect(d.texto).toContain(d.comp);
   expect(d.texto).not.toMatch(/suscrip/i);
   expect(consoleErrors).toEqual([]);
