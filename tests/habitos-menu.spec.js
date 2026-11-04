@@ -171,15 +171,25 @@ test('un scroll que mueve la celda (ej. el scroll suave tras cambiar de pestaña
   test.skip(isMobile, 'en mobile es hoja inferior: no sigue a la celda');
   await cmPage.click('.nav-btn[data-tab="salud"]');
   const c = await celdaHoy(cmPage, null);
+  await cmPage.waitForTimeout(600);   // que termine el scroll suave del cambio de pestaña, para medir limpio
   await c.click();
   await expect(menu(cmPage)).toHaveCount(1);
   const antes = await menu(cmPage).evaluate((m) => m.getBoundingClientRect().top);
-  await cmPage.evaluate(() => { window.scrollBy(0, 40); window.dispatchEvent(new Event('scroll')); });
-  await cmPage.waitForTimeout(100);
+  // En esta app scrollea #app (no la ventana), con scroll suave: se mueve instantáneo para medir.
+  const celdaAntes = await c.evaluate((x) => x.getBoundingClientRect().top);
+  await cmPage.evaluate(() => {
+    const a = document.getElementById('app');
+    a.scrollTo({ top: a.scrollTop >= 40 ? a.scrollTop - 40 : a.scrollTop + 40, behavior: 'instant' });   // hacia donde haya lugar
+  });
+  await cmPage.waitForTimeout(150);
   await expect(menu(cmPage)).toHaveCount(1);
-  const despues = await menu(cmPage).evaluate((m) => m.getBoundingClientRect().top);
-  const celda = await c.evaluate((x) => x.getBoundingClientRect().bottom);
-  expect(Math.abs(despues - (celda + 6)) < 2 || despues !== antes).toBe(true);
+  const m = await menu(cmPage).evaluate((x) => { const r = x.getBoundingClientRect(); return { top: r.top, bottom: r.bottom }; });
+  const cel = await c.evaluate((x) => { const r = x.getBoundingClientRect(); return { top: r.top, bottom: r.bottom }; });
+  const vh = await cmPage.evaluate(() => window.innerHeight);
+  expect(Math.abs(cel.top - celdaAntes)).toBeGreaterThan(1);   // la celda se movió de verdad
+  // y el menú la acompaña: pegado abajo o arriba de la celda, o apoyado contra el borde de la pantalla
+  const pegado = Math.abs(m.top - (cel.bottom + 6)) < 2 || Math.abs(m.bottom - (cel.top - 6)) < 2 || m.top <= 8.5 || m.bottom >= vh - 8.5;
+  expect(pegado, JSON.stringify({ antes, m, cel, vh })).toBe(true);
   await menu(cmPage).getByRole('menuitem', { name: /Parcial/ }).click();
   expect(await estado(cmPage)).toBe('partial');
 });
