@@ -353,13 +353,13 @@ const Finales = (() => {
         const horas = (sid && window.Pomodoro) ? Pomodoro.horasPorMateria(sid, desde, hoy()) : null;
         const estudio = horas == null ? '' : `<div class="fin-item-estudio">${fmtHoras(horas)} h estudiadas (últimos 30 días)</div>`;
         return `<div class="fin-item ${c.urgent ? 'urgent' : ''}" style="animation-delay:${i * 60}ms">
-          <input type="checkbox" class="fin-check" onclick="Finales.done('${f.id}');this.checked=false" title="Marcar como rendido" aria-label="Marcar ${esc(f.materia)} como rendido">
           <div class="fin-item-main">
             <div class="fin-item-name">${esc(f.materia)}</div>
             <div class="fin-item-meta"><span class="fin-tipo-badge">${esc(f.tipo)}</span><span>${fmtF(f.fecha)}</span>${comisionDe(f) ? `<span>${esc(comisionTxt(comisionDe(f)))}</span>` : ''}</div>
             ${estudio}
           </div>
           <div class="fin-count">${c.html}</div>
+          <input type="checkbox" class="fin-check" onclick="Finales.done('${f.id}');this.checked=false" title="Marcar como rendido" aria-label="Marcar ${esc(f.materia)} como rendido">
         </div>`;
       }).join('') + '</div>';
     } else {
