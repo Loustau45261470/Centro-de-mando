@@ -34,10 +34,16 @@ async function aprobarConNota(page, id, nota) {
   await page.click('#modal-final-nota .btn-primary');
 }
 
+// El overlay ya no tiene formulario "+ Agregar": el selector de materia vive en la edición de un final del Historial.
+async function editarHistorico(page) {
+  await sembrarFinal(page, { id: 'fh', materia: 'Algo viejo', fecha: '2020-01-01', done: true, doneEl: '2020-01-01' });
+  await page.evaluate(() => { Finales.open(); Finales.edit('fh'); });
+}
+
 test('el selector ofrece cada opción de la fila compartida por código y con su nombre', async ({ cmPage }) => {
   await armarPlan(cmPage);
-  await cmPage.evaluate(() => Finales.open());
-  const ops = await cmPage.locator('#fin-materia-sel option').evaluateAll((os) => os.map((o) => [o.value, o.textContent]));
+  await editarHistorico(cmPage);
+  const ops = await cmPage.locator('#fin-e-materia-sel option').evaluateAll((os) => os.map((o) => [o.value, o.textContent]));
   const valores = ops.map((o) => o[0]);
   expect(valores).toEqual(['', 's3_9#60-4960', 's3_9#60-4970', 's5_11#60-6120', 's5_11#60-6130', 's5_11#60-6140', '__otra']);
   expect(ops[1][1]).toBe('Oratoria jurídica (seminario electivo I) (60-4960)');
@@ -45,13 +51,13 @@ test('el selector ofrece cada opción de la fila compartida por código y con su
   expect(ops[2][1]).toContain('(60-4970)');
 });
 
-test('agregar un final con una opción guarda codigo, subjectId y el nombre de esa opción', async ({ cmPage }) => {
+test('editar un final eligiendo una opción guarda codigo, subjectId y el nombre de esa opción', async ({ cmPage }) => {
   await armarPlan(cmPage);
-  await cmPage.evaluate(() => Finales.open());
-  await cmPage.selectOption('#fin-materia-sel', 's3_9#60-4960');
-  await cmPage.click('#ov-finales-form .btn');
+  await editarHistorico(cmPage);
+  await cmPage.selectOption('#fin-e-materia-sel', 's3_9#60-4960');
+  await cmPage.click('#ov-finales-list >> text=Guardar');
   const f = await cmPage.evaluate(() => S.sgc.finales[0]);
-  expect(f).toMatchObject({ subjectId: 's3_9', codigo: '60-4960', done: false });
+  expect(f).toMatchObject({ subjectId: 's3_9', codigo: '60-4960', done: true });
   expect(f.materia).toContain('Oratoria jurídica');
 });
 

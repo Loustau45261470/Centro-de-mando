@@ -30,6 +30,7 @@ async function armar(page, filas) {
     saveState();
     renderLawPlan();   // lo mismo que corre al iniciar la app con las filas ya cargadas
   }, `() => [${filas}]`);
+  await page.evaluate(() => Finales.open('plan'));   // la tabla del plan vive en el overlay "Plan de materias"
 }
 
 const finales = (page) => page.evaluate(() => S.sgc.finales);
@@ -270,7 +271,7 @@ test('las tarjetas de final muestran la comisión de la fila vinculada', async (
   await expect(card.locator('.fin-item', { hasText: 'Beta' })).toContainText('Com. B');
   await expect(card.locator('.fin-item', { hasText: 'Gamma' })).toContainText('Unificada');
   await expect(card.locator('.fin-item', { hasText: 'Delta' })).not.toContainText('Com.');
-  await cmPage.evaluate(() => Finales.open());
-  await expect(cmPage.locator('#ov-finales-list')).toContainText('Com. B');
+  await cmPage.evaluate(() => Finales.open('plan'));
+  await expect(tabla(cmPage)).toContainText('Com. B');
   expect(consoleErrors).toEqual([]);
 });

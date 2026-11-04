@@ -422,14 +422,19 @@ function _lawFechaCell(e) {
   return `<div class="law-tags">${fecha}${chips.join('')}</div>`;
 }
 
+// La tabla vive en el overlay "Plan de materias" (finales.js crea #law-plan-wrap al abrirlo); si todavía no existe, solo sincroniza.
 function renderLawPlan(keepSort) {
   const wrap = document.getElementById('law-plan-wrap');
-  if (!wrap) return;
   if (!keepSort) _lawPlanSort = 0;
   if (window.Finales && Finales.sincronizarDesdePlan) Finales.sincronizarDesdePlan();   // filas con fecha completa → final propio
+  if (!wrap) return;
   const plan = _lawPlanRows(S.lawPlan);
   const PENCIL = `<svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
   const TRASH  = `<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>`;
+  const CHECK  = `<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>`;
+  const F = window.Finales;
+  // ✓ Marcar como rendida: abre el modal de nota de Finales (el final pasa al Historial).
+  const btnRendida = id => `<button class="icon-btn law-rendida" onclick="Finales.done('${id}')" title="Marcar como rendida" aria-label="Marcar como rendida">${CHECK}</button>`;
 
   wrap.innerHTML = `<div class="card">
     <div class="card-title">
@@ -444,8 +449,20 @@ function renderLawPlan(keepSort) {
           <td>${_lawFechaCell(e)}</td>
           <td style="padding:4px 8px;white-space:nowrap">
             <div style="display:flex;gap:2px">
+              ${(() => { const fa = F && F.activoDeFila ? F.activoDeFila(e.id) : null; return fa ? btnRendida(fa.id) : ''; })()}
               <button class="icon-btn" onclick="openEditLawPlan('${e.id}')">${PENCIL}</button>
               <button class="icon-btn" onclick="deleteLawPlan('${e.id}')">${TRASH}</button>
+            </div>
+          </td>
+        </tr>`).join('')}
+        ${(F && F.sueltos ? F.sueltos() : []).map(f => `<tr class="law-suelto">
+          <td class="law-plan-name">${escHtml(f.materia)}</td>
+          <td><div class="law-tags">${_lawTargetTag(_lawTargetDeISO(f.fecha))}<span class="law-tag law-tag-mini">${escHtml(f.tipo)}</span></div></td>
+          <td style="padding:4px 8px;white-space:nowrap">
+            <div style="display:flex;gap:2px">
+              ${btnRendida(f.id)}
+              <button class="icon-btn" onclick="Finales.editarSuelto('${f.id}')">${PENCIL}</button>
+              <button class="icon-btn" onclick="Finales.del('${f.id}')">${TRASH}</button>
             </div>
           </td>
         </tr>`).join('')}

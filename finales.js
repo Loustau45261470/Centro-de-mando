@@ -1,9 +1,9 @@
 'use strict';
 // ════════════════════════════════════════════════════════════════════════
 // FINALES — fechas de finales de materias (Conocimiento).
-// Carga en overlay (materia, fecha, tipo de examen de lista fija); los activos
-// se reflejan en la sección principal como "Materia · días restantes" ordenado
-// por urgencia. Vencidos se marcan; el check "done" los pasa a historial.
+// El overlay se llama "Plan de materias" y tiene dos pestañas: el Plan de Materias (tabla de abogacia.js, donde se cargan
+// fecha y tipo de examen de cada final) e Historial (finales rendidos). Los activos se reflejan en la sección principal
+// como "Materia · días restantes" ordenado por urgencia. Vencidos se marcan; el check "done" los pasa a historial.
 // La materia se elige del plan de carrera (S.lawProgress, no aprobadas) y se guarda
 // con `subjectId`; al aprobar el final se pide la nota y se marca la materia en la
 // carrera. "Otra (escribir)" deja el texto libre de siempre.
@@ -51,15 +51,6 @@ const Finales = (() => {
   }
   const activos = () => ensureF().filter(f => !f.done).slice().sort((a, b) => a.fecha.localeCompare(b.fecha));
   const historial = () => ensureF().filter(f => f.done).slice().sort((a, b) => b.fecha.localeCompare(a.fecha));
-
-  // Etiqueta de días restantes según estado.
-  function etiqueta(f) {
-    const d = diasRest(f.fecha);
-    if (d < 0) return `<span style="color:var(--danger,#FF3B47);font-weight:700">Vencido</span>`;
-    if (d === 0) return `<span style="color:var(--warn,#FBBF24);font-weight:700">Hoy</span>`;
-    const col = d <= 3 ? 'var(--danger,#FF3B47)' : d <= 7 ? 'var(--warn,#FBBF24)' : 'var(--tt)';
-    return `<span style="color:${col};font-weight:700">${d} ${d === 1 ? 'día' : 'días'}</span>`;
-  }
 
   // ══════════ Plan de estudio ══════════
   // f.plan = { horasSemana, dias:[0-6, 0=domingo], hora:'HH:MM', creado:'YYYY-MM-DD', totalHoras, ajuste?, faltan? }.
@@ -242,6 +233,26 @@ const Finales = (() => {
   function comisionDe(f) { const r = filaDe(f); return r && r.comision ? r.comision : ''; }
   const comisionTxt = c => (c ? (c === 'Unificada' ? 'Unificada' : 'Com. ' + c) : '');
 
+  // Final activo vinculado a una fila del plan (null si no hay).
+  const activoDeFila = rowId => ensureF().find(x => x.lawPlanId === rowId && !x.done) || null;
+  // Finales activos sin fila en el plan (cargados a mano antes del Plan de materias, o cuya fila se borró): la tabla del
+  // plan los muestra como filas extra para que sigan accesibles.
+  const sueltos = () => activos().filter(f => !filaDe(f));
+  // "Editar" un final suelto: se le crea su fila en el plan (misma materia, fecha y tipo) y se abre el modal normal de esa fila.
+  function editarSuelto(id) {
+    const f = ensureF().find(x => x.id === id); if (!f || f.done) return;
+    let fila = filaDe(f);
+    if (!fila) {
+      fila = { id: uid(), subject: f.materia, target: typeof _lawTargetDeISO === 'function' ? _lawTargetDeISO(f.fecha) : 'Sin fecha' };
+      if (TIPOS.includes(f.tipo)) fila.tipo = f.tipo;
+      filasPlan().push(fila);
+      f.lawPlanId = fila.id;
+      saveState();
+      rerender();
+    }
+    if (typeof openEditLawPlan === 'function') openEditLawPlan(fila.id);
+  }
+
   // Para la fila del plan: null si su final vinculado no está rendido; si lo está, { nota } (nota de la carrera o null).
   function estadoFila(rowId) {
     const f = ensureF().find(x => x.lawPlanId === rowId);
@@ -315,7 +326,7 @@ const Finales = (() => {
   function renderPrep() {
     const el = document.getElementById('ov-prep-finales'); if (!el) return;
     const list = activos();
-    if (!list.length) { el.innerHTML = '<div class="empty-state" style="padding:12px 0">No tenés finales cargados. Cargá la fecha en el Plan de Materias o en Finales.</div>'; return; }
+    if (!list.length) { el.innerHTML = '<div class="empty-state" style="padding:12px 0">No tenés finales cargados. Cargá la fecha en el Plan de materias.</div>'; return; }
     el.innerHTML = '<div class="fin-list">' + list.map(f => {
       const c = conteo(diasRest(f.fecha));
       return `<div class="fin-item ${c.urgent ? 'urgent' : ''}">
@@ -342,6 +353,7 @@ const Finales = (() => {
         const horas = (sid && window.Pomodoro) ? Pomodoro.horasPorMateria(sid, desde, hoy()) : null;
         const estudio = horas == null ? '' : `<div class="fin-item-estudio">${fmtHoras(horas)} h estudiadas (últimos 30 días)</div>`;
         return `<div class="fin-item ${c.urgent ? 'urgent' : ''}" style="animation-delay:${i * 60}ms">
+          <input type="checkbox" class="fin-check" onclick="Finales.done('${f.id}');this.checked=false" title="Marcar como rendido" aria-label="Marcar ${esc(f.materia)} como rendido">
           <div class="fin-item-main">
             <div class="fin-item-name">${esc(f.materia)}</div>
             <div class="fin-item-meta"><span class="fin-tipo-badge">${esc(f.tipo)}</span><span>${fmtF(f.fecha)}</span>${comisionDe(f) ? `<span>${esc(comisionTxt(comisionDe(f)))}</span>` : ''}</div>
@@ -351,40 +363,54 @@ const Finales = (() => {
         </div>`;
       }).join('') + '</div>';
     } else {
-      rows = '<div class="empty-state" style="padding:12px 0">Sin finales próximos. Cargalos desde el menú de Conocimiento → Finales.</div>';
+      rows = '<div class="empty-state" style="padding:12px 0">Sin finales próximos. Cargalos en el Plan de materias.</div>';
     }
-    el.innerHTML = `<div class="card"><div class="card-title">🎓 Finales <span style="font-size:var(--fs-12-5);font-weight:400;color:var(--tt)">días restantes</span></div>${rows}</div>`;
+    el.innerHTML = `<div class="card"><div class="card-title">🎓 Finales <span style="font-size:var(--fs-12-5);font-weight:400;color:var(--tt)">días restantes</span><button class="btn btn-ghost btn-sm" id="fin-ir-plan" onclick="Finales.open('plan')">Ir a Finales / Plan de materias</button></div>${rows}</div>`;
   }
 
   // ══════════ Overlay ══════════
+  // "Plan de materias": pestaña Plan (la tabla de renderLawPlan, abogacia.js, en #law-plan-wrap) e Historial (#ov-finales-list).
+  const TABS = ['plan', 'historial'];
+  const TAB_KEY = 'cdm_plan_materias_tab';
+  function setTab(t, persist) {
+    const ov = document.getElementById('ov-finales'); if (!ov) return;
+    if (!TABS.includes(t)) t = 'plan';
+    ov.querySelectorAll('.plov-tab').forEach(b => {
+      const on = b.dataset.t === t;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-selected', String(on));
+    });
+    ov.querySelector('.plov-tabs').dataset.on = t;
+    TABS.forEach(k => { const p = ov.querySelector('#fin-pane-' + k); if (p) p.hidden = k !== t; });
+    if (persist) { try { localStorage.setItem(TAB_KEY, t); } catch (e) {} }
+  }
   function ensureOverlay() {
     if (typeof CMOverlay === 'undefined') return null;
     const { overlay, body } = CMOverlay.build({ id: 'ov-finales', accent: '#6B8EFF' });
     if (!overlay._fBuilt) {
-      body.innerHTML = `<div class="cm-ov-head"><div class="cm-ov-eyebrow">CONOCIMIENTO · FINALES</div><div class="cm-ov-title">Finales de materias</div></div>
-        <div class="cm-ov-host"><div id="ov-finales-form"></div><div id="ov-finales-list"></div></div>`;
+      body.innerHTML = `<div class="cm-ov-head"><div class="cm-ov-eyebrow">CONOCIMIENTO · PLAN DE MATERIAS</div><div class="cm-ov-title">Plan de materias</div></div>
+        <div class="plov-tabs" data-on="plan" role="tablist" aria-label="Secciones de Plan de materias">
+          <button class="plov-tab on" id="fin-tab-plan" data-t="plan" role="tab" aria-selected="true" aria-controls="fin-pane-plan">Plan de materias</button>
+          <button class="plov-tab" id="fin-tab-historial" data-t="historial" role="tab" aria-selected="false" aria-controls="fin-pane-historial">Historial</button>
+          <span class="plov-tab-ink"></span>
+        </div>
+        <div class="plov-pane" id="fin-pane-plan" role="tabpanel" aria-labelledby="fin-tab-plan"><div id="law-plan-wrap"></div></div>
+        <div class="plov-pane" id="fin-pane-historial" role="tabpanel" aria-labelledby="fin-tab-historial" hidden><div id="ov-finales-list"></div></div>`;
+      body.querySelectorAll('.plov-tab').forEach(b => b.addEventListener('click', () => setTab(b.dataset.t, true)));
       overlay._fBuilt = true;
     }
     return overlay;
   }
 
-  function open() {
+  // `tab` ('plan' | 'historial') fuerza la pestaña; sin él, abre la última que se usó (por defecto el Plan de materias).
+  function open(tab) {
     const ov = ensureOverlay(); if (!ov) return;
     _editId = null;
-    renderForm(); renderList();
+    let t = TABS.includes(tab) ? tab : null;
+    if (!t) { try { t = localStorage.getItem(TAB_KEY); } catch (e) {} }
+    setTab(t, TABS.includes(tab));
+    renderList(); rerender();
     CMOverlay.open(ov);
-  }
-
-  function renderForm() {
-    const el = document.getElementById('ov-finales-form'); if (!el) return;
-    const inp = 'background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:7px 9px;font-size:var(--fs-12-5);color:inherit';
-    el.innerHTML = `
-      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
-        ${selectorMateria('fin', null, '', inp)}
-        <input id="fin-fecha" type="date" value="${hoy()}" style="${inp}">
-        <select id="fin-tipo" style="${inp}">${TIPOS.map(t => `<option value="${t}">${t}</option>`).join('')}</select>
-        <button class="btn btn-sm" onclick="Finales.add()">+ Agregar</button>
-      </div>`;
   }
 
   // Selector de materia (plan no aprobado, ordenado por año) + "Otra (escribir)" con texto libre.
@@ -458,19 +484,6 @@ const Finales = (() => {
     </div>`;
   }
 
-  function filaActiva(f) {
-    if (_editId === f.id) return filaEdit(f);
-    return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px;border:1px solid rgba(255,255,255,.08);border-radius:8px;margin-bottom:6px">
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1">
-        <input type="checkbox" onclick="Finales.done('${f.id}')" title="Marcar como rendido" style="width:16px;height:16px;cursor:pointer">
-        <span style="font-size:var(--fs-12-5)"><b>${esc(f.materia)}</b> <span style="font-size:var(--fs-12-5);color:var(--tt)">· ${esc(f.tipo)} · ${fmtF(f.fecha)}${comisionDe(f) ? ' · ' + esc(comisionTxt(comisionDe(f))) : ''}</span></span>
-      </label>
-      <span style="white-space:nowrap;font-size:var(--fs-12-5)">${etiqueta(f)}
-        <button class="btn btn-ghost btn-sm" style="padding:2px 6px" onclick="Finales.edit('${f.id}')">✎</button>
-        <button class="btn btn-ghost btn-sm" style="padding:2px 6px;opacity:.6" onclick="Finales.del('${f.id}')">🗑</button></span>
-    </div>`;
-  }
-
   function filaHist(f) {
     if (_editId === f.id) return filaEdit(f);
     return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 8px;font-size:var(--fs-12-5);color:var(--tt);border-bottom:1px solid rgba(255,255,255,.05)">
@@ -482,32 +495,22 @@ const Finales = (() => {
     </div>`;
   }
 
+  // Pestaña Historial: los finales rendidos. Un final activo en edición (solo por API: la UI edita los activos desde el
+  // modal del plan) se muestra arriba.
   function renderList() {
     const el = document.getElementById('ov-finales-list'); if (!el) return;
-    const act = activos(), hist = historial();
-    el.innerHTML = `
-      <div style="font-size:var(--fs-12-5);font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--tt);margin-bottom:6px">Activos (${act.length})</div>
-      ${act.length ? act.map(filaActiva).join('') : '<div class="empty-state" style="padding:8px 0">Sin finales cargados.</div>'}
-      ${hist.length ? `<div style="font-size:var(--fs-12-5);font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--tt);margin:14px 0 6px">Historial (${hist.length})</div>${hist.map(filaHist).join('')}` : ''}`;
+    const hist = historial();
+    const editando = _editId && activos().find(f => f.id === _editId);
+    const head = 'font-size:var(--fs-12-5);font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--tt);margin-bottom:6px';
+    el.innerHTML = `${editando ? filaEdit(editando) : ''}
+      <div style="${head}">Historial (${hist.length})</div>
+      ${hist.length ? hist.map(filaHist).join('') : '<div class="empty-state" style="padding:8px 0">Todavía no rendiste ningún final.</div>'}`;
   }
 
   function refresh() { renderList(); renderPrincipal(); rerender(); if (typeof refreshRemindersView === 'function') refreshRemindersView('conocimiento'); }
 
   // ══════════ CRUD ══════════
-  function add() {
-    const fecha = document.getElementById('fin-fecha')?.value || '';
-    const tipo = document.getElementById('fin-tipo')?.value || TIPOS[0];
-    const m = leerMateria('fin'); if (!m) return;
-    if (!fecha) { notify('Elegí la fecha del final'); return; }
-    const nuevo = { id: uid(), materia: m.materia, subjectId: m.subjectId, fecha, tipo, done: false, doneEl: null };
-    if (m.codigo) nuevo.codigo = m.codigo;
-    ensureF().push(nuevo);
-    saveState();
-    notify('🎓 Final agregado: ' + m.materia);
-    renderForm(); // limpia el formulario
-    refresh();
-  }
-  function edit(id) { _editId = id; renderList(); }
+  function edit(id) { _editId = id; setTab('historial', false); renderList(); }
   function cancelEdit() { _editId = null; renderList(); }
   function saveEdit(id) {
     const f = ensureF().find(x => x.id === id); if (!f) { cancelEdit(); return; }
@@ -631,7 +634,7 @@ const Finales = (() => {
     refresh(); if (tenia) refrescarPlanner();
   }
 
-  return { renderPrincipal, renderPrep, estadoPlanDe, open, add, edit, cancelEdit, saveEdit, done, reactivar, del, onSelMateria, subjectIdDe, notaGuardar, notaMasTarde, notaDesaprobe, activos, planAbrir, planCerrar, planGuardar, planBorrar, reacomodar, bloquesDe, progreso, TIPOS, estadoFila, sincronizarDesdePlan, alGuardarFila };
+  return { renderPrincipal, renderPrep, estadoPlanDe, open, edit, cancelEdit, saveEdit, done, reactivar, del, onSelMateria, subjectIdDe, notaGuardar, notaMasTarde, notaDesaprobe, activos, planAbrir, planCerrar, planGuardar, planBorrar, reacomodar, bloquesDe, progreso, TIPOS, estadoFila, sincronizarDesdePlan, alGuardarFila, activoDeFila, sueltos, editarSuelto };
 })();
 window.Finales = Finales;
 window.openFinalesOverlay = Finales.open;

@@ -5679,6 +5679,15 @@ input:focus, select:focus, textarea:focus {
 #ov-sesion-estudio .plov-tabs[data-on="finales"] .plov-tab-ink { left: calc(8px + (100% - 16px) / 3); }
 #ov-sesion-estudio .plov-tabs[data-on="historial"] .plov-tab-ink { left: calc(12px + 2 * (100% - 16px) / 3); }
 @media (max-width: 480px) { #ov-sesion-estudio .plov-tab { font-size: var(--fs-13); } }
+/* ── Plan de materias (overlay de Finales): dos pestañas; la tabla del plan scrollea dentro de su contenedor, no la página ── */
+#ov-finales .plov-tabs[data-on="historial"] .plov-tab-ink { left: 50%; }
+#ov-finales .plov-tab { min-width: 0; line-height: 1.2; }
+#ov-finales .plov-pane { min-width: 0; padding-bottom: 24px; }
+#law-plan-wrap .card { overflow-x: auto; }
+#law-plan-wrap .law-tbl td { overflow-wrap: anywhere; }
+#law-plan-wrap .law-rendida { color: var(--ok); }
+.fin-check { width: 20px; height: 20px; flex-shrink: 0; cursor: pointer; accent-color: var(--ok); }
+.card-title .btn#fin-ir-plan { margin-left: auto; }
 .pomo-plan-line { text-align: center; font-size: var(--fs-12-5); margin: -10px 0 16px; }
 
 /* ── Historial de estudio (dentro del overlay Sesión de estudio) ── */

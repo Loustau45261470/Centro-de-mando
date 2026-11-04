@@ -172,7 +172,7 @@ const CMDeadlines = (() => {
       add({ id: 'final_' + f.id, kind: 'final', kindLabel: 'Final', icon: '🎓', tab: 'conocimiento',
             title: f.materia || 'Final', sub: f.tipo || '', date: f.fecha, allDay: true,
             priority: dias <= 3 ? 'critical' : 'high',
-            doneAction: `Finales.done('${f.id}')`, openAction: 'Finales.open()' });
+            doneAction: `Finales.done('${f.id}')`, openAction: "Finales.open('plan')" });
     });
 
     // 4) Cursada (clases, TPs, foros)

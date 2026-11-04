@@ -55,12 +55,22 @@ async function armar(page) {
   });
 }
 
+// El overlay ya no tiene formulario "+ Agregar": el selector de materia vive en la edición de un final del Historial.
+// Se edita uno rendido de antes (fecha pasada, sin materia del plan) para ver el selector sin materia elegida.
+async function editarHistorico(page) {
+  await page.evaluate(() => {
+    S.sgc.finales.push({ id: 'fh', materia: 'Algo viejo', subjectId: null, fecha: '2020-01-01', tipo: 'Final Escrito', done: true, doneEl: '2020-01-01' });
+    saveState();
+    Finales.open(); Finales.edit('fh');
+  });
+}
+
 const opciones = (loc) => loc.locator('option').evaluateAll((os) => os.map((o) => [o.value, o.textContent, o.parentElement.tagName === 'OPTGROUP' ? o.parentElement.label : '']));
 
-test('Nuevo final: arriba "Próximos exámenes" por fecha (con la fecha al lado), abajo el resto por año sin repetir', async ({ cmPage, consoleErrors }) => {
+test('Selector de materia: arriba "Próximos exámenes" por fecha (con la fecha al lado), abajo el resto por año sin repetir', async ({ cmPage, consoleErrors }) => {
   const f = await armar(cmPage);
-  await cmPage.evaluate(() => Finales.open());
-  const ops = await opciones(cmPage.locator('#fin-materia-sel'));
+  await editarHistorico(cmPage);
+  const ops = await opciones(cmPage.locator('#fin-e-materia-sel'));
   expect(ops.map((o) => o[0])).toEqual([
     '', 's3_9#60-4960', 'b1', 'b2', 'a2', 'a3', // arriba
     'b3', 'b4', 's3_9#60-4970', '__otra',        // abajo, por año
@@ -107,8 +117,8 @@ test('sin finales manda el Plan de Materias; con final vencido la materia queda 
     S.sgc.finales = [{ id: 'fv', materia: 'Delta', subjectId: 'b1', fecha: d.toISOString().slice(0, 10), tipo: 'Final Oral', done: false, doneEl: null }];
     saveState();
   });
-  await cmPage.evaluate(() => Finales.open());
-  const vals = await cmPage.locator('#fin-materia-sel option').evaluateAll((os) => os.map((o) => o.value));
+  await editarHistorico(cmPage);
+  const vals = await cmPage.locator('#fin-e-materia-sel option').evaluateAll((os) => os.map((o) => o.value));
   // Delta tiene final vencido (+lawPlan futuro): el final manda → abajo. Epsilon ahora sale del lawPlan (+10).
   expect(vals).toEqual(['', 'b2', 'a2', 'a3', 'b1', 'b3', 'b4', 's3_9#60-4960', 's3_9#60-4970', '__otra']);
   expect(consoleErrors).toEqual([]);
@@ -116,15 +126,16 @@ test('sin finales manda el Plan de Materias; con final vencido la materia queda 
 
 test('elegir una materia del grupo de arriba guarda el mismo subjectId y nombre (sin la fecha)', async ({ cmPage, consoleErrors }) => {
   await armar(cmPage);
-  await cmPage.evaluate(() => Finales.open());
-  await cmPage.selectOption('#fin-materia-sel', 'b1');
-  await cmPage.click('#ov-finales-form .btn');
-  let nuevo = await cmPage.evaluate(() => S.sgc.finales.find((x) => x.subjectId === 'b1' && !x.codigo));
-  expect(nuevo).toMatchObject({ materia: 'Delta', subjectId: 'b1', done: false });
+  await editarHistorico(cmPage);
+  await cmPage.selectOption('#fin-e-materia-sel', 'b1');
+  await cmPage.click('#ov-finales-list >> text=Guardar');
+  let nuevo = await cmPage.evaluate(() => S.sgc.finales.find((x) => x.id === 'fh'));
+  expect(nuevo).toMatchObject({ materia: 'Delta', subjectId: 'b1' });
 
-  await cmPage.selectOption('#fin-materia-sel', 's3_9#60-4970');
-  await cmPage.click('#ov-finales-form .btn');
-  nuevo = await cmPage.evaluate(() => S.sgc.finales.find((x) => x.codigo === '60-4970'));
+  await cmPage.evaluate(() => Finales.edit('fh'));
+  await cmPage.selectOption('#fin-e-materia-sel', 's3_9#60-4970');
+  await cmPage.click('#ov-finales-list >> text=Guardar');
+  nuevo = await cmPage.evaluate(() => S.sgc.finales.find((x) => x.id === 'fh'));
   expect(nuevo).toMatchObject({ subjectId: 's3_9', codigo: '60-4970' });
   expect(nuevo.materia).not.toContain('·');
   expect(consoleErrors).toEqual([]);

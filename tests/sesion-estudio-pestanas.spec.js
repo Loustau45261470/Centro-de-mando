@@ -130,7 +130,7 @@ test('Preparación de finales: vacío', async ({ cmPage }) => {
   await armar(cmPage, { conFinal: false });
   await abrir(cmPage);
   await tab(cmPage, 'finales').click();
-  await expect(cmPage.locator('#ov-prep-finales')).toContainText('No tenés finales cargados. Cargá la fecha en el Plan de Materias o en Finales.');
+  await expect(cmPage.locator('#ov-prep-finales')).toContainText('No tenés finales cargados. Cargá la fecha en el Plan de materias.');
 });
 
 test('Preparación de finales se repinta al reacomodar y al guardar el plan', async ({ cmPage }) => {
