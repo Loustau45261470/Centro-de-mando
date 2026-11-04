@@ -337,6 +337,13 @@
       "desc": "Un pago manual de resumen (adelanto) no descontaba el vencimiento: A pagar, calendario y recordatorios solo miraban la key auto:, y el pago automático del día volvía a cobrar el total. pendingDues (tarjetas-motor.js) asigna cada pago manual solo al vencimiento de su ciclo (primer día de vencimiento igual o posterior a la fecha del pago), sin pasar sobrante al mes siguiente. Cubierto por tests/adelanto-pago.spec.js.",
       "file": "finanzas.js",
       "marker": "CMTarjetas.pendingDues(card, charges, '1900-01-01', today"
+    },
+    {
+      "id": "setat-no-inventado",
+      "fecha": "2026-11-04",
+      "desc": "Una versión le ponía setAt=hoy a todos los vencimientos a mano sin fecha (también de tarjetas no tocadas, ej. Mercado Pago) y dejaban de sumarse sus compras. setAt solo se pone al guardar un monto; reparación única con flag ccSetAtRepair1. NO volver a estampar setAt automáticamente.",
+      "file": "finanzas.js",
+      "marker": "S.ccSetAtRepair1 = true"
     }
   ]
 }
