@@ -27,6 +27,12 @@ Guardar historial de cambios de categoría (fecha + motivo).
 - **Cuentas de X (le encanta la idea; falta dato)**: API oficial de X pago por uso (~US$ 0,005 por post leído, verificar en docs.x.com); opción de traer solo posts que mencionen empresas del radar para abaratar. Cuenta principal: Lorenzo Couget, ~20–25 posts/día. Opciones de costo (a definir por el usuario): todo (~660 posts/mes, ~US$ 3,30/mes, ~US$ 40/año); solo menciones de empresas del radar (~US$ 6–9/año); recomendada = empresas del radar + temas elegidos (Fed, tasas, elecciones EE.UU., Argentina) (~US$ 15–25/año). Medir el primer mes antes de fijar. Grok descartado por el usuario (resumen semanal no le gusta).
 - **Reportes Q rápidos** (reemplazado por el calendario de arriba; queda como referencia): tarea automática diaria que detecta presentaciones nuevas en EDGAR (8-K con el comunicado de resultados = mismo día; 10-Q/10-K después) para las empresas del radar → actualiza números, genera resumen (vs trimestre anterior y mismo trimestre del año anterior, guidance, puntos clave), lo guarda en la ficha y manda push. Calendario de próximas presentaciones. Transcripciones de calls: sin fuente gratis confiable; evaluar con las referencias del usuario.
 
+## Referencias del usuario (2026-11-04)
+Capturas y video de Seeking Alpha (adaptar a la estética del Centro; "solo cosas puntuales e importantes").
+- **Fase 1**: estados financieros compactos (10 años + TTM, más reciente a la izquierda, sparkline por fila); tarjetas Rentabilidad, Estructura de capital y Valuación (al vuelo). Filas y métricas en una lista de configuración para podar fácil — el usuario anticipa que puede sobrar algo.
+- **Fase 2**: EPS e ingresos esperados vs reales + estimaciones futuras; compras/ventas de insiders (SEC Form 4).
+- **Descartado por el usuario**: dividendos, momentum, estacionalidad, accionariado institucional, ratings/opiniones de Seeking Alpha, notas vs sector. Comparables: quizás más adelante.
+
 ## Pendiente del usuario
 - Ejemplos de páginas de referencia y qué tomar de cada una.
 - Lista de lo que "sí o sí" tiene que estar.
