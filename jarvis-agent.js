@@ -410,6 +410,32 @@
       },
     },
     {
+      name: 'add_reminder',
+      description: 'Crea un recordatorio con fecha y hora (aparece en la card de Recordatorios y avisa por notificación). Necesita fecha Y hora exactas: si el usuario no dijo la hora, preguntásela antes de llamar a la tool. No sirve para fechas pasadas.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          title:    { type: 'string', description: 'Texto del recordatorio' },
+          datetime: { type: 'string', description: 'Fecha y hora, formato YYYY-MM-DDTHH:MM (ej: 2026-11-05T10:30). Calculala a partir de la fecha actual.' },
+          tab:      { type: 'string', enum: ['vida','finanzas','salud','conocimiento','ia'], description: 'Sección (default vida)' },
+          priority: { type: 'string', enum: ['critical','high','medium','low'], description: 'Prioridad (default medium)' },
+        },
+        required: ['title','datetime'],
+      },
+    },
+    {
+      name: 'mark_habit',
+      description: 'Marca un hábito como hecho en un día (default hoy). Busca por nombre aproximado en todas las secciones; si el nombre coincide con más de un hábito o con ninguno, devuelve un error con las opciones: en ese caso preguntale al usuario cuál es y volvé a llamar con el nombre exacto.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          name:  { type: 'string', description: 'Nombre del hábito (aproximado)' },
+          fecha: { type: 'string', description: 'Día YYYY-MM-DD (opcional, default hoy; no puede ser futuro)' },
+        },
+        required: ['name'],
+      },
+    },
+    {
       name: 'query_data',
       description: 'Consulta datos filtrados por rango de fechas/texto: transacciones, metas, hábitos, peso, recordatorios, auditoría, memoria, cartera de inversión, capturas — usar en vez de get_app_state cuando la pregunta es sobre un período o algo específico',
       input_schema: {
@@ -726,6 +752,70 @@
       return `${tipo === 'income' ? 'Ingreso' : 'Gasto'} de ${monto} ("${desc}") registrado para el ${date}.`;
     }
 
+    if (name === 'add_reminder') {
+      // Mismo registro que arma saveReminder() de recordatorios.js (esa lee el modal del DOM, no se puede llamar sin él):
+      // {id, title, datetime, priority} en S.reminders[tab] → CMDeadlines.collect lo toma solo (card, ticker y push).
+      const title = (input.title || '').toString().replace(/[<>]/g, '').trim().slice(0, 200);
+      if (!title) return 'Error: falta el texto del recordatorio.';
+      const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec((input.datetime || '').toString().trim());
+      if (!m) return `Error: falta fecha y hora válidas ("${input.datetime || ''}"). Usá el formato YYYY-MM-DDTHH:MM; si el usuario no dijo la hora, preguntásela.`;
+      const [yy, mo, dd, hh, mi] = m.slice(1).map(Number);
+      const when = new Date(yy, mo - 1, dd, hh, mi);
+      if (when.getFullYear() !== yy || when.getMonth() !== mo - 1 || when.getDate() !== dd || hh > 23 || mi > 59) {
+        return `Error: la fecha/hora "${input.datetime}" no existe.`;
+      }
+      if (when.getTime() < Date.now() - 60000) return `Error: ${m[0].replace(' ', 'T')} ya pasó. Pedile al usuario una fecha futura.`;
+      const datetime = `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}`;
+      const TABS_R = ['vida','finanzas','salud','conocimiento','ia'];
+      const tab = TABS_R.includes(input.tab) ? input.tab : 'vida';
+      const priority = ['critical','high','medium','low'].includes(input.priority) ? input.priority : 'medium';
+      if (!S.reminders) S.reminders = {};
+      if (!S.reminders[tab]) S.reminders[tab] = [];
+      const rem = { id: uid(), title, datetime, priority };
+      S.reminders[tab].push(rem);
+      saveState();
+      if (typeof renderReminders === 'function') renderReminders(tab);
+      window.JARVIS_BRAIN && JARVIS_BRAIN.audit({ ts: Date.now(), source: 'chat', action: 'add_reminder', desc: `Agregó recordatorio: ${title}`, inverse: { type: 'delete_created', kind: 'reminder', tab, id: rem.id } });
+      return `Recordatorio "${title}" creado para el ${dd}/${mo} a las ${m[4]}:${m[5]} (${tab}).`;
+    }
+
+    if (name === 'mark_habit') {
+      const nrm = s => (s || '').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+      const q = nrm(input.name);
+      if (!q) return 'Error: falta el nombre del hábito.';
+      let date = today;
+      if (input.fecha) {
+        const f = input.fecha.toString().trim();
+        const ok = /^\d{4}-\d{2}-\d{2}$/.test(f) && !isNaN(new Date(f + 'T12:00:00')) && new Date(f + 'T12:00:00').toISOString().slice(0, 10) === f;
+        if (!ok) return `Error: la fecha "${input.fecha}" no es válida (formato YYYY-MM-DD).`;
+        if (f > today) return `Error: no se puede marcar un día futuro (${f}).`;
+        date = f;
+      }
+      const all = [];
+      ['vida','finanzas','salud','conocimiento','ia'].forEach(sec => {
+        const list = typeof _getHabits === 'function' ? _getHabits(sec) : ((S.habitTrackers && S.habitTrackers[sec]) || []);
+        list.forEach(h => { if (h && h.name) all.push({ sec, habit: h }); });
+      });
+      const opciones = arr => arr.map(x => `"${x.habit.name}" (${x.sec})`).join(', ');
+      let hits = all.filter(x => nrm(x.habit.name) === q);
+      if (!hits.length) hits = all.filter(x => nrm(x.habit.name).includes(q));
+      if (!hits.length) return `Error: no encontré ningún hábito que coincida con "${input.name}". Hábitos disponibles: ${opciones(all.slice(0, 20)) || 'ninguno'}.`;
+      if (hits.length > 1) return `Error: "${input.name}" coincide con más de un hábito: ${opciones(hits)}. Preguntale al usuario cuál es y volvé a llamar con el nombre exacto.`;
+      const { sec, habit } = hits[0];
+      if (!habit.days) habit.days = {};
+      const prev = habit.days[date];
+      if (prev === 'done') return `"${habit.name}" ya estaba marcado como hecho el ${date}.`;
+      habit.days[date] = 'done';
+      saveState();
+      // Mismos refrescos que toggleHabitDay (habitos.js); la celebración queda afuera (necesita el click).
+      try { if (typeof renderHabitCal === 'function') renderHabitCal(sec); } catch (e) {}
+      try { if (typeof renderHabitsCard === 'function') renderHabitsCard(sec); } catch (e) {}
+      try { if (typeof checkAchievements === 'function') checkAchievements(); } catch (e) {}
+      try { if (typeof renderDayPlanner === 'function') renderDayPlanner(); } catch (e) {}
+      window.JARVIS_BRAIN && JARVIS_BRAIN.audit({ ts: Date.now(), source: 'chat', action: 'mark_habit', desc: `Marcó hábito '${habit.name}' como hecho (${date})`, inverse: { type: 'toggle_back', kind: 'habit_day', section: sec, habitId: habit.id, date, prevValue: prev == null ? null : prev } });
+      return `Hábito "${habit.name}" marcado como hecho el ${date} ✅`;
+    }
+
     if (name === 'consultar_mapa_ideas') {
       if (!window.MapaIdeas || !window.MapaIdeas.consultar) return 'Mapa de Ideas no disponible en esta vista.';
       return window.MapaIdeas.consultar(input.pregunta).then(r => JSON.stringify(r));
@@ -754,6 +844,7 @@ Instrucciones:
 - Para preguntas sobre un período de tiempo o un dato específico (transacciones, metas, hábitos, peso, recordatorios, auditoría, memoria, cartera de inversión, capturas), usá query_data en vez de get_app_state
 - Podés consultar la cartera de inversión (CEDEARs) con query_data area 'cartera', y capturar una idea/nota rápida del usuario para su segundo cerebro con la tool capture
 - El usuario guarda sus propias opiniones/valores/posturas en el Mapa de Ideas: si pregunta algo sobre lo que piensa o cree, usá consultar_mapa_ideas y citá el contenido real de las notas encontradas en vez de responder genéricamente. Si tenés disponible debatir_postura (Modo debate activo) y el usuario pide que argumentes en contra de una postura suya, usala — si no está disponible, avisá que el Modo debate está desactivado
+- Podés crear recordatorios con fecha y hora (add_reminder; si falta la hora, preguntala) y marcar un hábito como hecho (mark_habit; si devuelve error por nombre ambiguo o inexistente, mostrale las opciones al usuario)
 - Confirmá brevemente lo que hiciste
 - Si hay un error o no podés hacer algo, explicalo en una frase`;
 
@@ -929,4 +1020,7 @@ Instrucciones:
     busy = false;
     _setStatus('● LISTO', true);
   }
+
+  // Punto de entrada para tests: ejecuta una tool directo, sin pasar por el modelo.
+  window.JARVIS_AGENT = { exec: _exec, tools: TOOLS };
 })();

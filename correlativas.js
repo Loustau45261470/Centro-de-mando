@@ -217,9 +217,24 @@ const Correlativas = (() => {
     return out;
   }
 
+  // Opciones de una fila compartida del plan (seminarios electivos): [{ code, nombre }] con el nombre
+  // legible del código. Fila de una sola materia → [] (no hay nada que elegir).
+  function opcionesDeFila(subId) {
+    const codes = Object.keys(_SUBID_ALL).filter(c => _SUBID_ALL[c] === subId).sort();
+    if (codes.length < 2) return [];
+    return codes.map(c => {
+      const crudo = _BY_CODE[c] ? _BY_CODE[c].nombre : c;
+      const nombre = crudo.charAt(0) + crudo.slice(1).toLowerCase().replace(/\b(i{1,3})\)/, m => m.toUpperCase());
+      return { code: c, nombre };
+    });
+  }
+
   // Aprueba una materia por id de fila de S.lawProgress con su nota (misma fuente que el plan de carrera):
   // done=true + grade, y deja de figurar como regularizada. Guarda y refresca plan y correlativas.
-  function aprobarMateria(subId, nota) {
+  // Fila compartida (seminarios): hay que saber QUÉ opción se aprobó (`code`, o la ya elegida en
+  // S.carrera.pick); se comporta como setEstado(code,'aprobada'): pick = code y las hermanas sin regularidad.
+  // Sin opción conocida no toca nada y devuelve false.
+  function aprobarMateria(subId, nota, code) {
     ensureCarrera();
     let sub = null;
     for (const y of ((S.lawProgress && S.lawProgress.years) || [])) {
@@ -227,6 +242,12 @@ const Correlativas = (() => {
       if (sub) break;
     }
     if (!sub) return false;
+    const opciones = opcionesDeFila(subId).map(o => o.code);
+    if (opciones.length) {
+      const elegida = opciones.includes(code) ? code : S.carrera.pick[subId];
+      if (!opciones.includes(elegida)) return false;
+      S.carrera.pick[subId] = elegida;
+    }
     sub.done = true;
     const n = parseFloat(String(nota).replace(',', '.'));
     if (!isNaN(n)) sub.grade = Math.max(1, Math.min(10, Math.round(n * 10) / 10));
@@ -432,6 +453,6 @@ const Correlativas = (() => {
     }).join('');
   }
 
-  return { open, setEstado, setFiltroAnio, setFiltroEstado, setSearch, ensureCarrera, materiasDelPlan, aprobarMateria, estado, computeStatus, evalReqCursar, evalCorrelativasRendir };
+  return { open, setEstado, setFiltroAnio, setFiltroEstado, setSearch, ensureCarrera, materiasDelPlan, opcionesDeFila, aprobarMateria, estado, computeStatus, evalReqCursar, evalCorrelativasRendir };
 })();
 window.Correlativas = Correlativas;

@@ -1840,14 +1840,21 @@ function addGoal(when) {
   // [SUPABASE] await supabase.from('goals').insert({ date, text, done: false, priority, user_id });
 }
 
+// Pasa las metas no hechas de un día a otro (sin duplicar por texto) y las saca del día de origen.
+// Devuelve las metas que estaban pendientes. No guarda ni pinta: lo hace quien llama.
+function _moverMetasPendientes(from, to) {
+  const pending = (S.goals[from]||[]).filter(g=>!g.done);
+  if (!S.goals[to]) S.goals[to] = [];
+  const existing = new Set(S.goals[to].map(g=>g.text));
+  pending.forEach(g => { if (!existing.has(g.text)) S.goals[to].push({...g, id:uid(), done:false}); });
+  S.goals[from] = (S.goals[from]||[]).filter(g=>g.done);
+  return pending;
+}
+
 function pushRemaining() {
   if (!confirm('¿Empujar metas pendientes a mañana?')) return;
   const today = getActiveDate(), tom = getTomorrow();
-  const pending = (S.goals[today]||[]).filter(g=>!g.done);
-  if (!S.goals[tom]) S.goals[tom] = [];
-  const existing = new Set(S.goals[tom].map(g=>g.text));
-  pending.forEach(g => { if (!existing.has(g.text)) S.goals[tom].push({...g, id:uid(), done:false}); });
-  S.goals[today] = (S.goals[today]||[]).filter(g=>g.done);
+  const pending = _moverMetasPendientes(today, tom);
   saveState(); renderGoals();
   if (pending.length > 0) {
     showFireEffect();
@@ -1856,6 +1863,40 @@ function pushRemaining() {
   } else {
     showToast('Sin pendientes que empujar');
   }
+}
+
+// Aviso de metas de ayer sin hacer: una vez por día por dispositivo (localStorage), al abrir la app.
+// Nada se mueve solo: "Pasarlas a hoy" las trae (sin duplicar por texto) y "Dejarlas" solo cierra el cartel.
+const METAS_AYER_KEY = 'cdm_metas_ayer_aviso';
+function _ayerStr() {
+  const d = new Date(); d.setDate(d.getDate() - 1);
+  return localStr(d);
+}
+function mostrarAvisoMetasAyer() {
+  const hoy = getActiveDate(), ayer = _ayerStr();
+  const n = (S.goals[ayer] || []).filter(g => !g.done).length;
+  if (!n) return;
+  try { if (localStorage.getItem(METAS_AYER_KEY) === hoy) return; localStorage.setItem(METAS_AYER_KEY, hoy); } catch (e) {}
+  const ref = document.getElementById('metas-readonly-card');
+  if (!ref || document.getElementById('metas-ayer-aviso')) return;
+  const el = document.createElement('div');
+  el.className = 'card metas-ayer-aviso';
+  el.id = 'metas-ayer-aviso';
+  el.setAttribute('role', 'status');
+  el.innerHTML = `<div class="maa-txt">${n === 1 ? 'Te quedó <b>1 meta</b> de ayer sin hacer' : `Te quedaron <b>${n} metas</b> de ayer sin hacer`}</div>
+    <div class="maa-acc"><button class="btn btn-sm btn-primary" onclick="pasarMetasAyerAHoy()">Pasarlas a hoy</button>
+    <button class="btn btn-ghost btn-sm" onclick="cerrarAvisoMetasAyer()">Dejarlas</button></div>`;
+  ref.parentNode.insertBefore(el, ref);
+}
+function cerrarAvisoMetasAyer() {
+  const el = document.getElementById('metas-ayer-aviso');
+  if (el) el.remove();
+}
+function pasarMetasAyerAHoy() {
+  const pending = _moverMetasPendientes(_ayerStr(), getActiveDate());
+  saveState(); renderGoals();
+  cerrarAvisoMetasAyer();
+  showToast(pending.length === 1 ? '1 meta pasada a hoy' : `${pending.length} metas pasadas a hoy`);
 }
 
 function updateStreak() {
@@ -4253,6 +4294,7 @@ setTimeout(() => _msHub.showReminders(), 500);
 // Atajo del ícono de la app o algo compartido desde otra app: se aplica acá,
 // ya con sesión iniciada y el estado cargado (ver share-target.js).
 if (typeof aplicarAccionPendiente === 'function') aplicarAccionPendiente();
+mostrarAvisoMetasAyer();
 }
 
 // ════════════════════════════════════════════════════════

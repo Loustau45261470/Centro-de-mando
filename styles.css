@@ -6378,3 +6378,8 @@ input:focus, select:focus, textarea:focus {
   background:linear-gradient(180deg,rgba(22,8,10,.97),rgba(12,5,6,.98));
   border:1px solid var(--danger);box-shadow:0 10px 34px rgba(0,0,0,.5);
   font-size:var(--fs-13);font-weight:600;color:var(--tp)}
+
+/* Aviso de metas de ayer sin hacer (app.js · mostrarAvisoMetasAyer) */
+.metas-ayer-aviso{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px 12px;padding:10px 14px;border-left:3px solid var(--warn)}
+.metas-ayer-aviso .maa-txt{font-size:var(--fs-13);color:var(--tp)}
+.metas-ayer-aviso .maa-acc{display:flex;gap:6px}
