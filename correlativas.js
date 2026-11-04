@@ -229,6 +229,68 @@ const Correlativas = (() => {
     });
   }
 
+  // Separa `mats` (materiasDelPlan ya filtradas por el selector) en "próximos exámenes" y resto.
+  // Fecha de cada materia: (a) final activo vinculado (Finales.activos + subjectIdDe) → su fecha; si no,
+  // (b) fila de S.lawPlan con el mismo nombre normalizado → _lawTargetDate, solo si nombra un mes (el "Online 2027",
+  // "Promoción…" y "Sin fecha" no tienen mes → sin fecha). Las fechas ya pasadas no van arriba.
+  // Devuelve { proximos: [{ m, cod?, ts, texto }] (más cercana primero), resto: [m] }; `texto` = "25/11" o "nov 2026".
+  // `porCodigo` (Finales): una fila compartida (seminarios) sube solo con la opción de su final (`cod`) y la
+  // fila sigue en `resto` para las demás opciones; sin porCodigo (Pomodoro) sube entera.
+  function agruparPorFecha(mats, porCodigo) {
+    const nm = s => String(s || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/\s+/g, ' ').trim();
+    const hoyISO = typeof getActiveDate === 'function' ? getActiveDate() : new Date().toISOString().slice(0, 10);
+    const t0 = new Date(hoyISO + 'T00:00:00').getTime(), yHoy = +hoyISO.slice(0, 4);
+    const pad = n => String(n).padStart(2, '0');
+    const conAnio = (d, txt) => (d.getFullYear() === yHoy ? txt : txt + '/' + String(d.getFullYear()).slice(2));
+    const mejor = (a, b) => !a ? b : ((a.ts >= t0) === (b.ts >= t0) ? (b.ts < a.ts ? b : a) : (b.ts >= t0 ? b : a));
+
+    // (a) finales activos con fecha, por fila del plan (y por código si corresponde).
+    const deFinal = {};
+    if (window.Finales && Finales.activos && Finales.subjectIdDe) {
+      Finales.activos().forEach(f => {
+        const sid = Finales.subjectIdDe(f);
+        if (!sid || !f.fecha) return;
+        const compartida = opcionesDeFila(sid).length > 0;
+        if (compartida && porCodigo && !f.codigo) return;
+        const cod = compartida && porCodigo ? f.codigo : undefined;
+        const ts = new Date(f.fecha + 'T00:00:00').getTime();
+        const d = new Date(ts);
+        const k = sid + '#' + (cod || '');
+        deFinal[k] = mejor(deFinal[k], { sid, cod, ts, texto: conAnio(d, pad(d.getDate()) + '/' + pad(d.getMonth() + 1)) });
+      });
+    }
+    // (b) Plan de Materias (S.lawPlan) por nombre.
+    const dePlan = {};
+    if (typeof S !== 'undefined' && Array.isArray(S.lawPlan) && typeof _lawTargetDate === 'function' && typeof _LAW_MONTHS !== 'undefined') {
+      S.lawPlan.forEach(e => {
+        const t = String(e.target || '').toLowerCase();
+        const mi = _LAW_MONTHS.findIndex(x => t.includes(x));
+        const ts = mi >= 0 ? _lawTargetDate(e.target) : null;
+        if (ts === null) return;
+        const d = new Date(ts), soloMes = d.getHours() !== 0;   // solo mes → fin de ese mes (23:59:59)
+        const texto = soloMes ? _LAW_MONTHS[mi].slice(0, 3) + ' ' + d.getFullYear() : conAnio(d, pad(d.getDate()) + '/' + pad(d.getMonth() + 1));
+        const k = nm(e.subject);
+        dePlan[k] = mejor(dePlan[k], { ts, texto });
+      });
+    }
+
+    const todos = [];
+    mats.forEach(m => {
+      const finales = Object.keys(deFinal).filter(k => deFinal[k].sid === m.id).map(k => deFinal[k]);
+      if (finales.length) {
+        if (porCodigo) finales.forEach(x => todos.push({ m, cod: x.cod, ts: x.ts, texto: x.texto }));
+        else { const x = finales.reduce(mejor, null); todos.push({ m, ts: x.ts, texto: x.texto }); }
+        return;
+      }
+      const p = !(porCodigo && opcionesDeFila(m.id).length) && dePlan[nm(m.name)];
+      if (p) todos.push({ m, ts: p.ts, texto: p.texto });
+    });
+    // Un final por materia manda aunque esté vencido (entonces la materia queda abajo).
+    const proximos = todos.filter(x => x.ts >= t0).sort((a, b) => a.ts - b.ts);
+    const enTop = new Set(proximos.filter(x => !x.cod).map(x => x.m.id));
+    return { proximos, resto: mats.filter(m => !enTop.has(m.id)) };
+  }
+
   // Aprueba una materia por id de fila de S.lawProgress con su nota (misma fuente que el plan de carrera):
   // done=true + grade, y deja de figurar como regularizada. Guarda y refresca plan y correlativas.
   // Fila compartida (seminarios): hay que saber QUÉ opción se aprobó (`code`, o la ya elegida en
@@ -453,6 +515,6 @@ const Correlativas = (() => {
     }).join('');
   }
 
-  return { open, setEstado, setFiltroAnio, setFiltroEstado, setSearch, ensureCarrera, materiasDelPlan, opcionesDeFila, aprobarMateria, estado, computeStatus, evalReqCursar, evalCorrelativasRendir };
+  return { open, setEstado, setFiltroAnio, setFiltroEstado, setSearch, ensureCarrera, materiasDelPlan, opcionesDeFila, agruparPorFecha, aprobarMateria, estado, computeStatus, evalReqCursar, evalCorrelativasRendir };
 })();
 window.Correlativas = Correlativas;

@@ -270,13 +270,17 @@ const Pomodoro = (() => {
     const pend = materiasPend();
     if (!pend.length) return '';
     const sel = materiaActual();
+    // Arriba "Próximos exámenes" (por fecha); abajo el resto por año, sin repetir lo de arriba.
+    const { proximos, resto } = Correlativas.agruparPorFecha(pend, false);
     const grupos = [];
-    pend.forEach(m => {
+    resto.forEach(m => {
       let g = grupos.find(x => x.anio === m.anio);
       if (!g) { g = { anio: m.anio, label: m.yearLabel, items: [] }; grupos.push(g); }
       g.items.push(m);
     });
-    const opts = grupos.map(g => `<optgroup label="${esc(g.label)}">${g.items.map(m => `<option value="${esc(m.id)}" ${m.id === sel ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}</optgroup>`).join('');
+    const op = (m, suf) => `<option value="${esc(m.id)}" ${m.id === sel ? 'selected' : ''}>${esc(suf ? m.name + ' · ' + suf : m.name)}</option>`;
+    const top = proximos.length ? `<optgroup label="Próximos exámenes">${proximos.map(p => op(p.m, p.texto)).join('')}</optgroup>` : '';
+    const opts = top + grupos.map(g => `<optgroup label="${esc(g.label)}">${g.items.map(m => op(m)).join('')}</optgroup>`).join('');
     return `<div class="pomo-materia">
       <label class="pomo-materia-lbl" for="pomo-materia-sel">Materia</label>
       <select id="pomo-materia-sel" class="inp" onchange="Pomodoro.setMateria(this.value)"><option value="" ${sel ? '' : 'selected'}>Sin materia</option>${opts}</select>

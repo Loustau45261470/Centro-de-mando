@@ -31,7 +31,7 @@ test('el selector sugiere la materia del próximo final activo y ofrece solo las
   const sel = cmPage.locator('#pomo-materia-sel');
   await expect(sel).toHaveValue('s2_8'); // el final de 5 días, no el de 20
   const vals = await sel.locator('option').evaluateAll((os) => os.map((o) => o.value));
-  expect(vals).toEqual(['', 's2_4', 's2_8']); // "Sin materia" + no aprobadas (s1_1 fuera)
+  expect(vals).toEqual(['', 's2_8', 's2_4']); // "Sin materia" + no aprobadas (s1_1 fuera), por fecha de final (5 días antes que 20)
 });
 
 test('sin finales usa la última materia elegida; "Sin materia" sigue permitido', async ({ cmPage }) => {

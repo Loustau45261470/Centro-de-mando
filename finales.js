@@ -296,13 +296,17 @@ const Finales = (() => {
     const mats = plan().filter(m => !m.done || m.id === sid);
     if (!mats.length) return `<input id="${pre}-materia" value="${esc(texto)}" placeholder="Materia" style="${inp};flex:1;min-width:140px">`;
     const otra = !sid && !!texto;
+    // Arriba "Próximos exámenes" (por fecha); abajo el resto por año, sin repetir lo de arriba.
+    const { proximos, resto } = Correlativas.agruparPorFecha(mats, true);
     const grupos = [];
-    mats.forEach(m => {
+    resto.forEach(m => {
       let g = grupos.find(x => x.anio === m.anio);
       if (!g) { g = { anio: m.anio, label: m.yearLabel, items: [] }; grupos.push(g); }
       g.items.push(m);
     });
-    const opts = grupos.map(g => `<optgroup label="${esc(g.label)}">${g.items.map(m => opcionesHtml(m, sid, cod)).join('')}</optgroup>`).join('');
+    const fuera = id => proximos.filter(p => p.m.id === id && p.cod).map(p => p.cod);
+    const top = proximos.length ? `<optgroup label="Próximos exámenes">${proximos.map(p => opcionesHtml(p.m, sid, cod, { solo: p.cod, suf: p.texto })).join('')}</optgroup>` : '';
+    const opts = top + grupos.map(g => `<optgroup label="${esc(g.label)}">${g.items.map(m => opcionesHtml(m, sid, cod, { fuera: fuera(m.id) })).join('')}</optgroup>`).join('');
     return `<select id="${pre}-materia-sel" onchange="Finales.onSelMateria('${pre}')" aria-label="Materia" style="${inp};flex:1;min-width:140px;max-width:100%">
         <option value="" ${!sid && !otra ? 'selected' : ''}>Elegí la materia…</option>${opts}<option value="${OTRA}" ${otra ? 'selected' : ''}>Otra (escribir)</option>
       </select>
@@ -310,11 +314,16 @@ const Finales = (() => {
   }
   // <option> de una materia del plan. Fila compartida (seminarios): una opción por código, con su nombre
   // (value = "idFila#código"). Final viejo de fila compartida sin código: se conserva la genérica hasta que elija.
-  function opcionesHtml(m, sid, cod) {
+  // `op` (opcional, grupo "Próximos exámenes"): solo = código único a mostrar, suf = fecha al lado del nombre,
+  // fuera = códigos que ya subieron al grupo de arriba.
+  function opcionesHtml(m, sid, cod, op) {
+    op = op || {};
+    const suf = op.suf ? ' · ' + op.suf : '';
     const ops = (window.Correlativas && Correlativas.opcionesDeFila) ? Correlativas.opcionesDeFila(m.id) : [];
-    if (!ops.length) return `<option value="${esc(m.id)}" ${m.id === sid ? 'selected' : ''}>${esc(m.name)}</option>`;
-    const generica = m.id === sid && !ops.some(o => o.code === cod) ? `<option value="${esc(m.id)}" selected>${esc(m.name)}</option>` : '';
-    return generica + ops.map(o => `<option value="${esc(m.id)}#${esc(o.code)}" ${m.id === sid && o.code === cod ? 'selected' : ''}>${esc(o.nombre)} (${esc(o.code)})</option>`).join('');
+    if (!ops.length) return `<option value="${esc(m.id)}" ${m.id === sid ? 'selected' : ''}>${esc(m.name + suf)}</option>`;
+    const generica = !op.solo && m.id === sid && !ops.some(o => o.code === cod) ? `<option value="${esc(m.id)}" selected>${esc(m.name)}</option>` : '';
+    const lista = ops.filter(o => op.solo ? o.code === op.solo : !(op.fuera || []).includes(o.code));
+    return generica + lista.map(o => `<option value="${esc(m.id)}#${esc(o.code)}" ${m.id === sid && o.code === cod ? 'selected' : ''}>${esc(o.nombre + ' (' + o.code + ')' + suf)}</option>`).join('');
   }
   function onSelMateria(pre) {
     const sel = document.getElementById(pre + '-materia-sel'), txt = document.getElementById(pre + '-materia');
