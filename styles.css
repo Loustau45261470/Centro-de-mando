@@ -5992,6 +5992,14 @@ input:focus, select:focus, textarea:focus {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fin-item-meta { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: var(--fs-12-5); color: var(--tt); }
 .fin-item-estudio { margin-top: 4px; font-size: var(--fs-12-5); color: var(--ts); }
+.fin-item-plan { margin-top: 6px; font-size: var(--fs-12-5); color: var(--ts); }
+.fin-item-plan .btn { margin-left: 4px; }
+.fin-plan-ok { color: var(--ok, #34D399); font-weight: 700; }
+.fin-plan-atraso { color: var(--warn, #FBBF24); font-weight: 700; }
+.fin-plan-aviso { color: var(--tt); }
+.fin-plan-dias { display: flex; gap: 6px; flex-wrap: wrap; }
+.fin-plan-dia { display: flex; align-items: center; gap: 4px; padding: 6px 10px; border-radius: 8px; cursor: pointer;
+  border: 1px solid rgba(255,255,255,.12); font-weight: 700; }
 .fin-tipo-badge { font-size: var(--fs-12-5); font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
   padding: 2px 9px; border-radius: 999px; background: rgba(107,142,255,.14); color: var(--c-conocimiento, #6B8EFF);
   border: 1px solid rgba(107,142,255,.28); }
