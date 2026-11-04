@@ -1382,6 +1382,7 @@ function openEditCardCharge(id) {
   _watchTxnModalClose();
   _setTxnEditMode(id);
   g('txnType').value = 'expense';
+  g('txnCurrency').value = 'ARS';   // si la sacás de la tarjeta, queda en pesos como la compra
   fillTxnPaymentSelect(_TXN_CARD_PREFIX + ch.cardId);
   fillTxnCategorySelect('txnCategory', ch.category || '');
   g('txnName').value = ch.name || '';
@@ -1426,6 +1427,28 @@ function _saveEditedCardCharge(ch) {
   const card = S.cards.find(c => c.id === ch.cardId);
   if (cardUsed(card) > card.limit) showToast('Compra actualizada. Ojo: te pasaste del límite de la tarjeta', 5000);
   else showToast('Compra actualizada');
+}
+
+// Editar compra con medio de pago "— Ninguna —" o una cuenta: la compra deja la tarjeta (se quitan cuotas, gastos,
+// reintegro y lo que debía otra persona, como al borrarla) y queda un gasto común con la fecha de la compra.
+// Primero se crea el gasto (si el formulario tiene un error, no se toca la compra).
+function _cardChargeToTxn() {
+  const id = _txnEditChargeId;
+  const ch = (S.cardCharges || []).find(c => c.id === id);
+  if (!ch) { closeModal('modal-add-txn'); showToast('Esa compra ya no existe'); return; }
+  if (!confirm(`¿Sacar "${ch.name || 'Compra con tarjeta'}" de la tarjeta? Se quitan sus cuotas y queda como un gasto común, sin tarjeta.`)) return;
+  const first = S.transactions[0];
+  addTransaction(ch.date);
+  if (S.transactions[0] === first) return;   // no se guardó (falta la descripción, etc.): la compra queda como estaba
+  const acc = ch.mode === 'advance' ? S.accounts.find(a => a.id === ch.toAccountId) : null;
+  S.cardCharges = S.cardCharges.filter(c => c.id !== id);
+  S.transactions = S.transactions.filter(t => t.cardChargeId !== id);
+  _removeRefundOf(id);
+  if (ch.cover) _coverRevert(ch);
+  if (acc) acc.balance = _ccRound(acc.balance - ch.amount);
+  snapshotNW();
+  saveState(); renderFinanzasTab();
+  showToast('Listo: la compra salió de la tarjeta y quedó como gasto común', 4000);
 }
 
 // "Borrar compra" del formulario de edición: mismo confirm que en Tarjetas → Compras.
@@ -4192,8 +4215,10 @@ function deleteTransaction(id) {
   else showToast('Movimiento eliminado');
 }
 
-function addTransaction() {
-  if (_txnEditChargeId || _txnPayCardId()) return _saveTxnCardCharge();
+// forcedDate: la usa _cardChargeToTxn (compra que deja la tarjeta): conserva la fecha de la compra y nunca queda pendiente.
+function addTransaction(forcedDate) {
+  if (!forcedDate && _txnEditChargeId && !_txnPayCardId()) return _cardChargeToTxn();
+  if (!forcedDate && (_txnEditChargeId || _txnPayCardId())) return _saveTxnCardCharge();
   const name=document.getElementById('txnName').value.trim();
   if (!name) { showToast('Escribe la descripción'); return; }
   const type=document.getElementById('txnType').value;
@@ -4218,9 +4243,9 @@ function addTransaction() {
   const now = new Date();
   const curMK = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
   const targetMonth = txnActiveMonth || curMK;
-  const pending = type === 'expense' && targetMonth !== curMK;
+  const pending = !forcedDate && type === 'expense' && targetMonth !== curMK;
   if (pending && !accountId) { showToast('Un gasto programado necesita una cuenta asociada'); return; }
-  const date = targetMonth !== curMK ? `${targetMonth}-01` : getActiveDate();
+  const date = forcedDate || (targetMonth !== curMK ? `${targetMonth}-01` : getActiveDate());
 
   if (!pending && accountId) {
     const acc=S.accounts.find(a=>a.id===accountId);
