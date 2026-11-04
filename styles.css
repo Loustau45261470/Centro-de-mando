@@ -1520,6 +1520,9 @@ textarea { resize: vertical; min-height: 60px; }
 .law-tag-promo  { background:rgba(75,123,236,.15);  color:var(--c-conocimiento); }
 .law-tag-online { background:rgba(212,220,232,.09); color:var(--ts); }
 .law-tag-none   { background:rgba(255,255,255,.05); color:var(--tt); }
+.law-tag-ok     { background:rgba(107,227,164,.18); color:var(--ok); }
+.law-tag-mini   { padding:2px 7px; background:rgba(255,255,255,.06); color:var(--ts); }
+.law-tags       { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
 .law-lag-banner { display:flex; gap:12px; margin-bottom:16px; }
 .law-lag-stat { flex:1; background:rgba(255,255,255,.04); border:1px solid var(--border); border-radius:10px; padding:10px 12px; text-align:center; }
 .law-lag-num  { font-size:28px; font-weight:800; letter-spacing:-.04em; line-height:1; }

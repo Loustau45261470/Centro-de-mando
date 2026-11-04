@@ -175,20 +175,42 @@ function _lawTargetTag(target) {
 
 const _LAW_MONTHS = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 
-// Convierte el `target` de texto libre a un timestamp comparable. null = sin fecha (va al final).
-function _lawTargetDate(target) {
+// Descompone el `target` de texto libre: { t (minúsculas), year, mi (índice de mes o -1), day (número o null) }. null = sin año.
+function _lawTargetParts(target) {
   const t = (target || '').toLowerCase();
   const y = t.match(/\b(?:19|20)\d{2}\b/);
   if (!y) return null;
-  const year = +y[0];
   const mi = _LAW_MONTHS.findIndex(m => t.includes(m));
   // Con día ("25 de noviembre 2026") ordena por ese día; solo el mes va al final de ese mes (después de las que tienen día).
   const day = mi >= 0 && t.match(new RegExp('\\b([12]?\\d|3[01])\\s*(?:de\\s+)?' + _LAW_MONTHS[mi]));
-  if (day) return new Date(year, mi, +day[1]).getTime();
-  if (mi >= 0) return new Date(year, mi + 1, 1).getTime() - 1;
-  const sem = t.match(/([12])\s*\S*\s*sem/);
-  if (sem) return new Date(year, sem[1] === '1' ? 5 : 10, 1).getTime();
-  return new Date(year, 11, 1).getTime();
+  return { t, year: +y[0], mi, day: day ? +day[1] : null };
+}
+
+// Convierte el `target` de texto libre a un timestamp comparable. null = sin fecha (va al final).
+function _lawTargetDate(target) {
+  const p = _lawTargetParts(target);
+  if (!p) return null;
+  if (p.day) return new Date(p.year, p.mi, p.day).getTime();
+  if (p.mi >= 0) return new Date(p.year, p.mi + 1, 1).getTime() - 1;
+  const sem = p.t.match(/([12])\s*\S*\s*sem/);
+  if (sem) return new Date(p.year, sem[1] === '1' ? 5 : 10, 1).getTime();
+  return new Date(p.year, 11, 1).getTime();
+}
+
+// 'YYYY-MM-DD' si el `target` trae día, mes y año válidos ("25 de Noviembre 2026"); null si falta alguno.
+function _lawTargetISO(target) {
+  const p = _lawTargetParts(target);
+  if (!p || p.mi < 0 || !p.day) return null;
+  if (new Date(p.year, p.mi, p.day).getMonth() !== p.mi) return null;   // 31 de febrero y similares
+  return p.year + '-' + String(p.mi + 1).padStart(2, '0') + '-' + String(p.day).padStart(2, '0');
+}
+
+// Inversa de _lawTargetISO: '2026-11-25' → '25 de Noviembre 2026'.
+function _lawTargetDeISO(iso) {
+  const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return '';
+  const mes = _LAW_MONTHS[+m[2] - 1];
+  return +m[3] + ' de ' + mes.charAt(0).toUpperCase() + mes.slice(1) + ' ' + m[1];
 }
 
 function renderLawMilestones() {
@@ -387,10 +409,24 @@ function _lawPlanRows(plan) {
     .map(x => x.e);
 }
 
+const _LAW_COMISIONES = ['A', 'B', 'C', 'Unificada'];
+
+// Celda de fecha de una fila: chip de fecha (o "Rendida" si su final vinculado está aprobado) + chips de comisión y tipo.
+function _lawFechaCell(e) {
+  const F = window.Finales;
+  const est = F && F.estadoFila ? F.estadoFila(e.id) : null;
+  const fecha = est ? `<span class="law-tag law-tag-ok">✅ Rendida${est.nota != null ? ' · ' + est.nota : ''}</span>` : _lawTargetTag(e.target);
+  const chips = [];
+  if (_LAW_COMISIONES.includes(e.comision)) chips.push(`<span class="law-tag law-tag-mini">${e.comision === 'Unificada' ? 'Unificada' : 'Com. ' + e.comision}</span>`);
+  if (e.tipo && F && F.TIPOS.includes(e.tipo)) chips.push(`<span class="law-tag law-tag-mini">${e.tipo}</span>`);
+  return `<div class="law-tags">${fecha}${chips.join('')}</div>`;
+}
+
 function renderLawPlan(keepSort) {
   const wrap = document.getElementById('law-plan-wrap');
   if (!wrap) return;
   if (!keepSort) _lawPlanSort = 0;
+  if (window.Finales && Finales.sincronizarDesdePlan) Finales.sincronizarDesdePlan();   // filas con fecha completa → final propio
   const plan = _lawPlanRows(S.lawPlan);
   const PENCIL = `<svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
   const TRASH  = `<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>`;
@@ -405,7 +441,7 @@ function renderLawPlan(keepSort) {
       <tbody>
         ${plan.map(e => `<tr>
           <td class="law-plan-name">${e.subject}</td>
-          <td>${_lawTargetTag(e.target)}</td>
+          <td>${_lawFechaCell(e)}</td>
           <td style="padding:4px 8px;white-space:nowrap">
             <div style="display:flex;gap:2px">
               <button class="icon-btn" onclick="openEditLawPlan('${e.id}')">${PENCIL}</button>
@@ -418,11 +454,20 @@ function renderLawPlan(keepSort) {
   </div>`;
 }
 
+// Los tipos de examen salen de Finales (una sola lista); la comisión está fija en el HTML del modal.
+function _lawPlanFillExtra(e) {
+  const sel = document.getElementById('lawPlanTipo');
+  sel.innerHTML = '<option value="">—</option>' + (window.Finales ? Finales.TIPOS : []).map(t => `<option value="${t}">${t}</option>`).join('');
+  sel.value = (e && e.tipo) || '';
+  document.getElementById('lawPlanComision').value = (e && e.comision) || '';
+}
+
 function openAddLawPlan() {
   document.getElementById('lawPlanModalTitle').textContent = 'Nueva Materia';
   document.getElementById('lawPlanId').value      = '';
   document.getElementById('lawPlanSubject').value = '';
   document.getElementById('lawPlanTarget').value  = '';
+  _lawPlanFillExtra(null);
   openModal('modal-law-plan');
 }
 
@@ -433,6 +478,7 @@ function openEditLawPlan(id) {
   document.getElementById('lawPlanId').value      = id;
   document.getElementById('lawPlanSubject').value = e.subject;
   document.getElementById('lawPlanTarget').value  = e.target;
+  _lawPlanFillExtra(e);
   openModal('modal-law-plan');
 }
 
@@ -440,12 +486,25 @@ function saveLawPlanEntry() {
   const id      = document.getElementById('lawPlanId').value;
   const subject = document.getElementById('lawPlanSubject').value.trim();
   const target  = document.getElementById('lawPlanTarget').value.trim();
+  const comision = document.getElementById('lawPlanComision').value;
+  const tipo     = document.getElementById('lawPlanTipo').value;
   if (!subject) { showToast('Escribe el nombre'); return; }
+  let fila, fechaNueva = true;
   if (id) {
-    const e = S.lawPlan.find(e => e.id === id);
-    if (e) Object.assign(e, { subject, target: target || 'Sin fecha' });
+    fila = S.lawPlan.find(e => e.id === id);
+    if (fila) {
+      fechaNueva = fila.target !== (target || 'Sin fecha');
+      Object.assign(fila, { subject, target: target || 'Sin fecha' });
+    }
   } else {
-    S.lawPlan.push({ id: uid(), subject, target: target || 'Sin fecha' });
+    fila = { id: uid(), subject, target: target || 'Sin fecha' };
+    S.lawPlan.push(fila);
+  }
+  if (fila) {
+    if (comision) fila.comision = comision; else delete fila.comision;
+    if (tipo) fila.tipo = tipo; else delete fila.tipo;
+    if (fechaNueva) delete fila.finalOff;   // cambiar la fecha vuelve a habilitar el final automático
+    if (window.Finales && Finales.alGuardarFila) Finales.alGuardarFila(fila.id, fechaNueva);
   }
   saveState(); renderLawPlan(true); closeModal('modal-law-plan');
 }

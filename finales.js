@@ -8,6 +8,8 @@
 // con `subjectId`; al aprobar el final se pide la nota y se marca la materia en la
 // carrera. "Otra (escribir)" deja el texto libre de siempre.
 // Plan de estudio por final (f.plan): bloques en el planner hasta el día antes, progreso con el Pomodoro y "Reacomodar".
+// Plan de Materias (S.lawPlan, abogacia.js) ↔ Finales: una fila con día+mes+año crea su final (f.lawPlanId = fila.id) y las
+// fechas/tipo se reflejan en ambos sentidos; ver "Plan de Materias" más abajo.
 // Datos en S.sgc.finales — no toca la lógica de sync.
 // ════════════════════════════════════════════════════════════════════════
 
@@ -219,6 +221,76 @@ const Finales = (() => {
     refresh(); refrescarPlanner();
   }
 
+  // ══════════ Plan de Materias ↔ Finales ══════════
+  // Fila de S.lawPlan: { id, subject, target (texto libre), comision?, tipo?, finalOff? }. Una fila con día+mes+año
+  // (_lawTargetISO, abogacia.js) tiene un final activo vinculado por f.lawPlanId. Borrar ese final deja finalOff=true
+  // en la fila para no recrearlo; cambiar la fecha de la fila borra la marca (lo hace abogacia.js al guardar).
+  const filasPlan = () => (typeof S !== 'undefined' && Array.isArray(S.lawPlan) ? S.lawPlan : []);
+  const filaDe = f => (f && f.lawPlanId ? filasPlan().find(r => r.id === f.lawPlanId) || null : null);
+  const mismaMateria = (f, r, sid) => (sid ? subjectIdDe(f) === sid : norm(f.materia) === norm(r.subject));
+  const rerender = () => { if (typeof renderLawPlan === 'function') renderLawPlan(true); };
+
+  // Comisión de la fila vinculada a un final ('' si no tiene).
+  function comisionDe(f) { const r = filaDe(f); return r && r.comision ? r.comision : ''; }
+  const comisionTxt = c => (c ? (c === 'Unificada' ? 'Unificada' : 'Com. ' + c) : '');
+
+  // Para la fila del plan: null si su final vinculado no está rendido; si lo está, { nota } (nota de la carrera o null).
+  function estadoFila(rowId) {
+    const f = ensureF().find(x => x.lawPlanId === rowId);
+    if (!f || !f.done) return null;
+    const sid = subjectIdDe(f);
+    let nota = null;
+    ((S.lawProgress && S.lawProgress.years) || []).forEach(y => (y.subjects || []).forEach(s => {
+      if (s.id === sid && s.done && s.grade != null && s.grade !== '') nota = s.grade;
+    }));
+    return { nota };
+  }
+
+  // Lleva la fila `r` a Finales. `guardado` = la acaba de guardar el usuario (actualiza el final ya vinculado);
+  // `fechaNueva` = además cambió su fecha (adopta un final suelto de la misma materia aunque tenga otra fecha).
+  // Devuelve true si tocó algo (el que llama guarda).
+  function sincronizarFila(r, guardado, fechaNueva) {
+    const iso = typeof _lawTargetISO === 'function' ? _lawTargetISO(r.target) : null;
+    if (!iso) return false;   // sin día, mes y año no se crea nada (y un final ya vinculado se deja como está)
+    const arr = ensureF();
+    const mover = (f) => {
+      const movio = f.fecha !== iso;
+      if (!movio && (!r.tipo || f.tipo === r.tipo)) return false;
+      f.fecha = iso; if (r.tipo) f.tipo = r.tipo;
+      if (movio && f.plan) reacomodar(f.id);
+      return true;
+    };
+    const vinc = arr.find(x => x.lawPlanId === r.id);
+    if (vinc) return guardado && !vinc.done ? mover(vinc) : false;
+    if (r.finalOff) return false;
+    const sid = subjectIdDe({ materia: r.subject });
+    const mat = sid && plan().find(x => x.id === sid);
+    if (mat && mat.done) return false;   // materia ya aprobada en la carrera
+    const suelto = arr.find(x => !x.done && !x.lawPlanId && mismaMateria(x, r, sid));
+    if (suelto) {
+      if (suelto.fecha === iso) { suelto.lawPlanId = r.id; return true; }
+      if (!fechaNueva) return false;   // al iniciar no se pisa un final cargado a mano con otra fecha
+      suelto.lawPlanId = r.id; mover(suelto);
+      return true;
+    }
+    if (iso < hoy()) return false;
+    // id fijo por fila y fecha: si dos dispositivos lo crean a la vez, es el mismo final y no se duplica.
+    arr.push({ id: 'lp_' + r.id + '_' + iso, materia: mat ? mat.name : r.subject, subjectId: sid, fecha: iso, tipo: r.tipo || TIPOS[0], done: false, doneEl: null, lawPlanId: r.id });
+    return true;
+  }
+  // Al iniciar / cada vez que se dibuja el Plan de Materias: crea los finales que falten. Idempotente.
+  function sincronizarDesdePlan() {
+    let cambio = false;
+    filasPlan().forEach(r => { if (sincronizarFila(r, false, false)) cambio = true; });
+    if (cambio) { saveState(); renderPrincipal(); renderList(); }
+    return cambio;
+  }
+  // Tras guardar una fila en el modal del plan (el que llama guarda y redibuja el plan).
+  function alGuardarFila(rowId, fechaNueva) {
+    const r = filasPlan().find(x => x.id === rowId);
+    if (r && sincronizarFila(r, true, !!fechaNueva)) { renderPrincipal(); renderList(); }
+  }
+
   // ══════════ Apartado en la sección principal ══════════
   // Bloque de conteo (número-héroe de días o badge VENCIDO) según urgencia.
   function conteo(d) {
@@ -245,7 +317,7 @@ const Finales = (() => {
         return `<div class="fin-item ${c.urgent ? 'urgent' : ''}" style="animation-delay:${i * 60}ms">
           <div class="fin-item-main">
             <div class="fin-item-name">${esc(f.materia)}</div>
-            <div class="fin-item-meta"><span class="fin-tipo-badge">${esc(f.tipo)}</span><span>${fmtF(f.fecha)}</span></div>
+            <div class="fin-item-meta"><span class="fin-tipo-badge">${esc(f.tipo)}</span><span>${fmtF(f.fecha)}</span>${comisionDe(f) ? `<span>${esc(comisionTxt(comisionDe(f)))}</span>` : ''}</div>
             ${estudio}
             ${planHtml(f)}
           </div>
@@ -365,7 +437,7 @@ const Finales = (() => {
     return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px;border:1px solid rgba(255,255,255,.08);border-radius:8px;margin-bottom:6px">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1">
         <input type="checkbox" onclick="Finales.done('${f.id}')" title="Marcar como rendido" style="width:16px;height:16px;cursor:pointer">
-        <span style="font-size:var(--fs-12-5)"><b>${esc(f.materia)}</b> <span style="font-size:var(--fs-12-5);color:var(--tt)">· ${esc(f.tipo)} · ${fmtF(f.fecha)}</span></span>
+        <span style="font-size:var(--fs-12-5)"><b>${esc(f.materia)}</b> <span style="font-size:var(--fs-12-5);color:var(--tt)">· ${esc(f.tipo)} · ${fmtF(f.fecha)}${comisionDe(f) ? ' · ' + esc(comisionTxt(comisionDe(f))) : ''}</span></span>
       </label>
       <span style="white-space:nowrap;font-size:var(--fs-12-5)">${etiqueta(f)}
         <button class="btn btn-ghost btn-sm" style="padding:2px 6px" onclick="Finales.edit('${f.id}')">✎</button>
@@ -393,7 +465,7 @@ const Finales = (() => {
       ${hist.length ? `<div style="font-size:var(--fs-12-5);font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--tt);margin:14px 0 6px">Historial (${hist.length})</div>${hist.map(filaHist).join('')}` : ''}`;
   }
 
-  function refresh() { renderList(); renderPrincipal(); if (typeof refreshRemindersView === 'function') refreshRemindersView('conocimiento'); }
+  function refresh() { renderList(); renderPrincipal(); rerender(); if (typeof refreshRemindersView === 'function') refreshRemindersView('conocimiento'); }
 
   // ══════════ CRUD ══════════
   function add() {
@@ -417,11 +489,20 @@ const Finales = (() => {
     const tipo = document.getElementById('fin-e-tipo')?.value || f.tipo;
     const m = leerMateria('fin-e'); if (!m) return;
     if (!fecha) { notify('Elegí una fecha'); return; }
+    const fechaAntes = f.fecha;
     f.materia = m.materia; f.subjectId = m.subjectId; f.fecha = fecha; f.tipo = tipo;
     if (m.codigo) f.codigo = m.codigo; else delete f.codigo;
     // Editar la fecha reactiva un final vencido/rendido.
     if (f.done && diasRest(fecha) >= 0) { f.done = false; f.doneEl = null; }
+    // Final vinculado al Plan de Materias: la fila copia fecha y tipo; si tiene plan de estudio y cambió la fecha, se reacomoda.
+    const movio = fecha !== fechaAntes;
+    const fila = filaDe(f);
+    if (fila) {
+      if (typeof _lawTargetDeISO === 'function') fila.target = _lawTargetDeISO(f.fecha);
+      fila.tipo = f.tipo;
+    }
     saveState(); _editId = null;
+    if (movio && f.plan && !f.done) reacomodar(f.id);
     notify('✏️ Final actualizado');
     refresh();
   }
@@ -494,7 +575,15 @@ const Finales = (() => {
   }
   function notaDesaprobe() {
     const f = cerrarModalNota(); if (!f) return;
+    // Desaprobado: se desvincula del Plan de Materias (la fila no figura "Rendida") y la fila no lo recrea con
+    // la misma fecha; al cargarle una fecha nueva se borra finalOff y aparece el final nuevo.
+    if (f.lawPlanId) {
+      const r = filasPlan().find(x => x.id === f.lawPlanId);
+      if (r) r.finalOff = true;
+      delete f.lawPlanId;
+    }
     cerrar(f, '✅ ' + f.materia + ' → historial (sin cambios en la carrera)');
+    if (typeof renderLawPlan === 'function') renderLawPlan(true);
   }
   function reactivar(id) {
     const f = ensureF().find(x => x.id === id); if (!f) return;
@@ -507,6 +596,8 @@ const Finales = (() => {
     const arr = ensureF(); const i = arr.findIndex(x => x.id === id);
     if (i < 0) return;
     const nombre = arr[i].materia, tenia = !!arr[i].plan;
+    const fila = filaDe(arr[i]);
+    if (fila) fila.finalOff = true;   // la fila conserva su fecha pero no recrea el final
     if (tenia) borrarBloques(arr[i], hoy());
     arr.splice(i, 1);
     saveState(); if (_editId === id) _editId = null;
@@ -514,7 +605,7 @@ const Finales = (() => {
     refresh(); if (tenia) refrescarPlanner();
   }
 
-  return { renderPrincipal, open, add, edit, cancelEdit, saveEdit, done, reactivar, del, onSelMateria, subjectIdDe, notaGuardar, notaMasTarde, notaDesaprobe, activos, planAbrir, planCerrar, planGuardar, planBorrar, reacomodar, bloquesDe, progreso };
+  return { renderPrincipal, open, add, edit, cancelEdit, saveEdit, done, reactivar, del, onSelMateria, subjectIdDe, notaGuardar, notaMasTarde, notaDesaprobe, activos, planAbrir, planCerrar, planGuardar, planBorrar, reacomodar, bloquesDe, progreso, TIPOS, estadoFila, sincronizarDesdePlan, alGuardarFila };
 })();
 window.Finales = Finales;
 window.openFinalesOverlay = Finales.open;

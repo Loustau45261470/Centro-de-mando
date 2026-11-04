@@ -21,7 +21,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-<link rel="stylesheet" href="styles.css?v=236">
+<link rel="stylesheet" href="styles.css?v=237">
 <link rel="stylesheet" href="gamemode.css">
 <link rel="stylesheet" href="overlay-core.css">
 <link rel="stylesheet" href="speed-dial.css?v=2">
@@ -1381,6 +1381,10 @@
     <input type="hidden" id="lawPlanId">
     <div class="field"><label>Materia</label><input class="inp" id="lawPlanSubject" placeholder="Nombre de la materia..."></div>
     <div class="field"><label>Fecha / Modalidad objetivo</label><input class="inp" id="lawPlanTarget" placeholder="Ej: Junio 2026, Promoción, Online 2027..."></div>
+    <div style="display:flex;gap:10px">
+      <div class="field" style="flex:1;min-width:0"><label>Comisión</label><select class="inp" id="lawPlanComision"><option value="">—</option><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="Unificada">Unificada</option></select></div>
+      <div class="field" style="flex:1;min-width:0"><label>Tipo de examen</label><select class="inp" id="lawPlanTipo"></select></div>
+    </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('modal-law-plan')">Cancelar</button>
       <button class="btn btn-primary" onclick="saveLawPlanEntry()">Guardar</button>
@@ -1859,7 +1863,7 @@
 <script src="archivo.js?v=2"></script>
 <script src="undo.js?v=1"></script>
 <script src="workspace.js?v=198"></script>
-<script src="abogacia.js?v=5"></script>
+<script src="abogacia.js?v=6"></script>
 <script src="correlativas.js?v=5"></script>
 <script src="habitos.js?v=6"></script>
 <script src="rutinas.js"></script>
@@ -1912,7 +1916,7 @@
 <script src="planificacion-overlay.js"></script>
 <script src="fichero-personas.js"></script>
 <script src="pomodoro.js?v=9"></script>
-<script src="finales.js?v=9"></script>
+<script src="finales.js?v=10"></script>
 <script src="secciones-fab.js?v=16"></script>
 <script src="informes-datos.js?v=6"></script>
 <script src="informes.js?v=3"></script>
