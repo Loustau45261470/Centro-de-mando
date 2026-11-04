@@ -53,6 +53,19 @@ const ProyectosOverlay = {
     _poRender();
     CMOverlay.open(overlay);
   },
+  // Abre el overlay directo dentro de una carpeta (lo usa Negocios): arma la ruta de ids desde la raíz.
+  openNode(tab, id) {
+    ProyectosOverlay.open(tab);
+    const walk = (list, trail) => {
+      for (const n of list || []) {
+        if (n.id === id) return trail.concat(n.id);
+        const r = walk(n.children, trail.concat(n.id)); if (r) return r;
+      }
+      return null;
+    };
+    const path = walk(_poTree(), []);
+    if (path) { _poPath = path; _poRender(); }
+  },
 };
 window.ProyectosOverlay = ProyectosOverlay;
 

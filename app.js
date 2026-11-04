@@ -149,6 +149,7 @@ const DEFAULT_STATE = {
   pomodoroHistory: [],
   proyectos: { vida: null, finanzas: null, salud: null, conocimiento: null, ia: null },
   historicalDataLoaded: false,
+  negocios: { items: [], sueltas: [] },   // overlay Negocios (negocios.js): modelo documentado arriba de ese archivo
   achievementLog: {},  // { [achievementId]: 'YYYY-MM-DD' (unlock date) }
   quarterlyObjectives: {
     activePeriod: 't2-2026',
