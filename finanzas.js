@@ -1436,6 +1436,7 @@ function _cardChargeToTxn() {
   const id = _txnEditChargeId;
   const ch = (S.cardCharges || []).find(c => c.id === id);
   if (!ch) { closeModal('modal-add-txn'); showToast('Esa compra ya no existe'); return; }
+  if (!document.getElementById('txnName').value.trim()) { showToast('Escribe la descripción'); return; }   // antes del aviso
   if (!confirm(`¿Sacar "${ch.name || 'Compra con tarjeta'}" de la tarjeta? Se quitan sus cuotas y queda como un gasto común, sin tarjeta.`)) return;
   const first = S.transactions[0];
   addTransaction(ch.date);
