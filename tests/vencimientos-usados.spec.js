@@ -443,12 +443,11 @@ test('montos guardados como texto o fechas imposibles tampoco cuentan (mismo cri
 });
 
 // Monto cargado a mano (p. ej. el total del resumen del banco): las compras ya cargadas hasta ese día van incluidas,
-// solo se suman las posteriores. Los vencimientos viejos sin setAt se toman como cargados hoy.
+// solo se suman las posteriores. Los vencimientos viejos sin setAt suman todas las compras, como antes.
 test('monto cargado a mano: no suma las compras ya cargadas, solo las nuevas', async ({ cmPage, consoleErrors }) => {
   const RIVER = { id: 'riv', cardId: 'nar', date: '2026-11-03', amount: 72000, mode: 'nowInst', installments: 12, name: 'Camiseta' };
-  await preparar(cmPage, { hoy: '2026-11-04', cargos: [RIVER], dues: [{ id: 'cd:nar:2026-12-10', cardId: 'nar', due: '2026-12-10', amount: 308000 }], tab: 'calendario' });
-  // Sin setAt: se toma como cargado hoy, y la camiseta (del 03/11) ya está incluida en los 308.000
-  expect(await dues(cmPage)).toEqual([{ id: 'cd:nar:2026-12-10', cardId: 'nar', due: '2026-12-10', amount: 308000, setAt: '2026-11-04' }]);
+  await preparar(cmPage, { hoy: '2026-11-04', cargos: [RIVER], dues: [{ id: 'cd:nar:2026-12-10', cardId: 'nar', due: '2026-12-10', amount: 308000, setAt: '2026-11-04' }], tab: 'calendario' });
+  // Cargado el 04/11: la camiseta (del 03/11) ya está incluida en los 308.000
   await expect(mes(cmPage, '2026-12').locator('.cc-cal-due')).toHaveText(['10/12 · Naranja · $308.000']);
   // Enero no tiene monto a mano: la cuota de la camiseta se suma como siempre
   await expect(mes(cmPage, '2027-01').locator('.cc-cal-due')).toHaveText(['10/01 · Naranja · $6.000']);
@@ -460,5 +459,33 @@ test('monto cargado a mano: no suma las compras ya cargadas, solo las nuevas', a
   });
   await expect(mes(cmPage, '2026-12').locator('.cc-cal-due')).toHaveText(['10/12 · Naranja · $318.000']);
   await expect(mes(cmPage, '2026-12').locator('.cc-cal-det')).toHaveText('Compras nuevas $10.000 + lo que cargaste $308.000');
+  expect(consoleErrors).toEqual([]);
+});
+
+// Vencimiento sin fecha de carga (de antes de setAt): no se le inventa una, y las compras se suman todas.
+test('vencimiento sin fecha de carga: no se le pone fecha y suma todas las compras', async ({ cmPage, consoleErrors }) => {
+  const COMPRA = { id: 'c1', cardId: 'nar', date: '2026-11-03', amount: 50000, mode: 'now1', name: 'Regalo' };
+  await preparar(cmPage, { hoy: '2026-11-04', cargos: [COMPRA], dues: [{ id: 'cd:nar:2026-12-10', cardId: 'nar', due: '2026-12-10', amount: 30000 }], tab: 'calendario' });
+  expect(await dues(cmPage)).toEqual([{ id: 'cd:nar:2026-12-10', cardId: 'nar', due: '2026-12-10', amount: 30000 }]);
+  await expect(mes(cmPage, '2026-12').locator('.cc-cal-due')).toHaveText(['10/12 · Naranja · $80.000']);
+  expect(consoleErrors).toEqual([]);
+});
+
+// Reparación única: a los vencimientos de Mercado Pago que quedaron con setAt 04/11 por la versión anterior se les saca.
+test('reparación: Mercado Pago vuelve a sumar sus compras; Naranja queda como está', async ({ cmPage, consoleErrors }) => {
+  await preparar(cmPage, { hoy: '2026-11-04', cargos: [], dues: [], tab: 'calendario' });
+  const r = await cmPage.evaluate(() => {
+    delete S.ccSetAtRepair1;
+    S.cardDues = [
+      { id: 'cd:mvhrtbmwqffs:2026-11-10', cardId: 'mvhrtbmwqffs', due: '2026-11-10', amount: 267000, setAt: '2026-11-04' },
+      { id: 'cd:nar:2026-12-10', cardId: 'nar', due: '2026-12-10', amount: 240000, setAt: '2026-11-04' },
+    ];
+    cardsCatchUp();
+    const primera = S.cardDues.map((d) => d.setAt || null);
+    S.cardDues[0].setAt = '2026-11-04';   // si después lo cargás a mano hoy, la reparación no vuelve a correr
+    cardsCatchUp();
+    return { primera, segunda: S.cardDues.map((d) => d.setAt || null), flag: S.ccSetAtRepair1 };
+  });
+  expect(r).toEqual({ primera: [null, '2026-11-04'], segunda: ['2026-11-04', '2026-11-04'], flag: true });
   expect(consoleErrors).toEqual([]);
 });

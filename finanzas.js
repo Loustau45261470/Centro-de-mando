@@ -367,9 +367,12 @@ const _ccTwoDecimals = (n) => Math.round(n * 100) / 100 === n;
 // Ambas son idempotentes (ids determinísticos), así dos dispositivos que corran lo mismo no duplican.
 function cardsCatchUp() {
   if (!window.CMTarjetas || !Array.isArray(S.transactions) || !Array.isArray(S.accounts)) return;
-  // Vencimientos cargados antes de que existiera setAt: se toman como cargados hoy (incluyen las compras ya cargadas).
-  const unstamped = (Array.isArray(S.cardDues) ? S.cardDues : []).filter(d => d && !d.setAt);
-  if (unstamped.length) { const t = getActiveDate(); unstamped.forEach(d => { d.setAt = t; }); saveState(); }
+  // Reparación única: una versión anterior les puso setAt = 04/11/2026 a todos los vencimientos sin fecha, también a los de
+  // Mercado Pago, que no se habían modificado ese día; así dejaban de sumarse sus compras. Sin setAt se suman todas, como antes.
+  if (!S.ccSetAtRepair1) {
+    (Array.isArray(S.cardDues) ? S.cardDues : []).forEach(d => { if (d && d.cardId === 'mvhrtbmwqffs' && d.setAt === '2026-11-04') delete d.setAt; });
+    S.ccSetAtRepair1 = true; saveState();
+  }
   materializeCardExpenses();
   applyCardAutoPayments();
 }
