@@ -60,10 +60,22 @@ test('adelanto parcial: queda lo que falta, avisa lo adelantado y el automático
   expect(consoleErrors).toEqual([]);
 });
 
-test('lo que sobra del adelanto pasa al vencimiento siguiente', async ({ cmPage, consoleErrors }) => {
+test('cada pago cuenta solo para el vencimiento de su ciclo: lo que sobra no pasa al mes siguiente', async ({ cmPage, consoleErrors }) => {
   await preparar(cmPage, [{ cardId: 'nar', date: '2026-11-02', amount: 130000 }]);
   await expect(vence(cmPage, 'Naranja')).not.toContainText('10/11');
-  await expect(vence(cmPage, 'Naranja')).toContainText('A pagar el 10/12: $30.000');
+  await expect(vence(cmPage, 'Naranja')).toContainText('A pagar el 10/12: $60.000');
+  await expect(vence(cmPage, 'Naranja')).not.toContainText('ya adelantaste');
+  expect(consoleErrors).toEqual([]);
+});
+
+test('el pago del resumen anterior (octubre) no se corre a noviembre ni empuja el de noviembre a diciembre', async ({ cmPage, consoleErrors }) => {
+  await preparar(cmPage, [
+    { cardId: 'nar', date: '2026-10-08', amount: 300000 },   // pagó el resumen que vencía el 10/10 (que la app no tenía cargado)
+    { cardId: 'nar', date: '2026-11-03', amount: 100000 },   // pagó el del 10/11
+  ]);
+  await expect(vence(cmPage, 'Naranja')).not.toContainText('10/11');
+  await expect(vence(cmPage, 'Naranja')).toContainText('A pagar el 10/12: $60.000');
+  await expect(vence(cmPage, 'Naranja')).not.toContainText('ya adelantaste');
   expect(consoleErrors).toEqual([]);
 });
 
