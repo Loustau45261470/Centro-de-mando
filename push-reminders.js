@@ -9,7 +9,7 @@
 
 const webpush = require('web-push');
 const { initializeApp, cert } = require('firebase-admin/app');
-const { getFirestore } = require('firebase-admin/firestore');
+const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const CMDeadlines = require('./deadlines.js');
 
 const ENV = process.env;
@@ -29,9 +29,13 @@ const MIN = 60000;
 const WINDOW_LEAD  = 60 * MIN;
 const WINDOW_TIMED = 20 * MIN;
 
+// Devuelve true si el servicio push aceptó el envío, o el statusCode del error (0 si no hubo código).
+// Así main solo marca como "ya avisado" lo que de verdad salió, y un fallo transitorio se reintenta
+// en la próxima corrida.
 function send(sub, title, body, tag, requireInteraction) {
   return webpush.sendNotification(sub, JSON.stringify({ title, body, tag, requireInteraction }))
-    .catch(err => console.error('[push] error', tag, err.statusCode, err.message));
+    .then(() => true)
+    .catch(err => { console.error('[push] error', tag, err.statusCode, err.message); return err.statusCode || 0; });
 }
 
 async function main() {
@@ -58,15 +62,20 @@ async function main() {
   const now = Date.now();
   const notified = data.notifiedReminders || {};
   const newNotif = {};
-  const sends = [];
+  const sends = [];   // { key, p } — p resuelve a true o al statusCode del error
 
   // Qué disparar: lo decide deadlines.js, igual que en el navegador. Acá solo se
   // pasan ventanas de rescate más anchas, porque el cron corre cada 5 minutos y
   // GitHub Actions suele atrasarlo.
   for (const a of CMDeadlines.dueAlerts(state, { now, tz: TZ, seen: notified, windowMs: WINDOW_TIMED, windowLeadMs: WINDOW_LEAD })) {
-    newNotif[a.key] = true;
-    sends.push(send(pushSub, a.title, a.body, a.key, a.lead));
+    sends.push({ key: a.key, p: send(pushSub, a.title, a.body, a.key, a.lead) });
   }
+  const results = await Promise.all(sends.map(s => s.p));
+  let okCount = 0, muerta = null;
+  results.forEach((r, i) => {
+    if (r === true) { okCount++; newNotif[sends[i].key] = true; }
+    else if (r === 404 || r === 410) muerta = r;   // suscripción muerta: no se marca, se reintenta si se reactiva
+  });
 
   // Un aviso sigue "vivo" mientras pueda volver a corresponder: así el mapa de
   // notificados no crece para siempre pero tampoco olvida uno recién mandado.
@@ -77,11 +86,22 @@ async function main() {
     }
   }
 
-  if (sends.length) { await Promise.all(sends); console.log(`[push] enviados ${sends.length} de ${items.length} vencimientos`); }
+  if (sends.length) console.log(`[push] enviados ${okCount} de ${sends.length} pendientes (${items.length} vencimientos en agenda)`);
   else console.log(`[push] nada por enviar (${items.length} vencimientos en agenda)`);
 
   // Persistir solo los que ya se mandaron y siguen vigentes.
-  await ref.set({ notifiedReminders: newNotif }, { merge: true });
+  const upd = { notifiedReminders: newNotif };
+  let exitCode = 0;
+  if (muerta) {
+    // Campo de nivel superior (no toca `state`): la app lo lee y avisa. Solo la corrida que lo marca
+    // por primera vez sale con error, para que GitHub Actions mande UN mail y no uno cada 5 minutos.
+    console.log(`::error::La suscripción push está muerta (el servicio respondió ${muerta}). Hay que reactivar los avisos desde la app.`);
+    if (!data.pushDead) { upd.pushDead = { at: new Date().toISOString(), code: muerta }; exitCode = 1; }
+  } else if (okCount > 0 && data.pushDead) {
+    upd.pushDead = FieldValue.delete();   // volvió a andar
+  }
+  await ref.set(upd, { merge: true });
+  return exitCode;
 }
 
-main().catch(e => { console.error(e); }).finally(() => process.exit(0));
+main().then(code => process.exit(code || 0)).catch(e => { console.error(e); process.exit(1); });

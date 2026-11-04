@@ -22,8 +22,8 @@
   'use strict';
 
   const LIMITE  = 1048576;   // techo duro de Firestore por documento
-  const AVISO   = 0.70;      // desde acá conviene archivar
-  const BLOQUEO = 1000000;   // desde acá no se escribe: el write fallaría y perderíamos el cambio
+  const AVISO   = 0.63;      // desde acá conviene archivar (misma proporción al bloqueo que antes: 0.70 de 1 000 000)
+  const BLOQUEO = 900000;    // BYTES desde acá no se escribe: el write fallaría y perderíamos el cambio (margen bajo el 1 MiB real)
 
   // Claves históricas: append-only, de alto volumen y que casi nunca se leen enteras.
   // Deliberadamente NO se archivan los calendarios ni los días de hábitos (pesan
@@ -42,7 +42,7 @@
   ];
 
   const esDelAnio = (fecha, anio) => String(fecha || '').slice(0, 4) === String(anio);
-  const pesar = o => { try { return JSON.stringify(o).length; } catch (e) { return 0; } };
+  const pesar = o => { try { return new TextEncoder().encode(JSON.stringify(o)).length; } catch (e) { return 0; } };   // bytes UTF-8, como cuenta Firestore
   const fmtKB = b => b >= 1048576 ? (b / 1048576).toFixed(2) + ' MB' : Math.round(b / 1024) + ' KB';
   const listo = () => typeof S !== 'undefined' && S && Object.keys(S).length > 5;
   const tipoDe = k => (CLAVES.find(c => c.k === k) || {}).tipo;

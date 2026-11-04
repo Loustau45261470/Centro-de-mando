@@ -353,18 +353,24 @@ function _b64uToUint8(b64) {
   return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
 }
 
-async function _subscribePush(pubKey) {
-  if (!_swReg || Notification.permission !== 'granted') return;
-  if (!_auth.currentUser) return;   // sin sesión no se puede escribir a Firestore
+// nueva=true (reactivar avisos caídos): descarta la suscripción vieja, que el servicio push ya dio por muerta.
+async function _subscribePush(pubKey, nueva) {
+  if (!_swReg || Notification.permission !== 'granted') return false;
+  if (!_auth.currentUser) return false;   // sin sesión no se puede escribir a Firestore
   try {
-    const existing = await _swReg.pushManager.getSubscription();
+    let existing = await _swReg.pushManager.getSubscription();
+    if (existing && nueva) { await existing.unsubscribe(); existing = null; }
     const sub = existing || await _swReg.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: _b64uToUint8(pubKey),
     });
-    await _DOC().update({ pushSubscription: JSON.parse(JSON.stringify(sub)) });
+    const upd = { pushSubscription: JSON.parse(JSON.stringify(sub)) };
+    if (nueva) upd.pushDead = firebase.firestore.FieldValue.delete();   // ya se resuscribió: baja el aviso
+    await _DOC().update(upd);
+    if (nueva && typeof pushDeadAviso === 'function') pushDeadAviso(null);
     console.log('[PWA] Push subscription stored');
-  } catch (e) { console.warn('[PWA] Push subscribe error:', e); }
+    return true;
+  } catch (e) { console.warn('[PWA] Push subscribe error:', e); return false; }
 }
 
 // ── Worker de push preciso (Pomodoro / descanso gym) ──
@@ -801,16 +807,18 @@ const _fbDoSave = async (opts = {}) => {
       const _stateStr = JSON.stringify(toSave);
 
       // ── Guard de tamaño ──────────────────────────────────────────────
-      // Firestore rechaza cualquier documento de más de 1 MiB. Si el estado llega
+      // Firestore rechaza cualquier documento de más de 1 MiB, y lo mide en BYTES
+      // (UTF-8: tildes y emojis pesan 2-4), no en caracteres. Si el estado llega
       // ahí, el set() falla ENTERO y se pierde todo lo cargado desde el último
       // guardado. Frenar acá es mejor: el estado ya está en localStorage, queda
       // marcado como pendiente, y el usuario ve por qué y cómo liberar espacio.
       // forzarGuardado() lo saltea (borrados grandes legítimos).
-      const _TECHO = (window.CMArchivo && window.CMArchivo.BLOQUEO) || 1000000;
-      if (_stateStr.length > _TECHO && !_forzado) {
+      const _TECHO = (window.CMArchivo && window.CMArchivo.BLOQUEO) || 900000;
+      const _stateBytes = new TextEncoder().encode(_stateStr).length;
+      if (_stateBytes > _TECHO && !_forzado) {
         localStorage.setItem('_pendingCloudSave', '1');
         _dgRes = 'bloqueado-tamano';
-        console.error('[fbSave] BLOQUEADO: el estado pesa ' + Math.round(_stateStr.length / 1024) +
+        console.error('[fbSave] BLOQUEADO: el estado pesa ' + Math.round(_stateBytes / 1024) +
                       ' KB y el límite de Firestore es 1024 KB. Archivá un año (CMArchivo) o forzarGuardado().');
         showToast('⚠️ No se pudo guardar en la nube: el espacio está lleno. Tus datos siguen en este dispositivo.', 10000);
         if (window.CMArchivo && typeof window.CMArchivo.alertaCritica === 'function') window.CMArchivo.alertaCritica();
@@ -1065,12 +1073,21 @@ function _applyRemoteState(raw, savedAt) {
 function _startFirestoreSync() {
   _DOC().onSnapshot(snap => {
     if (snap.exists) _registrarEscritura(snap.data()._dev, snap.data()._savedAt);  // solo informativo
+    if (typeof pushDeadAviso === 'function') pushDeadAviso(snap.exists ? snap.data().pushDead : null);  // solo visibilidad: aviso de avisos caídos
     if (_fbSaveTid || _fbSaveInProgress) { window._snapDrops = (window._snapDrops || 0) + 1; _dgSnapDrop(snap); return; }  // save en vuelo — descarta update remoto
     if (!snap.exists || !snap.data()?.state) return;
     if (snap.data()._wid && snap.data()._wid === _lastWriteId) return;  // eco propio
     window._applySrc = 'onSnapshot';   // visibilidad: quién pidió el apply (solo registro)
     _applyRemoteState(snap.data().state, snap.data()._savedAt);
-  }, () => {/* onSnapshot auto-reintenta en errores de red */});
+  }, err => {
+    // Los errores de red los reintenta el SDK solo. Cualquier otro (permission-denied,
+    // unauthenticated…) cierra el listener para siempre: se registra y se avisa. No se re-suscribe.
+    const code = (err && err.code) || 'desconocido';
+    _syncEv('snapshot-error', { code });
+    if (code !== 'unavailable' && code !== 'deadline-exceeded') {
+      showToast('⚠️ La sincronización en vivo se detuvo (' + code + '). Recargá la app.', 15000);
+    }
+  });
 }
 
 // ── On visibility restore (iOS kills WS in background) ───

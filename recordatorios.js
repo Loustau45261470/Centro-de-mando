@@ -363,6 +363,29 @@ function checkReminderNotifications() {
     });
 }
 
+// ── Aviso de avisos caídos ──
+// push-reminders.js (el cron) escribe pushDead en el documento cuando el servicio push da la
+// suscripción por muerta (404/410). app.js llama a pushDeadAviso() con ese campo en cada snapshot:
+// el aviso queda visible hasta que el usuario se resuscribe (eso borra el campo).
+function pushDeadAviso(pd) {
+  let b = document.getElementById('pushdead-banner');
+  if (!pd) { if (b) b.remove(); return; }
+  if (b) return;
+  b = document.createElement('button');
+  b.id = 'pushdead-banner';
+  b.type = 'button';
+  b.textContent = '🔕 Los avisos al celular dejaron de llegar. Tocá para reactivarlos.';
+  b.onclick = pushDeadReactivar;
+  document.body.appendChild(b);
+}
+async function pushDeadReactivar() {
+  if (!('Notification' in window)) { showToast('Este navegador no soporta notificaciones'); return; }
+  if (Notification.permission !== 'granted') { initNotifications(); return; }   // pide permiso y se suscribe
+  const keys = await _getOrCreateVapidKeys();
+  const ok = keys ? await _subscribePush(keys.pubKey, true) : false;
+  showToast(ok ? '🔔 Avisos reactivados' : 'No se pudieron reactivar los avisos. Probá de nuevo en un rato.', 5000);
+}
+
 function _notifBtnHTML() {
   if (!('Notification' in window)) return '';
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);

@@ -6366,3 +6366,10 @@ input:focus, select:focus, textarea:focus {
 .sdiag-ev-apply .sdiag-what, .sdiag-ev-snapshot-descartado .sdiag-what { color: var(--warn); }
 /* El panel de ajustes (◐) crece con cada botón y en un iPhone chico no entraba: sin scroll el botón del diagnóstico quedaba fuera de pantalla. */
 #theme-panel-inner { max-height: calc(100vh - 76px); max-height: calc(100dvh - 76px); overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
+/* Aviso de avisos caídos (recordatorios.js · pushDeadAviso) */
+#pushdead-banner{position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top,0px) + 10px);z-index:8790;
+  padding:11px 13px;border-radius:11px;cursor:pointer;text-align:left;line-height:1.4;
+  background:linear-gradient(180deg,rgba(22,8,10,.97),rgba(12,5,6,.98));
+  border:1px solid var(--danger);box-shadow:0 10px 34px rgba(0,0,0,.5);
+  font-size:var(--fs-13);font-weight:600;color:var(--tp)}

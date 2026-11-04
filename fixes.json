@@ -344,6 +344,27 @@
       "desc": "Una versión le ponía setAt=hoy a todos los vencimientos a mano sin fecha (también de tarjetas no tocadas, ej. Mercado Pago) y dejaban de sumarse sus compras. setAt solo se pone al guardar un monto; reparación única con flag ccSetAtRepair1. NO volver a estampar setAt automáticamente.",
       "file": "finanzas.js",
       "marker": "S.ccSetAtRepair1 = true"
+    },
+    {
+      "id": "push-fallo-no-se-marca-y-suscripcion-muerta",
+      "fecha": "2026-11-04",
+      "desc": "push-reminders.js marcaba el aviso como enviado ANTES de enviar y tragaba el error, asi que un fallo del servicio push perdia el aviso para siempre y una suscripcion muerta (404/410) fallaba en silencio. Ahora send() devuelve true o el statusCode, solo se marca lo que salio bien, y ante 404/410 se escribe pushDead {at,code} en el documento (una vez; esa corrida sale con exit 1 para que llegue UN mail de Actions) y la app muestra un aviso para reactivar. Errores fatales de main salen con exit 1. NO volver a marcar newNotif antes del envio ni a taparlo con exit(0).",
+      "file": "push-reminders.js",
+      "marker": "if (r === true) { okCount++; newNotif[sends[i].key] = true; }"
+    },
+    {
+      "id": "onsnapshot-error-visible",
+      "fecha": "2026-11-04",
+      "desc": "El callback de error de onSnapshot estaba vacio: un error no transitorio (permission-denied, unauthenticated) cerraba el listener para siempre sin aviso. Ahora registra el codigo con _syncEv('snapshot-error') y, si no es de red (unavailable/deadline-exceeded), muestra un toast pidiendo recargar. Solo visibilidad: NO re-suscribe.",
+      "file": "app.js",
+      "marker": "_syncEv('snapshot-error', { code })"
+    },
+    {
+      "id": "guard-tamano-en-bytes",
+      "fecha": "2026-11-04",
+      "desc": "El guard de tamano del documento media caracteres (.length) pero Firestore cuenta bytes UTF-8 (tildes 2, emojis 4): un estado con mucho texto acentuado podia pasar el guard y ser rechazado por Firestore, perdiendo el guardado. Ahora se miden bytes con TextEncoder y el bloqueo baja a 900000. NO volver a medir con .length.",
+      "file": "app.js",
+      "marker": "new TextEncoder().encode(_stateStr).length"
     }
   ]
 }
