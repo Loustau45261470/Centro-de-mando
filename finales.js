@@ -133,6 +133,14 @@ const Finales = (() => {
     return `<div class="fin-item-plan"><div>${estado} <button class="btn btn-ghost btn-sm" onclick="Finales.planAbrir('${f.id}')">Plan de estudio</button></div>${falta}</div>`;
   }
 
+  // Estado corto del plan de la materia `sid` (su final activo con plan) para la línea del Pomodoro; null si no hay.
+  function estadoPlanDe(sid) {
+    if (!sid) return null;
+    const f = activos().find(x => x.plan && subjectIdDe(x) === sid); if (!f) return null;
+    const pr = progreso(f);
+    return pr.atraso > 0.5 ? { atrasado: true, texto: 'Plan: vas ' + fmtHoras(pr.atraso) + ' h atrasado' } : { atrasado: false, texto: 'Plan: vas al día' };
+  }
+
   function planAbrir(id) {
     const f = ensureF().find(x => x.id === id); if (!f) return;
     const p = f.plan || { horasSemana: '', dias: [1, 2, 3, 4, 5], hora: '18:00' };
@@ -303,7 +311,26 @@ const Finales = (() => {
     return { urgent: isUrgent || d === 0, html: `<div class="fin-count-num" style="--cd:${cd};--cd-glow:${glow}">${num}</div>${lbl}` };
   }
 
+  // Pestaña "Preparación de finales" de la Sesión de estudio (secciones-fab.js crea #ov-prep-finales): finales activos + su plan.
+  function renderPrep() {
+    const el = document.getElementById('ov-prep-finales'); if (!el) return;
+    const list = activos();
+    if (!list.length) { el.innerHTML = '<div class="empty-state" style="padding:12px 0">No tenés finales cargados. Cargá la fecha en el Plan de Materias o en Finales.</div>'; return; }
+    el.innerHTML = '<div class="fin-list">' + list.map(f => {
+      const c = conteo(diasRest(f.fecha));
+      return `<div class="fin-item ${c.urgent ? 'urgent' : ''}">
+        <div class="fin-item-main">
+          <div class="fin-item-name">${esc(f.materia)}</div>
+          <div class="fin-item-meta"><span class="fin-tipo-badge">${esc(f.tipo)}</span><span>${fmtF(f.fecha)}</span>${comisionDe(f) ? `<span>${esc(comisionTxt(comisionDe(f)))}</span>` : ''}</div>
+          ${planHtml(f)}
+        </div>
+        <div class="fin-count">${c.html}</div>
+      </div>`;
+    }).join('') + '</div>';
+  }
+
   function renderPrincipal() {
+    renderPrep();
     const el = document.getElementById('finales-wrap-conocimiento'); if (!el) return;
     const list = activos();
     let rows;
@@ -319,7 +346,6 @@ const Finales = (() => {
             <div class="fin-item-name">${esc(f.materia)}</div>
             <div class="fin-item-meta"><span class="fin-tipo-badge">${esc(f.tipo)}</span><span>${fmtF(f.fecha)}</span>${comisionDe(f) ? `<span>${esc(comisionTxt(comisionDe(f)))}</span>` : ''}</div>
             ${estudio}
-            ${planHtml(f)}
           </div>
           <div class="fin-count">${c.html}</div>
         </div>`;
@@ -605,7 +631,7 @@ const Finales = (() => {
     refresh(); if (tenia) refrescarPlanner();
   }
 
-  return { renderPrincipal, open, add, edit, cancelEdit, saveEdit, done, reactivar, del, onSelMateria, subjectIdDe, notaGuardar, notaMasTarde, notaDesaprobe, activos, planAbrir, planCerrar, planGuardar, planBorrar, reacomodar, bloquesDe, progreso, TIPOS, estadoFila, sincronizarDesdePlan, alGuardarFila };
+  return { renderPrincipal, renderPrep, estadoPlanDe, open, add, edit, cancelEdit, saveEdit, done, reactivar, del, onSelMateria, subjectIdDe, notaGuardar, notaMasTarde, notaDesaprobe, activos, planAbrir, planCerrar, planGuardar, planBorrar, reacomodar, bloquesDe, progreso, TIPOS, estadoFila, sincronizarDesdePlan, alGuardarFila };
 })();
 window.Finales = Finales;
 window.openFinalesOverlay = Finales.open;

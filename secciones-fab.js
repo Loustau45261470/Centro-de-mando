@@ -180,7 +180,26 @@ function _sfOpenTarjetas(tab) {
 }
 window.openTarjetasOverlay = _sfOpenTarjetas;
 
-// ── Sesión de estudio: overlay con Pomodoro + historial de sesiones ──
+// ── Sesión de estudio: overlay con tres pestañas (Pomodoro + estadísticas · Preparación de finales · Historial) ──
+// Mismo patrón de pestañas que Tarjetas (.plov-tabs). La pestaña activa se recuerda por dispositivo.
+const _SF_SE_TABS = ['pomodoro', 'finales', 'historial'];
+const _SF_SE_KEY = 'cdm_sesion_estudio_tab';
+function _sfSeTab(t, persist) {
+  const ov = document.getElementById('ov-sesion-estudio');
+  if (!ov) return;
+  if (!_SF_SE_TABS.includes(t)) t = 'pomodoro';
+  ov.querySelectorAll('.plov-tab').forEach(b => {
+    const on = b.dataset.t === t;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-selected', String(on));
+  });
+  ov.querySelector('.plov-tabs').dataset.on = t;
+  _SF_SE_TABS.forEach(k => { const p = ov.querySelector('#se-pane-' + k); if (p) p.hidden = k !== t; });
+  if (persist) { try { localStorage.setItem(_SF_SE_KEY, t); } catch (e) {} }
+  // Repinta lo que depende del resto (plan de estudio, horas, gráfico) al volver a mostrarlo.
+  if (t === 'finales' && window.Finales && Finales.renderPrep) Finales.renderPrep();
+  else if (t === 'pomodoro' && window.Pomodoro) Pomodoro.onShow();
+}
 function _sfEnsureSesionEstudio() {
   if (typeof CMOverlay === 'undefined') return null;
   const { overlay, body } = CMOverlay.build({
@@ -189,11 +208,33 @@ function _sfEnsureSesionEstudio() {
   });
   if (!overlay._sfBuilt) {
     body.innerHTML = `<div class="cm-ov-head"><div class="cm-ov-eyebrow">CONOCIMIENTO · SESIÓN DE ESTUDIO</div><div class="cm-ov-title">Sesión de estudio</div></div>
-      <div class="card" style="margin-bottom:12px"><div class="card-title">⏱ Pomodoro</div><div id="ov-pomodoro"></div></div>
-      <div class="card"><div class="card-title">📊 Historial de estudio<span id="pomo-hist-tot"></span></div><div id="ov-pomo-hist"></div></div>`;
+      <div class="plov-tabs" data-on="pomodoro" role="tablist" aria-label="Secciones de Sesión de estudio">
+        <button class="plov-tab on" id="se-tab-pomodoro" data-t="pomodoro" role="tab" aria-selected="true" aria-controls="se-pane-pomodoro">Pomodoro</button>
+        <button class="plov-tab" id="se-tab-finales" data-t="finales" role="tab" aria-selected="false" aria-controls="se-pane-finales">Preparación de finales</button>
+        <button class="plov-tab" id="se-tab-historial" data-t="historial" role="tab" aria-selected="false" aria-controls="se-pane-historial">Historial</button>
+        <span class="plov-tab-ink"></span>
+      </div>
+      <div class="plov-pane" id="se-pane-pomodoro" role="tabpanel" aria-labelledby="se-tab-pomodoro">
+        <div class="card" style="margin-bottom:12px"><div class="card-title">⏱ Pomodoro</div><div id="ov-pomodoro"></div></div>
+        <div class="card"><div class="card-title">📊 Estadísticas de estudio</div><div id="ov-pomo-stats"></div></div>
+      </div>
+      <div class="plov-pane" id="se-pane-finales" role="tabpanel" aria-labelledby="se-tab-finales" hidden>
+        <div class="card"><div class="card-title">🎓 Preparación de finales</div><div id="ov-prep-finales"></div></div>
+      </div>
+      <div class="plov-pane" id="se-pane-historial" role="tabpanel" aria-labelledby="se-tab-historial" hidden>
+        <div class="card"><div class="card-title">🗂 Historial de estudio<span id="pomo-hist-tot"></span></div><div id="ov-pomo-hist"></div></div>
+      </div>`;
+    body.querySelectorAll('.plov-tab').forEach(b => b.addEventListener('click', () => _sfSeTab(b.dataset.t, true)));
     overlay._sfBuilt = true;
-    if (window.Pomodoro) Pomodoro.mount(document.getElementById('ov-pomodoro'));
-    if (window.Pomodoro) Pomodoro.mountHistory(document.getElementById('ov-pomo-hist'));
+    if (window.Pomodoro) {
+      Pomodoro.mount(document.getElementById('ov-pomodoro'));
+      Pomodoro.mountStats(document.getElementById('ov-pomo-stats'));
+      Pomodoro.mountHistory(document.getElementById('ov-pomo-hist'));
+    }
+    if (window.Finales && Finales.renderPrep) Finales.renderPrep();
+    let t = 'pomodoro';
+    try { t = localStorage.getItem(_SF_SE_KEY) || 'pomodoro'; } catch (e) {}
+    _sfSeTab(t, false);
   }
   return overlay;
 }

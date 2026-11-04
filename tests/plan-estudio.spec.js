@@ -35,7 +35,8 @@ async function util(page) { await page.evaluate(EN_PAGE); }
 const bloques = (page) => page.evaluate(() => window.__bloques());
 const hoy = (page) => page.evaluate(() => getActiveDate());
 const mas = (page, n) => page.evaluate((k) => window.__mas(k), n);
-const card = (page) => page.locator('#finales-wrap-conocimiento');
+// El plan de estudio vive en la pestaña "Preparación de finales" de la Sesión de estudio (no en la tarjeta del final).
+const card = (page) => page.locator('#ov-prep-finales');
 
 // Plan sembrado a mano (sin depender de la hora del día): creado hace `atras` días.
 async function sembrarPlan(page, { atras = 5, horasSemana = 6, dias = [2, 4, 6], totalHoras = 25.5, hora = '18:00' } = {}) {

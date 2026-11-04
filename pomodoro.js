@@ -26,7 +26,8 @@ const Pomodoro = (() => {
   let sessionBlocks = 0;       // bloques de estudio COMPLETOS en la sesión actual
   let sessionMinutes = 0;      // minutos totales registrados en la sesión actual (completos + parcial de cierre)
   let sessionEarly = false;    // true si se cortó con "Finalizar sesión" antes de los N ciclos
-  let histContainer = null;
+  let histContainer = null;    // bitácora de sesiones
+  let statsContainer = null;   // pulso hoy/7 días/mes + gráfico
   let histView = 'day';       // 'day' | 'week' | 'month'
   let histChartInst = null;
   let materiaSel = null;       // materia elegida en el selector (null = todavía no eligió: se sugiere una)
@@ -266,6 +267,12 @@ const Pomodoro = (() => {
 
   function mount(el) { container = el; render(); }
 
+  // Estado del plan de estudio de la materia elegida (solo si su final activo tiene plan).
+  function planLineHtml(sid) {
+    const e = (sid && window.Finales && Finales.estadoPlanDe) ? Finales.estadoPlanDe(sid) : null;
+    return e ? `<div class="pomo-plan-line"><span class="${e.atrasado ? 'fin-plan-atraso' : 'fin-plan-ok'}">${esc(e.texto)}</span></div>` : '';
+  }
+
   function selectorMateriaHtml() {
     const pend = materiasPend();
     if (!pend.length) return '';
@@ -284,7 +291,7 @@ const Pomodoro = (() => {
     return `<div class="pomo-materia">
       <label class="pomo-materia-lbl" for="pomo-materia-sel">Materia</label>
       <select id="pomo-materia-sel" class="inp" onchange="Pomodoro.setMateria(this.value)"><option value="" ${sel ? '' : 'selected'}>Sin materia</option>${opts}</select>
-    </div>`;
+    </div>${planLineHtml(sel)}`;
   }
 
   function render() {
@@ -330,32 +337,36 @@ const Pomodoro = (() => {
   // ── Historial de sesiones (día / semana / mes) ──
   const addDiasH = (iso, n) => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
 
-  function mountHistory(el) { histContainer = el; renderHistory(); }
+  // Estadísticas (pulso + gráfico) y bitácora de sesiones viven en contenedores separados (pestañas distintas).
+  function mountStats(el) { statsContainer = el; renderStats(); }
+  function mountHistory(el) { histContainer = el; renderLog(); }
+  function renderHistory() { renderStats(); renderLog(); }
 
-  function setHistView(v) { histView = v; renderHistory(); }
+  function setHistView(v) { histView = v; renderStats(); }
 
   const fmtDur = m => {
     const h = Math.floor((m || 0) / 60), mm = (m || 0) % 60;
     return h ? `${h}<span class="u">h</span>${mm ? ' ' + mm + '<span class="u">′</span>' : ''}` : `${m || 0}<span class="u">′</span>`;
   };
 
-  function renderHistory() {
-    if (!histContainer) return;
+  const histData = () => (typeof S !== 'undefined' && Array.isArray(S.pomodoroHistory)) ? S.pomodoroHistory : [];
+  const sumMin = arr => arr.reduce((a, e) => a + (e.minutes || 0), 0);
+  const todayH = () => (typeof getActiveDate === 'function' ? getActiveDate() : new Date().toISOString().slice(0, 10));
+
+  // ── Estadísticas: pulso (hoy / 7 días / este mes) + gráfico de tendencia ──
+  function renderStats() {
+    if (!statsContainer) return;
     if (histChartInst) { histChartInst.destroy(); histChartInst = null; }
-    const hist = (typeof S !== 'undefined' && Array.isArray(S.pomodoroHistory)) ? S.pomodoroHistory : [];
-    const totEl = document.getElementById('pomo-hist-tot');
+    const hist = histData();
     if (!hist.length) {
-      if (totEl) totEl.textContent = '';
-      histContainer.innerHTML = `<div class="pomo-empty">
+      statsContainer.innerHTML = `<div class="pomo-empty">
         <div class="pomo-empty-ico">🍅</div>
         <div class="pomo-empty-t">Sin sesiones todavía</div>
-        <div class="pomo-empty-s">Arrancá un pomodoro arriba y acá vas a ver tu historial.</div>
+        <div class="pomo-empty-s">Arrancá un pomodoro arriba y acá vas a ver tus estadísticas.</div>
       </div>`;
       return;
     }
-    const today = typeof getActiveDate === 'function' ? getActiveDate() : new Date().toISOString().slice(0, 10);
-    const sumMin = arr => arr.reduce((a, e) => a + (e.minutes || 0), 0);
-    if (totEl) totEl.textContent = `${hist.length} sesión${hist.length === 1 ? '' : 'es'} · ${Math.round(sumMin(hist) / 60 * 10) / 10}h`;
+    const today = todayH();
 
     // ── Pulso: hoy / 7 días / este mes, hoy como héroe ──
     const hoyE = hist.filter(h => h.date === today);
@@ -431,38 +442,7 @@ const Pomodoro = (() => {
       </div>
     </div>`;
 
-    // ── Bitácora: sesiones agrupadas por día, más nuevo primero ──
-    const ayer = addDiasH(today, -1);
-    const dayLbl = d => d === today ? 'Hoy' : d === ayer ? 'Ayer' : (typeof fmtDate === 'function' ? fmtDate(d) : d);
-    const maxMin = Math.max(25, ...hist.map(e => e.minutes || 0));
-    const byDay = {};
-    hist.forEach(e => (byDay[e.date] = byDay[e.date] || []).push(e));
-    const days = Object.keys(byDay).sort().reverse();
-
-    const sessionRow = e => `<div class="pomo-row${e.full ? '' : ' is-cut'}">
-      <span class="pomo-row-tick"></span>
-      <span class="pomo-row-min">${e.minutes}′</span>
-      <span class="pomo-row-bar" style="--w:${Math.max(6, Math.round((e.minutes || 0) / maxMin * 100))}%"></span>
-      ${e.full ? '' : '<span class="pomo-tag-cut">Parcial</span>'}
-      <span class="pomo-row-time">${new Date(e.ts).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
-      <button class="pomo-row-del" onclick="Pomodoro.deleteSession('${e.id}')" aria-label="Eliminar sesión">🗑</button>
-    </div>`;
-    const dayBlock = d => `<div class="pomo-day${d === today ? ' is-today' : ''}">
-        <span class="pomo-day-lbl">${dayLbl(d)}</span>
-        <span class="pomo-day-line"></span>
-        <span class="pomo-day-tot">${fmtDur(sumMin(byDay[d]))}</span>
-      </div>${byDay[d].slice().sort((a, b) => b.ts - a.ts).map(sessionRow).join('')}`;
-
-    const logHtml = `<div class="pomo-log-head">
-        <div class="pomo-log-title">Bitácora</div>
-        <div class="pomo-log-count">${hist.length} sesión${hist.length === 1 ? '' : 'es'}</div>
-      </div>
-      <div class="pomo-log" id="pomo-log-scroll">${days.map(dayBlock).join('')}</div>`;
-
-    histContainer.innerHTML = pulseHtml + modHtml + '<div class="pomo-sep"></div>' + logHtml;
-
-    const logEl = document.getElementById('pomo-log-scroll');
-    if (logEl && logEl.scrollHeight <= logEl.clientHeight) logEl.classList.add('is-short');
+    statsContainer.innerHTML = pulseHtml + modHtml;
 
     const canvas = document.getElementById('pomo-hist-canvas');
     if (!canvas || typeof Chart === 'undefined') return;
@@ -499,7 +479,56 @@ const Pomodoro = (() => {
     });
   }
 
-  return { mount, start, bump, togglePause, reset, endSession, pauseOnHide, onShow, mountHistory, setHistView, deleteSession, setMateria, horasPorMateria };
+  // ── Bitácora: sesiones agrupadas por día, más nuevo primero ──
+  function renderLog() {
+    if (!histContainer) return;
+    const hist = histData();
+    const totEl = document.getElementById('pomo-hist-tot');
+    if (!hist.length) {
+      if (totEl) totEl.textContent = '';
+      histContainer.innerHTML = `<div class="pomo-empty">
+        <div class="pomo-empty-ico">🍅</div>
+        <div class="pomo-empty-t">Sin sesiones todavía</div>
+        <div class="pomo-empty-s">Arrancá un pomodoro y acá vas a ver tu historial.</div>
+      </div>`;
+      return;
+    }
+    const today = todayH();
+    if (totEl) totEl.textContent = `${hist.length} ${hist.length === 1 ? 'sesión' : 'sesiones'} · ${Math.round(sumMin(hist) / 60 * 10) / 10}h`;
+    const ayer = addDiasH(today, -1);
+    const dayLbl = d => d === today ? 'Hoy' : d === ayer ? 'Ayer' : (typeof fmtDate === 'function' ? fmtDate(d) : d);
+    const maxMin = Math.max(25, ...hist.map(e => e.minutes || 0));
+    const byDay = {};
+    hist.forEach(e => (byDay[e.date] = byDay[e.date] || []).push(e));
+    const days = Object.keys(byDay).sort().reverse();
+
+    const sessionRow = e => `<div class="pomo-row${e.full ? '' : ' is-cut'}">
+      <span class="pomo-row-tick"></span>
+      <span class="pomo-row-min">${e.minutes}′</span>
+      <span class="pomo-row-bar" style="--w:${Math.max(6, Math.round((e.minutes || 0) / maxMin * 100))}%"></span>
+      ${e.full ? '' : '<span class="pomo-tag-cut">Parcial</span>'}
+      <span class="pomo-row-time">${new Date(e.ts).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
+      <button class="pomo-row-del" onclick="Pomodoro.deleteSession('${e.id}')" aria-label="Eliminar sesión">🗑</button>
+    </div>`;
+    const dayBlock = d => `<div class="pomo-day${d === today ? ' is-today' : ''}">
+        <span class="pomo-day-lbl">${dayLbl(d)}</span>
+        <span class="pomo-day-line"></span>
+        <span class="pomo-day-tot">${fmtDur(sumMin(byDay[d]))}</span>
+      </div>${byDay[d].slice().sort((a, b) => b.ts - a.ts).map(sessionRow).join('')}`;
+
+    const logHtml = `<div class="pomo-log-head">
+        <div class="pomo-log-title">Bitácora</div>
+        <div class="pomo-log-count">${hist.length} ${hist.length === 1 ? 'sesión' : 'sesiones'}</div>
+      </div>
+      <div class="pomo-log" id="pomo-log-scroll">${days.map(dayBlock).join('')}</div>`;
+
+    histContainer.innerHTML = logHtml;
+
+    const logEl = document.getElementById('pomo-log-scroll');
+    if (logEl && logEl.scrollHeight <= logEl.clientHeight) logEl.classList.add('is-short');
+  }
+
+  return { mount, start, bump, togglePause, reset, endSession, pauseOnHide, onShow, mountStats, mountHistory, setHistView, deleteSession, setMateria, horasPorMateria };
 })();
 window.Pomodoro = Pomodoro;
 window.horasPorMateria = Pomodoro.horasPorMateria; // helper puro (lo usa el plan de estudio)
