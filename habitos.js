@@ -777,6 +777,18 @@ function saveHabit() {
   saveState(); closeModal('modal-habit'); renderHabitsCard(section);
 }
 
+// Crea un hábito sin pasar por el modal (lo usa libros.js al pasar un ítem "Para aplicar" a hábito). Mismo formato que saveHabit.
+function addHabitTo(section, name, emoji) {
+  name = String(name || '').trim();
+  const arr = S.habitTrackers && S.habitTrackers[section];
+  if (!arr || !name) return null;
+  const h = { id:uid(), name, emoji:emoji||'📌', days:{} };
+  arr.push(h);
+  _habitActiveId[section] = h.id;
+  saveState(); renderHabitsCard(section);
+  return h;
+}
+
 function deleteHabit(id) {
   const section = document.getElementById('habitSection').value;
   if (!id || !confirm('¿Eliminar este hábito y todos sus registros?')) return;

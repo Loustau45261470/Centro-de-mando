@@ -151,6 +151,7 @@ const DEFAULT_STATE = {
   proyectos: { vida: null, finanzas: null, salud: null, conocimiento: null, ia: null },
   historicalDataLoaded: false,
   negocios: { items: [], sueltas: [] },   // overlay Negocios (negocios.js): modelo documentado arriba de ese archivo
+  libros: { items: [] },   // overlay Libros (libros.js): modelo documentado arriba de ese archivo
   achievementLog: {},  // { [achievementId]: 'YYYY-MM-DD' (unlock date) }
   quarterlyObjectives: {
     activePeriod: 't2-2026',

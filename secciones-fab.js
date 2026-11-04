@@ -29,6 +29,7 @@ const _SF_ICONS = {
   grad: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 2 9l10 5 10-5z"/><path d="M6 11v5c0 1.1 2.7 2.5 6 2.5s6-1.4 6-2.5v-5"/></svg>`,
   mapaIdeas: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.6"/><circle cx="18" cy="6" r="2.6"/><circle cx="12" cy="18" r="2.6"/><path d="M8.2 7.4 10.4 16M15.8 7.4 13.6 16M8.6 6h6.8"/></svg>`,
   informe: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="2.5"/><path d="M7.5 16v-3M12 16v-6M16.5 16v-4.5"/></svg>`,
+  libros: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6.5C10.5 5.3 8.2 4.8 4.5 5v12.5c3.7-.2 6 .3 7.5 1.5 1.5-1.2 3.8-1.7 7.5-1.5V5c-3.7-.2-6 .3-7.5 1.5z"/><path d="M12 6.5V19"/></svg>`,
   negocios: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="7.5" width="17" height="12" rx="2.3"/><path d="M9 7.5V6a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 6v1.5"/><path d="M3.5 12.5h17"/></svg>`,
 };
 
@@ -296,6 +297,7 @@ function _sfMount() {
     items: [
       { icon: _SF_ICONS.planner, label: 'Cursada', accent: '#3B82F6', onClick: () => { if (window.Cursada) Cursada.open(); } },
       { icon: _SF_ICONS.notas, label: 'Notas', accent: '#6B8EFF', onClick: () => { if (typeof notasOpen === 'function') notasOpen(); } },
+      { icon: _SF_ICONS.libros, label: 'Libros', accent: '#6B8EFF', onClick: () => { if (window.Libros) Libros.open(); } },
       { icon: _SF_ICONS.timer, label: 'Sesión de estudio', accent: '#6B8EFF', onClick: _sfOpenSesionEstudio },
       { icon: _SF_ICONS.grad, label: 'Plan de materias', accent: '#6B8EFF', onClick: () => { if (window.Finales) Finales.open(); } },
       { icon: _SF_ICONS.grad, label: 'Plan de carrera', accent: '#3B82F6', onClick: () => { if (window.Correlativas) Correlativas.open(); } },
