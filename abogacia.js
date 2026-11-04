@@ -182,7 +182,10 @@ function _lawTargetDate(target) {
   if (!y) return null;
   const year = +y[0];
   const mi = _LAW_MONTHS.findIndex(m => t.includes(m));
-  if (mi >= 0) return new Date(year, mi, 1).getTime();
+  // Con día ("25 de noviembre 2026") ordena por ese día; solo el mes va al final de ese mes (después de las que tienen día).
+  const day = mi >= 0 && t.match(new RegExp('\\b([12]?\\d|3[01])\\s*(?:de\\s+)?' + _LAW_MONTHS[mi]));
+  if (day) return new Date(year, mi, +day[1]).getTime();
+  if (mi >= 0) return new Date(year, mi + 1, 1).getTime() - 1;
   const sem = t.match(/([12])\s*\S*\s*sem/);
   if (sem) return new Date(year, sem[1] === '1' ? 5 : 10, 1).getTime();
   return new Date(year, 11, 1).getTime();
