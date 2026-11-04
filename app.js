@@ -886,8 +886,13 @@ function _fbFlush() {
 async function _saveSnap(stateStr, savedAt) {
   try {
     await _db.collection('appdata').doc('snap_' + savedAt).set({ state: stateStr, savedAt, _dev: _devInfo() });  // _dev: solo informativo (qué dispositivo escribió el snap)
-    // Trim: mantener solo los últimos 20 snaps
-    const q = await _db.collection('appdata').get();
+    // Trim: mantener solo los últimos 20 snaps. Como mucho una vez por hora por dispositivo y leyendo solo los snap_:
+    // antes leía toda la colección (datos + backups + snaps, ~15 MB) después de cada guardado. Más snaps un rato no pierde nada.
+    let lastTrim = 0; try { lastTrim = +localStorage.getItem('_snapTrimAt') || 0; } catch (e) {}
+    if (Date.now() - lastTrim < 3600000) return;
+    try { localStorage.setItem('_snapTrimAt', String(Date.now())); } catch (e) {}
+    const docId = firebase.firestore.FieldPath.documentId();
+    const q = await _db.collection('appdata').where(docId, '>=', 'snap_').where(docId, '<', 'snap`').get();
     const snaps = q.docs
       .filter(d => d.id.startsWith('snap_'))
       .sort((a, b) => (parseInt(b.id.slice(5)) || 0) - (parseInt(a.id.slice(5)) || 0));
