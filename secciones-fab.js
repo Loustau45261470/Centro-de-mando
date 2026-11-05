@@ -295,7 +295,6 @@ function _sfMount() {
     ariaLabel: 'Acciones de Conocimiento',
     mainIcon: _SF_ICONS.brain,
     items: [
-      { icon: _SF_ICONS.planner, label: 'Cursada', accent: '#3B82F6', onClick: () => { if (window.Cursada) Cursada.open(); } },
       { icon: _SF_ICONS.notas, label: 'Notas', accent: '#6B8EFF', onClick: () => { if (typeof notasOpen === 'function') notasOpen(); } },
       { icon: _SF_ICONS.libros, label: 'Libros', accent: '#6B8EFF', onClick: () => { if (window.Libros) Libros.open(); } },
       { icon: _SF_ICONS.timer, label: 'Sesión de estudio', accent: '#6B8EFF', onClick: _sfOpenSesionEstudio },

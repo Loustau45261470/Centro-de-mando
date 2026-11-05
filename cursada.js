@@ -59,7 +59,7 @@ const Cursada = (() => {
         <div class="curs-item-meta">${fmtF(it.fecha)}${it.hora ? ' · ' + esc(it.hora) : ''}</div>
       </div>
       <div class="curs-item-est">${etiqueta(it)}</div>
-      <label class="curs-check" title="Marcar hecho">
+      <label class="curs-check" title="Marcar hecho" onclick="event.stopPropagation()">
         <input type="checkbox" onclick="Cursada.done('${it.id}')" aria-label="Marcar hecho">
       </label>
     </div>`;
@@ -75,10 +75,13 @@ const Cursada = (() => {
     if (rows.length) {
       body = '<div class="curs-list">' + rows.map(filaCard).join('') + '</div>';
     } else {
-      body = '<div class="empty-state" style="padding:12px 0">Sin clases, TPs ni foros pendientes. Cargalos desde el menú de Conocimiento → Cursada.</div>';
+      body = '<div class="empty-state" style="padding:12px 0">Sin clases, TPs ni foros pendientes. Tocá esta tarjeta para cargarlos.</div>';
     }
-    el.innerHTML = `<div class="card" id="cursada-card"><div class="card-title">📚 Cursada</div>${body}
-      <button class="bsum-full" onclick="Cursada.open()">Ver toda la cursada →</button></div>`;
+    // La tarjeta entera abre la Cursada (mismo patrón que la tarjeta de Crédito en Finanzas); no hay entrada en el abanico. Las casillas no la abren.
+    el.innerHTML = `<div class="card cc-card-link" id="cursada-card" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Abrir la cursada"
+        onclick="Cursada.open()"
+        onkeydown="if((event.key==='Enter'||event.key===' ')&&event.target===this){event.preventDefault();Cursada.open()}"><div class="card-title">📚 Cursada</div>${body}
+      <button class="bsum-full" onclick="event.stopPropagation();Cursada.open()">Ver toda la cursada →</button></div>`;
   }
 
   // ══════════ Overlay ══════════
@@ -146,22 +149,22 @@ const Cursada = (() => {
 
   function filaActiva(it) {
     if (_editId === it.id) return filaEdit(it);
-    const rep = it.repeat === 'weekly' ? `<span style="font-size:var(--fs-12-5);color:var(--tt)"> · 🔁 semanal${it.hechas ? ` (${it.hechas})` : ''}</span>` : '';
-    return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px;border:1px solid rgba(255,255,255,.08);border-radius:8px;margin-bottom:6px">
-      <label for="curs-chk-${it.id}" style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;min-width:0;text-align:left">
-        <span style="font-size:var(--fs-12-5)">${badge(it)} <b>${esc(it.materia)}</b>${it.titulo ? ` <span style="color:var(--tt)">· ${esc(it.titulo)}</span>` : ''} <span style="font-size:var(--fs-12-5);color:var(--tt)">· ${fmtF(it.fecha)}${it.hora ? ' ' + esc(it.hora) : ''}${rep}</span></span>
+    const rep = it.repeat === 'weekly' ? ` · 🔁 semanal${it.hechas ? ` (${it.hechas})` : ''}` : '';
+    return `<div class="curs-row">
+      <label for="curs-chk-${it.id}" class="curs-row-main">
+        <span class="curs-row-txt">${badge(it)} <b>${esc(it.materia)}</b>${it.titulo ? ` <span class="curs-row-sub">· ${esc(it.titulo)}</span>` : ''} <span class="curs-row-sub">· ${fmtF(it.fecha)}${it.hora ? ' ' + esc(it.hora) : ''}${rep}</span></span>
       </label>
-      <span style="white-space:nowrap;font-size:var(--fs-12-5)">${etiqueta(it)}
-        <button class="btn btn-ghost btn-sm" style="padding:2px 6px" onclick="Cursada.edit('${it.id}')">✎</button>
-        <button class="btn btn-ghost btn-sm" style="padding:2px 6px;opacity:.6" onclick="Cursada.del('${it.id}')">🗑</button></span>
-      <input type="checkbox" id="curs-chk-${it.id}" onclick="Cursada.done('${it.id}')" title="Marcar hecho" style="width:16px;height:16px;cursor:pointer;flex-shrink:0;margin:0">
+      <span class="curs-row-acts">${etiqueta(it)}
+        <button class="btn btn-ghost btn-sm" onclick="Cursada.edit('${it.id}')">✎</button>
+        <button class="btn btn-ghost btn-sm curs-row-del" onclick="Cursada.del('${it.id}')">🗑</button></span>
+      <input type="checkbox" id="curs-chk-${it.id}" class="curs-row-chk" onclick="Cursada.done('${it.id}')" title="Marcar hecho">
     </div>`;
   }
 
   function filaHist(it) {
     if (_editId === it.id) return filaEdit(it);
     return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 8px;font-size:var(--fs-12-5);color:var(--tt);border-bottom:1px solid rgba(255,255,255,.05)">
-      <span>✅ ${badge(it)} <b>${esc(it.materia)}</b>${it.titulo ? ` · ${esc(it.titulo)}` : ''} · ${fmtF(it.fecha)}</span>
+      <span style="min-width:0;overflow-wrap:anywhere">✅ ${badge(it)} <b>${esc(it.materia)}</b>${it.titulo ? ` · ${esc(it.titulo)}` : ''} · ${fmtF(it.fecha)}</span>
       <span style="white-space:nowrap">
         <button class="btn btn-ghost btn-sm" style="padding:2px 6px" onclick="Cursada.edit('${it.id}')" title="Editar / reactivar">✎</button>
         <button class="btn btn-ghost btn-sm" style="padding:2px 6px" onclick="Cursada.reactivar('${it.id}')" title="Reactivar">↩</button>

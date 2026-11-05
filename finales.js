@@ -322,6 +322,14 @@ const Finales = (() => {
     return { urgent: isUrgent || d === 0, html: `<div class="fin-count-num" style="--cd:${cd};--cd-glow:${glow}">${num}</div>${lbl}` };
   }
 
+  // Horas estudiadas de la materia del final en el mes calendario en curso ('' si el final no está ligado a una materia del plan).
+  function estudioMesHtml(f) {
+    const sid = subjectIdDe(f);
+    if (!sid || !window.Pomodoro) return '';
+    const h = hoy();
+    return `<div class="fin-item-estudio">${fmtHoras(Pomodoro.horasPorMateria(sid, h.slice(0, 7) + '-01', h))} h estudiadas este mes</div>`;
+  }
+
   // Pestaña "Preparación de finales" de la Sesión de estudio (secciones-fab.js crea #ov-prep-finales): finales activos + su plan.
   function renderPrep() {
     const el = document.getElementById('ov-prep-finales'); if (!el) return;
@@ -333,6 +341,7 @@ const Finales = (() => {
         <div class="fin-item-main">
           <div class="fin-item-name">${esc(f.materia)}</div>
           <div class="fin-item-meta"><span class="fin-tipo-badge">${esc(f.tipo)}</span><span>${fmtF(f.fecha)}</span>${comisionDe(f) ? `<span>${esc(comisionTxt(comisionDe(f)))}</span>` : ''}</div>
+          ${estudioMesHtml(f)}
           ${planHtml(f)}
         </div>
         <div class="fin-count">${c.html}</div>
@@ -343,20 +352,16 @@ const Finales = (() => {
   function renderPrincipal() {
     renderPrep();
     const el = document.getElementById('finales-wrap-conocimiento'); if (!el) return;
-    const list = activos();
+    // Solo los 3 más cercanos por fecha: el resto está en "Ir a Finales / Plan de materias". Las horas estudiadas viven en la Sesión de estudio.
+    const list = activos().slice(0, 3);
     let rows;
     if (list.length) {
-      const desde = addDias(hoy(), -29);
       rows = '<div class="fin-list">' + list.map((f, i) => {
         const c = conteo(diasRest(f.fecha));
-        const sid = subjectIdDe(f);
-        const horas = (sid && window.Pomodoro) ? Pomodoro.horasPorMateria(sid, desde, hoy()) : null;
-        const estudio = horas == null ? '' : `<div class="fin-item-estudio">${fmtHoras(horas)} h estudiadas (últimos 30 días)</div>`;
         return `<div class="fin-item ${c.urgent ? 'urgent' : ''}" style="animation-delay:${i * 60}ms">
           <div class="fin-item-main">
             <div class="fin-item-name">${esc(f.materia)}</div>
             <div class="fin-item-meta"><span class="fin-tipo-badge">${esc(f.tipo)}</span><span>${fmtF(f.fecha)}</span>${comisionDe(f) ? `<span>${esc(comisionTxt(comisionDe(f)))}</span>` : ''}</div>
-            ${estudio}
           </div>
           <div class="fin-count">${c.html}</div>
           <input type="checkbox" class="fin-check" onclick="Finales.done('${f.id}');this.checked=false" title="Marcar como rendido" aria-label="Marcar ${esc(f.materia)} como rendido">

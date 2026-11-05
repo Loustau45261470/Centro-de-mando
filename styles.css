@@ -5703,6 +5703,10 @@ input:focus, select:focus, textarea:focus {
 /* ── Cartera: registrar venta + pestaña Historial (tres pestañas: el layout base de overlay-core.css es de dos) ── */
 /* Cartera: cinco pestañas (Mis tenencias · Análisis mensual · Historial · Rendimiento · Radar). Escritorio: una fila con la barra deslizante;
    celular (≤640px): 3 + 2 en dos filas y la pestaña activa se marca con su propio fondo (la barra deslizante no sirve en dos filas). */
+/* La X de cierre (.cm-ov-close, top:16 + 40px = 56) queda fija arriba a la derecha: el cuerpo que scrollea arranca justo debajo para
+   que ningún botón (Actualizar, + Empresa, ↻…) pase por debajo y un toque ahí cierre la pantalla en vez de apretar el botón. */
+#ov-cartera .cm-ov-body { margin-top: 36px; }
+#ov-cartera .cm-ov-head { margin-top: 0; }
 #ov-cartera .plov-tabs:not(.rd-tabs) { grid-template-columns: repeat(5, 1fr); }
 #ov-cartera .plov-tab { min-width: 0; padding: 10px 4px; font-size: var(--fs-13); line-height: 1.2; }
 #ov-cartera .plov-tabs:not(.rd-tabs) .plov-tab-ink { width: calc((100% - 24px) / 5); }
@@ -6378,6 +6382,15 @@ input:focus, select:focus, textarea:focus {
 }
 .curs-item-meta { font-size: var(--fs-12-5); color: var(--tt); margin-top: 2px; }
 .curs-item-est { flex-shrink: 0; font-size: var(--fs-12-5); text-align: right; white-space: nowrap; }
+/* Overlay: fila de pendientes (antes con estilos en línea: sin quiebre de palabras largas ni forma de acomodarse en el celu) */
+.curs-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px; border: 1px solid rgba(255,255,255,.08); border-radius: 8px; margin-bottom: 6px; }
+.curs-row-main { display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; min-width: 0; text-align: left; }
+.curs-row-txt { font-size: var(--fs-12-5); min-width: 0; overflow-wrap: anywhere; }
+.curs-row-sub { font-size: var(--fs-12-5); color: var(--tt); }
+.curs-row-acts { white-space: nowrap; flex-shrink: 0; font-size: var(--fs-12-5); }
+.curs-row-acts .btn { padding: 2px 6px; }
+.curs-row-del { opacity: .6; }
+.curs-row-chk { width: 16px; height: 16px; cursor: pointer; flex-shrink: 0; margin: 0; }
 .curs-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 .curs-chip {
   font-family: var(--sans); font-size: var(--fs-12-5); font-weight: 700; padding: 6px 12px; border-radius: 999px;
@@ -6389,6 +6402,19 @@ input:focus, select:focus, textarea:focus {
 @media (prefers-reduced-motion: reduce) {
   .corr-card, .curs-item { animation: none; }
   .corr-card, .curs-item, .corr-chip, .corr-btn, .curs-chip { transition: none; }
+}
+/* Celu: la fila se parte en dos renglones (insignia · estado · casilla arriba; el nombre completo abajo) en vez de apretar el texto en una columna de 100px. */
+@media (max-width: 480px) {
+  .curs-item { display: grid; grid-template-columns: auto 1fr auto; column-gap: 10px; row-gap: 6px; align-items: center; }
+  .curs-item .curs-badge { grid-column: 1; grid-row: 1; justify-self: start; }
+  .curs-item-est { grid-column: 2; grid-row: 1; }
+  .curs-item .curs-check { grid-column: 3; grid-row: 1; }
+  .curs-item-main { grid-column: 1 / -1; grid-row: 2; }
+  .curs-row { display: grid; grid-template-columns: 1fr auto; column-gap: 10px; row-gap: 6px; }
+  .curs-row-main { grid-column: 1; grid-row: 1; }
+  .curs-row-chk { grid-column: 2; grid-row: 1; }
+  .curs-row-acts { grid-column: 1 / -1; grid-row: 2; display: flex; align-items: center; gap: 6px; }
+  .curs-row-acts > :first-child { margin-right: auto; }
 }
 @media (max-width: 420px) {
   .corr-counters { grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 6px; }

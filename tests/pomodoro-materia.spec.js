@@ -104,19 +104,55 @@ test('horasPorMateria suma solo la materia y el rango pedidos', async ({ cmPage 
   expect(r.vacio).toBe(0);
 });
 
-test('Finales muestra las horas estudiadas de los últimos 30 días junto a cada final con materia', async ({ cmPage }) => {
+test('las horas estudiadas del mes ya no están en la tarjeta de Finales: viven en la pestaña Preparación de finales de la Sesión de estudio', async ({ cmPage }) => {
   await armar(cmPage);
   await cmPage.evaluate(() => {
     const hoy = getActiveDate();
-    const mas = (n) => { const d = new Date(hoy + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+    const dia1 = hoy.slice(0, 7) + '-01';
+    const mesAnt = new Date(dia1 + 'T12:00:00'); mesAnt.setDate(0);                 // último día del mes anterior
     S.pomodoroHistory = [
       { id: 'a', date: hoy, minutes: 90, full: true, ts: 1, subjectId: 's2_8' },
-      { id: 'b', date: mas(-29), minutes: 30, full: true, ts: 2, subjectId: 's2_8' },
-      { id: 'c', date: mas(-31), minutes: 600, full: true, ts: 3, subjectId: 's2_8' }, // fuera de los 30 días
+      { id: 'b', date: dia1, minutes: 30, full: true, ts: 2, subjectId: 's2_8' },    // primer día del mes: entra
+      { id: 'c', date: mesAnt.toISOString().slice(0, 10), minutes: 600, full: true, ts: 3, subjectId: 's2_8' }, // mes anterior: fuera
     ];
     Finales.renderPrincipal();
   });
-  const items = cmPage.locator('#finales-wrap-conocimiento .fin-item');
-  await expect(items.nth(0)).toContainText('2 h estudiadas (últimos 30 días)'); // 120 min
-  await expect(items.nth(1)).toContainText('0 h estudiadas (últimos 30 días)');
+  const tarjeta = cmPage.locator('#finales-wrap-conocimiento');
+  await expect(tarjeta.locator('.fin-item')).toHaveCount(2);
+  await expect(tarjeta).not.toContainText('estudiadas');
+  await expect(tarjeta.locator('.fin-item-estudio')).toHaveCount(0);
+  // Si hoy es el día 1, las dos sesiones caen el mismo día: igual suman 2 h (90 + 30 min).
+  await cmPage.evaluate(() => openSesionEstudioOverlay());
+  await cmPage.locator('#se-tab-finales').click();
+  const items = cmPage.locator('#ov-prep-finales .fin-item');
+  await expect(items.nth(0)).toContainText('2 h estudiadas este mes');   // 120 min, sin los 600 del mes anterior
+  await expect(items.nth(1)).toContainText('0 h estudiadas este mes');
+  await expect(cmPage.locator('#ov-prep-finales')).not.toContainText('últimos 30 días');
+});
+
+test('la tarjeta de Finales muestra solo los 3 más cercanos por fecha; el resto sigue en el Plan de materias', async ({ cmPage }) => {
+  await armar(cmPage);
+  await cmPage.evaluate(() => switchTab('conocimiento', document.querySelector('.nav-btn[data-tab="conocimiento"]')));
+  await cmPage.evaluate(() => {
+    const mas = (n) => { const d = new Date(getActiveDate() + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+    S.sgc.finales = [
+      { id: 'f5', materia: 'Quinta materia', fecha: mas(40), tipo: 'Final Oral', done: false, doneEl: null },
+      { id: 'f2', materia: 'Segunda materia', fecha: mas(8), tipo: 'Final Oral', done: false, doneEl: null },
+      { id: 'f4', materia: 'Cuarta materia', fecha: mas(30), tipo: 'Final Oral', done: false, doneEl: null },
+      { id: 'f1', materia: 'Primera materia', fecha: mas(3), tipo: 'Final Oral', done: false, doneEl: null },
+      { id: 'f3', materia: 'Tercera materia', fecha: mas(15), tipo: 'Final Oral', done: false, doneEl: null },
+      { id: 'f0', materia: 'Rendida materia', fecha: mas(1), tipo: 'Final Oral', done: true, doneEl: mas(0) },   // rendida: no cuenta
+    ];
+    Finales.renderPrincipal();
+  });
+  const names = cmPage.locator('#finales-wrap-conocimiento .fin-item .fin-item-name');
+  await expect(names).toHaveText(['Primera materia', 'Segunda materia', 'Tercera materia']);
+  await expect(cmPage.locator('#fin-ir-plan')).toBeVisible();
+  // La pestaña de la Sesión de estudio sí lista todos los activos.
+  await cmPage.evaluate(() => openSesionEstudioOverlay());
+  await cmPage.locator('#se-tab-finales').click();
+  await expect(cmPage.locator('#ov-prep-finales .fin-item')).toHaveCount(5);
+  await cmPage.evaluate(() => CMOverlay.close('ov-sesion-estudio'));
+  await cmPage.locator('#fin-ir-plan').click();
+  await expect(cmPage.locator('#ov-finales')).toHaveClass(/show/);
 });
