@@ -101,15 +101,15 @@ test('2) tras el arranque, Usado = el usado dado aunque haya compras y pagos ant
 
 test('2b) es idempotente: volver a correrlo reemplaza el arranque y los vencimientos anteriores de esa tarjeta, no los de otras', async ({ cmPage }) => {
   await preparar(cmPage, { cards: [NARANJA, MP] });
-  await arrancar(cmPage, 'mp', 100000, { '2026-11-10': 5000 });
+  await arrancar(cmPage, 'mp', 5000, { '2026-11-10': 5000 });
   await arrancar(cmPage, 'Naranja', 700000, MESES);
-  const r = await arrancar(cmPage, 'naranja', 650000, { '2026-12-10': 400000 });   // por nombre, sin importar mayúsculas
-  expect(r).toEqual({ tarjeta: 'Naranja', usado: 650000, meses: { '2026-12-10': 400000 } });
+  const r = await arrancar(cmPage, 'naranja', 400000, { '2026-12-10': 400000 });   // por nombre, sin importar mayúsculas
+  expect(r).toEqual({ tarjeta: 'Naranja', usado: 400000, meses: { '2026-12-10': 400000 } });
   const d = await estado(cmPage);
   expect(d.dues.filter((x) => x.cardId === 'nar').map((x) => [x.due, x.amount])).toEqual([['2026-12-10', 400000]]);
   expect(d.dues.filter((x) => x.cardId === 'mp').map((x) => [x.due, x.amount])).toEqual([['2026-11-10', 5000]]);
-  expect(await usado(cmPage, 'nar')).toBe(650000);
-  expect(await usado(cmPage, 'mp')).toBe(100000);
+  expect(await usado(cmPage, 'nar')).toBe(400000);
+  expect(await usado(cmPage, 'mp')).toBe(5000);
 });
 
 test('3) una compra nueva posterior (aunque con fecha anterior) suma al Usado y a los meses justos; las anteriores no', async ({ cmPage, consoleErrors }) => {
@@ -258,5 +258,151 @@ test.describe('motor', () => {
     expect(M.used(c, ch, pay)).toBe(1000 + 200 - 30 - 11);
     expect(M.used({ ...c, resetAt: undefined }, ch, pay)).toBe(1000 + 500 + 200 - 50 - 30 - 7 - 11);
     expect(M.used(c, null, undefined)).toBe(1000);
+  });
+});
+
+// ── Fix-wave: los meses tienen que sumar el usado, y los pagos se arrastran al siguiente vencimiento con saldo ──
+// Datos de prueba (no son datos reales): Naranja cierra el 27 y vence el 10; hoy 2026-11-05.
+const USADO_Z = 799400;
+const MESES_Z = {
+  '2026-12-10': 322300, '2027-01-10': 212800, '2027-02-10': 128800, '2027-03-10': 81400, '2027-04-10': 7700, '2027-05-10': 7700,
+  '2027-06-10': 7700, '2027-07-10': 6200, '2027-08-10': 6200, '2027-09-10': 6200, '2027-10-10': 6200, '2027-11-10': 6200,
+};
+const pendiente = (page, id = 'nar') => page.evaluate((i) => {
+  const c = S.cards.find((x) => x.id === i);
+  return CMTarjetas.pendingDues(c, S.cardCharges, '1900-01-01', '2999-12-31', S.cardDues, S.cardPayments).map((d) => [d.dueDate, d.amount]);
+}, id);
+const sumaPendiente = async (page, id) => Math.round((await pendiente(page, id)).reduce((s, [, a]) => s + a, 0) * 100) / 100;
+const pagarManual = (page, amount, date) => despues(page, ({ amount, date }) => {
+  const id = uid();
+  S.cardPayments.push({ id, key: 'manual:' + id, cardId: 'nar', date, amount, accountId: 'uala', kind: 'manual' });
+  renderFinanzasTab();
+}, { amount, date });
+
+test('8) los meses tienen que sumar el usado (en centavos): si no, no carga nada y dice la diferencia', async ({ cmPage, consoleErrors }) => {
+  await preparar(cmPage);
+  const antes = await estado(cmPage);
+  const r = await arrancar(cmPage, 'nar', 700000, { '2026-11-10': 250000, '2026-12-10': 300000 });
+  expect(r).toEqual({ error: 'Los meses suman $550.000 y el usado es $700.000: diferencia $150.000.' });
+  const r2 = await arrancar(cmPage, 'nar', 100, { '2026-11-10': 250000 });   // al revés: los meses suman de más
+  expect(r2.error).toBe('Los meses suman $250.000 y el usado es $100: diferencia $249.900.');
+  const r3 = await arrancar(cmPage, 'nar', 10, {});   // sin meses y con usado
+  expect(r3.error).toMatch(/Los meses suman \$0 y el usado es \$10: diferencia \$10\./);
+  expect(await estado(cmPage)).toEqual(antes);   // ni tarjeta, ni vencimientos, ni pagos
+  // En centavos: 10,10 + 20,20 = 30,30 no se rompe por coma flotante
+  const ok = await arrancar(cmPage, 'nar', 30.3, { '2026-11-10': 10.1, '2026-12-10': 20.2 });
+  expect(ok).toEqual({ tarjeta: 'Naranja', usado: 30.3, meses: { '2026-11-10': 10.1, '2026-12-10': 20.2 } });
+  expect(consoleErrors).toEqual([]);
+});
+
+test('8b) permitirDiferencia: true carga igual y devuelve la diferencia (parte del usado sin fecha)', async ({ cmPage, consoleErrors }) => {
+  await preparar(cmPage);
+  const r = await cmPage.evaluate(() => cardArranque('nar', { usado: 700000, meses: { '2026-11-10': 250000, '2026-12-10': 300000 }, permitirDiferencia: true }));
+  expect(r).toEqual({ tarjeta: 'Naranja', usado: 700000, meses: { '2026-11-10': 250000, '2026-12-10': 300000 }, diferencia: 150000 });
+  expect(await usado(cmPage)).toBe(700000);
+  expect(await sumaPendiente(cmPage)).toBe(550000);
+  // Otro valor truthy que no sea true no habilita la carga
+  const r2 = await cmPage.evaluate(() => cardArranque('nar', { usado: 1, meses: {}, permitirDiferencia: 'si' }));
+  expect(r2.error).toMatch(/diferencia \$1\./);
+  // Los errores de validación siguen mandando aunque se permita la diferencia
+  const r3 = await cmPage.evaluate(() => cardArranque('nar', { usado: 1, meses: { '2026-11-11': 1 }, permitirDiferencia: true }));
+  expect(r3.error).toMatch(/día de vencimiento/);
+  expect(consoleErrors).toEqual([]);
+});
+
+test('9) un pago fechado antes de un vencimiento sin saldo pasa al siguiente con saldo; el calendario sigue igualando al Usado', async ({ cmPage, consoleErrors }) => {
+  await preparar(cmPage);
+  expect(await arrancar(cmPage, 'nar', USADO_Z, MESES_Z)).toMatchObject({ usado: USADO_Z });
+  expect(await sumaPendiente(cmPage)).toBe(USADO_Z);   // invariante tras el arranque
+  // Pago del 05/11: el 10/11 no tiene nada, así que baja el 10/12
+  await pagarManual(cmPage, 100000, '2026-11-05');
+  expect(await usado(cmPage)).toBe(USADO_Z - 100000);
+  expect((await pendiente(cmPage))[0]).toEqual(['2026-12-10', 222300]);
+  expect(await sumaPendiente(cmPage)).toBe(USADO_Z - 100000);
+  await expect(mes(cmPage, '2026-12').locator('.cc-cal-due')).toHaveText(['10/12 · Naranja · $222.300']);
+  // Pago fechado entre el cierre (27/10) y el 10/11 (sin saldo): mismo destino
+  await pagarManual(cmPage, 22300, '2026-10-28');
+  expect((await pendiente(cmPage))[0]).toEqual(['2026-12-10', 200000]);
+  expect(await sumaPendiente(cmPage)).toBe(USADO_Z - 122300);
+  expect(consoleErrors).toEqual([]);
+});
+
+test('9b) lo que sobra de un pago pasa a los vencimientos siguientes, en orden, hasta agotarse', async ({ cmPage, consoleErrors }) => {
+  await preparar(cmPage);
+  await arrancar(cmPage, 'nar', USADO_Z, MESES_Z);
+  await pagarManual(cmPage, 400000, '2026-11-05');   // 322.300 del 10/12 + 77.700 del 10/01
+  const p = await pendiente(cmPage);
+  expect(p.slice(0, 3)).toEqual([['2027-01-10', 135100], ['2027-02-10', 128800], ['2027-03-10', 81400]]);
+  expect(await sumaPendiente(cmPage)).toBe(USADO_Z - 400000);
+  // Un segundo pago, fechado antes, se aplica primero (orden cronológico) pero el resultado total es el mismo
+  await pagarManual(cmPage, 50000, '2026-11-01');
+  expect(await sumaPendiente(cmPage)).toBe(USADO_Z - 450000);
+  expect(await usado(cmPage)).toBe(USADO_Z - 450000);
+  // Un pago mayor que toda la deuda no genera negativos ni vencimientos de más
+  await pagarManual(cmPage, 5000000, '2026-11-06');
+  expect(await pendiente(cmPage)).toEqual([]);
+  await expect(cmPage.locator('#tj-pane-calendario .cc-due-card')).toHaveCount(0);
+  expect(consoleErrors).toEqual([]);
+});
+
+test('9c) el pago automático sigue cerrando su vencimiento y el calendario sigue igualando al Usado', async ({ cmPage, consoleErrors }) => {
+  await preparar(cmPage, { pagarDesde: 'uala' });
+  await arrancar(cmPage, 'nar', USADO_Z, MESES_Z);
+  await pagarManual(cmPage, 100000, '2026-11-05');
+  await cmPage.evaluate(() => { window.getActiveDate = () => '2026-12-10'; renderFinanzasTab(); applyCardAutoPayments(); applyCardAutoPayments(); });
+  const autos = await cmPage.evaluate(() => S.cardPayments.filter((p) => p.kind === 'auto' && p.date >= '2026-12-01').map((p) => [p.key, p.amount]));
+  expect(autos).toEqual([['auto:nar:2026-12-10', 222300]]);   // 322.300 - 100.000 adelantados; una sola vez
+  expect(await usado(cmPage)).toBe(USADO_Z - 100000 - 222300);
+  expect((await pendiente(cmPage))[0]).toEqual(['2027-01-10', 212800]);
+  expect(await sumaPendiente(cmPage)).toBe(await usado(cmPage));
+  expect(consoleErrors).toEqual([]);
+});
+
+test('9d) una compra nueva en cuotas suma al Usado y al calendario por igual (con y sin pagos encima)', async ({ cmPage, consoleErrors }) => {
+  await preparar(cmPage);
+  await arrancar(cmPage, 'nar', USADO_Z, MESES_Z);
+  await despues(cmPage, () => { S.cardCharges.push({ id: uid(), cardId: 'nar', date: '2026-11-03', amount: 30000, mode: 'nowInst', installments: 3, name: 'Nueva' }); renderFinanzasTab(); });
+  expect(await sumaPendiente(cmPage)).toBe(USADO_Z + 30000);
+  await pagarManual(cmPage, 250000, '2026-11-05');
+  expect(await usado(cmPage)).toBe(USADO_Z + 30000 - 250000);
+  expect(await sumaPendiente(cmPage)).toBe(await usado(cmPage));
+  expect(consoleErrors).toEqual([]);
+});
+
+test.describe('pendingDues: arrastre de pagos (motor, en Node)', () => {
+  const t0 = Date.UTC(2026, 10, 5, 12), id = (ms) => ms.toString(36) + 'abcd';
+  const nar = { id: 'nar', name: 'Naranja', limit: 1, closeDay: 27, dueDay: 10 };
+  const dues = (o) => Object.entries(o).map(([due, amount]) => ({ id: 'cd:nar:' + due, cardId: 'nar', due, amount }));
+  const pay = (amount, date, extra = {}) => ({ id: id(t0 + 5000), key: 'manual:' + date, cardId: 'nar', date, amount, kind: 'manual', ...extra });
+  const pd = (card, d, pagos) => M.pendingDues(card, [], '1900-01-01', '2999-12-31', dues(d), pagos).map((x) => [x.dueDate, x.amount, x.paidAmount]);
+
+  test('con arranque: el pago de un vencimiento sin saldo y el sobrante pasan al siguiente', () => {
+    const c = { ...nar, openingUsed: 300, resetAt: t0, resetDay: '2026-11-05' };
+    const d = { '2026-12-10': 100, '2027-01-10': 200 };
+    expect(pd(c, d, [])).toEqual([['2026-12-10', 100, 0], ['2027-01-10', 200, 0]]);
+    expect(pd(c, d, [pay(30, '2026-11-05')])).toEqual([['2026-12-10', 70, 30], ['2027-01-10', 200, 0]]);   // el 10/11 no tiene nada
+    expect(pd(c, d, [pay(150, '2026-11-05')])).toEqual([['2027-01-10', 150, 50]]);
+    expect(pd(c, d, [pay(300, '2026-11-05')])).toEqual([]);
+    expect(pd(c, d, [pay(999, '2026-11-05')])).toEqual([]);
+    // Un pago fechado después del 10/12 no toca el 10/12
+    expect(pd(c, d, [pay(50, '2026-12-20')])).toEqual([['2026-12-10', 100, 0], ['2027-01-10', 150, 50]]);
+    // Dos pagos: cuenta el orden cronológico, no el del arreglo
+    expect(pd(c, d, [pay(80, '2026-11-20'), pay(60, '2026-11-06')])).toEqual([['2027-01-10', 160, 40]]);
+  });
+
+  test('el automático cierra su vencimiento y no le queda lugar a los manuales', () => {
+    const c = { ...nar, openingUsed: 300, resetAt: t0, resetDay: '2026-11-05' };
+    const d = { '2026-12-10': 100, '2027-01-10': 200 };
+    const auto = { id: 'auto:nar:2026-12-10', key: 'auto:nar:2026-12-10', cardId: 'nar', date: '2026-12-10', amount: 70, kind: 'auto' };
+    // El auto pagó 70 porque había 30 adelantados: el adelanto de 30 llena ese lugar; un pago mayor pasa al 10/01
+    expect(pd(c, d, [pay(30, '2026-11-05'), auto])).toEqual([['2027-01-10', 200, 0]]);
+    expect(pd(c, d, [pay(80, '2026-11-05'), auto])).toEqual([['2027-01-10', 150, 50]]);
+  });
+
+  test('sin arranque: lo que sobra pasa al siguiente que existe, pero un vencimiento que la app no tiene no empuja los que sí tiene', () => {
+    const d = { '2026-11-10': 100, '2026-12-10': 60 };
+    expect(pd(nar, d, [pay(130, '2026-11-02')])).toEqual([['2026-12-10', 30, 30]]);
+    // Pago del resumen de octubre (la app no tiene el 10/10): no se corre a noviembre
+    expect(pd(nar, d, [pay(300, '2026-10-08')])).toEqual([['2026-11-10', 100, 0], ['2026-12-10', 60, 0]]);
   });
 });

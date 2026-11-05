@@ -848,9 +848,11 @@ function deleteCard(id) {
 
 // ── Arranque de una tarjeta (foto de hoy) ──
 // Se corre una vez desde la consola, con los números que da el usuario (nada está hardcodeado):
-//   cardArranque('Nombre o id', { usado: 123456.78, meses: { 'YYYY-MM-DD': monto, ... } })
+//   cardArranque('Nombre o id', { usado: 123456.78, meses: { 'YYYY-MM-DD': monto, ... }, permitirDiferencia?: true })
 // `usado` = lo que debe hoy la tarjeta (queda en openingUsed). `meses` = lo que vence cada día de vencimiento de la tarjeta
-// (cronograma base, va a S.cardDues y reemplaza TODO lo anterior de esa tarjeta). Desde ese momento (resetAt) solo cuentan
+// (cronograma base, va a S.cardDues y reemplaza TODO lo anterior de esa tarjeta). Los meses tienen que sumar el usado (en centavos):
+// si no, devuelve { error } sin cargar nada, salvo con permitirDiferencia: true (parte del usado sin fecha), y entonces el resumen
+// trae `diferencia` = usado − Σ meses. Desde ese momento (resetAt) solo cuentan
 // los cargos y pagos registrados después (ver tarjetas-motor.js). Las compras y pagos anteriores quedan como historial.
 // Si algo no valida no cambia nada y devuelve { error }. Se puede volver a correr: reemplaza el arranque anterior.
 function cardArranque(nombreOId, opts) {
@@ -878,12 +880,20 @@ function cardArranque(nombreOId, opts) {
     if (!v.ok) return err(`${due}: ${v.error}`);
     if (due < today) return err(`${due}: ese vencimiento ya pasó. Cargá solo vencimientos de hoy en adelante.`);
   }
+  // Los meses tienen que sumar exactamente el usado (en centavos): si no, el calendario y el Usado quedarían desparejos.
+  const sumC = fechas.reduce((s, due) => s + Math.round(meses[due] * 100), 0), usadoC = Math.round(usado * 100);
+  const diferencia = _ccRound((usadoC - sumC) / 100);
+  if (usadoC !== sumC && opts.permitirDiferencia !== true) {
+    return err(`Los meses suman ${_ccPesos(_ccRound(sumC / 100))} y el usado es ${_ccPesos(usado)}: diferencia ${_ccPesos(Math.abs(diferencia))}.`);
+  }
   const now = Date.now();
   card.resetAt = now; card.resetDay = today; card.openingUsed = usado;
   S.cardDues = (Array.isArray(S.cardDues) ? S.cardDues : []).filter(d => !(d && d.cardId === card.id));
   fechas.forEach(due => S.cardDues.push({ id: `cd:${card.id}:${due}`, cardId: card.id, due, amount: meses[due], setAt: today, setAtTs: now }));
   snapshotNW(); saveState(); renderFinanzasTab();
-  return { tarjeta: card.name, usado: cardUsed(card), meses: { ...meses } };
+  const res = { tarjeta: card.name, usado: cardUsed(card), meses: { ...meses } };
+  if (diferencia !== 0) res.diferencia = diferencia;   // solo con permitirDiferencia: usado − Σ meses (parte del usado sin fecha)
+  return res;
 }
 
 // ── Compra con tarjeta (dentro del formulario de Movimientos) ──
@@ -1038,13 +1048,35 @@ function syncTxnRefundUi() {
   g('txnRefundAccRow').style.display = refund ? '' : 'none';
   if (refund) {
     const sel = g('txnRefundAcc');
-    sel.innerHTML = _ccAccountOptions(_txnRefundAccTouched ? sel.value : _txnRefundDefaultAcc(), '— Elegí una cuenta —');
+    sel.innerHTML = _refundDestOptions(_txnRefundAccTouched ? sel.value : _txnRefundDefaultAcc());
   }
 }
+// El reintegro puede entrar a una cuenta en pesos o a una tarjeta (baja lo usado de esa tarjeta, no mueve ninguna cuenta).
+// En el selector la tarjeta va como "card:<id>"; en el registro (refund) como cardId, con accountId vacío.
+function _refundDestOptions(selected) {
+  const cards = (S.cards || []).filter(c => c && c.id).map(c => `<option value="${_TXN_CARD_PREFIX}${escHtml(c.id)}"${_TXN_CARD_PREFIX + c.id === selected ? ' selected' : ''}>💳 A la tarjeta ${escHtml(c.name)} · usado ${_ccPesos(cardUsed(c))}</option>`).join('');
+  return _ccAccountOptions(selected, '— Elegí dónde entra —') + cards;
+}
+// Valor del selector → destino válido { accountId, cardId } o null.
+function _refundDest(val) {
+  if (typeof val === 'string' && val.startsWith(_TXN_CARD_PREFIX)) {
+    const id = val.slice(_TXN_CARD_PREFIX.length);
+    return (S.cards || []).some(c => c && c.id === id) ? { accountId: '', cardId: id } : null;
+  }
+  return _ccAccounts().some(a => a.id === val) ? { accountId: val, cardId: '' } : null;
+}
+// Lee el reintegro del formulario (selector de destino) con su monto.
+function _refundFromForm(pct, total) {
+  const raw = document.getElementById('txnRefundAcc').value, d = _refundDest(raw);
+  const r = { pct, amount: _ccRound(total - _discountFinal(total, pct)), accountId: d ? d.accountId : raw, txnId: '' };
+  if (d && d.cardId) r.cardId = d.cardId;
+  return r;
+}
+const _refundSelectValue = (r) => (r && r.cardId ? _TXN_CARD_PREFIX + r.cardId : (r && r.accountId) || '');
 // accId (opcional): cuenta ya guardada, al editar una compra con reintegro.
 function setTxnDiscKind(kind, accId) {
   _markTxnDiscKind(kind === 'refund' ? 'refund' : 'price');
-  if (accId) { document.getElementById('txnRefundAcc').innerHTML = _ccAccountOptions(accId, '— Elegí una cuenta —'); _txnRefundAccTouched = true; }
+  if (accId) { document.getElementById('txnRefundAcc').innerHTML = _refundDestOptions(accId); _txnRefundAccTouched = true; }
   syncTxnRefundUi();
   updateTxnDiscountPreview();
   updateCardChargePreview();
@@ -1072,7 +1104,15 @@ const _refundTxnId = (ownerId) => `rf:${ownerId}`;
 function _addRefund(owner, name, date) {
   const r = owner.refund;
   r.txnId = _refundTxnId(owner.id);
-  S.transactions.unshift({ id: r.txnId, date, name: `Reintegro ${r.pct}% · ${name}`, type: 'income', amount: r.amount, currency: 'ARS', accountId: r.accountId, category: '', refundOf: owner.id });
+  const txn = { id: r.txnId, date, name: `Reintegro ${r.pct}% · ${name}`, type: 'income', amount: r.amount, currency: 'ARS', accountId: r.accountId, category: '', refundOf: owner.id };
+  if (r.cardId) {
+    // A la tarjeta: el ingreso se registra igual (presupuesto y estadísticas), pero sin cuenta: no suma saldo a ninguna.
+    // Y baja lo usado de la tarjeta como un pago manual (kind:'refund'): se imputa a los vencimientos como cualquier pago (ver pendingDues).
+    txn.accountId = ''; txn.refundCardId = r.cardId;
+    if (!Array.isArray(S.cardPayments)) S.cardPayments = [];
+    S.cardPayments.push({ id: uid(), key: `refund:${owner.id}`, cardId: r.cardId, date, amount: r.amount, kind: 'refund', refundOf: owner.id, note: name });
+  }
+  S.transactions.unshift(txn);
   const acc = S.accounts.find(a => a.id === r.accountId);
   if (acc) acc.balance = _ccRound(acc.balance + r.amount);
 }
@@ -1082,6 +1122,12 @@ function _removeRefundOf(ownerId) {
   if (!gone.length) return gone;
   S.transactions = S.transactions.filter(t => !(t && t.refundOf === ownerId));
   gone.forEach(t => { const acc = S.accounts.find(a => a.id === t.accountId); if (acc) acc.balance = _ccRound(acc.balance - t.amount); });
+  // El reintegro a la tarjeta también sale de los pagos (vuelve a subir lo usado). Se guarda aparte, sin persistir, para el deshacer.
+  const pays = (S.cardPayments || []).filter(p => p && p.kind === 'refund' && p.refundOf === ownerId);
+  if (pays.length) {
+    S.cardPayments = S.cardPayments.filter(p => !(p && p.kind === 'refund' && p.refundOf === ownerId));
+    gone.forEach(t => { if (t.refundCardId) Object.defineProperty(t, '_pay', { value: pays.find(p => p.cardId === t.refundCardId), enumerable: false, configurable: true }); });
+  }
   return gone;
 }
 // Aviso para el confirm de borrar: "También se quita el reintegro de $X de <cuenta>."
@@ -1121,8 +1167,10 @@ function updateTxnDiscountPreview() {
   if (!(total > 0) || !_ccTwoDecimals(total)) { el.textContent = 'Cargá el total para ver cuánto pagás.'; return; }
   const fin = _discountFinal(total, pct);
   if (_txnDiscountKind() === 'refund') {
-    const acc = S.accounts.find(a => a.id === document.getElementById('txnRefundAcc').value);
-    el.textContent = `Pagás ${_ccPesos(total)} · te devuelven ${_ccPesos(_ccRound(total - fin))} ${acc ? `en ${acc.name}` : '(elegí la cuenta)'}`;
+    const d = _refundDest(document.getElementById('txnRefundAcc').value);
+    const acc = d && d.accountId ? S.accounts.find(a => a.id === d.accountId) : null;
+    const tj = d && d.cardId ? S.cards.find(c => c.id === d.cardId) : null;
+    el.textContent = `Pagás ${_ccPesos(total)} · te devuelven ${_ccPesos(_ccRound(total - fin))} ${acc ? `en ${acc.name}` : tj ? `en la tarjeta ${tj.name} (baja lo usado)` : '(elegí dónde entra)'}`;
     return;
   }
   el.textContent = `Total ${_ccPesos(total)} → pagás ${_ccPesos(fin)} (ahorrás ${_ccPesos(_ccRound(total - fin))})`;
@@ -1140,7 +1188,8 @@ function _refundTagHtml(rec) {
   const p = Number(r && r.pct);
   if (!(p > 0)) return '';
   const acc = (S.accounts || []).find(a => a.id === r.accountId);
-  const label = `Con reintegro de ${_ccPesos(Number(r.amount) || 0)}${acc ? ` a ${acc.name}` : ''}`;
+  const tj = r.cardId ? (S.cards || []).find(c => c.id === r.cardId) : null;
+  const label = `Con reintegro de ${_ccPesos(Number(r.amount) || 0)}${acc ? ` a ${acc.name}` : tj ? ` a la tarjeta ${tj.name}` : ''}`;
   return `<span class="disc-tag disc-tag-refund" role="img" aria-label="${escHtml(label)}" title="${escHtml(label)}">reintegro ${p}%</span>`;
 }
 // Etiquetas del monto de un gasto en Movimientos: descuento o reintegro (el de una compra con tarjeta sale del cargo).
@@ -1216,7 +1265,7 @@ function _ccReadCharge() {
   if (document.getElementById('ccChZ').checked && document.getElementById('ccChZRow').style.display !== 'none') ch.z = true;
   if (mode === 'advance') ch.toAccountId = v('ccChToAcc');
   if (disc && !refund) { ch.discountPct = pct; ch.amountOriginal = total; }
-  if (refund) ch.refund = { pct, amount: _ccRound(total - _discountFinal(total, pct)), accountId: v('txnRefundAcc'), txnId: '' };
+  if (refund) ch.refund = _refundFromForm(pct, total);
   if (_coverOn()) ch.cover = { accountId: '', who: v('ccCoverWho').trim(), periods: _coverRowsRead().map(r => ({ month: r.month, amount: r.amount, collected: 0 })) };   // accountId se resuelve al guardar
   return ch;
 }
@@ -1232,7 +1281,7 @@ function _ccChargeError(ch) {
   const v = CMTarjetas.validateCharge(ch);
   if (!v.ok) return v.error;
   if (ch.mode === 'advance' && !_ccAccounts().some(a => a.id === ch.toAccountId)) return 'Elegí una cuenta en pesos donde entra la plata.';
-  if (ch.refund && !_ccAccounts().some(a => a.id === ch.refund.accountId)) return 'Elegí la cuenta donde entra el reintegro.';
+  if (ch.refund && !_refundDest(_refundSelectValue(ch.refund))) return 'Elegí la cuenta o la tarjeta donde entra el reintegro.';
   if (ch.cover) return _coverError(ch);
   return null;
 }
@@ -1360,7 +1409,7 @@ function openEditCardCharge(id) {
   g('ccChToAcc').innerHTML = _ccAccountOptions(ch.toAccountId || '', '— Elegí una cuenta —');
   _coverLoad(ch);
   onTxnPaymentChange();
-  if (ch.refund && ch.refund.pct > 0) { setTxnDiscount(ch.refund.pct); setTxnDiscKind('refund', ch.refund.accountId); }
+  if (ch.refund && ch.refund.pct > 0) { setTxnDiscount(ch.refund.pct); setTxnDiscKind('refund', _refundSelectValue(ch.refund)); }
   else setTxnDiscount(ch.discountPct > 0 ? ch.discountPct : 0);
 }
 
@@ -3795,7 +3844,7 @@ function renderActivity() {
     const acc = t.accountId ? accMap[t.accountId] : null;
     if (acc) return `${acc.icon || '🏦'} ${escHtml(acc.name)}`;
     if (t.accountId === 'prestamos_amorcito') return '💙 Prestamos amorcito';
-    const card = t.cardChargeId ? cardOf[t.cardChargeId] : null;
+    const card = t.cardChargeId ? cardOf[t.cardChargeId] : t.refundCardId ? (S.cards || []).find(k => k.id === t.refundCardId) : null;
     return card ? `💳 ${escHtml(card.name)}` : '';
   };
 
@@ -3810,7 +3859,7 @@ function renderActivity() {
     cardSel.innerHTML = '<option value="">Todas las tarjetas</option>' + cardsAll.map(c => `<option value="${escHtml(c.id)}">💳 ${escHtml(c.name)}</option>`).join('');
     cardSel.value = txnHistCardFilter;
   }
-  if (txnHistCardFilter) filteredForList = filteredForList.filter(t => t.cardChargeId && cardOf[t.cardChargeId] && cardOf[t.cardChargeId].id === txnHistCardFilter);
+  if (txnHistCardFilter) filteredForList = filteredForList.filter(t => (t.cardChargeId && cardOf[t.cardChargeId] && cardOf[t.cardChargeId].id === txnHistCardFilter) || t.refundCardId === txnHistCardFilter);
   if (txnHistSort === 'amount') filteredForList = [...filteredForList].sort((a, b) => (+b.amount || 0) - (+a.amount || 0));
 
   // Total recortable del mes: solo ARS (mismo criterio que getMonthlyExpenses) para no
@@ -4108,6 +4157,7 @@ function deleteTransaction(id) {
         S.transactions.unshift(r);
         const acc = S.accounts.find(a => a.id === r.accountId);
         if (acc) acc.balance = _ccRound(acc.balance + r.amount);
+        if (r._pay) { if (!Array.isArray(S.cardPayments)) S.cardPayments = []; S.cardPayments.push(r._pay); }
       });
       snapshotNW(); renderFinanzasTab();
     }
@@ -4127,8 +4177,7 @@ function addTransaction(forcedDate) {
   if (pct && !(total > 0)) { showToast('El monto tiene que ser mayor a 0'); return; }
   if (pct && !_ccTwoDecimals(total)) { showToast('El monto puede tener como máximo 2 decimales'); return; }
   const refund = pct > 0 && _txnDiscountKind() === 'refund';   // reintegro: el gasto es el TOTAL y la devolución entra aparte
-  const refundAcc = refund ? document.getElementById('txnRefundAcc').value : '';
-  if (refund && !_ccAccounts().some(a => a.id === refundAcc)) { showToast('Elegí la cuenta donde entra el reintegro'); return; }
+  if (refund && !_refundDest(document.getElementById('txnRefundAcc').value)) { showToast('Elegí la cuenta o la tarjeta donde entra el reintegro'); return; }
   const amount = pct && !refund ? _discountFinal(total, pct) : total;   // con descuento en el precio, el gasto real es el final
   const currency=document.getElementById('txnCurrency').value;
   const accountId=document.getElementById('txnAccount').value;
@@ -4154,7 +4203,7 @@ function addTransaction(forcedDate) {
   const txn = { id:uid(), date, name, type, amount, currency, accountId, category };
   if (pending) txn.pending = true;
   if (pct && !refund) { txn.discountPct = pct; txn.amountOriginal = total; }
-  if (refund) txn.refund = { pct, amount: _ccRound(total - _discountFinal(total, pct)), accountId: refundAcc, txnId: '' };
+  if (refund) txn.refund = _refundFromForm(pct, total);
   S.transactions.unshift(txn);
   if (type === 'expense' && !forcedDate) _rememberTxnAccount();
   if (refund) { _addRefund(txn, name, date); snapshotNW(); }   // el reintegro nunca va con un gasto pendiente: la opción no se ofrece en otro mes

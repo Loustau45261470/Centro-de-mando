@@ -246,30 +246,50 @@ const CMTarjetas = (() => {
   }
 
   // Lo que falta pagar de cada vencimiento en [fromISO, toISO], descontando los pagos de `payments`.
-  // El pago automático (key auto:<tarjeta>:<fecha>) cierra su vencimiento. Cada pago manual (adelanto) cuenta
-  // SOLO para el vencimiento de su ciclo: el primer día de vencimiento de la tarjeta igual o posterior a la fecha
-  // del pago (como en el resumen del banco). Lo que sobra no pasa a otro mes. Mismas filas que dueTotals con
-  // amount = lo que falta y paidAmount = lo ya cubierto; los vencimientos ya cubiertos no salen.
+  // El pago automático (key auto:<tarjeta>:<fecha>) cierra su vencimiento. Cada pago manual (adelanto, reintegro a la tarjeta)
+  // se aplica primero al vencimiento de su ciclo: el primer día de vencimiento de la tarjeta igual o posterior a la fecha
+  // del pago (como en el resumen del banco). Si ese vencimiento no tiene nada pendiente (o no le alcanza), lo que sobra
+  // pasa al siguiente vencimiento con saldo, y así sucesivamente, en orden cronológico de pagos ("arrastre"): así, con arranque,
+  // la suma de lo pendiente del calendario sigue igualando al Usado. Excepción: una tarjeta SIN arranque no conoce sus
+  // vencimientos viejos, así que un pago de un vencimiento que la app no tiene cargado no se arrastra a los que sí tiene.
+  // Mismas filas que dueTotals con amount = lo que falta y paidAmount = lo ya cubierto; los vencimientos ya cubiertos no salen.
   function pendingDues(card, charges, fromISO, toISO, dues, payments) {
     if (!parseISO(fromISO)) return [];
     const all = dueTotals(card, charges, '1900-01-01', toISO, dues);
-    const autoBy = new Map(), manualBy = new Map();
+    const autoBy = new Map(), manuals = [];
     (Array.isArray(payments) ? payments : []).forEach(p => {
       if (!p || !paymentCounts(card, p)) return;
       const c = Math.round((+p.amount || 0) * 100);
       // El automático se reconoce por la key (ya trae la tarjeta), igual que antes; el manual, por cardId.
       if (typeof p.key === 'string' && p.key.startsWith(`auto:${card.id}:`)) autoBy.set(p.key, (autoBy.get(p.key) || 0) + c);
       else if (p.cardId === card.id && !(typeof p.key === 'string' && p.key.startsWith('auto:')) && parseISO(p.date) && c > 0) {
-        const due = upcomingDueDates(card, p.date, 1)[0];
-        if (due) manualBy.set(due, (manualBy.get(due) || 0) + c);
+        manuals.push({ date: p.date, id: String(p.id || ''), cents: c });
+      }
+    });
+    const rows = all.map(r => {
+      const total = Math.round(r.amount * 100), auto = autoBy.get(`auto:${card.id}:${r.dueDate}`);
+      // Cuánto pueden cubrir los pagos manuales: lo que el automático no cerró.
+      return { r, total, auto, room: auto === undefined ? total : Math.max(0, total - auto), applied: 0 };
+    });
+    manuals.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    const reset = hasReset(card);
+    manuals.forEach(m => {
+      let rem = m.cents;
+      if (!reset) {
+        const first = upcomingDueDates(card, m.date, 1)[0];
+        if (!first || !rows.some(x => x.r.dueDate === first)) return;   // vencimiento que la app no tiene: el pago no se arrastra
+      }
+      for (let i = 0; i < rows.length && rem > 0; i++) {
+        const x = rows[i];
+        if (x.r.dueDate < m.date) continue;
+        const take = Math.min(rem, x.room - x.applied);
+        if (take > 0) { x.applied += take; rem -= take; }
       }
     });
     const out = [];
-    all.forEach(r => {
-      const total = Math.round(r.amount * 100), auto = autoBy.get(`auto:${card.id}:${r.dueDate}`);
-      let left = Math.max(0, total - (auto || 0) - (manualBy.get(r.dueDate) || 0));
-      if (auto !== undefined) left = 0;
-      if (r.dueDate >= fromISO && left > 0) out.push({ ...r, amount: left / 100, paidAmount: (total - left) / 100 });
+    rows.forEach(x => {
+      const left = x.auto !== undefined ? 0 : x.total - x.applied;
+      if (x.r.dueDate >= fromISO && left > 0) out.push({ ...x.r, amount: left / 100, paidAmount: (x.total - left) / 100 });
     });
     return out;
   }

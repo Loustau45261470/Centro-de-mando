@@ -358,6 +358,27 @@
       "desc": "Tarjetas con arranque (card.resetAt, lo fija cardArranque): el Usado, el calendario, los avisos y el pago automático salen de la foto (openingUsed + cardDues) más lo registrado DESPUÉS; los cargos y pagos anteriores quedan de historial. El corte vive en el motor (chargeCounts/paymentCounts, usados por dueTotals, pendingDues y used) para que deadlines.js y el navegador coincidan. NO volver a sumar todos los cargos/pagos de una tarjeta con resetAt, ni reponer la carga manual de vencimientos.",
       "file": "tarjetas-motor.js",
       "marker": "!chargeCounts(card, ch)"
+    },
+    {
+      "id": "tarjetas-pagos-arrastre",
+      "fecha": "2026-11-05",
+      "desc": "pendingDues imputa cada pago manual (adelanto o reintegro a la tarjeta, kind:'refund') al primer vencimiento >= su fecha y el sobrante (o todo, si ese vencimiento no tiene saldo) pasa al siguiente con saldo, en orden cronológico; así, con arranque, Σ calendario pendiente == Usado. Antes un pago fechado en un ciclo sin saldo se perdía y el calendario quedaba por encima del Usado. Sin arranque, un pago de un vencimiento que la app no tiene cargado NO se arrastra (resumen viejo). NO volver a la imputación 'solo al primer vencimiento'.",
+      "file": "tarjetas-motor.js",
+      "marker": "manuals.sort((a, b)"
+    },
+    {
+      "id": "cardarranque-meses-suman-usado",
+      "fecha": "2026-11-05",
+      "desc": "cardArranque rechaza (sin cargar nada) si Σ meses != usado en centavos: devuelve { error: 'Los meses suman $X y el usado es $Y: diferencia $Z.' }. Solo con permitirDiferencia: true carga igual y devuelve diferencia.",
+      "file": "finanzas.js",
+      "marker": "opts.permitirDiferencia !== true"
+    },
+    {
+      "id": "reintegro-a-la-tarjeta",
+      "fecha": "2026-11-05",
+      "desc": "Un reintegro puede entrar a una tarjeta (selector #txnRefundAcc con 'card:<id>'): se guarda refund.cardId, un pago kind:'refund' en S.cardPayments (baja el Usado, se imputa como pago manual) y el ingreso rf:<id> sin cuenta (refundCardId), que no suma saldo a ninguna cuenta. _removeRefundOf lo revierte todo al editar/borrar.",
+      "file": "finanzas.js",
+      "marker": "kind: 'refund', refundOf: owner.id"
     }
   ]
 }

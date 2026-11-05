@@ -60,11 +60,11 @@ test('adelanto parcial: queda lo que falta, avisa lo adelantado y el automático
   expect(consoleErrors).toEqual([]);
 });
 
-test('cada pago cuenta solo para el vencimiento de su ciclo: lo que sobra no pasa al mes siguiente', async ({ cmPage, consoleErrors }) => {
+test('cada pago cubre primero el vencimiento de su ciclo y lo que sobra pasa al siguiente con saldo', async ({ cmPage, consoleErrors }) => {
   await preparar(cmPage, [{ cardId: 'nar', date: '2026-11-02', amount: 130000 }]);
   await expect(vence(cmPage, 'Naranja')).not.toContainText('10/11');
-  await expect(vence(cmPage, 'Naranja')).toContainText('A pagar el 10/12: $60.000');
-  await expect(vence(cmPage, 'Naranja')).not.toContainText('ya adelantaste');
+  await expect(vence(cmPage, 'Naranja')).toContainText('A pagar el 10/12: $30.000');   // 130.000 = 100.000 del 10/11 + 30.000 del 10/12
+  await expect(vence(cmPage, 'Naranja')).toContainText('ya adelantaste $30.000');
   expect(consoleErrors).toEqual([]);
 });
 

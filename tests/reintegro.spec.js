@@ -86,10 +86,10 @@ test('1) al elegir un % aparece el selector de dos opciones (descuento en el pre
   await tipo(cmPage, REINTEGRO).click();
   await expect(tipo(cmPage, REINTEGRO)).toHaveAttribute('aria-checked', 'true');
   await expect(cmPage.locator('#txnRefundAccRow')).toBeVisible();
-  await expect(cmPage.locator('label[for="txnRefundAcc"]')).toHaveText('Cuenta donde entra el reintegro');
+  await expect(cmPage.locator('label[for="txnRefundAcc"]')).toHaveText('Dónde entra el reintegro');
   await expect(cmPage.locator('#txnRefundAcc')).toHaveValue('uala');   // la cuenta de pago de la tarjeta
   const opciones = await cmPage.locator('#txnRefundAcc option').evaluateAll((os) => os.map((o) => o.value));
-  expect(opciones).toEqual(['', 'uala', 'efe']);   // solo cuentas en pesos
+  expect(opciones).toEqual(['', 'uala', 'efe', 'card:nar']);   // cuentas en pesos y, al final, las tarjetas
 
   // Con el teclado: las flechas mueven y eligen.
   await tipo(cmPage, REINTEGRO).focus();
@@ -204,7 +204,7 @@ test('7) sin cuenta de reintegro elegida no se guarda (aviso) y en otra moneda o
   await tipo(cmPage, REINTEGRO).click();
   await expect(cmPage.locator('#txnRefundAcc')).toHaveValue('');
   await cmPage.click('#modal-add-txn button:has-text("Registrar")');
-  await expect(cmPage.locator('#toast')).toContainText('Elegí la cuenta donde entra el reintegro');
+  await expect(cmPage.locator('#toast')).toContainText('Elegí la cuenta o la tarjeta donde entra el reintegro');
   await expect(cmPage.locator('#modal-add-txn')).toHaveClass(/open/);
   expect(await txns(cmPage)).toHaveLength(0);
 
