@@ -5701,12 +5701,25 @@ input:focus, select:focus, textarea:focus {
 }
 
 /* ── Cartera: registrar venta + pestaña Historial (tres pestañas: el layout base de overlay-core.css es de dos) ── */
-#ov-cartera .plov-tabs { grid-template-columns: repeat(4, 1fr); }
+/* Cartera: cinco pestañas (Mis tenencias · Análisis mensual · Historial · Rendimiento · Radar). Escritorio: una fila con la barra deslizante;
+   celular (≤640px): 3 + 2 en dos filas y la pestaña activa se marca con su propio fondo (la barra deslizante no sirve en dos filas). */
+#ov-cartera .plov-tabs:not(.rd-tabs) { grid-template-columns: repeat(5, 1fr); }
 #ov-cartera .plov-tab { min-width: 0; padding: 10px 4px; font-size: var(--fs-13); line-height: 1.2; }
-#ov-cartera .plov-tab-ink { width: calc((100% - 20px) / 4); }
-#ov-cartera .plov-tabs[data-on="analisis"] .plov-tab-ink { left: calc(8px + (100% - 20px) / 4); }
-#ov-cartera .plov-tabs[data-on="historial"] .plov-tab-ink { left: calc(12px + 2 * (100% - 20px) / 4); }
-#ov-cartera .plov-tabs[data-on="rendimiento"] .plov-tab-ink { left: calc(16px + 3 * (100% - 20px) / 4); }
+#ov-cartera .plov-tabs:not(.rd-tabs) .plov-tab-ink { width: calc((100% - 24px) / 5); }
+#ov-cartera .plov-tabs[data-on="analisis"] .plov-tab-ink { left: calc(8px + (100% - 24px) / 5); }
+#ov-cartera .plov-tabs[data-on="historial"] .plov-tab-ink { left: calc(12px + 2 * (100% - 24px) / 5); }
+#ov-cartera .plov-tabs[data-on="rendimiento"] .plov-tab-ink { left: calc(16px + 3 * (100% - 24px) / 5); }
+#ov-cartera .plov-tabs[data-on="radar"] .plov-tab-ink { left: calc(20px + 4 * (100% - 24px) / 5); }
+@media (max-width: 640px) {
+  #ov-cartera .plov-tabs:not(.rd-tabs) { grid-template-columns: repeat(6, 1fr); }
+  #ov-cartera .plov-tabs:not(.rd-tabs) .plov-tab:nth-child(-n+3) { grid-column: span 2; }
+  #ov-cartera .plov-tabs:not(.rd-tabs) .plov-tab:nth-child(n+4) { grid-column: span 3; }
+  #ov-cartera .plov-tabs:not(.rd-tabs) .plov-tab-ink { display: none; }
+  #ov-cartera .plov-tabs:not(.rd-tabs) .plov-tab.on {
+    background: linear-gradient(150deg, color-mix(in oklab, var(--cm-accent) 60%, transparent), color-mix(in oklab, var(--cm-accent) 28%, transparent));
+    border: 1px solid color-mix(in oklab, var(--cm-accent) 55%, transparent);
+  }
+}
 @media (max-width: 480px) { #ov-cartera .plov-tab { font-size: var(--fs-12-5); } }
 #ov-tarjetas .plov-tabs { grid-template-columns: repeat(3, 1fr); }
 #ov-tarjetas .plov-tab { min-width: 0; padding: 10px 6px; }

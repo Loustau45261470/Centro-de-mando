@@ -15,6 +15,9 @@
 //   GET  /rendimiento/cierres?fecha=YYYY-MM-DD&s=SIM:MERCADO,...  — precio de cierre de cada símbolo ese día (serie histórica de IOL)
 //   GET  /rendimiento/mercado?desde=YYYY-MM-DD  — MEP, SPY, IPC INDEC y CPI EE.UU. (fuentes públicas) — mismo gate que /cartera
 //                    las tres comparten el token de IOL y el estado de CarteraGate; ver handleRendimiento() más abajo
+//   GET  /radar/precios?t=NVDA,MELI  — precio en vivo (USD) del subyacente de cada ticker (Yahoo Finance, caché 60 s) — mismo gate que /cartera
+//   POST /radar/pedir  { tickers:[...] }  — lanza el workflow del repo privado que baja los fundamentals de la SEC (workflow_dispatch) — mismo gate
+//                    Radar de empresas; ver handleRadar() más abajo. Los fundamentals NO se calculan acá: se leen con GET /datos/fund-<TICKER>.json
 //
 // :id identifica el timer — 'pomo' para el Pomodoro (uno a la vez), 'rtn-<exId>'
 // para cada descanso de gimnasio (puede haber varios en simultáneo).
@@ -148,6 +151,11 @@ export class CarteraGate {
     if (request.method === 'POST' && url.pathname.startsWith('/rendimiento/')) {
       const params = await request.json().catch(() => ({}));
       const r = await this.rendimiento(url.pathname.slice('/rendimiento/'.length), params);
+      return new Response(r.body, { status: r.status, headers: { 'content-type': 'application/json' } });
+    }
+    if (request.method === 'POST' && url.pathname.startsWith('/radar/')) {
+      const params = await request.json().catch(() => ({}));
+      const r = await this.radar(url.pathname.slice('/radar/'.length), params);
       return new Response(r.body, { status: r.status, headers: { 'content-type': 'application/json' } });
     }
     if (request.method !== 'POST' || url.pathname !== '/consultar') return new Response('not found', { status: 404 });
@@ -357,6 +365,97 @@ export class CarteraGate {
     if (!Object.keys(errores).length) await storage.put(clave, { at: Date.now(), valor });
     return valor;
   }
+
+  // ── /radar/*: precios en vivo (Yahoo) y freno de pedidos al workflow de la SEC. Estado en el storage del DO (la Cache API no sirve en workers.dev). ──
+  radar(ruta, params) {
+    const clave = 'radar:' + ruta + '|' + JSON.stringify(params || {});
+    let p = this.vuelos.get(clave);
+    if (!p) {
+      p = this.radarUnico(ruta, params || {});
+      this.vuelos.set(clave, p);
+      const liberar = () => { if (this.vuelos.get(clave) === p) this.vuelos.delete(clave); };
+      p.then(liberar, liberar);
+    }
+    return p;
+  }
+
+  async radarUnico(ruta, params) {
+    const ok = obj => ({ status: 200, body: JSON.stringify(obj) });
+    const tickers = Array.isArray(params.tickers) ? params.tickers : [];
+    try {
+      if (ruta === 'precios') return ok(await this.radarPrecios(tickers));
+      if (ruta === 'filtrar') { // cuáles se pueden pedir ya (no pedidos en los últimos 10 min)
+        const nuevos = [], ya = [];
+        for (const t of tickers) {
+          const at = await this.state.storage.get('radar:pedido:' + t);
+          if (typeof at === 'number' && Date.now() - at < RADAR_PEDIDO_TTL_MS) ya.push(t); else nuevos.push(t);
+        }
+        return ok({ nuevos, ya });
+      }
+      if (ruta === 'marcar') {
+        for (const t of tickers) await this.state.storage.put('radar:pedido:' + t, Date.now());
+        return ok({ marcados: tickers });
+      }
+      return { status: 404, body: JSON.stringify({ error: 'not_found_route', message: 'Ruta del radar inexistente.' }) };
+    } catch (e) {
+      console.error('radar error', ruta, e);
+      return { status: 502, body: JSON.stringify({ error: 'radar_unavailable', message: 'No se pudo completar la consulta: ' + (e && e.message ? e.message : String(e)) }) };
+    }
+  }
+
+  // Precio de cada ticker: guardado 60 s (los que Yahoo no conoce, 10 min). Cada uno falla por separado y se informa en `errores`.
+  async radarPrecios(tickers) {
+    const storage = this.state.storage;
+    const precios = {}, errores = {};
+    const cola = tickers.slice();
+    const trabajar = async () => {
+      while (cola.length) {
+        const t = cola.shift();
+        const clave = 'radar:px:' + t;
+        const hit = await storage.get(clave);
+        if (hit && typeof hit.at === 'number' && Date.now() - hit.at < (hit.nf ? RADAR_NF_TTL_MS : RADAR_PX_TTL_MS)) {
+          if (hit.nf) { precios[t] = null; errores[t] = 'not_found'; } else precios[t] = hit.valor;
+          continue;
+        }
+        try {
+          const v = await traerPrecioYahoo(t);
+          if (v === null) { await storage.put(clave, { at: Date.now(), nf: true }); precios[t] = null; errores[t] = 'not_found'; }
+          else { await storage.put(clave, { at: Date.now(), valor: v }); precios[t] = v; }
+        } catch (e) { precios[t] = null; errores[t] = 'unavailable'; console.error('precio', t, e && e.message); }
+      }
+    };
+    await Promise.all([trabajar(), trabajar(), trabajar(), trabajar()]);
+    return { generado: new Date().toISOString(), precios, errores };
+  }
+}
+
+// ── Utilidades de /radar ──
+const RADAR_TICKER_RE = /^[A-Z][A-Z0-9-]{0,9}$/;
+const RADAR_MAX_PRECIOS = 30;  // un subrequest por ticker (el plan gratuito deja 50 por pedido)
+const RADAR_MAX_PEDIR = 25;
+const RADAR_PX_TTL_MS = 60 * 1000;
+const RADAR_NF_TTL_MS = 10 * 60 * 1000;
+const RADAR_PEDIDO_TTL_MS = 10 * 60 * 1000;
+const RADAR_WORKFLOW = 'radar-fundamentals.yml';
+
+// Último precio regular de un ticker en Yahoo Finance (sin API oficial: se prueban dos hosts). null = Yahoo no lo conoce.
+async function traerPrecioYahoo(ticker) {
+  let ultimoError = null;
+  for (const host of ['query1', 'query2']) {
+    try {
+      const res = await fetch(`https://${host}.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=1d&interval=1d`, { headers: { Accept: 'application/json', 'User-Agent': 'Mozilla/5.0 (compatible; cdm-push-worker)' } });
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error('HTTP ' + res.status + ' en ' + host);
+      const j = await res.json();
+      const r = j && j.chart && j.chart.result && j.chart.result[0];
+      if (!r) { if (j && j.chart && j.chart.error && /not found/i.test(String(j.chart.error.code))) return null; throw new Error('respuesta sin datos'); }
+      const m = r.meta || {};
+      const precio = numOrNull(m.regularMarketPrice);
+      if (precio == null || precio <= 0) throw new Error('sin precio');
+      return { precio, previo: numOrNull(m.chartPreviousClose) ?? numOrNull(m.previousClose), hora: numOrNull(m.regularMarketTime) != null ? Number(m.regularMarketTime) * 1000 : null, moneda: m.currency || null };
+    } catch (e) { ultimoError = e; }
+  }
+  throw new Error('Yahoo Finance: ' + (ultimoError && ultimoError.message));
 }
 
 // ── Utilidades de /rendimiento ──
@@ -887,11 +986,88 @@ async function handleRendimiento(request, env, ruta) {
   }
 }
 
+// ── /radar/{precios,pedir} — Radar de empresas (pestaña Radar de Cartera) ──
+// Mismo gate que /cartera (ID token de Firebase + OWNER_UID). El cálculo de fundamentals NO corre acá (companyfacts pesa varios MB y el
+// plan gratuito de Workers da 10 ms de CPU por pedido): lo hace un workflow de GitHub Actions del repo privado, que este Worker solo
+// dispara (workflow_dispatch, sin escribir archivos) y el cliente lee después con GET /datos/fund-<TICKER>.json.
+const RADAR_CORS_HEADERS = { ...CARTERA_CORS_HEADERS, 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'authorization, content-type' };
+function radarJson(status, obj) {
+  return new Response(JSON.stringify(obj), { status, headers: { ...RADAR_CORS_HEADERS, 'content-type': 'application/json', 'Cache-Control': 'private, no-store' } });
+}
+const radarError = (status, code, message) => radarJson(status, { error: code, message });
+function radarTickers(lista, max) {
+  const out = [];
+  for (const x of lista) {
+    const t = String(x == null ? '' : x).trim().toUpperCase();
+    if (!RADAR_TICKER_RE.test(t)) return null;
+    if (!out.includes(t)) out.push(t);
+  }
+  return out.length >= 1 && out.length <= max ? out : null;
+}
+
+async function handleRadar(request, env, ruta) {
+  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: RADAR_CORS_HEADERS });
+  const esperado = ruta === 'precios' ? 'GET' : ruta === 'pedir' ? 'POST' : null;
+  if (!esperado) return radarError(404, 'not_found_route', 'Ruta del radar inexistente.');
+  if (request.method !== esperado) return radarError(405, 'method_not_allowed', 'Este endpoint solo acepta ' + esperado + '.');
+
+  const denegado = await autorizarDueno(request, env);
+  if (denegado) return denegado;
+
+  const viaGate = async (r, params) => {
+    const gate = env.CARTERA.get(env.CARTERA.idFromName('cartera'));
+    const res = await gate.fetch('https://do/radar/' + r, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(params) });
+    return { status: res.status, json: await res.json().catch(() => null) };
+  };
+
+  if (ruta === 'precios') {
+    const tickers = radarTickers(String(new URL(request.url).searchParams.get('t') || '').split(',').filter(Boolean), RADAR_MAX_PRECIOS);
+    if (!tickers) return radarError(400, 'bad_param', 'El parámetro t debe traer entre 1 y ' + RADAR_MAX_PRECIOS + ' tickers válidos separados por coma.');
+    try {
+      const r = await viaGate('precios', { tickers });
+      return radarJson(r.status, r.json || { error: 'radar_unavailable', message: 'Respuesta vacía.' });
+    } catch (e) {
+      console.error('radar precios gate error', e);
+      return radarError(502, 'radar_unavailable', 'No se pudieron consultar los precios.');
+    }
+  }
+
+  // POST /radar/pedir
+  const body = await request.json().catch(() => null);
+  const tickers = body && Array.isArray(body.tickers) ? radarTickers(body.tickers, RADAR_MAX_PEDIR) : null;
+  if (!tickers) return radarError(400, 'bad_param', 'El body debe ser { tickers: [...] } con entre 1 y ' + RADAR_MAX_PEDIR + ' tickers válidos.');
+  if (!env.GH_DATA_TOKEN) return radarError(500, 'missing_gh_token', 'El Worker no tiene configurado el secret GH_DATA_TOKEN.');
+  const repo = env.DATOS_REPO || DATOS_REPO_DEFAULT;
+  const gh = { Accept: 'application/vnd.github+json', Authorization: `Bearer ${env.GH_DATA_TOKEN}`, 'User-Agent': 'cdm-push-worker', 'X-GitHub-Api-Version': '2022-11-28' };
+  try {
+    const f = await viaGate('filtrar', { tickers });
+    const nuevos = (f.json && f.json.nuevos) || [], ya = (f.json && f.json.ya) || [];
+    if (!nuevos.length) return radarJson(200, { pedidos: [], yaPedidos: ya });
+    // Rama por defecto del repo de datos (si GitHub no la informa, main).
+    let ref = env.DATOS_REF || 'main';
+    if (!env.DATOS_REF) {
+      try { const r = await fetch(`https://api.github.com/repos/${repo}`, { headers: gh }); if (r.ok) { const j = await r.json(); if (j && j.default_branch) ref = j.default_branch; } } catch (_) { /* queda main */ }
+    }
+    const res = await fetch(`https://api.github.com/repos/${repo}/actions/workflows/${RADAR_WORKFLOW}/dispatches`, {
+      method: 'POST', headers: { ...gh, 'content-type': 'application/json' }, body: JSON.stringify({ ref, inputs: { tickers: nuevos.join(',') } }),
+    });
+    if (res.status === 401) return radarError(502, 'github_token', 'GitHub rechazó el token (¿venció?).');
+    if (res.status === 403 || res.status === 404) return radarError(502, 'github_permiso', 'GitHub no dejó lanzar la actualización: el token necesita el permiso «Actions: Read and write» sobre el repo de datos, y el archivo ' + RADAR_WORKFLOW + ' tiene que estar subido a ese repo.');
+    if (!res.ok) return radarError(502, 'github_error', 'GitHub respondió HTTP ' + res.status + ' al lanzar la actualización (¿rama «' + ref + '» o archivo ' + RADAR_WORKFLOW + ' inexistentes?).');
+    await viaGate('marcar', { tickers: nuevos });
+    return radarJson(200, { pedidos: nuevos, yaPedidos: ya });
+  } catch (e) {
+    console.error('radar pedir error', e);
+    return radarError(502, 'github_unavailable', 'No se pudo consultar GitHub.');
+  }
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === '/cartera') return handleCartera(request, env);
     if (url.pathname.startsWith('/rendimiento/')) return handleRendimiento(request, env, url.pathname.slice('/rendimiento/'.length));
+    if (url.pathname.startsWith('/radar/')) return handleRadar(request, env, url.pathname.slice('/radar/'.length));
     if (url.pathname.startsWith('/datos/')) return handleDatos(request, env);
 
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS_HEADERS });

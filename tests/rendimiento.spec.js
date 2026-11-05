@@ -438,7 +438,7 @@ test.describe('pestaña Rendimiento', () => {
     const r = await sinScrollHorizontal(page);
     expect(r).toEqual({ doc: true, pane: true, ov: true });
     const tabs = await page.locator('#ov-cartera .plov-tab').evaluateAll(els => els.map(e => ({ t: e.textContent.trim(), ok: e.scrollWidth <= e.clientWidth + 1 })));
-    expect(tabs.map(t => t.t)).toEqual(['Mis tenencias', 'Análisis mensual', 'Historial', 'Rendimiento']);
+    expect(tabs.map(t => t.t)).toEqual(['Mis tenencias', 'Análisis mensual', 'Historial', 'Rendimiento', 'Radar']);
     expect(tabs.every(t => t.ok)).toBe(true);
     void testInfo;
   });

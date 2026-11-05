@@ -152,6 +152,7 @@ const DEFAULT_STATE = {
   historicalDataLoaded: false,
   negocios: { items: [], sueltas: [] },   // overlay Negocios (negocios.js): modelo documentado arriba de ese archivo
   libros: { items: [] },   // overlay Libros (libros.js): modelo documentado arriba de ese archivo
+  radar: { items: [] },    // pestaña Radar de Cartera (radar.js): modelo documentado arriba de ese archivo
   achievementLog: {},  // { [achievementId]: 'YYYY-MM-DD' (unlock date) }
   quarterlyObjectives: {
     activePeriod: 't2-2026',
