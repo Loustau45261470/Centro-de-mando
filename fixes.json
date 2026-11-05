@@ -329,7 +329,7 @@
       "fecha": "2026-10-26",
       "desc": "S.cardDues (vencimientos de lo ya usado de cada tarjeta, id determinista cd:<tarjeta>:<fecha>) es clave nueva de primer nivel: se agrega a DEFAULT_STATE y a la lista de arrays con id de _rescueLocal para que un vencimiento cargado en un dispositivo no se pierda si la nube trae un estado sin el. Cubierto por tests/cardDues-sync.spec.js.",
       "file": "app.js",
-      "marker": "'cardPayments','cardDues'"
+      "marker": "'coverCollections','cardDues'"
     },
     {
       "id": "adelanto-pago-resumen",
