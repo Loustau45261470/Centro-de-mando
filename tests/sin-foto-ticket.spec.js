@@ -64,7 +64,7 @@ test('5) cargar Finanzas y abrir cada overlay del FAB no genera errores de conso
   await cmPage.click('.nav-btn[data-tab="finanzas"]');
   await expect(cmPage.locator('#tab-finanzas')).toHaveClass(/active/);
   const etiquetas = await cmPage.evaluate(() => [...document.querySelectorAll('#sd-finanzas .cm-sd-item')].map((b) => b.getAttribute('aria-label')));
-  expect(etiquetas.length).toBeGreaterThanOrEqual(5);
+  expect(etiquetas.length).toBeGreaterThanOrEqual(3);
   for (const label of etiquetas) {
     await cmPage.locator('#sd-finanzas .cm-sd-main').click();
     await cmPage.locator(`#sd-finanzas .cm-sd-item[aria-label="${label}"]`).click();

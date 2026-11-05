@@ -457,7 +457,7 @@ test('los datos se guardan en S y en localStorage y se vuelven a mostrar al arra
   expect(consoleErrors).toEqual([]);
 });
 
-test('se abre desde el abanico de Finanzas, junto a Notas', async ({ cmPage: page }) => {
+test('se abre desde el abanico de Finanzas', async ({ cmPage: page }) => {
   await page.click('.nav-btn[data-tab="finanzas"]');
   const etiquetas = await page.evaluate(() => [...document.querySelectorAll('#sd-finanzas .cm-sd-item')].map((b) => b.getAttribute('aria-label')));
   expect(etiquetas).toContain('Negocios');

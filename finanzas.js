@@ -1970,7 +1970,7 @@ function setWishScore(id, n) {
 function renderWishTop5() {
   const body = document.getElementById('wishTop5Body'); if (!body) return;
   const items = [...(S.wishlist || [])].sort((a, b) => _wishScore(b) - _wishScore(a) || ((+a.amount || 0) - (+b.amount || 0))).slice(0, 5);
-  if (!items.length) { body.innerHTML = '<div class="wt-empty">Sin objetivos de adquisición. Abrí <b>Adquisición</b> (📈 → Adquisición) para cargarlos y puntuarlos.</div>'; return; }
+  if (!items.length) { body.innerHTML = '<div class="wt-empty">Sin objetivos de adquisición. Tocá esta tarjeta para cargarlos y puntuarlos.</div>'; return; }
   const nw = (typeof calcNetWorth === 'function') ? calcNetWorth() : 0;
   body.innerHTML = items.map((w, i) => {
     const sc = _wishScore(w), affordable = nw >= (+w.amount || 0);

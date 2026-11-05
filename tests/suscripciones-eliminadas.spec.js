@@ -55,7 +55,7 @@ const sinCarteraDelMes = async (page) => {
 // Abre uno por uno los overlays del FAB de Finanzas (los de cada ítem del abanico) y comprueba la ausencia en cada uno.
 async function recorrerOverlays(page, alCadaUno) {
   const etiquetas = await page.evaluate(() => [...document.querySelectorAll('#sd-finanzas .cm-sd-item')].map((b) => b.getAttribute('aria-label')));
-  expect(etiquetas.length).toBeGreaterThanOrEqual(5);
+  expect(etiquetas.length).toBeGreaterThanOrEqual(3);
   for (const label of etiquetas) {
     await page.locator('#sd-finanzas .cm-sd-main').click();
     await page.locator(`#sd-finanzas .cm-sd-item[aria-label="${label}"]`).click();

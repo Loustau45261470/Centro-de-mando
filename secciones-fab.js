@@ -312,7 +312,9 @@ function _sfMount() {
   window.openGymOverlay = openGym;
   const openDieta = R({ id: 'ov-dieta', accent: '#10E07C', eyebrow: 'SALUD · DIETA', title: 'Dieta', sourceId: 'dieta-card' });
   window.openDietaOverlay = openDieta;
+  // Objetivos de adquisición: se abre desde la tarjeta Top 5 de Finanzas (patrón .cc-card-link); ya no hay entrada en el abanico.
   const openGoals = R({ id: 'ov-goals', accent: '#F5A623', eyebrow: 'FINANZAS · ADQUISICIÓN', title: 'Objetivos de adquisición', sourceId: 'wishlist-card' });
+  window.openAdquisicionOverlay = openGoals;
   const openBudget = () => _sfOpenBudget('presupuestos');
   // Historial de objetivos financieros: se abre desde el botón de la card, no del abanico.
   window.openFinObjHistorial = R({ id: 'ov-finobj', accent: '#22C55E', eyebrow: 'FINANZAS · OBJETIVOS', title: 'Historial de objetivos', sourceId: 'finobj-hist-card' });
@@ -334,12 +336,9 @@ function _sfMount() {
       { icon: _SF_ICONS.notas, label: 'Notas', accent: '#10E07C', onClick: () => { if (typeof saludNotasOpen === 'function') saludNotasOpen(); } },
     ] },
     { tab: 'finanzas', accent: '#22C55E', icon: _SF_ICONS.finanzas, name: 'Finanzas', items: [
-      proyItem('finanzas'),
-      { icon: _SF_ICONS.goals, label: 'Adquisición', accent: '#F5A623', onClick: openGoals },
       { icon: _SF_ICONS.budget, label: 'Presupuesto', accent: '#22C55E', onClick: openBudget },
       { icon: _SF_ICONS.tenencias, label: 'Cartera', accent: '#22C55E', onClick: () => { if (window.CarteraOverlay) CarteraOverlay.open(); } },
       { icon: _SF_ICONS.negocios, label: 'Negocios', accent: '#22C55E', onClick: () => { if (window.Negocios) Negocios.open(); } },
-      { icon: _SF_ICONS.notas, label: 'Notas', accent: '#22C55E', onClick: () => { if (typeof finanzasNotasOpen === 'function') finanzasNotasOpen(); } },
     ] },
     { tab: 'ia', accent: '#C4D0E4', icon: _SF_ICONS.ia, name: 'IA', items: [proyItem('ia'), mapaIdeasItem] },
   ];

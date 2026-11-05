@@ -150,7 +150,7 @@ test.describe('el abanico de cada sección', () => {
       const e = await etiquetas('sd-' + tab);
       expect(e.length, tab).toBeGreaterThan(0);
       expect(e, tab).not.toContain('Vencimientos');
-      expect(e, tab).toContain('Proyectos');
+      if (tab !== 'finanzas') expect(e, tab).toContain('Proyectos');   // Finanzas ya no trae Proyectos (ni Notas ni Adquisición)
       expect(e, tab).not.toContain('Informes');
     }
   });
@@ -285,10 +285,10 @@ test.describe('tocar el título de una tarjeta que abre un panel nunca la colaps
 
   test('las tarjetas normales siguen colapsando con el título', async ({ cmPage: page }) => {
     await irA(page, 'finanzas');
-    const t = page.locator('#wish-top5-card > .card-title');
-    await t.click();
-    await expect(page.locator('#wish-top5-card .card-body.collapsed')).toHaveCount(1);
-    await t.click();
-    await expect(page.locator('#wish-top5-card .card-body.collapsed')).toHaveCount(0);
+    const t = page.locator('#activity-card > .card-title');   // Top 5 de Adquisiciones ya es .cc-card-link (abre su panel): se usa Actividad
+    await t.click({ position: { x: 12, y: 12 } });
+    await expect(page.locator('#activity-card > .card-body.collapsed')).toHaveCount(1);
+    await t.click({ position: { x: 12, y: 12 } });
+    await expect(page.locator('#activity-card > .card-body.collapsed')).toHaveCount(0);
   });
 });

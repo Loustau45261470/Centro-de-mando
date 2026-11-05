@@ -573,7 +573,9 @@
           <div id="creditBody"></div>
         </div>
         <!-- Top 5 adquisiciones (sección) · gestión completa + puntaje en el overlay -->
-        <div class="card" id="wish-top5-card">
+        <div class="card cc-card-link" id="wish-top5-card" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Abrir los objetivos de adquisición"
+             onclick="if(window.openAdquisicionOverlay)openAdquisicionOverlay()"
+             onkeydown="if((event.key==='Enter'||event.key===' ')&&event.target===this){event.preventDefault();if(window.openAdquisicionOverlay)openAdquisicionOverlay()}">
           <div class="card-title">🛒 Top 5 · Adquisiciones</div>
           <div id="wishTop5Body"></div>
         </div>
@@ -1884,7 +1886,7 @@
 <script src="habitos.js?v=9"></script>
 <script src="rutinas.js"></script>
 <script src="tarjetas-motor.js?v=6"></script>
-<script src="finanzas.js?v=37"></script>
+<script src="finanzas.js?v=38"></script>
 <script src="recordatorios.js?v=12"></script>
 <script src="objetivos.js"></script>
 <script src="correlaciones.js?v=2"></script>
@@ -1919,7 +1921,6 @@
 <script src="notas-estudio.js"></script>
 
 <script src="salud-notas.js"></script>
-<script src="finanzas-notas.js"></script>
 <script src="cartera-inversion.js?v=5"></script>
 <script src="tenencias.js?v=21"></script>
 <script src="rendimiento-calc.js?v=2"></script>
@@ -1938,7 +1939,7 @@
 <script src="finales.js?v=16"></script>
 <script src="negocios.js?v=1"></script>
 <script src="libros.js?v=1"></script>
-<script src="secciones-fab.js?v=24"></script>
+<script src="secciones-fab.js?v=25"></script>
 <script src="revision-semanal.js?v=2"></script>
 <script src="nav-rail.js?v=2"></script>
 
