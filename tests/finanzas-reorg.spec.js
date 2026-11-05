@@ -55,7 +55,7 @@ test.describe('1280px', () => {
   test('1) orden de las tarjetas: izquierda y derecha', async ({ cmPage, consoleErrors }) => {
     await cargarEjemplo(cmPage);
     const izq = await hijos(cmPage, 0);
-    expect(izq).toEqual(['patrimonio', 'budget-summary-card', 'credit-card', 'wish-top5-card', 'rnotif-card']);
+    expect(izq).toEqual(['patrimonio', 'budget-summary-card', 'credit-card', 'wish-top5-card', 'rnotif-card-finanzas']);
     const der = await hijos(cmPage, 1);
     // Objetivos, hábitos y recién después Actividad; el resto conserva su orden.
     expect(der.slice(0, 3)).toEqual(['qobj-wrap-finanzas', 'finanzas-habits-wrap', 'activity-card']);

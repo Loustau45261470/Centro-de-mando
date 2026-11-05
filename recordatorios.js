@@ -192,28 +192,27 @@ function renderReminders(tab) {
   renderRemindersNotif(tab);
 }
 
-// Notificación de recordatorios en la sección (solo lectura). La creación vive en el overlay.
+// Notificación de recordatorios en la sección. La tarjeta entera abre el panel completo
+// (patrón .cc-card-link, como Crédito); lo de adentro que actúa por su cuenta corta la propagación.
+// Arriba los REM_NOTIF_MAX próximos más cercanos (hoy incluido), "Ver más" despliega el resto en la
+// misma tarjeta, y TODOS los vencidos quedan a la vista debajo.
+const REM_NOTIF_MAX = 5;
+const _remNotifMore = {};   // tab -> true si "Ver más" está desplegado (sobrevive al refresco de cada minuto)
+function remNotifToggle(tab) { _remNotifMore[tab] = !_remNotifMore[tab]; renderRemindersNotif(tab); }
+
 function renderRemindersNotif(tab) {
   const body = document.getElementById('reminders-notif-' + tab); if (!body) return;
   if (!S.reminders) S.reminders = {};
   const now = Date.now();
   const { virtImminent, virtUpcoming, virtPast } = remVirtualItems(tab);
-  // Los vencidos primero (son los que hay que mirar), después lo que viene por fecha.
   const rec = (S.reminders[tab] || []).filter(r => r.datetime)
     .map(r => ({ title: r.title, priority: r.priority, at: new Date(r.datetime).getTime(), datetime: r.datetime, kindLabel: 'Recordatorio', icon: '🔔' }));
-  const recPast = rec.filter(r => r.at - now <= 0).sort((a, b) => b.at - a.at);
-  const recNext = rec.filter(r => r.at - now > 0);
-  const finDia = new Date(now); finDia.setHours(23, 59, 59, 999);
-
-  // Tres grupos: lo vencido primero (es lo que hay que mirar), lo de hoy, y lo que
-  // viene. Sin este corte, seis filas de horizontes distintos se leen todas iguales.
-  const vencidos = [...recPast, ...virtPast].sort((a, b) => b.at - a.at);
-  const resto    = [...recNext, ...virtImminent, ...virtUpcoming].sort((a, b) => a.at - b.at);
-  const hoy      = resto.filter(r => r.at <= finDia.getTime());
-  const proximos = resto.filter(r => r.at > finDia.getTime());
-  if (!vencidos.length && !resto.length) {
+  const vencidos = [...rec.filter(r => r.at - now <= 0), ...virtPast].sort((a, b) => b.at - a.at);
+  const proximos = [...rec.filter(r => r.at - now > 0), ...virtImminent, ...virtUpcoming].sort((a, b) => a.at - b.at);
+  const verAll = `<button class="rnotif-all" onclick="event.stopPropagation();if(window.openRemindersOverlay)openRemindersOverlay('${tab}')">Ver todo →</button>`;
+  if (!vencidos.length && !proximos.length) {
     body.innerHTML = `<div class="rnotif-empty">Nada por vencer.</div>
-      <button class="rnotif-all" onclick="if(window.openRemindersOverlay)openRemindersOverlay('${tab}')">Crear un recordatorio →</button>`;
+      <button class="rnotif-all" onclick="event.stopPropagation();if(window.openRemindersOverlay)openRemindersOverlay('${tab}')">Crear un recordatorio →</button>`;
     return;
   }
 
@@ -230,8 +229,9 @@ function renderRemindersNotif(tab) {
       + (r.allDay ? '' : ' · ' + d.toTimeString().slice(0, 5));
     const prioCfg = REM_CFG[r.priority] || REM_CFG.medium;
     const dotStyle = (overdue || imminent) ? '' : ` style="background:${prioCfg.dot};box-shadow:0 0 8px ${prioCfg.dot}"`;
+    // La fila con acción propia (abrir el proyecto, el final…) no debe abrir además el panel: corta la propagación.
     const act = r.openAction
-      ? ` onclick="${r.openAction}" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"`
+      ? ` onclick="event.stopPropagation();${r.openAction}" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();event.stopPropagation();this.click();}"`
       : '';
     return `<div class="rnotif-item${overdue ? ' overdue' : imminent ? ' imminent' : ''}" role="listitem" style="--i:${i++}"${act} title="Prioridad ${prioCfg.label.toLowerCase()}">
       <span class="rnotif-dot"${dotStyle}></span>
@@ -243,17 +243,19 @@ function renderRemindersNotif(tab) {
       ${cd ? `<span class="rnotif-cd">${cd}</span>` : ''}
     </div>`;
   };
-  // El contador del encabezado cuenta TODO el grupo, aunque se muestren menos filas.
-  const grupoHTML = (all, max, label, cls) => all.length
-    ? `<div class="rnotif-group ${cls}">${label} · ${all.length}</div><div role="list">${all.slice(0, max).map(filaHTML).join('')}</div>`
-      + (all.length > max ? `<div class="rnotif-more">+${all.length - max} más</div>` : '')
-    : '';
 
-  body.innerHTML =
-    grupoHTML(vencidos, 3, 'Vencido',  'is-overdue') +
-    grupoHTML(hoy,      4, 'Hoy',      'is-today') +
-    grupoHTML(proximos, 4, 'Próximo',  '') +
-    `<button class="rnotif-all" onclick="if(window.openRemindersOverlay)openRemindersOverlay('${tab}')">Ver todo →</button>`;
+  const resto = Math.max(0, proximos.length - REM_NOTIF_MAX);
+  const abierto = resto > 0 && !!_remNotifMore[tab];
+  const visibles = abierto ? proximos : proximos.slice(0, REM_NOTIF_MAX);
+  let html = '';
+  if (proximos.length) {
+    html += `<div class="rnotif-group">Próximos · ${proximos.length}</div><div role="list" class="rnotif-next">${visibles.map(filaHTML).join('')}</div>`;
+    if (resto) html += `<button class="rnotif-all rnotif-toggle" aria-expanded="${abierto}" onclick="event.stopPropagation();remNotifToggle('${tab}')">${abierto ? 'Ver menos' : `Ver más (${resto})`}</button>`;
+  } else {
+    html += `<div class="rnotif-empty">Nada próximo por vencer.</div>`;
+  }
+  if (vencidos.length) html += `<div class="rnotif-group is-overdue">Vencido · ${vencidos.length}</div><div role="list" class="rnotif-over">${vencidos.map(filaHTML).join('')}</div>`;
+  body.innerHTML = html + verAll;
 }
 
 // Re-dibuja los vencimientos de la sección visible. Lo llaman el intervalo de un

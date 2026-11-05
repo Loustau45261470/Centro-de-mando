@@ -21,7 +21,6 @@ const _SF_ICONS = {
   wellness: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 6-7 10-7 10z"/><path d="M12 12v-2"/></svg>`,
   goals: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8h12l-1 11.5a1 1 0 0 1-1 .9H8a1 1 0 0 1-1-.9z"/><path d="M9 8a3 3 0 0 1 6 0"/></svg>`,
   budget: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3.5" width="14" height="17" rx="2.5"/><path d="M8 7h8"/><path d="M8 11h2M11 11h2M14 11h2M8 14.5h2M11 14.5h2M14 14.5v3"/></svg>`,
-  bell: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>`,
   history: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 4v4h4"/><path d="M12 8v4l3 2"/></svg>`,
   tenencias: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4" width="17" height="16" rx="2.3"/><path d="M7.5 9h9M7.5 13h6M7.5 17h4"/></svg>`,
   fichero: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3.5" width="16" height="17" rx="2.4"/><path d="M4 8h16M4 16h16"/><circle cx="12" cy="12" r="1.8"/></svg>`,
@@ -287,8 +286,7 @@ function _sfMount() {
   // Openers de overlays inmersivos por reubicación del contenido existente.
   const R = (CMOverlay && CMOverlay.relocate) ? CMOverlay.relocate : () => () => {};
   const openRem = tab => R({ id: 'ov-rem-' + tab, accent: '#7DD3FC', eyebrow: 'VENCIMIENTOS', title: 'Vencimientos', sourceId: 'reminders-wrap-' + tab });
-  const remItem = tab => ({ icon: _SF_ICONS.bell, label: 'Vencimientos', accent: '#7DD3FC', onClick: openRem(tab) });
-  // Mismo overlay, abierto desde la card de la sección (no solo desde el abanico).
+  // Panel de Vencimientos: se abre desde la tarjeta de cada sección (patrón .cc-card-link); ya no hay entrada en el abanico.
   window.openRemindersOverlay = tab => openRem(tab)();
   // Informes: el mismo overlay transversal para todas las secciones; al abrirlo desde
   // una sección salta a su capítulo, así el abanico lleva al dato de esa sección.
@@ -315,7 +313,6 @@ function _sfMount() {
       { icon: _SF_ICONS.proy, label: 'Proyectos', accent: '#38BDF8', onClick: () => { if (window.ProyectosOverlay) ProyectosOverlay.open('conocimiento'); } },
       mapaIdeasItem,
       informeItem('conocimiento'),
-      remItem('conocimiento'),
     ],
     observeEl: tabConoc,
     visibleWhen: () => !!(tabConoc && tabConoc.classList.contains('active')),
@@ -340,7 +337,6 @@ function _sfMount() {
       { icon: _SF_ICONS.planner, label: 'Planificación', accent: '#00D4FF', onClick: openPlanner },
       { icon: _SF_ICONS.fichero, label: 'Fichero', accent: '#5EEAD4', onClick: () => { if (typeof ficheroOpen === 'function') ficheroOpen(); } },
       informeItem('vida'),
-      remItem('vida'),
     ] },
     { tab: 'salud', accent: '#F43F5E', icon: _SF_ICONS.salud, name: 'Salud', items: [
       proyItem('salud'),
@@ -349,7 +345,6 @@ function _sfMount() {
       { icon: _SF_ICONS.history, label: 'Historial de bienestar', accent: '#7C8EE8', onClick: _sfOpenBienestarHist },
       { icon: _SF_ICONS.notas, label: 'Notas', accent: '#10E07C', onClick: () => { if (typeof saludNotasOpen === 'function') saludNotasOpen(); } },
       informeItem('salud'),
-      remItem('salud'),
     ] },
     { tab: 'finanzas', accent: '#22C55E', icon: _SF_ICONS.finanzas, name: 'Finanzas', items: [
       proyItem('finanzas'),
@@ -359,9 +354,8 @@ function _sfMount() {
       { icon: _SF_ICONS.negocios, label: 'Negocios', accent: '#22C55E', onClick: () => { if (window.Negocios) Negocios.open(); } },
       { icon: _SF_ICONS.notas, label: 'Notas', accent: '#22C55E', onClick: () => { if (typeof finanzasNotasOpen === 'function') finanzasNotasOpen(); } },
       informeItem('finanzas'),
-      remItem('finanzas'),
     ] },
-    { tab: 'ia', accent: '#C4D0E4', icon: _SF_ICONS.ia, name: 'IA', items: [proyItem('ia'), mapaIdeasItem, informeItem('ia'), remItem('ia')] },
+    { tab: 'ia', accent: '#C4D0E4', icon: _SF_ICONS.ia, name: 'IA', items: [proyItem('ia'), mapaIdeasItem, informeItem('ia')] },
   ];
   sections.forEach(s => {
     const el = document.getElementById('tab-' + s.tab);

@@ -113,7 +113,7 @@ test.describe('1280px', () => {
     await cargarEjemplo(cmPage);
     const izq = await hijosVisibles(cmPage, 0);
     expect(izq.slice(0, 2)).toEqual(['patrimonio', 'budget-summary-card']);
-    expect(izq).toEqual(['patrimonio', 'budget-summary-card', 'credit-card', 'wish-top5-card', 'rnotif-card']);
+    expect(izq).toEqual(['patrimonio', 'budget-summary-card', 'credit-card', 'wish-top5-card', 'rnotif-card-finanzas']);
     const adyacentes = await cmPage.evaluate(() => document.querySelector('#nwTotal').closest('.card').nextElementSibling.id);
     expect(adyacentes).toBe('budget-summary-card');
     const [bp, bm] = await cmPage.evaluate(() => ['#nwTotal', '#budget-summary-card'].map((s) => {
@@ -199,7 +199,8 @@ test.describe('390px', () => {
     expect(iP).toBeGreaterThanOrEqual(0);
     expect(todas[iP + 1]).toBe('budget-summary-card');
     // La columna izquierda entera va antes que la derecha (objetivos trimestrales).
-    expect(todas.indexOf('rnotif-card')).toBeLessThan(todas.indexOf('qobj-wrap-finanzas'));
+    expect(todas.indexOf('rnotif-card-finanzas')).toBeGreaterThanOrEqual(0);
+    expect(todas.indexOf('rnotif-card-finanzas')).toBeLessThan(todas.indexOf('qobj-wrap-finanzas'));
     const { sw, cw } = await cmPage.evaluate(() => ({ sw: document.body.scrollWidth, cw: document.documentElement.clientWidth }));
     expect(sw).toBeLessThanOrEqual(cw + 1);
   });

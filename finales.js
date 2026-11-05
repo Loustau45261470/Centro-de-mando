@@ -352,24 +352,27 @@ const Finales = (() => {
   function renderPrincipal() {
     renderPrep();
     const el = document.getElementById('finales-wrap-conocimiento'); if (!el) return;
-    // Solo los 3 más cercanos por fecha: el resto está en "Ir a Finales / Plan de materias". Las horas estudiadas viven en la Sesión de estudio.
-    const list = activos().slice(0, 3);
-    let rows;
-    if (list.length) {
-      rows = '<div class="fin-list">' + list.map((f, i) => {
-        const c = conteo(diasRest(f.fecha));
-        return `<div class="fin-item ${c.urgent ? 'urgent' : ''}" style="animation-delay:${i * 60}ms">
+    // Primero los 3 no rendidos NO vencidos más cercanos (el resto está en "Ir a Finales / Plan de materias");
+    // debajo, TODOS los vencidos sin rendir, a la vista. Las horas estudiadas viven en la Sesión de estudio.
+    const todos = activos();
+    const proximos = todos.filter(f => diasRest(f.fecha) >= 0).slice(0, 3);
+    const vencidos = todos.filter(f => diasRest(f.fecha) < 0);
+    let idx = 0;
+    const fila = f => {
+      const c = conteo(diasRest(f.fecha));
+      return `<div class="fin-item ${c.urgent ? "urgent" : ""}" style="animation-delay:${idx++ * 60}ms">
           <div class="fin-item-main">
             <div class="fin-item-name">${esc(f.materia)}</div>
-            <div class="fin-item-meta"><span class="fin-tipo-badge">${esc(f.tipo)}</span><span>${fmtF(f.fecha)}</span>${comisionDe(f) ? `<span>${esc(comisionTxt(comisionDe(f)))}</span>` : ''}</div>
+            <div class="fin-item-meta"><span class="fin-tipo-badge">${esc(f.tipo)}</span><span>${fmtF(f.fecha)}</span>${comisionDe(f) ? `<span>${esc(comisionTxt(comisionDe(f)))}</span>` : ""}</div>
           </div>
           <div class="fin-count">${c.html}</div>
           <input type="checkbox" class="fin-check" onclick="Finales.done('${f.id}');this.checked=false" title="Marcar como rendido" aria-label="Marcar ${esc(f.materia)} como rendido">
         </div>`;
-      }).join('') + '</div>';
-    } else {
-      rows = '<div class="empty-state" style="padding:12px 0">Sin finales próximos. Cargalos en el Plan de materias.</div>';
-    }
+    };
+    let rows = proximos.length
+      ? '<div class="fin-list fin-next">' + proximos.map(fila).join("") + "</div>"
+      : `<div class="empty-state" style="padding:12px 0">Sin finales próximos. ${vencidos.length ? "" : "Cargalos en el Plan de materias."}</div>`;
+    if (vencidos.length) rows += `<div class="rnotif-group is-overdue">Vencidos · ${vencidos.length}</div><div class="fin-list fin-over">` + vencidos.map(fila).join("") + "</div>";
     el.innerHTML = `<div class="card"><div class="card-title">🎓 Finales <span style="font-size:var(--fs-12-5);font-weight:400;color:var(--tt)">días restantes</span><button class="btn btn-ghost btn-sm" id="fin-ir-plan" onclick="Finales.open('plan')">Ir a Finales / Plan de materias</button></div>${rows}</div>`;
   }
 

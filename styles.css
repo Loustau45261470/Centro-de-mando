@@ -5460,6 +5460,9 @@ input:focus, select:focus, textarea:focus {
   font-family: var(--mono); font-size: var(--fs-12-5); letter-spacing: .06em;
   color: var(--ts); padding: 2px 2px 8px 22px; opacity: .8;
 }
+/* "Ver más (N)" / "Ver menos": despliega el resto de los próximos dentro de la misma tarjeta. */
+.rnotif-toggle { margin: 0 0 6px; border-style: solid; }
+.rnotif-card .rnotif-group:not(:first-child) { margin-top: 14px; }
 .rnotif-group.is-today   { color: color-mix(in srgb, var(--warn) 75%, var(--ts)); }
 
 /* Fila: chip de tipo + título / fecha / cuenta regresiva. El estado (vencido,
