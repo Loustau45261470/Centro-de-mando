@@ -279,6 +279,16 @@ test.describe('job de la SEC (tools/radar-job/run.js)', () => {
     for (const [k, v] of antes) expect(e.archivos.get(k)).toBe(v);
   });
 
+  test('un 404 de la SEC para una empresa que ya tenía datos buenos no borra su ficha', async () => {
+    const e = entorno();
+    await Job.procesar(Object.assign({ tickers: ['ACME'] }, e.args));
+    const buena = e.archivos.get('fund-ACME.json');
+    e.args.fetchJson = async (url) => (url.includes('company_tickers') ? { status: 200, json: F.companyTickers() } : { status: 404, json: null });
+    const r = await Job.procesar(Object.assign({ tickers: ['ACME'] }, e.args));
+    expect(r.fallidos).toEqual(['ACME']);
+    expect(e.archivos.get('fund-ACME.json')).toBe(buena);
+  });
+
   test('si la red falla para una empresa se conserva su archivo anterior y se sigue con las demás', async () => {
     const e = entorno();
     await Job.procesar(Object.assign({ tickers: ['ACME', 'NUBO'] }, e.args));

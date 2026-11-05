@@ -78,6 +78,13 @@ async function procesar({ tickers, fetchJson, leer, escribir, listar, log = () =
             delete ficha.sinDatos;
           }
         }
+        // Si ya había una ficha buena, un "no está en la SEC" o "sin datos" (respuesta rara o pasajera) no la pisa.
+        const previa = (() => { try { return JSON.parse(leer(archivoDe(t))); } catch (_) { return null; } })();
+        if (ficha.error && previa && !previa.error) {
+          resultado.fallidos.push(t);
+          log(`${t}: ${ficha.error} — había datos buenos, se conservan`);
+          continue;
+        }
         const texto = jsonEstable(ficha);
         if (leer(archivoDe(t)) === texto) resultado.sinCambios.push(t); else escribir(archivoDe(t), texto);
         (ficha.error === 'no_sec' ? resultado.noSec : ficha.error === 'sin_datos' ? resultado.sinDatos : resultado.ok).push(t);
