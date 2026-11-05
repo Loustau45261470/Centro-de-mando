@@ -409,7 +409,8 @@ test('XSS: la descripción con HTML se muestra como texto', async ({ cmPage }) =
   await expect(cmPage.locator('#cardChargeList .cc-chg-name b, #cardChargeList .cc-chg-name img')).toHaveCount(0);
   expect(await cmPage.evaluate(() => window.__xss)).toBeUndefined();
   // También en la actividad del mes (renderActivity ya escapa el nombre del gasto).
-  await cmPage.evaluate(() => { txnActiveMonth = '2026-10'; renderActivity(); });
+  // (la lista vive en la pestaña Historial del overlay Presupuesto: hay que abrirla para verla)
+  await cmPage.evaluate(() => { txnActiveMonth = '2026-10'; renderActivity(); openHistorialOverlay(); });
   await expect(cmPage.locator('#activityList .act-name', { hasText: '<b>x</b>' }).first()).toBeVisible();
   await expect(cmPage.locator('#activityList .act-name b')).toHaveCount(0);
 });

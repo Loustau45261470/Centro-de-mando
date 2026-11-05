@@ -145,20 +145,22 @@ test('5) la lista de Movimientos muestra "−NN%" en los gastos de una compra co
   await cargarCompra(cmPage, { monto: 3000, nombre: 'Sin descuento' });
   const g = (await gastosTarjeta(cmPage)).find((x) => x.name === 'Con descuento');
   expect(g).not.toHaveProperty('discountPct');   // materializeCardExpenses no se toca: el descuento se lee del cargo
-  await cmPage.evaluate(() => { txnActiveMonth = '2026-10'; renderActivity(); });
+  // (la lista vive en la pestaña Historial del overlay Presupuesto: hay que abrirla para verla)
+  await cmPage.evaluate(() => { txnActiveMonth = '2026-10'; renderActivity(); openHistorialOverlay(); });
   const conDesc = cmPage.locator('#activityList .activity-row', { hasText: 'Con descuento' });
   const tag = conDesc.getByRole('img', { name: 'Compra de $50.000 con descuento 20%' });
   await expect(tag).toHaveText('−20%');
   await expect(tag).toHaveAttribute('title', 'Compra de $50.000 con descuento 20%');
   await expect(conDesc.locator('.act-amount')).toContainText(/40[.,]000/);
   await expect(cmPage.locator('#activityList .activity-row', { hasText: 'Sin descuento' }).locator('.disc-tag')).toHaveCount(0);
+  await cmPage.keyboard.press('Escape');
 
   // Diferida con descuento: una etiqueta por cada mes materializado, con el total de la compra completa.
   await preparar(cmPage);
   await cargarCompra(cmPage, { monto: 90000, nombre: 'Diferida', modo: 'deferred', cuotas: 3, meses: 5 }, 20);
   await irA(cmPage, '2027-03-01');
   for (const mes of ['2026-10', '2026-11', '2026-12', '2027-01', '2027-02']) {
-    await cmPage.evaluate((k) => { txnActiveMonth = k; renderActivity(); }, mes);
+    await cmPage.evaluate((k) => { txnActiveMonth = k; renderActivity(); openHistorialOverlay(); }, mes);
     const fila = cmPage.locator('#activityList .activity-row', { hasText: 'Diferida' });
     await expect(fila, mes).toHaveCount(1);
     await expect(fila.getByRole('img', { name: 'Compra de $90.000 con descuento 20%' }), mes).toHaveText('−20%');
@@ -167,7 +169,7 @@ test('5) la lista de Movimientos muestra "−NN%" en los gastos de una compra co
   // Cargo que ya no existe o sin descuento: sin etiqueta y sin errores.
   await cmPage.evaluate(() => {
     S.transactions.push({ id: 'cc:fantasma:2027-02', date: '2027-02-10', name: 'Huérfano', type: 'expense', amount: 10, currency: 'ARS', accountId: null, category: '', cardChargeId: 'fantasma' });
-    txnActiveMonth = '2027-02'; renderActivity();
+    txnActiveMonth = '2027-02'; renderActivity(); openHistorialOverlay();
   });
   await expect(cmPage.locator('#activityList .activity-row', { hasText: 'Huérfano' })).toHaveCount(1);
   await expect(cmPage.locator('#activityList .activity-row', { hasText: 'Huérfano' }).locator('.disc-tag')).toHaveCount(0);
@@ -190,7 +192,7 @@ test.describe('390px', () => {
     await preparar(cmPage);
     await cargarCompra(cmPage, { monto: 123456.78, nombre: 'Compra con un nombre bastante largo para probar el ajuste de línea' }, 25);
     const g = (await gastosTarjeta(cmPage))[0];
-    await cmPage.evaluate(() => { txnActiveMonth = '2026-10'; renderActivity(); });
+    await cmPage.evaluate(() => { txnActiveMonth = '2026-10'; renderActivity(); openHistorialOverlay(); });
     await expect(cmPage.locator('#activityList .disc-tag')).toBeVisible();
     // Con una cuota ya pagada la compra no se edita y el aviso se ve (también en pantalla angosta).
     await irA(cmPage, '2026-11-10');

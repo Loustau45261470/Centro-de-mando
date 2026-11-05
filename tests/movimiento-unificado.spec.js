@@ -360,9 +360,11 @@ test('7) XSS: la descripción con HTML se muestra como texto; doble clic en Regi
   await expect(cmPage.locator('.cc-chg-name')).toHaveText('<b>x</b><img src=x onerror="window.__xss=1">');
   await expect(cmPage.locator('#cardChargeList .cc-chg-name b, #cardChargeList .cc-chg-name img')).toHaveCount(0);
   await cerrarTarjetas(cmPage);
-  await cmPage.evaluate(() => { txnActiveMonth = '2026-10'; renderActivity(); });
+  // (la lista vive en la pestaña Historial del overlay Presupuesto: hay que abrirla para verla)
+  await cmPage.evaluate(() => { txnActiveMonth = '2026-10'; renderActivity(); openHistorialOverlay(); });
   await expect(cmPage.locator('#activityList .act-name', { hasText: '<b>x</b>' }).first()).toBeVisible();
   await expect(cmPage.locator('#activityList .act-name b')).toHaveCount(0);
+  await cmPage.keyboard.press('Escape');
   expect(await cmPage.evaluate(() => window.__xss)).toBeUndefined();
 
   // Doble clic.

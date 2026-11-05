@@ -1,5 +1,5 @@
-// Finanzas · reorganización de la pestaña (paso 1): Patrimonio y Movimientos arriba a la izquierda,
-// Objetivos trimestrales y Calendario de hábitos arriba a la derecha, columnas parejas y sin aclaraciones sobrantes.
+// Finanzas · layout de la pestaña: Patrimonio arriba a la izquierda, Objetivos trimestrales y Calendario de hábitos arriba a la derecha,
+// columnas parejas y sin aclaraciones sobrantes. (Reorganización W-B: el orden completo lo cubre finanzas-reorg.spec.js.)
 // Los datos de ejemplo viven solo acá; el código de producción no trae ninguno.
 'use strict';
 const { test, expect } = require('./support/fixtures');
@@ -109,40 +109,24 @@ const medirPatrimonioMovimientos = (page) => page.evaluate(() => {
 test.describe('1280px', () => {
   test.use({ viewport: { width: 1280, height: 900 } });
 
-  test('1) Movimientos es la 2da tarjeta de la columna izquierda, justo bajo Patrimonio', async ({ cmPage }) => {
+  test('1) la izquierda empieza con Patrimonio y justo debajo el resumen de Presupuesto', async ({ cmPage }) => {
     await cargarEjemplo(cmPage);
     const izq = await hijosVisibles(cmPage, 0);
-    expect(izq.slice(0, 2)).toEqual(['patrimonio', 'activity-card']);
-    // proyeccion-card la inserta proyeccion-mes.js pegada a budget-summary-card (ya viajaba con él antes del cambio)
-    expect(izq).toEqual(['patrimonio', 'activity-card', 'budget-summary-card', 'proyeccion-card', 'rnotif-card', 'wish-top5-card']);
-    // el orden del DOM coincide con el visual: Movimientos va inmediatamente después de Patrimonio, sin nada en el medio
+    expect(izq.slice(0, 2)).toEqual(['patrimonio', 'budget-summary-card']);
+    expect(izq).toEqual(['patrimonio', 'budget-summary-card', 'credit-card', 'wish-top5-card', 'rnotif-card']);
     const adyacentes = await cmPage.evaluate(() => document.querySelector('#nwTotal').closest('.card').nextElementSibling.id);
-    expect(adyacentes).toBe('activity-card');
-    // y queda físicamente debajo
-    const [bp, bm] = await cmPage.evaluate(() => ['#nwTotal', '#activity-card'].map((s) => {
+    expect(adyacentes).toBe('budget-summary-card');
+    const [bp, bm] = await cmPage.evaluate(() => ['#nwTotal', '#budget-summary-card'].map((s) => {
       const r = document.querySelector(s).getBoundingClientRect(); return { top: r.top, left: r.left };
     }));
     expect(bm.top).toBeGreaterThan(bp.top);
-    // misma columna (mismo borde izquierdo y mismo ancho) y Movimientos justo debajo, sin otra tarjeta entre ambas
-    const g = {
-      ...(await medirPatrimonioMovimientos(cmPage)),
-      mismaCol: await cmPage.evaluate(() => {
-        const cols = [...document.querySelectorAll('#tab-finanzas .fin-cols > .fin-col')];
-        return cols.findIndex((c) => c.contains(document.querySelector('#nwTotal'))) === cols.findIndex((c) => c.contains(document.getElementById('activity-card')));
-      }),
-    };
-    expect(g.mismaCol).toBe(true);
-    expect(g.dLeft).toBeLessThanOrEqual(1);
-    expect(g.dWidth).toBeLessThanOrEqual(1);
-    expect(g.hueco).toBeGreaterThanOrEqual(-1);
-    expect(g.hueco).toBeLessThanOrEqual(40);
   });
 
-  test('2) la derecha empieza con Objetivos trimestrales y luego el Calendario de hábitos', async ({ cmPage }) => {
+  test('2) la derecha empieza con Objetivos trimestrales, el Calendario de hábitos y recién después Actividad', async ({ cmPage }) => {
     await cargarEjemplo(cmPage);
     const der = await hijosVisibles(cmPage, 1);
-    expect(der.slice(0, 2)).toEqual(['qobj-wrap-finanzas', 'finanzas-habits-wrap']);
-    expect(der).toEqual(['qobj-wrap-finanzas', 'finanzas-habits-wrap', 'credit-card', 'debt-flow-card', 'fin-objectives-wrap', 'fondos-card']);
+    expect(der.slice(0, 3)).toEqual(['qobj-wrap-finanzas', 'finanzas-habits-wrap', 'activity-card']);
+    expect(der).toEqual(['qobj-wrap-finanzas', 'finanzas-habits-wrap', 'activity-card', 'fin-objectives-wrap']);
   });
 
   test('3) la tarjeta de obligaciones recurrentes no existe ni en la pestaña ni en el overlay de Presupuesto', async ({ cmPage, consoleErrors }) => {
@@ -151,9 +135,9 @@ test.describe('1280px', () => {
     expect(await ausente()).toEqual([]);
     expect(await cmPage.evaluate(() => /obligaciones recurrentes/i.test(document.getElementById('tab-finanzas').innerHTML))).toBe(false);
     await cmPage.evaluate(() => openBudgetOverlay());
-    await expect(cmPage.locator('#ov-budget-host #budget-card')).toBeVisible();
+    await expect(cmPage.locator('#bd-pane-presupuestos #budget-card')).toBeVisible();
     expect(await ausente()).toEqual([]);
-    await expect(cmPage.locator('#ov-budget-host')).not.toContainText(/obligaciones recurrentes/i);
+    await expect(cmPage.locator('#bd-pane-presupuestos')).not.toContainText(/obligaciones recurrentes/i);
     expect(consoleErrors).toEqual([]);
   });
 
@@ -204,7 +188,7 @@ test.describe('1280px', () => {
 test.describe('390px', () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
-  test('6) orden de lectura Patrimonio → Movimientos y sin scroll horizontal', async ({ cmPage }) => {
+  test('6) orden de lectura Patrimonio → Presupuesto resumen y sin scroll horizontal', async ({ cmPage }) => {
     await cargarEjemplo(cmPage);
     // Orden de lectura = tarjetas de las dos columnas apiladas, ordenadas por su posición vertical.
     const todas = await cmPage.evaluate(() => [...document.querySelectorAll('#tab-finanzas .fin-cols > .fin-col > *')]
@@ -213,17 +197,9 @@ test.describe('390px', () => {
       .sort((a, b) => a.top - b.top).map((x) => x.id));
     const iP = todas.indexOf('patrimonio');
     expect(iP).toBeGreaterThanOrEqual(0);
-    // Movimientos es la tarjeta inmediatamente siguiente a Patrimonio: ninguna otra entre ambas.
-    expect(todas[iP + 1]).toBe('activity-card');
-    // y en el DOM también son contiguas, con los objetivos trimestrales después.
-    expect(await cmPage.evaluate(() => document.querySelector('#nwTotal').closest('.card').nextElementSibling.id)).toBe('activity-card');
-    expect(todas.indexOf('activity-card')).toBeLessThan(todas.indexOf('qobj-wrap-finanzas'));
-    // físicamente, Movimientos queda debajo de Patrimonio a ancho completo de la columna apilada, con poco hueco.
-    const g = await medirPatrimonioMovimientos(cmPage);
-    expect(g.dLeft).toBeLessThanOrEqual(1);
-    expect(g.dWidth).toBeLessThanOrEqual(1);
-    expect(g.hueco).toBeGreaterThanOrEqual(-1);
-    expect(g.hueco).toBeLessThanOrEqual(40);
+    expect(todas[iP + 1]).toBe('budget-summary-card');
+    // La columna izquierda entera va antes que la derecha (objetivos trimestrales).
+    expect(todas.indexOf('rnotif-card')).toBeLessThan(todas.indexOf('qobj-wrap-finanzas'));
     const { sw, cw } = await cmPage.evaluate(() => ({ sw: document.body.scrollWidth, cw: document.documentElement.clientWidth }));
     expect(sw).toBeLessThanOrEqual(cw + 1);
   });

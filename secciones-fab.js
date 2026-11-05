@@ -33,34 +33,13 @@ const _SF_ICONS = {
   negocios: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="7.5" width="17" height="12" rx="2.3"/><path d="M9 7.5V6a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 6v1.5"/><path d="M3.5 12.5h17"/></svg>`,
 };
 
-// ── Presupuesto: overlay que aloja el presupuesto y los fondos ──
-let _sfBudgetSrcs = [];
-function _sfOpenBudget() {
-  if (typeof CMOverlay === 'undefined') return;
-  const { overlay, body } = CMOverlay.build({ id: 'ov-budget', accent: '#22C55E', onClose: _sfRestoreBudget });
-  if (!overlay._sfBuilt) {
-    body.innerHTML = `<div class="cm-ov-head"><div class="cm-ov-eyebrow">FINANZAS · PRESUPUESTO</div><div class="cm-ov-title">Presupuesto del mes</div></div><div class="cm-ov-host" id="ov-budget-host"></div>`;
-    overlay._sfBuilt = true;
-  }
-  const host = document.getElementById('ov-budget-host');
-  _sfBudgetSrcs = [];
-  ['budget-card', 'fondos-card'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) { el._sfHome = { parent: el.parentNode, next: el.nextSibling }; host.appendChild(el); _sfBudgetSrcs.push(el); }
-  });
-  CMOverlay.open(overlay);
-}
-function _sfRestoreBudget() {
-  _sfBudgetSrcs.forEach(el => { if (el && el._sfHome) { el._sfHome.parent.insertBefore(el, el._sfHome.next); el._sfHome = null; } });
-  _sfBudgetSrcs = [];
-}
-window.openBudgetOverlay = _sfOpenBudget;
-
-// ── Historial: overlay que aloja la lista de movimientos por mes ──
-// La lista (cabecera + filas + estado vacío) se reubica UNA sola vez al montar
-// dentro del overlay, de modo que ya no ocupa espacio en la sección. Abrir/cerrar
-// solo muestra/oculta el overlay. renderActivity() sigue renderizando por id.
-let _sfHistMoved = false;
+// ── Presupuesto: un solo overlay con tres pestañas (Presupuestos · Fondos · Historial) ──
+// Reemplaza a los dos overlays anteriores (Presupuesto e Historial). Mismo patrón de pestañas que Tarjetas
+// (.plov-tabs). El armazón se arma UNA vez al arrancar y reubica de forma permanente, dentro de su pestaña,
+// las tarjetas que antes vivían en la pantalla: #budget-card, #fondos-card y la lista de movimientos
+// (#activityColHdr/#activityList/#activityEmpty). Los render* siguen pintando por id. Los filtros del historial
+// se limpian al cerrar el overlay.
+const _SF_BD_TABS = ['presupuestos', 'fondos', 'historial'];
 function _sfPopulateHistCatFilter() {
   const sel = document.getElementById('txnHistCatFilter');
   if (!sel || typeof TXN_CATEGORIES === 'undefined') return;
@@ -72,47 +51,80 @@ function _sfPopulateHistCatFilter() {
   const verdictSel = document.getElementById('txnHistVerdictSel');
   if (verdictSel && typeof txnHistVerdictFilter !== 'undefined') verdictSel.value = txnHistVerdictFilter;
 }
-function _sfEnsureHistorial() {
+function _sfBdTab(t) {
+  const ov = document.getElementById('ov-budget');
+  if (!ov) return;
+  if (!_SF_BD_TABS.includes(t)) t = 'presupuestos';
+  ov.querySelectorAll('.plov-tab').forEach(b => {
+    const on = b.dataset.t === t;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-selected', String(on));
+  });
+  ov.querySelector('.plov-tabs').dataset.on = t;
+  _SF_BD_TABS.forEach(k => { const p = ov.querySelector('#bd-pane-' + k); if (p) p.hidden = k !== t; });
+  if (t === 'historial' && typeof renderActivity === 'function') renderActivity();
+}
+function _sfBdOnClose() {
+  if (typeof txnHistCatFilter === 'undefined') return;
+  txnHistCatFilter = ''; txnHistSort = 'date'; txnHistVerdictFilter = ''; txnHistCardFilter = '';
+  _sfPopulateHistCatFilter();
+  if (typeof renderActivity === 'function') renderActivity();
+}
+function _sfEnsureBudget() {
   if (typeof CMOverlay === 'undefined') return null;
-  const { overlay, body } = CMOverlay.build({ id: 'ov-historial', accent: '#22C55E', onClose: () => { if (typeof txnHistCatFilter !== 'undefined') { txnHistCatFilter = ''; txnHistSort = 'date'; txnHistVerdictFilter = ''; txnHistCardFilter = ''; _sfPopulateHistCatFilter(); if (typeof renderActivity === 'function') renderActivity(); } } });
+  const { overlay, body } = CMOverlay.build({ id: 'ov-budget', accent: '#22C55E', onClose: _sfBdOnClose });
   if (!overlay._sfBuilt) {
-    body.innerHTML = `<div class="cm-ov-head"><div class="cm-ov-eyebrow">FINANZAS · HISTORIAL</div><div class="cm-ov-title">Historial de movimientos</div></div>
-      <div class="txn-hist-filters">
-        <div class="txn-month-filter" id="txnHistMonthFilter"></div>
-        <select class="txn-hist-cat-filter" id="txnHistCatFilter" aria-label="Filtrar por categoría" onchange="setTxnHistCat(this.value)"></select>
-        <select class="txn-hist-cat-filter" id="txnHistSortSel" aria-label="Ordenar movimientos" onchange="setTxnHistSort(this.value)">
-          <option value="date">Por fecha</option>
-          <option value="amount">Monto: mayor a menor</option>
-        </select>
-        <select class="txn-hist-cat-filter" id="txnHistVerdictSel" aria-label="Filtrar por veredicto del gasto" onchange="setTxnHistVerdict(this.value)">
-          <option value="">Todos los gastos</option>
-          <option value="good">👍 Valen la pena</option>
-          <option value="bad">👎 Recortables</option>
-          <option value="none">Sin clasificar</option>
-        </select>
-        <select class="txn-hist-cat-filter" id="txnHistCardSel" aria-label="Filtrar por tarjeta" onchange="setTxnHistCard(this.value)" style="display:none"></select>
-        <span class="txn-hist-bad-total" id="txnHistBadTotal" style="display:none"></span>
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-label', 'Presupuesto');
+    body.innerHTML = `<div class="cm-ov-head"><div class="cm-ov-eyebrow">FINANZAS · PRESUPUESTO</div><div class="cm-ov-title">Presupuesto</div></div>
+      <div class="plov-tabs" data-on="presupuestos" role="tablist" aria-label="Secciones de Presupuesto">
+        <button class="plov-tab on" id="bd-tab-presupuestos" data-t="presupuestos" role="tab" aria-selected="true" aria-controls="bd-pane-presupuestos">Presupuestos</button>
+        <button class="plov-tab" id="bd-tab-fondos" data-t="fondos" role="tab" aria-selected="false" aria-controls="bd-pane-fondos">Fondos</button>
+        <button class="plov-tab" id="bd-tab-historial" data-t="historial" role="tab" aria-selected="false" aria-controls="bd-pane-historial">Historial</button>
+        <span class="plov-tab-ink"></span>
       </div>
-      <div class="cm-ov-host" id="ov-historial-host"></div>`;
+      <div class="plov-pane cm-ov-host" id="bd-pane-presupuestos" role="tabpanel" aria-labelledby="bd-tab-presupuestos"></div>
+      <div class="plov-pane cm-ov-host" id="bd-pane-fondos" role="tabpanel" aria-labelledby="bd-tab-fondos" hidden></div>
+      <div class="plov-pane" id="bd-pane-historial" role="tabpanel" aria-labelledby="bd-tab-historial" hidden>
+        <div class="txn-hist-filters">
+          <div class="txn-month-filter" id="txnHistMonthFilter"></div>
+          <select class="txn-hist-cat-filter" id="txnHistCatFilter" aria-label="Filtrar por categoría" onchange="setTxnHistCat(this.value)"></select>
+          <select class="txn-hist-cat-filter" id="txnHistSortSel" aria-label="Ordenar movimientos" onchange="setTxnHistSort(this.value)">
+            <option value="date">Por fecha</option>
+            <option value="amount">Monto: mayor a menor</option>
+          </select>
+          <select class="txn-hist-cat-filter" id="txnHistVerdictSel" aria-label="Filtrar por veredicto del gasto" onchange="setTxnHistVerdict(this.value)">
+            <option value="">Todos los gastos</option>
+            <option value="good">👍 Valen la pena</option>
+            <option value="bad">👎 Recortables</option>
+            <option value="none">Sin clasificar</option>
+          </select>
+          <select class="txn-hist-cat-filter" id="txnHistCardSel" aria-label="Filtrar por tarjeta" onchange="setTxnHistCard(this.value)" style="display:none"></select>
+          <span class="txn-hist-bad-total" id="txnHistBadTotal" style="display:none"></span>
+        </div>
+        <div class="cm-ov-host" id="ov-historial-host"></div>
+      </div>`;
+    body.querySelectorAll('.plov-tab').forEach(b => b.addEventListener('click', () => _sfBdTab(b.dataset.t)));
     overlay._sfBuilt = true;
     _sfPopulateHistCatFilter();
-  }
-  if (!_sfHistMoved) {
-    const host = document.getElementById('ov-historial-host');
-    ['activityColHdr', 'activityList', 'activityEmpty'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el && host) host.appendChild(el);
-    });
-    _sfHistMoved = true;
+    // Reubicación permanente de las piezas (viven por id; los render* no necesitan saber dónde están).
+    const into = (pane, ids) => ids.forEach(id => { const el = document.getElementById(id); if (el && pane) pane.appendChild(el); });
+    into(body.querySelector('#bd-pane-presupuestos'), ['budget-card']);
+    into(body.querySelector('#bd-pane-fondos'), ['fondos-card']);
+    into(body.querySelector('#ov-historial-host'), ['activityColHdr', 'activityList', 'activityEmpty']);
     if (typeof renderActivity === 'function') renderActivity();
   }
   return overlay;
 }
-function _sfOpenHistorial() {
-  const overlay = _sfEnsureHistorial();
-  if (overlay) CMOverlay.open(overlay);
+function _sfOpenBudget(tab) {
+  const overlay = _sfEnsureBudget();
+  if (!overlay) return;
+  _sfBdTab(_SF_BD_TABS.includes(tab) ? tab : 'presupuestos');
+  CMOverlay.open(overlay);
 }
-window.openHistorialOverlay = _sfOpenHistorial;
+window.openBudgetOverlay = _sfOpenBudget;
+window.openHistorialOverlay = () => _sfOpenBudget('historial');
 
 // ── Tarjetas: overlay con Compras, Calendario y Tarjetas ──
 // Mismo patrón que Cartera (pestañas .plov-tabs). El armazón se crea una sola vez; finanzas.js
@@ -315,7 +327,7 @@ function _sfMount() {
   const openDieta = R({ id: 'ov-dieta', accent: '#10E07C', eyebrow: 'SALUD · DIETA', title: 'Dieta', sourceId: 'dieta-card' });
   window.openDietaOverlay = openDieta;
   const openGoals = R({ id: 'ov-goals', accent: '#F5A623', eyebrow: 'FINANZAS · ADQUISICIÓN', title: 'Objetivos de adquisición', sourceId: 'wishlist-card' });
-  const openBudget = _sfOpenBudget;
+  const openBudget = () => _sfOpenBudget('presupuestos');
   // Historial de objetivos financieros: se abre desde el botón de la card, no del abanico.
   window.openFinObjHistorial = R({ id: 'ov-finobj', accent: '#22C55E', eyebrow: 'FINANZAS · OBJETIVOS', title: 'Historial de objetivos', sourceId: 'finobj-hist-card' });
   // Historial de Seguimiento de Avance (Conocimiento): se abre desde el botón de la card.
@@ -344,7 +356,6 @@ function _sfMount() {
       { icon: _SF_ICONS.goals, label: 'Adquisición', accent: '#F5A623', onClick: openGoals },
       { icon: _SF_ICONS.budget, label: 'Presupuesto', accent: '#22C55E', onClick: openBudget },
       { icon: _SF_ICONS.tenencias, label: 'Cartera', accent: '#22C55E', onClick: () => { if (window.CarteraOverlay) CarteraOverlay.open(); } },
-      { icon: _SF_ICONS.history, label: 'Historial', accent: '#22C55E', onClick: _sfOpenHistorial },
       { icon: _SF_ICONS.negocios, label: 'Negocios', accent: '#22C55E', onClick: () => { if (window.Negocios) Negocios.open(); } },
       { icon: _SF_ICONS.notas, label: 'Notas', accent: '#22C55E', onClick: () => { if (typeof finanzasNotasOpen === 'function') finanzasNotasOpen(); } },
       informeItem('finanzas'),
@@ -362,8 +373,8 @@ function _sfMount() {
     });
   });
 
-  // Saca la lista de movimientos de la sección hacia el overlay desde el arranque.
-  _sfEnsureHistorial();
+  // Arma el overlay de Presupuesto (Presupuestos · Fondos · Historial) y le reubica sus tarjetas desde el arranque.
+  _sfEnsureBudget();
   // Arma el armazón del overlay de Tarjetas (queda cerrado hasta que se abre).
   _sfEnsureTarjetas();
   // Arma el overlay de Sesión de estudio (Pomodoro + historial) desde el arranque.

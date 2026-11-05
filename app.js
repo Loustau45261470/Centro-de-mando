@@ -1034,7 +1034,6 @@ function _reRenderAll() {
   if (typeof renderProyectos === 'function') renderProyectos(tab);
   if (tab === 'vida'     && typeof renderCorrelacionesCard === 'function') renderCorrelacionesCard();
   if (tab === 'ia'       && typeof renderErroresCard === 'function')       renderErroresCard();
-  if (tab === 'finanzas' && typeof renderProyeccionCard === 'function')    renderProyeccionCard();
 }
 
 // ── Apply incoming remote state safely ───────────────────
@@ -1312,7 +1311,6 @@ function switchTab(tab, btn) {
   renderReminders(tab);
   if (tab === 'vida'     && typeof renderCorrelacionesCard === 'function') renderCorrelacionesCard();
   if (tab === 'ia'       && typeof renderErroresCard === 'function')       renderErroresCard();
-  if (tab === 'finanzas' && typeof renderProyeccionCard === 'function')    renderProyeccionCard();
   if (window.CMMotion) CMMotion.enterPanel(_panel);   // entrada escalonada + count-up de totales (motion.js)
   requestAnimationFrame(() => { armScrollReveal(); _armTooltips(document.getElementById('tab-' + tab)); });
 }

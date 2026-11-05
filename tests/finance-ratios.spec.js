@@ -1,6 +1,9 @@
 // Finanzas, etapa 10: card "Deuda" (deuda sobre ingresos, patrimonio sobre deuda) y "Flujo del mes" (plegable dentro de Movimientos)
 // y los tres detalles pendientes de la etapa 7 (nota bajo la torta, título del patrimonio, descripción de la métrica).
 // La fecha de "hoy" se fija pisando getActiveDate(). Los datos de ejemplo viven solo acá (repo público).
+// W-B: la card Deuda salió de la pantalla (renderFinanzasTab ya no la pinta; vuelve en una futura sección de estadísticas).
+// La función renderDebtFlow y sus datos siguen vivos, así que estas pruebas le montan un anfitrión propio y hacen que
+// renderFinanzasTab también la repinte: siguen cubriendo el cálculo hasta que tenga su nueva casa.
 'use strict';
 const { test, expect } = require('./support/fixtures');
 
@@ -12,6 +15,16 @@ const exp = (id, date, amount) => ({ id, date, name: 'Gasto de prueba', type: 'e
 async function preparar(page, { hoy = '2026-10-15', accounts = ACC, cards = [card(800000)], txns = [], cargos = [], moves = [] } = {}) {
   await page.click('.nav-btn[data-tab="finanzas"]');
   await expect(page.locator('#tab-finanzas')).toHaveClass(/active/);
+  await page.evaluate(() => {
+    if (!document.getElementById('debt-flow-card')) {
+      const host = document.createElement('div');
+      host.className = 'card'; host.id = 'debt-flow-card';
+      host.innerHTML = '<div class="card-title">📊 Deuda</div><div id="debtFlowBody"></div>';
+      document.querySelectorAll('#tab-finanzas .fin-col')[1].appendChild(host);
+      const orig = window.renderFinanzasTab;
+      window.renderFinanzasTab = function () { const r = orig.apply(this, arguments); renderDebtFlow(); return r; };
+    }
+  });
   await page.evaluate((d) => {
     window.getActiveDate = () => d.hoy;
     S.accounts = JSON.parse(JSON.stringify(d.accounts));

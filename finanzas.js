@@ -56,7 +56,7 @@ function renderFinanzasTab() {
   renderTabHeader('finanzasHeaderMeta');
   renderAccounts();
   renderCredit();
-  renderDebtFlow();
+  // renderDebtFlow();  // Deuda sacada de la pantalla (index.html ya no tiene #debt-flow-card); la función y los datos siguen. Vuelve en una futura sección de estadísticas.
   renderMonthFlow();
   renderWishlist();
   renderWishTop5();
@@ -3358,7 +3358,7 @@ function renderBudgetSummary() {
   // Aviso corto (solo si hay meses por decidir) que lleva a la pantalla de presupuestos, donde está la lista.
   const pendN = _budgetPendingMonths(mk).length;
   const pendLine = pendN
-    ? `<button class="bsum-pend" onclick="if(window.openBudgetOverlay)openBudgetOverlay()">Tenés ${pendN} ${pendN === 1 ? 'mes' : 'meses'} con presupuesto armado antes: revisalos →</button>`
+    ? `<button class="bsum-pend" onclick="event.stopPropagation();if(window.openBudgetOverlay)openBudgetOverlay('presupuestos')">Tenés ${pendN} ${pendN === 1 ? 'mes' : 'meses'} con presupuesto armado antes: revisalos →</button>`
     : '';
   body.innerHTML = `
     ${pendLine}
@@ -3383,7 +3383,7 @@ function renderBudgetSummary() {
     ${catRows}
     <div class="bsum-sec">Gastado · últimos 6 meses</div>
     <div class="bsum-trend">${trendCols}</div>
-    <button class="bsum-full" onclick="if(window.openBudgetOverlay)openBudgetOverlay()">Ver presupuesto completo →</button>`;
+    <button class="bsum-full" onclick="event.stopPropagation();if(window.openBudgetOverlay)openBudgetOverlay('presupuestos')">Ver presupuesto completo →</button>`;
 }
 
 // Llena un <select> de categoría de transacción (#txnCategory / #editTxnCategory) desde

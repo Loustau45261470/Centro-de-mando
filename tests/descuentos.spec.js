@@ -285,7 +285,7 @@ test('7) etiqueta "−20%" con texto accesible en la lista de Movimientos y en C
   await preparar(cmPage);
   await registrar(cmPage, { nombre: 'Con descuento', monto: 10000, pct: 20 });
   await registrar(cmPage, { nombre: 'Sin descuento', monto: 3000 });
-  await cmPage.evaluate(() => { txnActiveMonth = '2026-10'; renderActivity(); });
+  await cmPage.evaluate(() => { txnActiveMonth = '2026-10'; renderActivity(); openHistorialOverlay(); });   // la lista vive en la pestaña Historial
   const conDesc = cmPage.locator('#activityList .activity-row', { hasText: 'Con descuento' });
   const tag = conDesc.getByRole('img', { name: 'Total $10.000, descuento 20%' });
   await expect(tag).toHaveText('−20%');
@@ -293,6 +293,7 @@ test('7) etiqueta "−20%" con texto accesible en la lista de Movimientos y en C
   await expect(conDesc.locator('.act-amount')).toContainText(numRe(8000));
   await expect(conDesc.locator('.act-amount')).not.toContainText(numRe(10000));
   await expect(cmPage.locator('#activityList .activity-row', { hasText: 'Sin descuento' }).locator('.disc-tag')).toHaveCount(0);
+  await cmPage.keyboard.press('Escape');
 
   await preparar(cmPage);
   await compraConDescuento(cmPage, { monto: 50000, nombre: 'Compra A' }, 20);
@@ -484,7 +485,7 @@ test.describe('390px', () => {
     // En un movimiento con etiqueta la lista tampoco desborda.
     await cmPage.click('#modal-add-txn .btn-ghost');
     await registrar(cmPage, { nombre: 'Compra con un nombre bastante largo para probar el ajuste', monto: 123456.78, pct: 25 });
-    await cmPage.evaluate(() => { txnActiveMonth = '2026-10'; renderActivity(); });
+    await cmPage.evaluate(() => { txnActiveMonth = '2026-10'; renderActivity(); openHistorialOverlay(); });
     await expect(cmPage.locator('#activityList .disc-tag')).toBeVisible();
     const pg = await cmPage.evaluate(() => ({ sw: document.body.scrollWidth, cw: document.documentElement.clientWidth }));
     expect(pg.sw).toBeLessThanOrEqual(pg.cw + 1);

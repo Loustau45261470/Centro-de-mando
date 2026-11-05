@@ -937,7 +937,7 @@ textarea { resize: vertical; min-height: 60px; }
 /* Botón "Ver historial →" en la tarjeta de actividad: reutiliza .bsum-full con acento finanzas */
 #activity-card { --bsum-accent: var(--c-finanzas, #22C55E); }
 /* Chip de mes activo dentro del overlay de historial (vive fuera de #tab-finanzas) */
-#ov-historial .txn-month-btn.active { color: var(--cm-accent, #22C55E); border-bottom-color: var(--cm-accent, #22C55E); }
+#ov-budget .txn-month-btn.active { color: var(--cm-accent, #22C55E); border-bottom-color: var(--cm-accent, #22C55E); }
 
 /* Filtro de categoría del overlay de historial completo, al lado del filtro de mes */
 .txn-hist-filters { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -5731,6 +5731,13 @@ input:focus, select:focus, textarea:focus {
 #ov-tarjetas .plov-tabs[data-on="calendario"] .plov-tab-ink { left: calc(8px + (100% - 16px) / 3); }
 #ov-tarjetas .plov-tabs[data-on="tarjetas"] .plov-tab-ink { left: calc(12px + 2 * (100% - 16px) / 3); }
 #ov-tarjetas .plov-pane { min-width: 0; padding-bottom: 24px; }
+/* Presupuesto: tres pestañas (Presupuestos · Fondos · Historial) */
+#ov-budget .plov-tabs { grid-template-columns: repeat(3, 1fr); }
+#ov-budget .plov-tab { min-width: 0; padding: 10px 6px; }
+#ov-budget .plov-tab-ink { width: calc((100% - 16px) / 3); }
+#ov-budget .plov-tabs[data-on="fondos"] .plov-tab-ink { left: calc(8px + (100% - 16px) / 3); }
+#ov-budget .plov-tabs[data-on="historial"] .plov-tab-ink { left: calc(12px + 2 * (100% - 16px) / 3); }
+#ov-budget .plov-pane { min-width: 0; padding-bottom: 24px; }
 
 /* Movimientos: los tres botones van en una sola fila, un 10% más chicos que el resto; si no entran, el grupo baja de renglón en vez de cortarse en el borde de la card */
 /* (workspace.js envuelve el contenido del título en un <div> flex, por eso se apunta a los dos niveles) */

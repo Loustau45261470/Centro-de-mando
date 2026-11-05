@@ -1,6 +1,6 @@
 // Gastos fijos: función eliminada de la app (pedido explícito del usuario; nunca la usó).
 // Estos tests prueban la AUSENCIA: ni modales, ni funciones, ni búsqueda, ni contexto de JARVIS, ni métrica de Informes,
-// ni peso en "comprometido" de la proyección del mes. Al cargar el estado se borran las dos claves SOLO si están vacías.
+// (la tarjeta de proyección del mes ya no existe). Al cargar el estado se borran las dos claves SOLO si están vacías.
 // Los datos de ejemplo viven solo acá (si algún día alguien los tuviera cargados, quedan intactos pero ya no hacen nada).
 'use strict';
 const { test, expect } = require('./support/fixtures');
@@ -59,24 +59,7 @@ test('2) el estado inicial no trae las claves y la búsqueda global ignora los d
   expect(consoleErrors).toEqual([]);
 });
 
-test('3) la proyección del mes ya no suma gastos fijos al "comprometido" (queda solo con pedidos)', async ({ cmPage, consoleErrors }) => {
-  await irAFinanzas(cmPage);
-  const d = await cmPage.evaluate((fijos) => {
-    window.getActiveDate = () => '2026-10-15';
-    S.fixedExpenses = JSON.parse(JSON.stringify(fijos));
-    S.fixedExpenseLog = {};
-    S.transactions = [{ id: 't1', date: '2026-10-03', name: 'Comida', type: 'expense', amount: 15000, currency: 'ARS', accountId: '' }];
-    S.orders = [{ id: 'o1', name: 'Zapatillas', amount: 30000, currency: 'ARS', arrival: '2026-10-25', deducted: false }];
-    renderFinanzasTab();
-    CMProyeccion.render();
-    return { calc: CMProyeccion.calcular('2026-10'), texto: document.getElementById('proyeccion-card').innerText };
-  }, FIJOS);
-  expect(d.calc.comprometido).toBe(30000);
-  expect(d.calc.comprometidoDetalle).toEqual({ pedidos: 30000 });
-  expect(d.calc.proyeccionMes).toBe(15000 + 30000 + 1000 * 16);   // gasto real + pedidos + ritmo (15.000 / 15 días) x 16 días
-  expect(d.texto).not.toMatch(/fijo/i);
-  expect(consoleErrors).toEqual([]);
-});
+// (La tarjeta "Proyección del mes" y su módulo se eliminaron en la reorganización de Finanzas W-B; la prueba de su cálculo se retiró con ella.)
 
 test('4) JARVIS no recibe gastos fijos en su contexto y Informes no ofrece la métrica', async ({ cmPage, consoleErrors }) => {
   await irAFinanzas(cmPage);

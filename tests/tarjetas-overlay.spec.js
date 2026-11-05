@@ -373,6 +373,16 @@ test('6) Deuda queda con sus dos ratios sin aclaraciones; Flujo del mes está en
     ],
   });
 
+  // W-B: la card Deuda salió de la pantalla (vuelve en una futura sección de estadísticas), pero renderDebtFlow y sus datos siguen vivos:
+  // se le monta un anfitrión propio para seguir cubriendo sus dos ratios.
+  await cmPage.evaluate(() => {
+    const host = document.createElement('div');
+    host.className = 'card'; host.id = 'debt-flow-card';
+    host.innerHTML = '<div class="card-title">📊 Deuda</div><div id="debtFlowBody"></div>';
+    document.querySelectorAll('#tab-finanzas .fin-col')[1].appendChild(host);
+    renderDebtFlow();
+  });
+  expect(await cmPage.evaluate(() => !!document.querySelector('#tab-finanzas .fin-cols #debt-flow-card'))).toBe(true);
   // Deuda: título "Deuda" y solo los dos ratios (deuda sobre ingresos y patrimonio sobre deuda), sin la frase eliminada.
   const deuda = cmPage.locator('#debt-flow-card');
   // (el título se muestra en mayúsculas por CSS y workspace.js le agrega la flecha de plegar)

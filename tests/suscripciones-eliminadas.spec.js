@@ -76,13 +76,14 @@ test('1) no queda tarjeta, lista ni modales de suscripciones en Finanzas ni en n
   await expect(cmPage.getByRole('button', { name: '+ Suscripción' })).toHaveCount(0);
   // Presupuesto sigue funcionando: su tarjeta existe y es lo único que aloja el overlay fuera de los fondos.
   await cmPage.evaluate(() => openBudgetOverlay());
-  await expect(cmPage.locator('#ov-budget-host #budget-card')).toBeVisible();
+  await expect(cmPage.locator('#bd-pane-presupuestos #budget-card')).toBeVisible();
   await verAusencia(cmPage, 'overlay de Presupuesto');
-  expect(await cmPage.locator('#ov-budget-host > .card').evaluateAll((els) => els.map((e) => e.id))).toEqual(['budget-card', 'fondos-card']);
+  expect(await cmPage.locator('#bd-pane-presupuestos > .card').evaluateAll((els) => els.map((e) => e.id))).toEqual(['budget-card']);
+  expect(await cmPage.locator('#bd-pane-fondos > .card').evaluateAll((els) => els.map((e) => e.id))).toEqual(['fondos-card']);
   await cmPage.keyboard.press('Escape');
   const vistos = await recorrerOverlays(cmPage, (label) => verAusencia(cmPage, 'overlay ' + label));
   expect(vistos).toContain('Presupuesto');
-  expect(vistos).toContain('Historial');
+  expect(vistos).not.toContain('Historial');   // el Historial es ahora una pestaña del overlay Presupuesto
   expect(await cmPage.evaluate((fns) => fns.filter((f) => typeof window[f] === 'function'), FUNCIONES_ELIMINADAS)).toEqual([]);
   expect(consoleErrors).toEqual([]);
 });
@@ -152,41 +153,7 @@ test('4) los vencimientos y el ticker no avisan suscripciones, y los de tarjeta 
   expect(consoleErrors).toEqual([]);
 });
 
-// Estado de ejemplo del cálculo a mano (hoy = 15-oct-2026, 15 días transcurridos, 16 restantes):
-//   gasto real  = Comida 15.000 + Cine 9.000 + "Sub: Netflix" 6.000 (histórica) = 30.000
-//   variable    = 30.000 - 6.000 (la "Sub:" no cuenta como ritmo) = 24.000 → 1.600/día → 16 × 1.600 = 25.600
-//   comprometido = Zapatillas 30.000 (llegan el 25) = 30.000
-//                  (con la función vieja sumaba además Spotify 4.500, que cobra el 25 y no tenía transacción: 34.500)
-//   proyección del mes = 30.000 + 30.000 + 25.600 = 85.600
-test('5) proyección del mes: "comprometido" ya no suma suscripciones y las "Sub: …" históricas no cuentan como gasto variable', async ({ cmPage, consoleErrors }) => {
-  await irAFinanzas(cmPage);
-  const d = await cmPage.evaluate(() => {
-    window.getActiveDate = () => '2026-10-15';
-    S.subscriptions = [
-      { id: 's1', name: 'Netflix', amount: 6000, currency: 'ARS', billingDay: 8, accountId: 'bco' },
-      { id: 's2', name: 'Spotify', amount: 4500, currency: 'ARS', billingDay: 25, accountId: 'bco' },
-    ];
-    S.transactions = [
-      { id: 't1', date: '2026-10-03', name: 'Comida', type: 'expense', amount: 15000, currency: 'ARS', accountId: 'bco' },
-      { id: 't2', date: '2026-10-10', name: 'Cine', type: 'expense', amount: 9000, currency: 'ARS', accountId: 'bco' },
-      { id: 't3', date: '2026-10-08', name: 'Sub: Netflix', type: 'expense', amount: 6000, currency: 'ARS', accountId: 'bco' },
-    ];
-    S.orders = [{ id: 'o1', name: 'Zapatillas', amount: 30000, currency: 'ARS', arrival: '2026-10-25', deducted: false }];
-    renderFinanzasTab();
-    CMProyeccion.render();
-    return { calc: CMProyeccion.calcular('2026-10'), texto: document.getElementById('proyeccion-card').innerText, comp: fmtMoney(30000, 'ARS') };
-  });
-  expect(d.calc.comprometido).toBe(30000);
-  expect(d.calc.comprometidoDetalle).toEqual({ pedidos: 30000 });
-  expect(d.calc.gastoRealAcumulado).toBe(30000);
-  expect(d.calc.ritmoDiarioMes).toBe(1600);        // la "Sub: Netflix" histórica queda fuera del ritmo variable
-  expect(d.calc.variableProyMes).toBe(25600);
-  expect(d.calc.proyeccionMes).toBe(85600);
-  expect(d.calc.proyeccion7).toBeCloseTo(30000 + 30000 + (9000 / 7) * 16, 5);   // últimos 7 días (9 al 15): solo el cine
-  expect(d.texto).toContain(d.comp);
-  expect(d.texto).not.toMatch(/suscrip/i);
-  expect(consoleErrors).toEqual([]);
-});
+// (La tarjeta "Proyección del mes" y su módulo se eliminaron en la reorganización de Finanzas W-B; la prueba de su cálculo se retiró con ella.)
 
 test('6) los datos de S.subscriptions siguen intactos tras renderizar, guardar y recargar', async ({ cmPage, consoleErrors }) => {
   await irAFinanzas(cmPage);
