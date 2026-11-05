@@ -310,7 +310,22 @@
     return { valor: end / ini - 1, desde: b.fecha, hasta: fin.fecha };
   }
 
-  const API = { esLote100, factorPrecio, modifiedDietz, xirr, calcular, nivelesAMensual, inflacionAcum, retornoSpy, construirMep, filtrarOperaciones, diaNum, dias };
+  // Acumulado que parte de un rendimiento propio (pct0 al cierre de fecha0) y sigue la serie de la cuenta [[fecha, rendimiento acumulado desde el inicio de la serie]]:
+  // (1 + pct0) × (1 + twr(hasta)) / (1 + twr(fecha0)) − 1. twr(fecha0) = el punto de ese día o el último anterior.
+  // Si la serie no pasa de fecha0 (o no hay punto en/antes de fecha0, o no hay serie) no hay nada que encadenar: queda el punto de partida.
+  function acumuladoDesdeInicial(pct0, fecha0, puntos) {
+    const base = { pct: pct0, hasta: fecha0 };
+    const s = (puntos || []).filter(p => Array.isArray(p) && typeof p[0] === 'string' && num(p[1]) != null).sort((a, b) => (a[0] < b[0] ? -1 : 1));
+    if (!s.length || num(pct0) == null) return base;
+    const fin = s[s.length - 1];
+    if (fin[0] <= fecha0) return base;
+    let t0 = null;
+    for (const p of s) if (p[0] <= fecha0) t0 = num(p[1]);
+    if (t0 == null) return base;
+    return { pct: (1 + pct0) * (1 + num(fin[1])) / (1 + t0) - 1, hasta: fin[0] };
+  }
+
+  const API = { esLote100, factorPrecio, modifiedDietz, xirr, calcular, nivelesAMensual, inflacionAcum, retornoSpy, acumuladoDesdeInicial, construirMep, filtrarOperaciones, diaNum, dias };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   if (root) root.RendimientoCalc = API;
 })(typeof window !== 'undefined' ? window : null);

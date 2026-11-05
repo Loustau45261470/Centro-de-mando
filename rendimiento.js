@@ -10,6 +10,7 @@
 const Rendimiento = (() => {
   const URL_WORKER = 'https://cdm-push-worker.tobiasloustau11.workers.dev';
   const ARCHIVO_BASE = 'rendimiento-base.json';
+  const ARCHIVO_IOL = 'rendimiento-iol.json'; // serie diaria de la cuenta calculada por IOL (la escribe una rutina; puede no existir todavía)
   const TIMEOUT_MS = 25000;
   const C = () => window.RendimientoCalc;
 
@@ -62,6 +63,18 @@ const Rendimiento = (() => {
     return b;
   }
 
+  // Serie de IOL: { desde, ARS?, MEP? }, cada moneda { desde, hasta, twr, puntos:[[fecha, acumulado]] }. Lo que no tenga la forma esperada se descarta (→ null).
+  function validarIol(j) {
+    if (!j || typeof j !== 'object') return null;
+    const fechaOk = f => /^\d{4}-\d{2}-\d{2}$/.test(String(f || ''));
+    const ok = m => m && typeof m === 'object' && Number.isFinite(m.twr) && fechaOk(m.hasta) && Array.isArray(m.puntos);
+    const out = { desde: fechaOk(j.desde) ? j.desde : null, generado: j.generado || null };
+    if (ok(j.ARS)) out.ARS = j.ARS;
+    if (ok(j.MEP)) out.MEP = j.MEP;
+    if (!out.desde) out.desde = (out.ARS && out.ARS.desde) || (out.MEP && out.MEP.desde) || null;
+    return (out.ARS || out.MEP) && fechaOk(out.desde) ? out : null;
+  }
+
   async function traer() {
     const r = await CMDatos.carteraDetalle(ARCHIVO_BASE);
     if (r.status === 404) throw errTipado('base', 'No encuentro rendimiento-base.json en el repositorio privado de datos.');
@@ -70,12 +83,16 @@ const Rendimiento = (() => {
     const base = validarBase(r.data);
     const items = base.posiciones.filter(p => p && p.simbolo).map(p => encodeURIComponent(p.simbolo) + ':' + encodeURIComponent(p.mercado || 'BCBA')).join(',');
     const f = encodeURIComponent(base.fecha);
+    // Mercado: una sola llamada desde el 1/1 del año (o desde la base, si fuera anterior) alcanza para la comparación del año y para la del detalle.
+    const ene1 = hoyLocal().slice(0, 4) + '-01-01';
+    const fMercado = encodeURIComponent(base.fecha < ene1 ? base.fecha : ene1);
     // Operaciones y cartera son imprescindibles; cierres y fuentes de mercado fallan "con gracia" (precio intradía marcado aprox. / sin comparación).
-    const [ops, cartera, cierres, mercado] = await Promise.allSettled([
+    const [ops, cartera, cierres, mercado, iolR] = await Promise.allSettled([
       wk('/rendimiento/operaciones?desde=' + f),
       wk('/cartera'),
       items ? wk('/rendimiento/cierres?fecha=' + f + '&s=' + items) : Promise.resolve({ cierres: {} }),
-      wk('/rendimiento/mercado?desde=' + f),
+      wk('/rendimiento/mercado?desde=' + fMercado),
+      CMDatos.carteraDetalle(ARCHIVO_IOL),
     ]);
     for (const x of [ops, cartera]) if (x.status === 'rejected') throw x.reason;
     if (!cartera.value || !Array.isArray(cartera.value.tenencias)) throw errTipado('formato', 'La cartera en vivo llegó con un formato inesperado.');
@@ -86,6 +103,7 @@ const Rendimiento = (() => {
       base, ops: ops.value, cartera: cartera.value,
       cierres: cierres.status === 'fulfilled' ? (cierres.value.cierres || {}) : {},
       mercado: mercado.status === 'fulfilled' ? mercado.value : null,
+      iol: iolR.status === 'fulfilled' && iolR.value ? validarIol(iolR.value.data) : null,
       errores, cargadoEn: new Date(),
     };
   }
@@ -104,8 +122,7 @@ const Rendimiento = (() => {
       posiciones: d.cartera.tenencias.map(t => ({ simbolo: t.simbolo, cantidad: t.cantidad, valorizado: t.valorizado })),
       efectivo: ef ? { ARS: ef.ARS && ef.ARS.saldo, USD: ef.USD && ef.USD.saldo } : null,
     };
-    const mepIn = d.mercado && d.mercado.mep ? d.mercado.mep : null;
-    const mep = mepIn ? { serie: mepIn.serie, actual: mepIn.actual } : { serie: [] };
+    const mep = mepDe(d);
     const res = C().calcular({ base, operaciones: d.ops.operaciones || [], actual, flujos: flujos(), mep, moneda, hoy: actual.fecha });
     if (d.ops && d.ops.comisionesPendientes) res.advertencias.push({ codigo: 'comision-pendiente', texto: d.ops.comisionesPendientes + ' operación(es) todavía sin comisión: se completan en la próxima actualización.' });
     if (d.errores.cierres) res.advertencias.push({ codigo: 'sin-cierres', texto: 'No llegaron los precios de cierre de la base: se usó el precio intradía (aprox.).' });
@@ -113,13 +130,19 @@ const Rendimiento = (() => {
     return res;
   }
 
+  function mepDe(d) {
+    const mepIn = d.mercado && d.mercado.mep ? d.mercado.mep : null;
+    return mepIn ? { serie: mepIn.serie, actual: mepIn.actual } : { serie: [] };
+  }
+
   // S&P 500 e inflación del mismo período. Todo lo que no se pueda atribuir al período queda como "sin dato" con su motivo.
-  function referencias(d, moneda, baseFecha, mep) {
+  // `hasta` (opcional): corta el S&P en esa fecha, para compararlo con una serie que termina antes que la última barra.
+  function referencias(d, moneda, baseFecha, mep, hasta) {
     const m = d.mercado;
     const out = { spy: null, inflacion: null };
     if (!m || !m.spy) out.spy = { sinDato: true, motivo: 'No llegó la cotización del S&P 500.' };
     else {
-      const r = C().retornoSpy(m.spy, baseFecha, moneda, mep);
+      const r = C().retornoSpy(hasta ? m.spy.filter(b => b && b.fecha <= hasta) : m.spy, baseFecha, moneda, mep);
       out.spy = r.sinDato ? { sinDato: true, motivo: 'Sin cotización del S&P 500 para el período.' } : r;
     }
     const etiqueta = moneda === 'USD' ? 'Inflación EE.UU. (CPI)' : 'Inflación INDEC (IPC)';
@@ -133,6 +156,16 @@ const Rendimiento = (() => {
     }
     return out;
   }
+
+  function notaInflacion(inf, desde, hasta) {
+    if (inf.sinDato) return '';
+    let nota = `Del ${fechaCorta(desde)} hasta fin de ${mesLabel(inf.hasta)} (último dato publicado).`;
+    if (finDeMes(inf.hasta) !== hasta) nota += ` Tu rendimiento llega hasta ${fechaCorta(hasta)}: son ventanas distintas.`;
+    return nota;
+  }
+
+  const diaAnterior = f => new Date(Date.parse(f + 'T00:00:00Z') - 86400000).toISOString().slice(0, 10);
+  const diaMes = f => { const m = /^\d{4}-(\d{2})-(\d{2})/.exec(String(f || '')); return m ? `${m[2]}/${m[1]}` : esc(f); };
 
   // ── Render ──
   function tarjeta(titulo, valor, sub, claseValor, extra) {
@@ -165,6 +198,39 @@ const Rendimiento = (() => {
     </div>`;
   }
 
+  // Tarjeta principal: parte del rendimiento propio a una fecha (viene del archivo privado) y lo sigue con la serie de IOL. Siempre en pesos.
+  function tarjetaAcumulado(d, mon) {
+    const g = d.base.gananciaInicial;
+    if (!g || !Number.isFinite(g.pct) || !/^\d{4}-\d{2}-\d{2}$/.test(String(g.fecha || ''))) return '';
+    const a = C().acumuladoDesdeInicial(g.pct, g.fecha, d.iol && d.iol.ARS ? d.iol.ARS.puntos : null);
+    const act = a.hasta > g.fecha ? `actualizado al ${fechaCorta(a.hasta)}` : 'sin actualizar todavía';
+    return `<div class="ten-hero rnd-hero rnd-acum">
+        <div class="ten-hero-lbl">Acumulado</div>
+        <div class="ten-hero-num mono ${cls(a.pct)}">${pct(a.pct)}</div>
+        <div class="ten-hero-var rnd-hero-sub">Partió de ${pct(g.pct).replace('+', '')} el ${diaMes(g.fecha)} · ${act}.${mon === 'USD' ? ' Siempre en pesos: el punto de partida es en pesos.' : ''}</div>
+      </div>`;
+  }
+
+  // Tu cuenta contra el S&P 500 y la inflación desde el 1 de enero, con la serie diaria que calcula IOL.
+  function seccionAnio(d, mon) {
+    const titulo = '<div class="sec-label">Desde el 1 de enero</div>';
+    const serie = d.iol && d.iol[mon === 'USD' ? 'MEP' : 'ARS'];
+    if (!serie) {
+      const txt = d.iol ? 'IOL todavía no informó la serie en dólares MEP.' : 'Todavía no llegó la serie de IOL (se actualiza cada mañana).';
+      return `<div class="rnd-sec rnd-ytd">${titulo}<div class="rnd-vacio">${txt}</div></div>`;
+    }
+    const desde = d.iol.desde;
+    const base = diaAnterior(desde);
+    const ref = referencias(d, mon, base, mepDe(d), serie.hasta);
+    const spyNota = ref.spy.sinDato ? '' : `Del ${fechaCorta(ref.spy.desde)} al ${fechaCorta(ref.spy.hasta)} · retorno total${mon === 'ARS' ? ', pasado a pesos al MEP' : ''}.`;
+    return `<div class="rnd-sec rnd-ytd">${titulo}
+        <div class="rnd-ref"><div class="rnd-ref-top"><span class="rnd-ref-nom">Tu cuenta</span><span class="mono bold ${cls(serie.twr)}">${pct(serie.twr)}</span></div><div class="rnd-ref-nota">Del ${fechaCorta(desde)} al ${fechaCorta(serie.hasta)} · en ${mon === 'USD' ? 'dólares MEP' : 'pesos'}.</div></div>
+        ${filaReferencia('S&P 500 (SPY)', ref.spy, serie.twr, serie.hasta, spyNota)}
+        ${filaReferencia(ref.inflacion.etiqueta, ref.inflacion, serie.twr, serie.hasta, notaInflacion(ref.inflacion, desde, serie.hasta))}
+        <div class="rnd-nota">Rendimiento ponderado por tiempo (TWR) que calcula IOL sobre toda la cuenta: descuenta depósitos y retiros y ya es neto de comisiones. Llega con un día de atraso. La diferencia está en puntos porcentuales.</div>
+      </div>`;
+  }
+
   function render() {
     if (!_box) return;
     if (_cargando && !_datos) { _box.innerHTML = '<div class="empty-state">Calculando tu rendimiento…</div>'; return; }
@@ -184,7 +250,7 @@ const Rendimiento = (() => {
         <button type="button" class="btn btn-ghost btn-sm rnd-act"${_cargando ? ' disabled' : ''}>${_cargando ? 'Actualizando…' : 'Actualizar'}</button>
       </div>`;
     if (falla) {
-      _box.innerHTML = `<div class="rnd">${barra}<div class="empty-state rnd-error">${esc(falla)}</div>${seccionFlujos()}</div>`;
+      _box.innerHTML = `<div class="rnd">${barra}${tarjetaAcumulado(_datos, mon)}${seccionAnio(_datos, mon)}<div class="empty-state rnd-error">${esc(falla)}</div>${seccionFlujos()}</div>`;
       return;
     }
     const dias = r.dias;
@@ -194,12 +260,7 @@ const Rendimiento = (() => {
     const tirSub = r.tirPeriodo == null ? 'Se calcula con al menos un día de historia.' : `Ponderada por cuándo estuvo invertida cada plata${r.tirAnual != null ? ` · ${pct(r.tirAnual)} anualizada` : ''}.`;
     const ref = r.referencias;
     const spyNota = ref.spy.sinDato ? '' : `Del ${fechaCorta(ref.spy.desde)} al ${fechaCorta(ref.spy.hasta)} · retorno total${mon === 'ARS' ? ', pasado a pesos al MEP' : ''}.`;
-    let infNota = '';
-    if (!ref.inflacion.sinDato) {
-      const finInf = finDeMes(ref.inflacion.hasta);
-      infNota = `Del ${fechaCorta(r.desde)} hasta fin de ${mesLabel(ref.inflacion.hasta)} (último dato publicado).`;
-      if (finInf !== r.hasta) infNota += ` Tu rendimiento llega hasta ${fechaCorta(r.hasta)}: son ventanas distintas.`;
-    }
+    const infNota = notaInflacion(ref.inflacion, r.desde, r.hasta);
     const advs = r.advertencias.filter((a, i, arr) => arr.findIndex(b => b.texto === a.texto) === i);
     const advHtml = advs.length ? `<div class="rnd-sec"><div class="sec-label">Para tener en cuenta</div><ul class="rnd-advs">${advs.slice(0, 6).map(a => `<li class="${a.codigo === 'descuadre' ? 'text-warn' : ''}">${esc(a.texto)}</li>`).join('')}${advs.length > 6 ? `<li>y ${advs.length - 6} más.</li>` : ''}</ul></div>` : '';
     const otrosFila = Math.abs(r.otros) > Math.max(Math.abs(r.v0) * 0.005, 1) ? `<div class="rnd-otros">Otros (efectivo, dólar sobre el efectivo, diferencias): <span class="mono ${cls(r.otros)}">${dinero(r.otros, mon)}</span></div>` : '';
@@ -210,6 +271,10 @@ const Rendimiento = (() => {
 
     _box.innerHTML = `<div class="rnd">
       ${barra}
+      ${tarjetaAcumulado(_datos, mon)}
+      ${seccionAnio(_datos, mon)}
+      <div class="rnd rnd-det">
+      <div class="sec-label">Detalle desde el ${diaMes(r.desde)}</div>
       <div class="ci-meta">${periodo} · Actualizado a las ${hora}</div>
       <div class="ten-hero rnd-hero">
         <div class="ten-hero-lbl">Resultado total en ${mon === 'USD' ? 'dólares MEP' : 'pesos'}</div>
@@ -240,6 +305,7 @@ const Rendimiento = (() => {
       ${seccionFlujos()}
       ${advHtml}
       <div class="rnd-nota rnd-pie">Costo de lo que tenías el ${fechaCorta(r.desde)}: precio de cierre de ese día. Costo promedio ponderado por símbolo. Valores en ${mon === 'USD' ? 'dólares MEP, cada movimiento al MEP de su fecha' : 'pesos'}. El rendimiento no está anualizado salvo que se indique.</div>
+      </div>
     </div>`;
   }
 

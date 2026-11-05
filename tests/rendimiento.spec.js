@@ -200,6 +200,28 @@ test.describe('cálculo de rendimiento (puro)', () => {
     // La barra más cercana anterior a la base a más de 5 días no sirve.
     expect(C.retornoSpy([{ fecha: '2026-10-20', adj: 1 }, { fecha: '2026-12-04', adj: 2 }], '2026-11-04', 'USD', MEP)).toMatchObject({ sinDato: true });
   });
+
+  test('acumulado desde un punto de partida propio: sin serie, o con serie que no pasa de la fecha, queda el punto de partida', () => {
+    expect(C.acumuladoDesdeInicial(0.095, '2026-11-04', null)).toEqual({ pct: 0.095, hasta: '2026-11-04' });
+    expect(C.acumuladoDesdeInicial(0.095, '2026-11-04', [])).toEqual({ pct: 0.095, hasta: '2026-11-04' });
+    // La serie termina antes de la fecha de partida, o justo en ella: no hay nada que encadenar.
+    expect(C.acumuladoDesdeInicial(0.095, '2026-11-04', [['2026-01-01', 0], ['2026-11-03', 0.05]])).toEqual({ pct: 0.095, hasta: '2026-11-04' });
+    expect(C.acumuladoDesdeInicial(0.095, '2026-11-04', [['2026-01-01', 0], ['2026-11-04', 0.05]])).toEqual({ pct: 0.095, hasta: '2026-11-04' });
+    // Sin ningún punto en o antes de la fecha de partida tampoco se puede encadenar.
+    expect(C.acumuladoDesdeInicial(0.095, '2026-11-04', [['2026-11-10', 0.01]])).toEqual({ pct: 0.095, hasta: '2026-11-04' });
+  });
+
+  test('acumulado: (1 + 9,5%) × (1 + twr final) / (1 + twr de la fecha de partida) − 1', () => {
+    const r = C.acumuladoDesdeInicial(0.095, '2026-11-04', [['2026-01-01', 0], ['2026-11-04', 0.05], ['2026-11-05', 0.06], ['2026-11-06', 0.071]]);
+    cerca(r.pct, 1.095 * 1.071 / 1.05 - 1);
+    expect(r.hasta).toBe('2026-11-06');
+    // Fecha de partida sin punto exacto (fin de semana, feriado): se toma el último punto anterior; y la serie desordenada se ordena.
+    const r2 = C.acumuladoDesdeInicial(0.095, '2026-11-04', [['2026-11-06', 0.071], ['2026-01-01', 0], ['2026-11-03', 0.05], ['2026-11-05', 0.06]]);
+    cerca(r2.pct, 1.095 * 1.071 / 1.05 - 1);
+    expect(r2.hasta).toBe('2026-11-06');
+    // Una caída de la cuenta después de la partida baja el acumulado.
+    cerca(C.acumuladoDesdeInicial(0.1, '2026-11-04', [['2026-11-03', 0.2], ['2026-11-10', 0.1]]).pct, 1.1 * 1.1 / 1.2 - 1);
+  });
 });
 
 // ───────────────────────── La pestaña en la app ─────────────────────────
@@ -240,6 +262,7 @@ async function abrir(page, over = {}) {
     cierres: { status: 200, body: { cierres: CIERRES, fallidos: 0 } },
     mercado: { status: 200, body: MERCADO },
     cartera: { status: 200, body: CARTERA },
+    iol: { status: 404, body: { error: 'not_found' } },
     viejo: false, llamadas: [], ...over,
   };
   await page.route('**/cdm-push-worker.tobiasloustau11.workers.dev/**', async (r) => {
@@ -249,6 +272,7 @@ async function abrir(page, over = {}) {
     ctl.llamadas.push(u.pathname + u.search);
     const json = (x) => r.fulfill({ status: x.status, contentType: 'application/json', headers: CORS, body: JSON.stringify(x.body) });
     if (u.pathname === '/datos/rendimiento-base.json') return json(ctl.base);
+    if (u.pathname === '/datos/rendimiento-iol.json') return json(ctl.iol);
     if (u.pathname.startsWith('/rendimiento/') && ctl.viejo) return r.fulfill({ status: 401, contentType: 'text/plain', headers: CORS, body: 'unauthorized' });
     if (u.pathname === '/rendimiento/operaciones') return json(ctl.ops);
     if (u.pathname === '/rendimiento/cierres') return json(ctl.cierres);
@@ -269,7 +293,7 @@ async function abrir(page, over = {}) {
 }
 
 const pane = (page) => page.locator('#cov-pane-rendimiento');
-const heroNum = (page) => pane(page).locator('.ten-hero-num');
+const heroNum = (page) => pane(page).locator('.rnd-det .ten-hero-num');
 const tarjeta = (page, titulo) => pane(page).locator('.rnd-card').filter({ has: page.locator('.rnd-card-lbl', { hasText: new RegExp('^' + titulo) }) }).locator('.rnd-card-num');
 const sinScrollHorizontal = (page) => page.evaluate(() => {
   const b = document.querySelector('#cov-pane-rendimiento');
@@ -306,7 +330,8 @@ test.describe('pestaña Rendimiento', () => {
     expect(l).toContain('/datos/rendimiento-base.json');
     expect(l).toContain('/rendimiento/operaciones?desde=2026-11-04');
     expect(l).toContain('/rendimiento/cierres?fecha=2026-11-04&s=TESTA:BCBA,TESTB:BCBA,TESTBONO:BCBA');
-    expect(l).toContain('/rendimiento/mercado?desde=2026-11-04');
+    expect(l).toContain('/rendimiento/mercado?desde=2026-01-01'); // una sola llamada desde el 1/1 sirve para el año y para el detalle
+    expect(l).toContain('/datos/rendimiento-iol.json');
     expect(l).toContain('/cartera');
   });
 
@@ -326,7 +351,7 @@ test.describe('pestaña Rendimiento', () => {
 
   test('comparación: S&P 500 con su ventana, y la inflación sin dato publicado dice por qué en vez de inventar', async ({ cmPage: page }) => {
     await abrir(page);
-    const refs = pane(page).locator('.rnd-ref');
+    const refs = pane(page).locator('.rnd-det .rnd-ref');
     // ARS: SPY en pesos = 525 × 1250 / (500 × 1000) − 1 = +31,25%. Diferencia de TWR = 16,35 − 31,25 = −14,90 pts.
     await expect(refs.nth(0)).toContainText('S&P 500');
     await expect(refs.nth(0)).toContainText('+31,25%');
@@ -345,7 +370,7 @@ test.describe('pestaña Rendimiento', () => {
 
   test('con el IPC del mes de la base publicado, se muestra prorrateado, con "hasta <mes>" y avisando que las ventanas difieren', async ({ cmPage: page }) => {
     await abrir(page, { mercado: { status: 200, body: { ...MERCADO, ipc: [{ mes: '2026-09', pct: 1.9 }, { mes: '2026-11', pct: 3 }] } } });
-    const inf = pane(page).locator('.rnd-ref').nth(1);
+    const inf = pane(page).locator('.rnd-det .rnd-ref').nth(1);
     await expect(inf).toContainText('+2,59%');             // 1,03^(26/30) − 1
     await expect(inf).toContainText('hasta fin de nov 2026');
     await expect(inf).toContainText('ventanas distintas');
@@ -412,8 +437,8 @@ test.describe('pestaña Rendimiento', () => {
     // V0 intradía = 99.000 + 99.500 + 119.000 + 50.000 = 367.500 → resultado 63.010.
     await expect(heroNum(page)).toHaveText('$63.010');
     await expect(pane(page).locator('.rnd-advs')).toContainText('precio intradía');
-    await expect(pane(page).locator('.rnd-ref').nth(0)).toContainText('Sin dato');
-    await expect(pane(page).locator('.rnd-ref').nth(1)).toContainText('Sin dato');
+    await expect(pane(page).locator('.rnd-det .rnd-ref').nth(0)).toContainText('Sin dato');
+    await expect(pane(page).locator('.rnd-det .rnd-ref').nth(1)).toContainText('Sin dato');
   });
 
   test('sin MEP la vista en dólares lo dice, y la de pesos sigue andando', async ({ cmPage: page }) => {
@@ -432,8 +457,88 @@ test.describe('pestaña Rendimiento', () => {
     await expect.poll(() => ctl.llamadas.filter(x => x === '/cartera').length).toBe(antes + 1);
   });
 
+  // Serie de IOL inventada: la cuenta valía +5% el 03/11 y +7,1% al 03/12 (ARS); en dólares MEP −2%.
+  const IOL = {
+    v: 1, generado: '2026-12-04T09:00:00Z', desde: '2026-01-01',
+    ARS: { desde: '2026-01-01', hasta: '2026-12-03', twr: 0.071, puntos: [['2026-01-01', 0], ['2026-11-03', 0.05], ['2026-12-03', 0.071]] },
+    MEP: { desde: '2026-01-01', hasta: '2026-12-03', twr: -0.02, puntos: [['2026-01-01', 0], ['2026-12-03', -0.02]] },
+  };
+  const BASE_9_5 = { ...BASE_JSON, gananciaInicial: { pct: 0.095, fecha: '2026-11-04', nota: 'dato de prueba' } };
+  const MERCADO_ANIO = {
+    ...MERCADO,
+    mep: { serie: [{ fecha: '2025-12-30', venta: 1000 }, { fecha: '2026-11-04', venta: 1000 }, { fecha: '2026-12-03', venta: 1200 }], actual: { fecha: '2026-12-04', venta: 1250 } },
+    spy: [{ fecha: '2025-12-31', close: 600, adj: 600 }, { fecha: '2026-11-04', close: 500, adj: 500 }, { fecha: '2026-12-03', close: 640, adj: 648 }, { fecha: '2026-12-04', close: 700, adj: 700 }],
+    ipc: [{ mes: '2025-12', pct: 2.5 }, { mes: '2026-01', pct: 2 }, { mes: '2026-02', pct: 2 }],
+  };
+  const acumulado = (page) => pane(page).locator('.rnd-acum');
+  const anio = (page) => pane(page).locator('.rnd-ytd');
+
+  test('acumulado: parte del 9,5% del archivo privado y lo sigue con la serie de IOL, siempre en pesos', async ({ cmPage: page }) => {
+    await abrir(page, { base: { status: 200, body: BASE_9_5 }, iol: { status: 200, body: IOL }, mercado: { status: 200, body: MERCADO_ANIO } });
+    await expect(heroNum(page)).toHaveText('$60.510');
+    await expect(acumulado(page)).toContainText('Acumulado');
+    await expect(acumulado(page).locator('.ten-hero-num')).toHaveText('+11,69%'); // 1,095 × 1,071 / 1,05 − 1
+    await expect(acumulado(page)).toContainText('Partió de 9,50% el 04/11');
+    await expect(acumulado(page)).toContainText('actualizado al 03/12/2026');
+    // Está arriba de todo: antes de la comparación del año y del detalle.
+    const orden = await pane(page).locator('.rnd').first().evaluate(el => [...el.children].map(c => ['rnd-acum', 'rnd-ytd', 'rnd-det'].find(k => c.classList.contains(k))).filter(Boolean));
+    expect(orden).toEqual(['rnd-acum', 'rnd-ytd', 'rnd-det']);
+    await expect(pane(page).locator('.rnd-det .sec-label').first()).toHaveText('Detalle desde el 04/11');
+    // En dólares el acumulado sigue siendo en pesos y lo aclara.
+    await pane(page).locator('[data-mon="USD"]').click();
+    await expect(acumulado(page).locator('.ten-hero-num')).toHaveText('+11,69%');
+    await expect(acumulado(page)).toContainText('Siempre en pesos');
+  });
+
+  test('desde el 1 de enero: la cuenta contra el S&P 500 y la inflación, misma moneda y misma ventana que la serie', async ({ cmPage: page, consoleErrors }) => {
+    await abrir(page, { base: { status: 200, body: BASE_9_5 }, iol: { status: 200, body: IOL }, mercado: { status: 200, body: MERCADO_ANIO } });
+    const f = anio(page).locator('.rnd-ref');
+    await expect(anio(page).locator('.sec-label')).toHaveText('Desde el 1 de enero');
+    await expect(f.nth(0)).toContainText('Tu cuenta');
+    await expect(f.nth(0)).toContainText('+7,10%');
+    await expect(f.nth(0)).toContainText('01/01/2026 al 03/12/2026');
+    // ARS: S&P cortado en el 03/12 (no usa la barra del 04/12), pasado a pesos: 648 × 1200 / (600 × 1000) − 1 = +29,60%. Dif: 7,10 − 29,60.
+    await expect(f.nth(1)).toContainText('S&P 500');
+    await expect(f.nth(1)).toContainText('+29,60%');
+    await expect(f.nth(1)).toContainText('−22,50 pts');
+    // Inflación: diciembre entero cuenta cero (base = cierre del 31/12), enero y febrero 2% cada uno = +4,04%. Dif: 7,10 − 4,04.
+    await expect(f.nth(2)).toContainText('Inflación INDEC');
+    await expect(f.nth(2)).toContainText('+4,04%');
+    await expect(f.nth(2)).toContainText('+3,06 pts');
+    await expect(f.nth(2)).toContainText('hasta fin de feb 2026');
+    // USD: serie MEP de IOL, S&P en dólares (+8,00%), inflación de EE.UU. sin dato (el mock no trae CPI).
+    await pane(page).locator('[data-mon="USD"]').click();
+    await expect(f.nth(0)).toContainText('−2,00%');
+    await expect(f.nth(1)).toContainText('+8,00%');
+    await expect(f.nth(1)).toContainText('−10,00 pts');
+    await expect(f.nth(2)).toContainText('Inflación EE.UU.');
+    await expect(f.nth(2)).toContainText('Sin dato');
+    expect(consoleErrors.filter(e => !/Failed to load resource/.test(e))).toEqual([]);
+  });
+
+  test('sin rendimiento-iol.json: el acumulado muestra el 9,5% sin actualizar, el año lo explica y el detalle sigue andando, sin errores', async ({ cmPage: page, consoleErrors }) => {
+    await abrir(page, { base: { status: 200, body: BASE_9_5 } });
+    await expect(heroNum(page)).toHaveText('$60.510');
+    await expect(acumulado(page).locator('.ten-hero-num')).toHaveText('+9,50%');
+    await expect(acumulado(page)).toContainText('sin actualizar todavía');
+    await expect(anio(page)).toContainText('Todavía no llegó la serie de IOL (se actualiza cada mañana)');
+    await expect(anio(page).locator('.rnd-ref')).toHaveCount(0);
+    await pane(page).locator('[data-mon="USD"]').click();
+    await expect(anio(page)).toContainText('Todavía no llegó la serie de IOL');
+    expect(consoleErrors.filter(e => !/Failed to load resource/.test(e))).toEqual([]);
+  });
+
+  test('sin gananciaInicial en la base no hay tarjeta de acumulado, y un archivo de IOL con formato roto cuenta como "no llegó"', async ({ cmPage: page, consoleErrors }) => {
+    await abrir(page, { iol: { status: 200, body: { v: 1, ARS: { twr: 'x' } } } });
+    await expect(heroNum(page)).toHaveText('$60.510');
+    await expect(acumulado(page)).toHaveCount(0);
+    await expect(anio(page)).toContainText('Todavía no llegó la serie de IOL');
+    expect(consoleErrors.filter(e => !/Failed to load resource/.test(e))).toEqual([]);
+  });
+
   test('el diseño entra sin scroll horizontal (390 y 1440) y las pestañas del overlay caben', async ({ cmPage: page }, testInfo) => {
-    await abrir(page);
+    await abrir(page, { base: { status: 200, body: BASE_9_5 }, iol: { status: 200, body: IOL }, mercado: { status: 200, body: MERCADO_ANIO } });
+    await expect(acumulado(page)).toBeVisible();
     await page.locator('.rnd-form .rnd-f-monto').fill('1000'); // el formulario también tiene que caber
     const r = await sinScrollHorizontal(page);
     expect(r).toEqual({ doc: true, pane: true, ov: true });
