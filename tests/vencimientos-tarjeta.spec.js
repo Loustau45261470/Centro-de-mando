@@ -2,7 +2,7 @@
 // ya no hay entrada en el abanico. Muestra los 5 próximos más cercanos (hoy incluido) con "Ver más (N)", y TODOS los vencidos debajo.
 // Finales: primero los 3 no rendidos más cercanos no vencidos, y los vencidos sin rendir a la vista debajo.
 'use strict';
-const { test, expect } = require('./support/fixtures');
+const { test, expect, waitForBoot, completeLoginOverlay } = require('./support/fixtures');
 
 const irA = (page, tab) => page.evaluate((t) => switchTab(t, document.querySelector(`.nav-btn[data-tab="${t}"]`)), tab);
 
@@ -221,5 +221,74 @@ test.describe('en el celu (390px)', () => {
     });
     expect(sobra.pagina).toBeLessThanOrEqual(0);
     for (const h of sobra.hijos) expect(h).toBeLessThanOrEqual(1);
+  });
+});
+
+// Regresión: el colapso genérico de tarjetas (workspace.js) se enganchaba al título de las tarjetas .cc-card-link: tocar el título abría el
+// panel Y colapsaba la tarjeta (quedaba oculta al cerrar, con la clave cc_<id>_* guardada y persistente).
+test.describe('tocar el título de una tarjeta que abre un panel nunca la colapsa', () => {
+  const CASOS = [
+    { nombre: 'Vencimientos · vida', tab: 'vida', id: 'rnotif-card-vida', panel: 'ov-rem-vida', cont: '#reminders-notif-vida .rnotif-item', verMas: true,
+      armar: (p) => armar(p, 'vida', 8, 1) },
+    { nombre: 'Vencimientos · finanzas', tab: 'finanzas', id: 'rnotif-card-finanzas', panel: 'ov-rem-finanzas', cont: '#reminders-notif-finanzas .rnotif-item', verMas: true,
+      armar: (p) => armar(p, 'finanzas', 8, 1) },
+    { nombre: 'Cursada', tab: 'conocimiento', id: 'cursada-card', panel: 'ov-cursada', cont: '#cursada-card .curs-item',
+      armar: (p) => p.evaluate(() => {
+        const f = (n) => { const d = new Date(getActiveDate() + 'T12:00:00'); d.setDate(d.getDate() + n); return localStr(d); };
+        S.cursada = [{ id: 'c1', tipo: 'clase', materia: 'Materia', titulo: 'Clase', fecha: f(2), hora: '10:00', done: false }];
+        saveState(); Cursada.renderPrincipal();
+      }) },
+    { nombre: 'Crédito', tab: 'finanzas', id: 'credit-card', panel: 'ov-tarjetas', cont: '#creditBody', armar: async () => {} },
+    { nombre: 'resumen de Presupuesto', tab: 'finanzas', id: 'budget-summary-card', panel: 'ov-budget', cont: '#budgetSummaryBody', armar: async () => {} },
+  ];
+
+  // Nada colapsado: sin .collapsed adentro, contenido con opacidad 1 y sin claves cc_<id>_* guardadas.
+  const sinColapsar = async (page, c) => {
+    await expect(page.locator(`#${c.id}`)).toBeVisible();
+    await expect(page.locator(`#${c.id} .collapsed`)).toHaveCount(0);
+    expect(await page.evaluate((id) => {
+      const el = document.querySelector(`#${id}`);
+      const llaves = Object.keys(localStorage).filter((k) => k.startsWith('cc_' + id + '_') && localStorage.getItem(k));
+      return { llaves, opacidad: getComputedStyle(el.querySelector('.card-title').nextElementSibling || el).opacity };
+    }, c.id), c.nombre).toEqual({ llaves: [], opacidad: '1' });
+  };
+
+  for (const c of CASOS) {
+    test(c.nombre + ': clic en el título abre el panel; al cerrarlo la tarjeta sigue visible, y tras recargar también', async ({ cmPage: page, consoleErrors }) => {
+      await irA(page, c.tab);
+      await c.armar(page);
+      await page.locator(`#${c.id} .card-title`).first().click();
+      await expect(page.locator(`#${c.panel}`)).toHaveClass(/show/);
+      await page.keyboard.press('Escape');
+      await expect(page.locator(`#${c.panel}`)).not.toHaveClass(/show/);
+      await sinColapsar(page, c);
+      if (c.cont.includes('.')) await expect(page.locator(c.cont).first()).toBeVisible();
+      if (c.verMas) {
+        await page.locator(`#${c.id} .rnotif-toggle`).click();   // clickeable: antes estaba en opacidad 0
+        await expect(page.locator(c.cont)).toHaveCount(9);
+        await expect(page.locator(`#${c.panel}`)).not.toHaveClass(/show/);
+      }
+      await page.reload(); await waitForBoot(page); await completeLoginOverlay(page);
+      await irA(page, c.tab);
+      await sinColapsar(page, c);
+      expect(consoleErrors).toEqual([]);
+    });
+
+    test(c.nombre + ': una clave cc_ guardada de antes (tarjeta que quedó colapsada) se borra al cargar y la tarjeta queda visible', async ({ cmPage: page }) => {
+      await page.evaluate(([id]) => localStorage.setItem('cc_' + id + '_Vencimientos', '1'), [c.id]);
+      await page.reload(); await waitForBoot(page); await completeLoginOverlay(page);
+      await irA(page, c.tab);
+      await c.armar(page);
+      await sinColapsar(page, c);
+    });
+  }
+
+  test('las tarjetas normales siguen colapsando con el título', async ({ cmPage: page }) => {
+    await irA(page, 'finanzas');
+    const t = page.locator('#wish-top5-card > .card-title');
+    await t.click();
+    await expect(page.locator('#wish-top5-card .card-body.collapsed')).toHaveCount(1);
+    await t.click();
+    await expect(page.locator('#wish-top5-card .card-body.collapsed')).toHaveCount(0);
   });
 });

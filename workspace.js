@@ -1031,7 +1031,23 @@
     return 'cc_' + parentId + '_' + text;
   }
 
+  // Las tarjetas .cc-card-link (Vencimientos, Cursada, Crédito, resumen de Presupuesto) abren un panel al tocarlas:
+  // el título NO colapsa (si no, cerrar el panel las dejaba ocultas). Además se borra el colapso que ya se
+  // hubiera guardado (cc_<id>_*) en dispositivos donde quedaron colapsadas.
+  const _ccLimpias = new Set();
+  function limpiarColapso(card) {
+    card.querySelectorAll(":scope > .card-body.collapsed").forEach(b => b.classList.remove("collapsed"));
+    card.style.paddingBottom = "";
+    const id = card.id; if (!id || _ccLimpias.has(id)) return;
+    _ccLimpias.add(id);
+    try {
+      const pre = "cc_" + id + "_";
+      Object.keys(localStorage).filter(k => k.startsWith(pre)).forEach(k => localStorage.removeItem(k));
+    } catch (e) {}
+  }
+
   function initCard(card) {
+    if (card.classList.contains("cc-card-link")) { card.dataset.ccInit = "1"; limpiarColapso(card); return; }
     if (card.dataset.ccInit) return;
     const titleEl = card.querySelector(':scope > .card-title');
     if (!titleEl) return;
