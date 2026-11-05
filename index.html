@@ -21,7 +21,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-<link rel="stylesheet" href="styles.css?v=253">
+<link rel="stylesheet" href="styles.css?v=254">
 <script>try{if(localStorage.getItem('cm_rail_off')==='1')document.documentElement.classList.add('rail-off')}catch(e){}</script>
 <link rel="stylesheet" href="gamemode.css">
 <link rel="stylesheet" href="overlay-core.css">
@@ -1062,6 +1062,7 @@
     <div class="field"><label>Día de vencimiento (1 a 31)</label><input class="inp" type="number" step="1" min="1" max="31" id="cardDueDay" placeholder="Ej: 10"></div>
     <div class="field"><label>Lo que ya usaste hoy (queda pendiente de pago)</label><input class="inp" type="number" step="0.01" min="0" id="cardOpeningUsed" placeholder="0"></div>
     <div class="field"><label>Cuenta desde la que se paga el resumen</label><select class="inp" id="cardPayAccount"></select></div>
+    <div class="field cc-z-row"><label class="cc-z-opt" for="cardPlanZ"><span>Ofrece Plan Z (el total se paga en partes sin interés)</span><input type="checkbox" id="cardPlanZ"></label></div>
     <div class="cc-hint" id="cardCycleNote" style="display:none">No se pueden cambiar mientras la tarjeta tenga compras cargadas. Borrá las compras o creá una tarjeta nueva.</div>
     <div class="move-warn" id="cardErr" role="alert"></div>
     <div class="modal-actions">
@@ -1590,7 +1591,10 @@
         <option value="nowInst">En cuotas, uso inmediato</option>
         <option value="advance">Plata de un tercero con mi tarjeta</option>
       </select><div class="cc-hint" id="ccChModeHint"></div></div>
-      <div class="field" id="ccChInstRow"><label for="ccChInst">Cantidad de cuotas</label><input class="inp" type="number" step="1" min="1" id="ccChInst" oninput="updateCardChargePreview()"></div>
+      <div class="field" id="ccChInstRow"><label for="ccChInst" id="ccChInstLbl">Cantidad de cuotas</label><input class="inp" type="number" step="1" min="1" id="ccChInst" oninput="updateCardChargePreview()"></div>
+      <div class="field cc-z-row" id="ccChZRow" style="display:none">
+        <label class="cc-z-opt" for="ccChZ"><span>Plan Z (el total se paga en partes, sin interés)</span><input type="checkbox" id="ccChZ" onchange="onCardChargeZChange()"></label>
+      </div>
       <div class="field" id="ccChMonthsRow"><label for="ccChMonths">Para cuántos meses rinde</label><input class="inp" type="number" step="1" min="1" id="ccChMonths" oninput="updateCardChargePreview()"></div>
       <div class="field" id="ccChToAccRow"><label for="ccChToAcc">Cuenta donde entra la plata</label><select class="inp" id="ccChToAcc" onchange="updateCardChargePreview()"></select></div>
       <!-- La cubre otra persona: la compra ocupa la tarjeta pero no es gasto; lo que esa persona debe queda como saldo a cobrar -->
@@ -1910,8 +1914,8 @@
 <script src="correlativas.js?v=6"></script>
 <script src="habitos.js?v=9"></script>
 <script src="rutinas.js"></script>
-<script src="tarjetas-motor.js?v=6"></script>
-<script src="finanzas.js?v=38"></script>
+<script src="tarjetas-motor.js?v=7"></script>
+<script src="finanzas.js?v=39"></script>
 <script src="recordatorios.js?v=12"></script>
 <script src="objetivos.js"></script>
 <script src="correlaciones.js?v=2"></script>

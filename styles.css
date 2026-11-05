@@ -6539,6 +6539,11 @@ input:focus, select:focus, textarea:focus {
 /* Compra que cubre otra persona: opción en el formulario, filas mes + monto, etiqueta en Compras y botón en la cuenta a cobrar */
 .cc-cover-opt { display: flex !important; align-items: center; gap: 8px; cursor: pointer; letter-spacing: 0 !important; }
 .cc-cover-opt input { width: 18px; height: 18px; flex: none; accent-color: var(--accent); }
+/* Plan Z: texto a la izquierda y casilla chica al final, a la derecha */
+.cc-z-opt { display: flex !important; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; letter-spacing: 0 !important; }
+.cc-z-opt span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.cc-z-opt input { width: 16px; height: 16px; flex: none; margin: 0; accent-color: var(--accent); }
+.cc-z-tag { color: var(--accent); font-weight: 600; }
 #ccCoverBox { margin-top: 8px; }
 #ccCoverBox > label { margin-top: 10px; }
 .cc-cover-row { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(0, 1fr) 32px; gap: 6px; align-items: center; margin-bottom: 8px; }
@@ -6568,22 +6573,6 @@ input:focus, select:focus, textarea:focus {
 .cc-cal-exp { margin-top: 4px; font-size: var(--fs-12-5); color: var(--tt); }
 .cc-cal-exp b { color: var(--ts); font-family: var(--mono); font-weight: 700; }
 .cc-cal-det { list-style: none; margin: 0 0 4px; font-size: var(--fs-12-5); color: var(--tt); }
-/* Vencimientos de lo ya usado (pestana Tarjetas del overlay) */
-.cc-dues { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--border); }
-.cc-dues summary { cursor: pointer; color: var(--accent); font-size: var(--fs-13); font-weight: 600; }
-.cc-dues summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.cc-due-list { list-style: none; margin: 8px 0 0; padding: 0; }
-.cc-due-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: var(--fs-13); }
-.cc-due-lbl { flex: 1; min-width: 0; color: var(--ts); overflow-wrap: anywhere; }
-.cc-due-amt { flex-shrink: 0; font-family: var(--mono); font-weight: 700; color: var(--tp); }
-.cc-due-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
-.cc-due-form select { flex: 1 1 100%; min-width: 0; }
-.cc-due-form input { flex: 1 1 120px; min-width: 0; }
-.cc-due-err { margin-top: 6px; }
-.cc-due-ctl { margin-top: 8px; font-size: var(--fs-13); color: var(--ts); overflow-wrap: anywhere; }
-.cc-due-ctl[data-tone="falta"] { color: var(--warn); }
-.cc-due-ctl[data-tone="ok"] { color: var(--ok); }
-.cc-due-ctl[data-tone="pasado"] { color: var(--danger); font-weight: 700; }
 
 /* ── Presupuesto: aviso de mes borrador (armado por la app, todavía sin llegar) ── */
 .budget-prov {

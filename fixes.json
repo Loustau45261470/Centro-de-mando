@@ -351,6 +351,13 @@
       "desc": "La vista rápida del rail se cerraba sola si el mouse iba hacia el rail antes de que terminara de deslizarse: la red de seguridad de 900 ms miraba solo :hover, que Chrome actualiza recién al pintar un frame con el rail en su lugar y, con la máquina cargada, tarda más de 900 ms. Ahora también cuenta la última posición real del mouse (lastX <= ancho del rail). Con CPU al 25% el test \"en la vista rápida, » fija la barra\" fallaba también con el código previo a 7d513f6. NO volver a decidir el cierre solo con :hover.",
       "file": "nav-rail.js",
       "marker": "!(lastX >= 0 && lastX <= railW())"
+    },
+    {
+      "id": "tarjetas-arranque-filtro-resetat",
+      "fecha": "2026-11-05",
+      "desc": "Tarjetas con arranque (card.resetAt, lo fija cardArranque): el Usado, el calendario, los avisos y el pago automático salen de la foto (openingUsed + cardDues) más lo registrado DESPUÉS; los cargos y pagos anteriores quedan de historial. El corte vive en el motor (chargeCounts/paymentCounts, usados por dueTotals, pendingDues y used) para que deadlines.js y el navegador coincidan. NO volver a sumar todos los cargos/pagos de una tarjeta con resetAt, ni reponer la carga manual de vencimientos.",
+      "file": "tarjetas-motor.js",
+      "marker": "!chargeCounts(card, ch)"
     }
   ]
 }

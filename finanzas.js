@@ -325,9 +325,11 @@ function deleteAccount(id) {
 }
 
 // ── Crédito: tarjetas, compras con tarjeta y pagos de resumen (etapas 4 y 5b) ──
-// Usado = saldo inicial + Σ cargos (monto completo) − Σ pagos. Las cuotas y el reparto del gasto los
-// calcula tarjetas-motor.js (window.CMTarjetas); acá solo se conecta con el estado y la pantalla.
+// Usado = saldo inicial + Σ cargos (monto completo) − Σ pagos. Una tarjeta con arranque (resetAt, ver cardArranque) cuenta
+// solo los cargos y pagos registrados después. Las cuotas, el reparto del gasto y ese corte los calcula tarjetas-motor.js
+// (window.CMTarjetas); acá solo se conecta con el estado y la pantalla.
 function cardUsed(card) {
+  if (window.CMTarjetas) return CMTarjetas.used(card, S.cardCharges, S.cardPayments);
   const sum = (arr) => (arr || []).filter(x => x && x.cardId === card.id).reduce((s, x) => s + (+x.amount || 0), 0);
   return Math.round(((+card.openingUsed || 0) + sum(S.cardCharges) - sum(S.cardPayments)) * 100) / 100;
 }
@@ -443,7 +445,8 @@ function _ccChargeHtml(ch) {
   const paidKeys = new Set((S.cardPayments || []).map(p => p && p.key));
   const sched = card ? CMTarjetas.installmentSchedule(card, ch) : [];
   const exp = CMTarjetas.expenseSchedule(ch);
-  const cuotas = sched.map(q => `<li>${sched.length === 1 ? 'Pago único' : `Cuota ${q.n} de ${sched.length}`} · vence el ${_ccDate(q.dueDate)} · ${_ccPesos(q.amount)}${paidKeys.has(`auto:${ch.cardId}:${q.dueDate}`) ? ' · <span class="cc-paid">pagada</span>' : ''}</li>`).join('');
+  const parte = ch.z ? 'Parte' : 'Cuota';
+  const cuotas = sched.map(q => `<li>${sched.length === 1 ? 'Pago único' : `${parte} ${q.n} de ${sched.length}`} · vence el ${_ccDate(q.dueDate)} · ${_ccPesos(q.amount)}${paidKeys.has(`auto:${ch.cardId}:${q.dueDate}`) ? ' · <span class="cc-paid">pagada</span>' : ''}</li>`).join('');
   let gasto;
   if (ch.cover) {
     gasto = `No cuenta como gasto: la cubre ${escHtml(_coverWho(ch))}.`;
@@ -462,7 +465,8 @@ function _ccChargeHtml(ch) {
       <button class="icon-btn" aria-label="Editar compra" onclick="openEditCardCharge('${escHtml(ch.id)}')">${_EDIT_SVG}</button>
       <button class="icon-btn" aria-label="Borrar compra" onclick="deleteCardCharge('${escHtml(ch.id)}')">${_DEL_SVG}</button>
     </div>
-    <div class="cc-meta">${escHtml(card ? card.name : 'Tarjeta eliminada')} · ${_ccDate(ch.date)} · ${_CC_MODES[ch.mode] || ''}</div>
+    <div class="cc-meta">${escHtml(card ? card.name : 'Tarjeta eliminada')} · ${_ccDate(ch.date)} · ${_CC_MODES[ch.mode] || ''}${ch.z ? ` · <span class="cc-z-tag">Plan Z · ${sched.length || ch.installments} partes</span>` : ''}</div>
+    ${card && !CMTarjetas.chargeCounts(card, ch) ? '<div class="cc-meta">Anterior al arranque de la tarjeta: ya está en el saldo de arranque.</div>' : ''}
     ${_coverChargeHtml(ch)}
     <details class="cc-chg-cal"><summary>Ver cuotas</summary>
       <ul class="cc-chg-list">${cuotas}</ul>
@@ -480,7 +484,7 @@ function _ccCalendarHtml(today, cards) {
   const charges = (S.cardCharges || []).filter(ch => ch && ids.has(ch.cardId));
   const cDues = (Array.isArray(S.cardDues) ? S.cardDues : []).filter(d => d && ids.has(d.cardId));
   if (!window.CMTarjetas || (!charges.length && !cDues.length)) {
-    return head + '<p class="cc-hint" id="cardCalendar">Cuando cargues compras con tarjeta, acá vas a ver cuánto pagás cada mes.</p>' + _ccCalNote();
+    return head + '<p class="cc-hint" id="cardCalendar">Cuando cargues compras con tarjeta, acá vas a ver cuánto pagás cada mes.</p>';
   }
   const y0 = +today.slice(0, 4), m0 = +today.slice(5, 7);
   const byMonth = {}, months = [];
@@ -504,14 +508,14 @@ function _ccCalendarHtml(today, cards) {
   const max = Math.max(...months.map(mk => byMonth[mk].cents));
   const maxPlanned = Math.max(...months.map(mk => byMonth[mk].planned));
   if (!max && !maxPlanned) {
-    return head + '<p class="cc-hint" id="cardCalendar">No tenés pagos pendientes en los próximos 12 meses.</p>' + _ccCalNote();
+    return head + '<p class="cc-hint" id="cardCalendar">No tenés pagos pendientes en los próximos 12 meses.</p>';
   }
   const rows = months.map(mk => {
     const m = byMonth[mk], total = m.cents / 100;
     m.dues.sort((a, b) => (a.dueDate < b.dueDate ? -1 : a.dueDate > b.dueDate ? 1 : (a.name < b.name ? -1 : 1)));
     const dues = m.dues.map(d => `<li class="cc-cal-due">${_ccDM(d.dueDate)} · ${escHtml(d.name)} · ${_ccPesos(d.amount)}</li>`
       + (d.paid > 0 ? `<li class="cc-cal-det">Ya adelantaste ${_ccPesos(d.paid)}</li>`
-        : d.debt > 0 ? `<li class="cc-cal-det">${d.inst > 0 ? `Compras nuevas ${_ccPesos(d.inst)} + ` : ''}lo que cargaste ${_ccPesos(d.debt)}</li>` : '')).join('');
+        : d.debt > 0 ? `<li class="cc-cal-det">${d.inst > 0 ? `Compras nuevas ${_ccPesos(d.inst)} + ` : ''}saldo de arranque ${_ccPesos(d.debt)}</li>` : '')).join('');
     const pct = max ? Math.round(m.cents * 100 / max) : 0;
     return `<div class="cc-cal-m" data-month="${mk}">
       <div class="cc-cal-head"><span class="cc-cal-label">${_ccMonthLabel(mk)}</span>${m.cents
@@ -521,14 +525,8 @@ function _ccCalendarHtml(today, cards) {
       ${m.planned ? `<div class="cc-cal-exp">Gasto previsto: <b>${_ccPesos(m.planned / 100)}</b></div>` : ''}
     </div>`;
   }).join('');
-  return head + `<div id="cardCalendar">${rows}</div>` + _ccCalNote();
+  return head + `<div id="cardCalendar">${rows}</div>`;
 }
-// Aviso del calendario: solo cuando todavía hay saldo usado sin fecha de vencimiento (lo ya usado que no figura acá).
-function _ccCalNote() {
-  const left = _ccRound((S.cards || []).reduce((sum, c) => sum + Math.max(0, _ccRound((+c.openingUsed || 0) - _ccDueAssigned(c))), 0));
-  return left > 0 ? `<p class="cc-hint cc-cal-note">Tenés ${_ccPesos(left)} usados sin fecha de vencimiento: cargalos en Tarjetas</p>` : '';
-}
-
 // Card "Crédito" (sección): solo estadísticas, chica. Todo el detalle (compras, calendario, alta y baja
 // de tarjetas) vive en el overlay de Tarjetas (secciones-fab.js); acá se pinta su contenido en renderCardsOverlay.
 function renderCredit() {
@@ -640,7 +638,6 @@ function renderCardsOverlay() {
       </div>
       <div class="cc-meta">Cierra el día ${c.closeDay} · Vence el día ${c.dueDay}${pct > 100 ? ' · <b class="cc-over">Te pasaste del límite</b>' : ''}</div>
       ${payHtml}
-      ${_ccDuesSecHtml(c, today)}
     </div>`;
   }).join('');
   pTarj.innerHTML = `<div class="cc-pane-bar">
@@ -795,6 +792,7 @@ function openCardModal(id) {
   document.getElementById('cardCloseDay').value = c ? c.closeDay : '';
   document.getElementById('cardDueDay').value = c ? c.dueDay : '';
   document.getElementById('cardOpeningUsed').value = c ? c.openingUsed : '';
+  document.getElementById('cardPlanZ').checked = !!(c && c.planZ);
   document.getElementById('cardPayAccount').innerHTML = _ccAccountOptions(c && c.payAccountId, '— Todavía no elijo —');
   document.getElementById('cardErr').textContent = '';
   const locked = !!c && _cardHasCharges(c.id);
@@ -813,6 +811,7 @@ function saveCard() {
   const usedRaw = document.getElementById('cardOpeningUsed').value.trim();
   const openingUsed = usedRaw === '' ? 0 : Number(usedRaw);
   const payAccountId = document.getElementById('cardPayAccount').value;
+  const planZ = document.getElementById('cardPlanZ').checked;
   const okDay = (d) => Number.isInteger(d) && d >= 1 && d <= 31;
   if (!name) return err('Escribí el nombre de la tarjeta');
   if (!(limit > 0) || !isFinite(limit)) return err('El límite tiene que ser mayor a cero');
@@ -828,9 +827,10 @@ function saveCard() {
   }
   if (existing) {
     Object.assign(existing, data);
+    if (planZ) existing.planZ = true; else delete existing.planZ;
     if (payAccountId) existing.payAccountId = payAccountId; else delete existing.payAccountId;
   } else {
-    S.cards.push({ id: uid(), ...data, ...(payAccountId ? { payAccountId } : {}) });
+    S.cards.push({ id: uid(), ...data, ...(planZ ? { planZ: true } : {}), ...(payAccountId ? { payAccountId } : {}) });
   }
   snapshotNW(); saveState(); renderFinanzasTab(); closeModal('modal-card');
   showToast(existing ? 'Tarjeta actualizada' : 'Tarjeta agregada');
@@ -846,113 +846,44 @@ function deleteCard(id) {
   snapshotNW(); saveState(); renderFinanzasTab();
 }
 
-// ── Vencimientos de lo ya usado ──
-// openingUsed es lo que ya se debía al empezar, sin fechas. Acá se reparte por mes de vencimiento: S.cardDues
-// = [{ id:'cd:<tarjeta>:<fecha>', cardId, due, amount }], uno por tarjeta y vencimiento (el id determinístico evita
-// duplicados entre dispositivos). El pago automático los suma a las cuotas del mismo día (applyCardAutoPayments).
-const _ccDuesOpen = new Set();   // tarjetas con la sección abierta (sobrevive a los re-render)
-let _ccDueOkAt = 0;              // para ignorar el segundo clic de un doble clic en Guardar
-function _ccDuesToggle(cardId, open) { if (open) _ccDuesOpen.add(cardId); else _ccDuesOpen.delete(cardId); }
-const _ccDueId = (cardId, due) => `cd:${cardId}:${due}`;
-function _ccCardDues(cardId) {
-  return (Array.isArray(S.cardDues) ? S.cardDues : [])
-    // Mismo criterio que el motor (dueTotals): monto numérico > 0 y fecha real; lo demás no se cuenta ni se muestra.
-    .filter(d => d && d.cardId === cardId && /^\d{4}-\d{2}-\d{2}$/.test(d.due || '')
-      && (() => { const [y, m, dd] = d.due.split('-').map(Number), t = new Date(y, m - 1, dd); return t.getFullYear() === y && t.getMonth() === m - 1 && t.getDate() === dd; })()
-      && typeof d.amount === 'number' && Number.isFinite(d.amount) && d.amount > 0)
-    .sort((a, b) => (a.due < b.due ? -1 : a.due > b.due ? 1 : 0));
-}
-const _ccDueAssigned = (card) => _ccRound(_ccCardDues(card.id).reduce((s, d) => s + (+d.amount || 0), 0));
-const _ccDuePaid = (cardId, due) => (S.cardPayments || []).some(p => p && p.key === `auto:${cardId}:${due}`);
-const _ccDueLabel = (due) => `${_ccMonthLabel(due.slice(0, 7))} · vence el ${_ccDM(due)}`;
-
-// Control "cargaste X de Y": cuánto de lo usado ya tiene fecha. Solo informa, no bloquea.
-function _ccDueControl(card) {
-  const used = _ccRound(+card.openingUsed || 0), got = _ccDueAssigned(card), diff = _ccRound(used - got);
-  const base = `Cargaste ${_ccPesos(got)} de ${_ccPesos(used)} usados`;
-  if (diff > 0) return { tone: 'falta', text: `${base} · te faltan ${_ccPesos(diff)} por asignar` };
-  if (diff < 0) return { tone: 'pasado', text: `${base} · te pasaste por ${_ccPesos(-diff)}` };
-  return { tone: 'ok', text: `${base} · ya está todo asignado` };
-}
-
-function _ccDuesSecHtml(c, today) {
-  if (!window.CMTarjetas) return '';
-  const cid = escHtml(c.id);
-  const mine = _ccCardDues(c.id);
-  const rows = mine.map(d => {
-    const paid = _ccDuePaid(c.id, d.due), past = d.due < today;
-    const tag = paid ? ' <span class="cc-paid">pagado</span>' : past ? ' <span class="cc-over">venció sin pagar</span>' : '';
-    const due = escHtml(d.due);
-    const edit = paid || past ? '' : `<button class="icon-btn" aria-label="Editar vencimiento" onclick="editCardDue('${cid}','${due}')">${_EDIT_SVG}</button>`;
-    return `<li class="cc-due-row" data-due="${due}"><span class="cc-due-lbl">${escHtml(_ccDueLabel(d.due))}${tag}</span><b class="cc-due-amt">${_ccPesos(+d.amount || 0)}</b>${edit}<button class="icon-btn" aria-label="Borrar vencimiento" onclick="deleteCardDue('${cid}','${due}')">${_DEL_SVG}</button></li>`;
-  }).join('');
-  const taken = new Set(mine.map(d => d.due));
-  const opts = CMTarjetas.upcomingDueDates(c, today, 24)
-    .map(d => `<option value="${escHtml(d)}">${escHtml(_ccDueLabel(d))}${taken.has(d) ? ' · ya cargado' : ''}</option>`).join('');
-  const ctl = _ccDueControl(c);
-  return `<details class="cc-dues" data-dues-card="${cid}"${_ccDuesOpen.has(c.id) ? ' open' : ''} ontoggle="_ccDuesToggle('${cid}',this.open)">
-    <summary>Vencimientos de lo ya usado</summary>
-    <p class="cc-hint">Cargá cuánto pagás de esta tarjeta cada mes (podés poner el total del resumen del banco). Las compras que ya cargaste en el Centro hasta ese día se toman incluidas; solo se suman las nuevas. Si elegís un mes que ya cargaste, se cambia el monto.</p>
-    ${rows ? `<ul class="cc-due-list">${rows}</ul>` : ''}
-    <div class="cc-due-form">
-      <select class="inp" id="ccDueSel-${cid}" aria-label="Mes de vencimiento">${opts}</select>
-      <input class="inp" type="number" step="0.01" min="0" inputmode="decimal" id="ccDueAmt-${cid}" placeholder="Monto a pagar" aria-label="Monto a pagar ese mes">
-      <button class="btn btn-primary btn-sm" onclick="saveCardDue('${cid}')">Guardar</button>
-    </div>
-    <div class="move-warn cc-due-err" id="ccDueErr-${cid}" role="alert"></div>
-    <div class="cc-due-ctl" data-tone="${ctl.tone}" role="status">${ctl.text}</div>
-  </details>`;
-}
-
-function saveCardDue(cardId) {
-  const card = (S.cards || []).find(c => c.id === cardId);
-  const sel = document.getElementById(`ccDueSel-${cardId}`), amt = document.getElementById(`ccDueAmt-${cardId}`);
-  const errEl = document.getElementById(`ccDueErr-${cardId}`);
-  if (!card || !sel || !amt || !window.CMTarjetas) return;
-  const err = (m) => { if (errEl) errEl.textContent = m; };
-  const raw = amt.value.trim();
-  if (raw === '' && Date.now() - _ccDueOkAt < 800) return;   // segundo clic de un doble clic: ya se guardó
-  const due = sel.value, amount = Number(raw);
-  if (!due) return err('Elegí el mes del vencimiento.');
-  if (raw === '' || !isFinite(amount) || !(amount > 0)) return err('Poné cuánto pagás ese mes (más de 0).');
-  if (!_ccTwoDecimals(amount)) return err('El monto puede tener como máximo 2 decimales.');
-  if (_ccDuePaid(card.id, due)) return err(`El vencimiento del ${_ccDate(due)} ya tiene un pago registrado: no se puede cargar ni cambiar.`);
-  if (due < getActiveDate()) return err('Ese vencimiento ya pasó. Cargá solo vencimientos de hoy en adelante.');
-  const setAt = getActiveDate();   // el monto cargado ya incluye las compras hasta hoy: solo se suman las nuevas
-  const rec = { id: _ccDueId(card.id, due), cardId: card.id, due, amount, setAt };
-  const v = CMTarjetas.validateDue(card, rec);
-  if (!v.ok) return err(v.error);
-  if (!Array.isArray(S.cardDues)) S.cardDues = [];
-  const ex = S.cardDues.find(d => d && d.cardId === card.id && d.due === due);
-  if (ex) { ex.amount = amount; ex.setAt = setAt; } else S.cardDues.push(rec);
-  _ccDueOkAt = Date.now();
-  _ccDuesOpen.add(card.id);
-  saveState(); renderFinanzasTab();
-  showToast(ex ? 'Vencimiento actualizado' : 'Vencimiento cargado');
-}
-
-// Pasa un vencimiento ya cargado al formulario para cambiarle el monto (guardar lo actualiza, no lo duplica).
-function editCardDue(cardId, due) {
-  const d = _ccCardDues(cardId).find(x => x.due === due);
-  const sel = document.getElementById(`ccDueSel-${cardId}`), amt = document.getElementById(`ccDueAmt-${cardId}`);
-  if (!d || !sel || !amt) return;
-  sel.value = due; amt.value = String(d.amount);
-  const errEl = document.getElementById(`ccDueErr-${cardId}`); if (errEl) errEl.textContent = '';
-  amt.focus();
-}
-
-function deleteCardDue(cardId, due) {
-  const card = (S.cards || []).find(c => c.id === cardId);
-  const d = _ccCardDues(cardId).find(x => x.due === due);
-  if (!card || !d) return;
-  const paid = _ccDuePaid(cardId, due);
-  const msg = `¿Borrar el vencimiento del ${_ccDate(due)} (${_ccPesos(+d.amount || 0)}) de "${card.name}"?` + (paid
-    ? '\n\nEse pago ya se hizo: la plata ya salió de tu cuenta y queda registrado, no se deshace.'
-    : '\n\nEse monto vuelve a figurar como usado sin fecha de vencimiento.');
-  if (!confirm(msg)) return;
-  S.cardDues = S.cardDues.filter(x => !(x && x.cardId === cardId && x.due === due));
-  saveState(); renderFinanzasTab();
-  showToast('Vencimiento borrado');
+// ── Arranque de una tarjeta (foto de hoy) ──
+// Se corre una vez desde la consola, con los números que da el usuario (nada está hardcodeado):
+//   cardArranque('Nombre o id', { usado: 123456.78, meses: { 'YYYY-MM-DD': monto, ... } })
+// `usado` = lo que debe hoy la tarjeta (queda en openingUsed). `meses` = lo que vence cada día de vencimiento de la tarjeta
+// (cronograma base, va a S.cardDues y reemplaza TODO lo anterior de esa tarjeta). Desde ese momento (resetAt) solo cuentan
+// los cargos y pagos registrados después (ver tarjetas-motor.js). Las compras y pagos anteriores quedan como historial.
+// Si algo no valida no cambia nada y devuelve { error }. Se puede volver a correr: reemplaza el arranque anterior.
+function cardArranque(nombreOId, opts) {
+  const err = (m) => ({ error: m });
+  if (!window.CMTarjetas || !Array.isArray(S.cards)) return err('Tarjetas no disponibles.');
+  const ref = String(nombreOId == null ? '' : nombreOId).trim(), low = ref.toLowerCase();
+  if (!ref) return err('Falta la tarjeta (nombre o id).');
+  let card = S.cards.find(c => c && c.id === ref);
+  if (!card) {
+    const byName = S.cards.filter(c => c && typeof c.name === 'string' && c.name.trim().toLowerCase() === low);
+    if (byName.length > 1) return err(`Hay más de una tarjeta llamada "${ref}": usá el id.`);
+    card = byName[0];
+  }
+  if (!card) return err(`No existe la tarjeta "${ref}".`);
+  if (!opts || typeof opts !== 'object') return err('Falta { usado, meses }.');
+  const usado = opts.usado;
+  if (typeof usado !== 'number' || !isFinite(usado) || usado < 0) return err('"usado" tiene que ser un número mayor o igual a 0.');
+  if (!_ccTwoDecimals(usado)) return err('"usado" puede tener como máximo 2 decimales.');
+  const meses = opts.meses == null ? {} : opts.meses;
+  if (typeof meses !== 'object' || Array.isArray(meses)) return err('"meses" tiene que ser un objeto { \'YYYY-MM-DD\': monto }.');
+  const today = getActiveDate();
+  const fechas = Object.keys(meses).sort();
+  for (const due of fechas) {
+    const v = CMTarjetas.validateDue(card, { cardId: card.id, due, amount: meses[due] });
+    if (!v.ok) return err(`${due}: ${v.error}`);
+    if (due < today) return err(`${due}: ese vencimiento ya pasó. Cargá solo vencimientos de hoy en adelante.`);
+  }
+  const now = Date.now();
+  card.resetAt = now; card.resetDay = today; card.openingUsed = usado;
+  S.cardDues = (Array.isArray(S.cardDues) ? S.cardDues : []).filter(d => !(d && d.cardId === card.id));
+  fechas.forEach(due => S.cardDues.push({ id: `cd:${card.id}:${due}`, cardId: card.id, due, amount: meses[due], setAt: today, setAtTs: now }));
+  snapshotNW(); saveState(); renderFinanzasTab();
+  return { tarjeta: card.name, usado: cardUsed(card), meses: { ...meses } };
 }
 
 // ── Compra con tarjeta (dentro del formulario de Movimientos) ──
@@ -1007,6 +938,7 @@ function initTxnForm() {
   g('ccChMode').value = 'now1';
   g('ccChInst').value = '3';
   g('ccChMonths').value = '3';
+  g('ccChZ').checked = false;
   g('ccChToAcc').innerHTML = _ccAccountOptions('', '— Elegí una cuenta —');
   g('ccChErr').textContent = '';
   _coverReset();
@@ -1240,10 +1172,23 @@ function openTxnCardForm() {
   if (cards.length > 1) document.getElementById('txnAccount').focus();
 }
 
+// Plan Z: casilla visible solo si la tarjeta lo ofrece (planZ) y la compra es en cuotas. Al editar una compra que ya era Z
+// se deja ver aunque la tarjeta ya no lo ofrezca, para poder sacarlo. Si no corresponde, se destilda sola.
+function _ccZSync() {
+  const z = document.getElementById('ccChZ'), mode = document.getElementById('ccChMode').value;
+  const card = (S.cards || []).find(c => c.id === _txnPayCardId());
+  const show = !!card && (mode === 'nowInst' || mode === 'deferred') && (!!card.planZ || (!!_txnEditChargeId && z.checked));
+  if (!show) z.checked = false;
+  document.getElementById('ccChZRow').style.display = show ? '' : 'none';
+  document.getElementById('ccChInstLbl').textContent = show && z.checked ? 'Cantidad de partes (Plan Z)' : 'Cantidad de cuotas';
+}
+function onCardChargeZChange() { _ccZSync(); updateCardChargePreview(); }
+
 function onCardChargeModeChange() {
   const mode = document.getElementById('ccChMode').value;
   const show = (id, on) => { document.getElementById(id).style.display = on ? '' : 'none'; };
   show('ccChInstRow', mode !== 'now1');
+  _ccZSync();
   show('ccChMonthsRow', mode === 'deferred');
   show('ccChToAccRow', mode === 'advance');
   show('txnCategoryRow', mode !== 'advance');
@@ -1268,6 +1213,7 @@ function _ccReadCharge() {
     category: mode === 'advance' ? '' : v('txnCategory'), name: v('txnName').trim(),
   };
   if (mode === 'deferred') ch.consumeMonths = Number(v('ccChMonths'));
+  if (document.getElementById('ccChZ').checked && document.getElementById('ccChZRow').style.display !== 'none') ch.z = true;
   if (mode === 'advance') ch.toAccountId = v('ccChToAcc');
   if (disc && !refund) { ch.discountPct = pct; ch.amountOriginal = total; }
   if (refund) ch.refund = { pct, amount: _ccRound(total - _discountFinal(total, pct)), accountId: v('txnRefundAcc'), txnId: '' };
@@ -1302,7 +1248,7 @@ function updateCardChargePreview() {
   const st = CMTarjetas.statementFor(card, ch.date);
   const fx = CMTarjetas.chargeEffects(card, ch);
   const n = fx.installments.length;
-  const cuotas = fx.installments.map(q => `<li>${n === 1 ? 'Pago único' : `Cuota ${q.n} de ${n}`} · vence el ${_ccDate(q.dueDate)} · ${_ccPesos(q.amount)}</li>`).join('');
+  const cuotas = fx.installments.map(q => `<li>${n === 1 ? 'Pago único' : `${ch.z ? 'Parte' : 'Cuota'} ${q.n} de ${n}`} · vence el ${_ccDate(q.dueDate)} · ${_ccPesos(q.amount)}</li>`).join('');
   let gasto;
   if (ch.cover) {
     gasto = `<div>No cuenta como gasto. ${escHtml(ch.cover.who)} te debe ${_ccPesos(ch.amount)}: queda en "${escHtml(_COVER_ACC_PREFIX + ch.cover.who)}". Las cuotas y el límite son los de siempre.</div>`;
@@ -1410,6 +1356,7 @@ function openEditCardCharge(id) {
   g('ccChMode').value = ch.mode;
   g('ccChInst').value = ch.installments || 3;
   g('ccChMonths').value = ch.consumeMonths || 3;
+  g('ccChZ').checked = !!ch.z;
   g('ccChToAcc').innerHTML = _ccAccountOptions(ch.toAccountId || '', '— Elegí una cuenta —');
   _coverLoad(ch);
   onTxnPaymentChange();

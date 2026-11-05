@@ -61,8 +61,8 @@ test('calendario: 12 meses y total a pagar correcto por vencimiento con los 4 mo
   // Después de la última cuota no queda nada.
   await expect(mes(cmPage, '2027-02')).toContainText('Nada para pagar');
   await expect(cal.locator('.cc-cal-due')).toHaveCount(3);
-  // Nota: hay saldo usado sin fecha de vencimiento
-  await expect(cmPage.locator('.cc-cal-note')).toHaveText("Tenés $865.000 usados sin fecha de vencimiento: cargalos en Tarjetas");
+  // Ya no hay aviso de "usado sin fecha": el cronograma base lo carga cardArranque
+  await expect(cmPage.locator('.cc-cal-note')).toHaveCount(0);
   expect(consoleErrors).toEqual([]);
 });
 

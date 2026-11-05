@@ -8,9 +8,11 @@
 //   · Node/cron → require('./tarjetas-motor.js') (deadlines.js / push, etapa 6)
 //
 // Modelo (claves de primer nivel en el estado):
-//   cards        [{ id, name, limit, closeDay, dueDay, openingUsed }]
+//   cards        [{ id, name, limit, closeDay, dueDay, openingUsed, planZ?, resetAt?, resetDay? }]
+//                resetAt (ms) + resetDay ('YYYY-MM-DD') = "arranque": foto del usado de hoy (openingUsed) y de su cronograma
+//                (cardDues). Desde ahí solo cuentan los cargos y pagos registrados DESPUÉS (ver chargeCounts/paymentCounts).
 //   cardCharges  [{ id, cardId, date, amount, mode, installments, consumeMonths,
-//                   category, name, toAccountId }]
+//                   category, name, toAccountId, z? }]   z:true = Plan Z (en cuotas sin interés; solo nowInst/deferred)
 //                mode: 'now1' | 'deferred' | 'nowInst' | 'advance'
 //   cardPayments [{ id, cardId, date, amount, accountId, kind:'auto'|'manual', key }]
 //                key = statementKey del resumen que se pagó
@@ -56,6 +58,54 @@ const CMTarjetas = (() => {
     const out = [];
     for (let i = 0; i < n; i++) out.push(i === n - 1 ? cents - base * (n - 1) : base);
     return out.map(c => c / 100);
+  }
+
+  // ── Arranque (resetAt) ──
+  // Una tarjeta con `resetAt` arrancó de cero con una foto: openingUsed + cardDues ya incluyen todo lo registrado hasta
+  // ese momento. Los cargos/pagos anteriores quedan de historial y no suman al Usado, al calendario ni al pago automático.
+  const MS_MIN = Date.UTC(2020, 0, 1), MS_MAX = Date.UTC(2100, 0, 1);
+  const hasReset = card => !!card && typeof card.resetAt === 'number' && isFinite(card.resetAt) && card.resetAt > 0;
+  // Momento en que se creó un registro: los ids son uid() = Date.now().toString(36) + 4 al azar. null si no se puede leer.
+  function idTs(id) {
+    if (typeof id !== 'string' || id.length < 8) return null;
+    const ms = parseInt(id.slice(0, 8), 36);
+    return isFinite(ms) && ms >= MS_MIN && ms <= MS_MAX ? ms : null;
+  }
+  // Día (local) del arranque; resetDay lo guarda cardArranque con el "hoy" de la app.
+  function resetDayOf(card) {
+    if (!hasReset(card)) return null;
+    if (parseISO(card.resetDay)) return card.resetDay;
+    const d = new Date(card.resetAt);
+    return fmt(d.getFullYear(), d.getMonth() + 1, d.getDate());
+  }
+  // ¿Este cargo suma después del arranque? Por momento de registro (id); si el id no se lee, por fecha del cargo.
+  function chargeCounts(card, ch) {
+    if (!hasReset(card)) return true;
+    if (!ch || typeof ch !== 'object') return false;
+    const ts = idTs(ch.id);
+    if (ts !== null) return ts > card.resetAt;
+    return typeof ch.date === 'string' && ch.date > resetDayOf(card);
+  }
+  // ¿Este pago suma después del arranque? El automático (key auto:<tarjeta>:<fecha>) por la fecha de su vencimiento;
+  // el manual por el momento de registro (id) o, si no se lee, por su fecha.
+  function paymentCounts(card, p) {
+    if (!hasReset(card)) return true;
+    if (!p || typeof p !== 'object') return false;
+    const day = resetDayOf(card);
+    if (typeof p.key === 'string' && p.key.startsWith('auto:')) {
+      const due = typeof p.date === 'string' && p.date ? p.date : p.key.slice(p.key.lastIndexOf(':') + 1);
+      return due >= day;
+    }
+    const ts = idTs(p.id);
+    if (ts !== null) return ts > card.resetAt;
+    return typeof p.date === 'string' && p.date > day;
+  }
+
+  // Usado = openingUsed + Σ cargos − Σ pagos (con arranque: solo los posteriores). Es el cálculo de cardUsed (finanzas.js).
+  function used(card, charges, payments) {
+    const sum = (arr, ok) => (Array.isArray(arr) ? arr : [])
+      .filter(x => x && x.cardId === card.id && ok(x)).reduce((s, x) => s + (+x.amount || 0), 0);
+    return Math.round(((+card.openingUsed || 0) + sum(charges, c => chargeCounts(card, c)) - sum(payments, p => paymentCounts(card, p))) * 100) / 100;
   }
 
   // Día de cierre/vencimiento: entero 1..31 (el UI guarda enteros; '27' se rechaza).
@@ -161,17 +211,20 @@ const CMTarjetas = (() => {
     const acc = new Map();
     // Vencimiento cargado a mano con fecha de carga (setAt): ese monto ya incluye las cuotas de las compras hechas
     // hasta ese día; solo se suman las de compras posteriores.
+    // Con arranque no se usa: lo anterior al arranque ya se descarta por completo (chargeCounts).
+    const reset = hasReset(card), resetDay = resetDayOf(card);
     const setAtOf = new Map();
-    if (withDues) dues.forEach(d => { if (d && d.cardId === card.id && parseISO(d.setAt)) setAtOf.set(d.due, d.setAt); });
+    if (withDues && !reset) dues.forEach(d => { if (d && d.cardId === card.id && parseISO(d.setAt)) setAtOf.set(d.due, d.setAt); });
     const slot = (dueDate, statementKey) => {
       const cur = acc.get(dueDate) || { dueDate, statementKey, cents: 0, inst: 0, debt: 0 };
       acc.set(dueDate, cur);
       return cur;
     };
     charges.forEach(ch => {
-      if (!ch || ch.cardId !== card.id ||!validateCharge(ch).ok) return;
+      if (!ch || ch.cardId !== card.id ||!validateCharge(ch).ok || !chargeCounts(card, ch)) return;
       installmentSchedule(card, ch).forEach(q => {
         if (q.dueDate < fromISO || q.dueDate > toISO) return;
+        if (reset && q.dueDate < resetDay) return;   // vencía antes del arranque: no se vuelve a pagar
         if (setAtOf.has(q.dueDate) && ch.date <= setAtOf.get(q.dueDate)) return;
         const cur = slot(q.dueDate, q.statementKey), c = Math.round(q.amount * 100);
         cur.cents += c; cur.inst += c;
@@ -202,7 +255,7 @@ const CMTarjetas = (() => {
     const all = dueTotals(card, charges, '1900-01-01', toISO, dues);
     const autoBy = new Map(), manualBy = new Map();
     (Array.isArray(payments) ? payments : []).forEach(p => {
-      if (!p) return;
+      if (!p || !paymentCounts(card, p)) return;
       const c = Math.round((+p.amount || 0) * 100);
       // El automático se reconoce por la key (ya trae la tarjeta), igual que antes; el manual, por cardId.
       if (typeof p.key === 'string' && p.key.startsWith(`auto:${card.id}:`)) autoBy.set(p.key, (autoBy.get(p.key) || 0) + c);
@@ -234,6 +287,11 @@ const CMTarjetas = (() => {
       if (!isInt(m) || m < 1 || m > MAX_N) return `Los meses de consumo tienen que ser un entero entre 1 y ${MAX_N}.`;
     }
     if (c.mode === 'advance' && !c.toAccountId) return 'Elegí la cuenta donde entra la plata.';
+    if (c.z != null && typeof c.z !== 'boolean') return 'Plan Z inválido.';
+    if (c.z === true) {
+      if (c.mode !== 'nowInst' && c.mode !== 'deferred') return 'El Plan Z solo va en compras en cuotas.';
+      if (n < 2) return 'El Plan Z necesita al menos 2 partes.';
+    }
     return null;
   }
 
@@ -273,7 +331,7 @@ const CMTarjetas = (() => {
     return { ok: true, error: null };
   }
 
-  return { statementFor, installmentSchedule, expenseSchedule, chargeEffects, dueTotals, pendingDues, upcomingDueDates, validateCharge, validateCard, validateDue };
+  return { hasReset, resetDayOf, idTs, chargeCounts, paymentCounts, used, statementFor, installmentSchedule, expenseSchedule, chargeEffects, dueTotals, pendingDues, upcomingDueDates, validateCharge, validateCard, validateDue };
 })();
 
 if (typeof window !== 'undefined') window.CMTarjetas = CMTarjetas;
