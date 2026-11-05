@@ -545,7 +545,9 @@ textarea { resize: vertical; min-height: 60px; }
 .tl-q-vacia { font-size: var(--fs-12-5); color: var(--tt); opacity: .55; font-style: italic; padding: 2px 4px 8px; }
 .tl-q .goal-item { padding: 8px 9px; gap: 8px; }
 .tl-q .mrd-item { padding: 8px 9px; gap: 8px; }
-.tl-q .mrd-text { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.tl-q .mrd-text { min-width: 0; flex: 1; overflow-wrap: anywhere; cursor: text; }
+.tl-q .mrd-item { cursor: grab; }
+.tl-q .mrd-item.sortable-chosen { cursor: grabbing; }
 /* Cambiar de categoría: ícono chico con el <select> nativo encima (transparente) para abrir el selector del sistema. */
 .goal-q-wrap { position: relative; flex: none; width: 20px; height: 20px; display: grid; place-items: center; border-radius: 6px; color: var(--tt); cursor: pointer; }
 .goal-q-wrap:hover { color: var(--tp); background: rgba(255,255,255,.06); }

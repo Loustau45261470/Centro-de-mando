@@ -196,3 +196,46 @@ test('9) la tarjeta de la sección también agrupa por categoría', async ({ cmP
   await expect(t.locator('.mrd-prog-num')).toHaveText('1');
   expect(consoleErrors).toEqual([]);
 });
+
+test('10) en la tarjeta de la sección se puede editar el texto, cambiar de categoría y arrastrar', async ({ cmPage, consoleErrors }) => {
+  await irAVida(cmPage);
+  await cmPage.evaluate(() => {
+    S.goals[getActiveDate()] = [
+      { id: 'e1', text: 'p9', done: false, priority: 'mid', q: 'un' },
+      { id: 'e2', text: 'Otra', done: false, priority: 'high' },
+    ];
+    renderMetasReadonly();
+  });
+  const t = cmPage.locator('#metas-readonly-card');
+  // Cambiar de categoría con el selector ⇅
+  await t.locator('.tl-q[data-q="un"] .goal-q-sel').selectOption('ni');
+  await expect(t.locator('.tl-q[data-q="ni"] .mrd-text')).toHaveText(['p9']);
+  expect((await estado(cmPage, 'p9')).q).toBe('ni');
+  // Editar el texto con clic + Enter
+  await t.locator('.tl-q[data-q="ni"] .mrd-text').click();
+  await cmPage.keyboard.press('End');
+  await cmPage.keyboard.type(' editada');
+  await cmPage.keyboard.press('Enter');
+  await expect(t.locator('.tl-q[data-q="ni"] .mrd-text')).toHaveText(['p9 editada']);
+  expect(await estado(cmPage, 'p9 editada')).toBeTruthy();
+  // Escape cancela la edición
+  await t.locator('.tl-q[data-q="ni"] .mrd-text').click();
+  await cmPage.keyboard.type('xx');
+  await cmPage.keyboard.press('Escape');
+  await expect(t.locator('.tl-q[data-q="ni"] .mrd-text')).toHaveText(['p9 editada']);
+  // Arrastrar a otra categoría (el mouse no tiene demora; en touch hay que mantener apretado)
+  const src = t.locator('.tl-q[data-q="ui"] .mrd-item .mrd-prio');
+  const dst = t.locator('.tl-q[data-q="nn"] .tl-q-list');
+  const a = await src.boundingBox(), b = await dst.boundingBox();
+  await cmPage.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
+  await cmPage.mouse.down();
+  await cmPage.mouse.move(a.x + 20, a.y + 10, { steps: 5 });
+  await cmPage.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 15 });
+  await cmPage.mouse.up();
+  await expect(t.locator('.tl-q[data-q="nn"] .mrd-text')).toHaveText(['Otra']);
+  const otra = await estado(cmPage, 'Otra');
+  expect(otra.q).toBe('nn');
+  expect(otra.priority).toBe('low');
+  expect(await cmPage.evaluate(() => S.goals[getActiveDate()].length)).toBe(2);
+  expect(consoleErrors).toEqual([]);
+});

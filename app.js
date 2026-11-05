@@ -1584,7 +1584,7 @@ function renderGoals() {
   if (hasTimed) renderReminders('vida');
 }
 
-// Lista de tareas del día en la sección: ver, marcar y agregar (botón + Tarea). Editar/borrar/cambiar de categoría viven en Planificación (overlay).
+// Lista de tareas del día en la sección: ver, marcar, agregar, editar el texto (clic), cambiar de categoría (⇅) y arrastrar entre categorías. Borrar vive en Planificación (overlay).
 function renderMetasReadonly() {
   const body = document.getElementById('metasReadonlyBody'); if (!body) return;
   const date = getActiveDate();
@@ -1600,14 +1600,71 @@ function renderMetasReadonly() {
       const items = view.filter(x => cuadranteDe(x.g) === key);
       const nDone = items.filter(x => x.g.done).length;
       return `<section class="tl-q" data-q="${key}"><div class="tl-q-head"><span class="tl-q-name">${label}</span><span class="gs-count">${nDone}/${items.length}</span></div>`
-        + (items.length ? items.map(({ g, i: idx }) => `<div class="mrd-item${g.done ? ' done' : ''}">
+        + `<div class="tl-q-list" data-q="${key}">` + (items.length ? items.map(({ g, i: idx }) => `<div class="mrd-item${g.done ? ' done' : ''}" data-idx="${idx}">
         ${g.time ? `<span class="mrd-time">${fmtGoalTime(g.time)}</span>` : ''}
         <span class="mrd-prio" style="background:${PRIORITY_COLOR[g.priority] || '#666'}"></span>
-        <span class="mrd-text">${escHtml(g.text)}</span>
+        <span class="mrd-text" title="Tocá para editar">${escHtml(g.text)}</span>
+        <span class="goal-q-wrap" title="Cambiar de categoría"><span class="goal-q-ic" aria-hidden="true">⇅</span><select class="goal-q-sel" aria-label="Categoría de la tarea">${goalQuadOptions(key)}</select></span>
         <button class="mrd-check" onclick="toggleGoal('${escHtml(date)}',${idx})" aria-label="Marcar tarea"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></button>
       </div>`).join('') : '<div class="tl-q-vacia">Nada acá</div>')
-        + '</section>';
+        + '</div></section>';
     }).join('') + '</div>';
+  body.querySelectorAll('.mrd-item').forEach(row => {
+    const idx = +row.dataset.idx;
+    row.querySelector('.goal-q-sel').addEventListener('change', e => setGoalQuad(date, idx, e.target.value));
+    _goalTextEditable(row.querySelector('.mrd-text'), date, idx);
+  });
+  if (typeof Sortable !== 'undefined') {
+    const matrix = body.querySelector('.tl-matrix');
+    matrix.querySelectorAll('.tl-q-list').forEach(sec => Sortable.create(sec, {
+      group: 'goalsCard', animation: 150, draggable: '.mrd-item',
+      filter: '.mrd-check, .goal-q-wrap', preventOnFilter: false,
+      delay: 250, delayOnTouchOnly: true,   // en el celu: mantener apretado para arrastrar (si no, choca con el scroll)
+      onEnd: () => { _goalMatrixReorder(matrix, date, '.mrd-item'); setTimeout(renderGoals, 0); }
+    }));
+  }
+}
+
+// Reordena S.goals[date] según el DOM de una matriz de categorías; mover a otra categoría guarda q (y su prioridad).
+// Usa el estado vivo (no el del render) para evitar corrupción por renderGoals() re-entrante.
+function _goalMatrixReorder(matrix, date, itemSel) {
+  const cur = S.goals[date] || [];
+  const newArr = [];
+  matrix.querySelectorAll('.tl-q-list').forEach(s2 => {
+    s2.querySelectorAll(itemSel).forEach(el => {
+      const item = cur[+el.dataset.idx];
+      if (!item) return;
+      if (cuadranteDe(item) !== s2.dataset.q) { item.q = s2.dataset.q; item.priority = GOAL_QUAD_PRIO[s2.dataset.q]; }
+      newArr.push(item);
+    });
+  });
+  if (newArr.length === cur.length) { S.goals[date] = newArr; saveState(); }
+}
+
+// Edición en línea del texto de una tarea (clic → editable; Enter guarda, Escape cancela).
+function _goalTextEditable(textEl, date, idx) {
+  textEl.addEventListener('click', () => {
+    if (textEl.getAttribute('contenteditable') === 'true') return;
+    const orig = textEl.textContent;
+    textEl.setAttribute('contenteditable','true');
+    textEl.focus();
+    const range = document.createRange(); range.selectNodeContents(textEl); range.collapse(false);
+    window.getSelection().removeAllRanges(); window.getSelection().addRange(range);
+    const onKey = e => {
+      if (e.key === 'Enter') { e.preventDefault(); textEl.blur(); }
+      else if (e.key === 'Escape') { textEl.textContent = orig; textEl.blur(); }
+    };
+    const commit = () => {
+      textEl.removeEventListener('keydown', onKey);
+      textEl.removeAttribute('contenteditable');
+      const v = textEl.textContent.trim();
+      const g = (S.goals[date] || [])[idx];
+      if (g && v && v !== orig) { g.text = v; saveState(); }
+      else textEl.textContent = orig;
+    };
+    textEl.addEventListener('blur', commit, { once: true });
+    textEl.addEventListener('keydown', onKey);
+  });
 }
 
 // ── Orden automático de metas (capa de vista: ordena una copia y conserva el índice real) ──
@@ -1646,25 +1703,7 @@ function buildGoalItem(g, idx, date, readOnly) {
   // Delete
   li.querySelector('.goal-del').addEventListener('click', () => { deleteGoal(date, idx); });
   // Inline edit (text)
-  if (!readOnly) {
-    const textEl = li.querySelector('.goal-text-el');
-    textEl.addEventListener('click', () => {
-      if (textEl.getAttribute('contenteditable') === 'true') return;
-      const orig = textEl.textContent;
-      textEl.setAttribute('contenteditable','true');
-      textEl.focus();
-      const range = document.createRange(); range.selectNodeContents(textEl); range.collapse(false);
-      window.getSelection().removeAllRanges(); window.getSelection().addRange(range);
-      const commit = () => {
-        textEl.removeAttribute('contenteditable');
-        const v = textEl.textContent.trim();
-        if (v && v !== orig) { S.goals[date][idx].text = v; saveState(); }
-        else textEl.textContent = orig;
-      };
-      textEl.addEventListener('blur', commit, { once: true });
-      textEl.addEventListener('keydown', e => { if (e.key==='Enter') { e.preventDefault(); textEl.blur(); } if (e.key==='Escape') { textEl.textContent = orig; textEl.removeEventListener('blur',commit); textEl.removeAttribute('contenteditable'); } }, { once:true });
-    });
-  }
+  if (!readOnly) _goalTextEditable(li.querySelector('.goal-text-el'), date, idx);
   return li;
 }
 
@@ -1699,18 +1738,8 @@ function renderGoalList(date, listId, emptyId, readOnly) {
         Sortable.create(sec, {
           handle: '.goal-drag', animation: 150, group: 'goalsToday',
           onEnd: () => {
-            // Uses live state (not the render-time closure) to avoid re-entrant renderGoals() corruption.
             // Arrastrar a otra categoría guarda q (y la prioridad que le corresponde); dentro de la misma no cambia nada.
-            const cur = S.goals[date] || [];
-            const newArr = [];
-            matrix.querySelectorAll('.tl-q-list').forEach(s2 => {
-              s2.querySelectorAll('.goal-item').forEach(el => {
-                const item = cur[+el.dataset.idx];
-                if (cuadranteDe(item) !== s2.dataset.q) { item.q = s2.dataset.q; item.priority = GOAL_QUAD_PRIO[s2.dataset.q]; }
-                newArr.push(item);
-              });
-            });
-            S.goals[date] = newArr; saveState();
+            _goalMatrixReorder(matrix, date, '.goal-item');
             // Deferred: avoids re-entrant onEnd corruption from synchronous renderGoals().
             setTimeout(renderGoals, 0);
           }
