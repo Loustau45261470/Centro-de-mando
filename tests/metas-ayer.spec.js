@@ -89,3 +89,53 @@ test('6) "Empujar restantes a mañana" sigue igual (misma lógica compartida)', 
   expect(await cmPage.evaluate(() => S.goals[getActiveDate()].map((g) => g.text))).toEqual(['Q']);
   expect(await cmPage.evaluate(() => S.goals[getTomorrow()].map((g) => g.text))).toEqual(['P']);
 });
+
+// ── Botón permanente "Traer de ayer (N)": no depende del cartel de una vez por día ──
+const traer = (page) => page.locator('.traer-ayer-btn');
+
+test('7) el botón "Traer de ayer (N)" sigue disponible aunque se cierre el cartel, con N = lo que realmente traería', async ({ cmPage, consoleErrors }) => {
+  await irAVida(cmPage);
+  await armar(cmPage, { ayer: [{ text: 'A' }, { text: 'B' }, { text: 'C', done: true }], hoy: [{ text: 'A' }] });
+  await cmPage.getByRole('button', { name: 'Dejarlas' }).click();
+  await expect(aviso(cmPage)).toHaveCount(0);
+  await cmPage.evaluate(() => mostrarAvisoMetasAyer());      // la marca del día ya está puesta: el cartel no vuelve...
+  await expect(aviso(cmPage)).toHaveCount(0);
+  // ...pero el botón sí está, en la tarjeta de la sección y en Planificación. N = 1: A ya está hoy, C está hecha.
+  await expect(cmPage.locator('#metas-readonly-card .traer-ayer-btn')).toBeVisible();
+  await expect(cmPage.locator('#metas-readonly-card .traer-ayer-btn')).toHaveText('↶ Traer de ayer (1)');
+  await expect(cmPage.locator('#metas-hoy-card .traer-ayer-btn')).toHaveText('↶ Traer de ayer (1)');
+  expect(consoleErrors).toEqual([]);
+});
+
+test('8) "Traer de ayer" trae solo lo pendiente, sin duplicar, conserva la categoría y el botón desaparece al quedar en 0', async ({ cmPage, consoleErrors }) => {
+  await irAVida(cmPage);
+  await cmPage.evaluate(() => {
+    S.goals[_ayerStr()] = [
+      { id: 'a1', text: 'Urgente de ayer', done: false, priority: 'high', q: 'ui' },
+      { id: 'a2', text: 'Baja de ayer', done: false, priority: 'low', q: 'nn' },
+      { id: 'a3', text: 'Hecha de ayer', done: true, priority: 'mid' },
+    ];
+    S.goals[getActiveDate()] = [{ id: 'h1', text: 'Baja de ayer', done: false, priority: 'low', q: 'nn' }];
+    saveState(); renderGoals();
+  });
+  await expect(traer(cmPage).first()).toHaveText('↶ Traer de ayer (1)');
+  await cmPage.locator('#metas-readonly-card .traer-ayer-btn').click();
+  expect((await textos(cmPage, 'hoy')).sort()).toEqual(['Baja de ayer', 'Urgente de ayer']);   // sin duplicar la que ya estaba
+  const urg = await cmPage.evaluate(() => S.goals[getActiveDate()].find((g) => g.text === 'Urgente de ayer'));
+  expect(urg).toMatchObject({ q: 'ui', priority: 'high', done: false });
+  await expect(cmPage.locator('#metas-readonly-card .tl-q[data-q="ui"] .mrd-text')).toHaveText(['Urgente de ayer']);
+  await expect(traer(cmPage).first()).toBeHidden();          // ya no queda nada por traer
+  await expect(traer(cmPage).nth(1)).toBeHidden();
+  expect(consoleErrors).toEqual([]);
+});
+
+test('9) sin pendientes de ayer el botón no se muestra; y el click en él no abre Planificación', async ({ cmPage }) => {
+  await irAVida(cmPage);
+  await armar(cmPage, { ayer: [{ text: 'A', done: true }] });
+  await expect(traer(cmPage).first()).toBeHidden();
+  await armar(cmPage, { ayer: [{ text: 'A' }, { text: 'B' }] });
+  await cmPage.getByRole('button', { name: 'Dejarlas' }).click();
+  await cmPage.locator('#metas-readonly-card .traer-ayer-btn').click();
+  await expect(cmPage.locator('#ov-planner.show')).toHaveCount(0);   // la tarjeta es un link a Planificación; el botón no lo dispara
+  expect((await textos(cmPage, 'hoy')).sort()).toEqual(['A', 'B']);
+});

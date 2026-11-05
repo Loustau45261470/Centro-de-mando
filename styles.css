@@ -6746,3 +6746,10 @@ input:focus, select:focus, textarea:focus {
   .kpi-strip.kpi-enter .kpi-tile .k-spark, .kpi-strip.kpi-enter .kpi-tile .k-bar i { animation: none !important; }
   .card.sr-armed { transition: none; }
 }
+
+/* ── Tareas del día: repetición por días de la semana y "Traer de ayer" ── */
+.card-title-acc { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.traer-ayer-btn[hidden], #goalRepStop[hidden] { display: none; } /* .btn tiene display propio que tapa [hidden] */
+.goal-rep { flex: none; width: 20px; height: 20px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 6px; background: none; color: var(--tt); font-size: var(--fs-13); line-height: 1; cursor: pointer; opacity: .55; }
+.goal-rep:hover { color: var(--tp); background: rgba(255,255,255,.06); opacity: 1; }
+.goal-rep.on { color: var(--accent); opacity: 1; }

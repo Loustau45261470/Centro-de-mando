@@ -14,6 +14,7 @@ const DEFAULT_STATE = {
   goals: {},        // { 'YYYY-MM-DD': [{ id, text, done, priority, time? }] }
   dayPlanner: {},   // legacy (nota libre por hora) — reemplazado por dayPlan
   dayPlan: {},      // { 'YYYY-MM-DD': { grid:{ 'H': 60|30|15 }, tasks:[{ id, time:'HH:MM', priority:1|2|3, text, done }] } }
+  goalRepeats: [],  // [{ id, text, q, priority, time, byDays:[0-6 (getDay)], startDate, skips:[fechas] }] — tareas del día que se repiten en ciertos días de la semana; la instancia de cada día vive en S.goals[fecha] con id 'rep:<regla>:<fecha>' y repId
   streak: { count: 0, lastDate: null },
   // Gym
   gyms: [],         // [{ id, name }]
@@ -590,7 +591,7 @@ function _rescueLocal(cloudObj, localObj) {
   // Arrays con ID
   ['transactions','moves','cards','accounts','cardCharges','cardPayments','coverCollections','cardDues','subscriptions','orders','wishlist',
    'photos','finObjectives','lawMilestones','routines','exerciseLibrary',
-   'bodyWeight','exercises','seasonals','carteraTx'
+   'bodyWeight','exercises','seasonals','carteraTx','goalRepeats'
   ].forEach(key => {
     const c = Array.isArray(cloudObj[key]) ? cloudObj[key] : [];
     const l = Array.isArray(localObj[key]) ? localObj[key] : [];
@@ -1569,11 +1570,13 @@ function syncDueProjectsToGoals() {
 
 function renderGoals() {
   syncDueProjectsToGoals();
+  ensureGoalRepeats();
   const today = getActiveDate(), tom = getTomorrow();
   renderGoalList(today, 'goalList', 'goalsEmpty', false);
   renderGoalList(tom, 'tomorrowList', 'tomorrowEmpty', false);
   renderGoalsHeader(today);
   renderMetasReadonly();
+  renderTraerAyer();
   updateStreak();
   buildTickerAlerts();
   renderDayPlanner();
@@ -1626,6 +1629,7 @@ function renderMetasReadonly() {
         ${g.time ? `<span class="mrd-time">${fmtGoalTime(g.time)}</span>` : ''}
         <span class="mrd-prio" style="background:${PRIORITY_COLOR[g.priority] || '#666'}"></span>
         <span class="mrd-text" title="Tocá para editar">${escHtml(g.text)}</span>
+        ${_goalRepBtn(g, date, idx)}
         <span class="goal-q-wrap" title="Cambiar de categoría"><span class="goal-q-ic" aria-hidden="true">⇅</span><select class="goal-q-sel" aria-label="Categoría de la tarea">${goalQuadOptions(key)}</select></span>
         <button class="mrd-check" onclick="toggleGoal('${escHtml(date)}',${idx})" aria-label="Marcar tarea"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></button>
       </div>`).join('') : '<div class="tl-q-vacia">Nada acá</div>')
@@ -1640,7 +1644,7 @@ function renderMetasReadonly() {
     const matrix = body.querySelector('.tl-matrix');
     matrix.querySelectorAll('.tl-q-list').forEach(sec => Sortable.create(sec, {
       group: 'goalsCard', animation: 150, draggable: '.mrd-item',
-      filter: '.mrd-check, .goal-q-wrap', preventOnFilter: false,
+      filter: '.mrd-check, .goal-q-wrap, .goal-rep', preventOnFilter: false,
       delay: 250, delayOnTouchOnly: true,   // en el celu: mantener apretado para arrastrar (si no, choca con el scroll)
       onEnd: () => { _goalMatrixReorder(matrix, date, '.mrd-item'); setTimeout(renderGoals, 0); }
     }));
@@ -1714,6 +1718,7 @@ function buildGoalItem(g, idx, date, readOnly) {
     <span class="goal-priority" style="background:${PRIORITY_COLOR[g.priority]||'#666'}"></span>
     ${g.time ? `<span class="goal-time-badge">${fmtGoalTime(g.time)}</span>` : ''}
     <span class="goal-text-el">${escHtml(g.text)}</span>
+    ${_goalRepBtn(g, date, idx)}
     <span class="goal-q-wrap" title="Cambiar de categoría"><span class="goal-q-ic" aria-hidden="true">⇅</span><select class="goal-q-sel" aria-label="Categoría de la tarea">${goalQuadOptions(cuadranteDe(g))}</select></span>
     <button class="goal-del" data-idx="${idx}" data-date="${date}" title="Eliminar">×</button>
     <span class="check-box ${g.done?'checked':''}" data-idx="${idx}" data-date="${date}"></span>
@@ -1860,6 +1865,7 @@ function toggleGoal(date, idx) {
 
 function deleteGoal(date, idx) {
   const g = S.goals[date][idx];
+  if (g && g.repId) _grSkip(g.repId, date);   // borrar la instancia de un día no borra la regla ni la vuelve a crear ese día
   if (g && g.fromTask) {
     // Descarte definitivo: si no se registra, syncDueProjectsToGoals la vuelve a crear en el próximo render.
     if (!S.goalsDismissed) S.goalsDismissed = {};
@@ -1874,7 +1880,12 @@ function openAddGoalToday(q) {
   // Categoría por defecto: No urgente-importante, o la del botón "+" de la categoría desde la que se tocó.
   const sel = document.getElementById('newGoalQuad');
   if (sel) sel.value = (typeof q === 'string' && GOAL_QUAD_PRIO[q]) ? q : 'ni';
+  _grFillDays('newGoalDays', []);
   openModal('modal-add-goal');
+}
+function openAddGoalTom() {
+  _grFillDays('newGoalDaysTom', []);
+  openModal('modal-add-goal-tom');
 }
 
 function addGoal(when) {
@@ -1888,7 +1899,15 @@ function addGoal(when) {
   if (!S.goals[date]) S.goals[date] = [];
   const timeEl = document.getElementById('newGoalTime');
   const timeVal = (!isTom && timeEl) ? (timeEl.value || null) : null;
-  S.goals[date].push({ id: uid(), text, done: false, priority: GOAL_QUAD_PRIO[q], q, time: timeVal });
+  const days = _grReadDays(isTom ? 'newGoalDaysTom' : 'newGoalDays');
+  if (days.length) {
+    // Repetitiva: se crea la regla; esta fecha solo recibe la instancia si cae en uno de los días marcados.
+    const r = _grCreate({ text, q, priority: GOAL_QUAD_PRIO[q], time: timeVal, byDays: days, startDate: date });
+    ensureGoalRepeats();
+    showToast('↻ Se repite ' + _grDaysLabel(r.byDays));
+  } else {
+    S.goals[date].push({ id: uid(), text, done: false, priority: GOAL_QUAD_PRIO[q], q, time: timeVal });
+  }
   document.getElementById(textId).value = '';
   if (quadEl) quadEl.value = 'ni';
   if (timeEl) timeEl.value = '';
@@ -1897,13 +1916,31 @@ function addGoal(when) {
   // [SUPABASE] await supabase.from('goals').insert({ date, text, done: false, priority, user_id });
 }
 
+// Qué metas pendientes de 'from' se copiarían a 'to' (sin duplicar por texto ni por regla repetitiva). No toca nada.
+// Una instancia de regla conserva su vínculo solo si la regla cae en 'to'; si no, pasa a ser una tarea común.
+function _planMoverMetas(from, to) {
+  const dest = S.goals[to] || [];
+  const texts = new Set(dest.map(g => g.text));
+  const reps = new Set(dest.filter(g => g.repId).map(g => g.repId));
+  const add = [];
+  (S.goals[from] || []).filter(g => !g.done).forEach(g => {
+    if (texts.has(g.text) || (g.repId && reps.has(g.repId))) return;
+    const copy = { ...g, id: uid(), done: false };
+    const r = g.repId ? _grStore().find(x => x.id === g.repId) : null;
+    if (r && (r.byDays || []).includes(new Date(to + 'T00:00:00').getDay())) copy.id = `rep:${r.id}:${to}`;
+    else delete copy.repId;
+    add.push(copy);
+  });
+  return add;
+}
+
 // Pasa las metas no hechas de un día a otro (sin duplicar por texto) y las saca del día de origen.
 // Devuelve las metas que estaban pendientes. No guarda ni pinta: lo hace quien llama.
 function _moverMetasPendientes(from, to) {
   const pending = (S.goals[from]||[]).filter(g=>!g.done);
   if (!S.goals[to]) S.goals[to] = [];
-  const existing = new Set(S.goals[to].map(g=>g.text));
-  pending.forEach(g => { if (!existing.has(g.text)) S.goals[to].push({...g, id:uid(), done:false}); });
+  _planMoverMetas(from, to).forEach(c => S.goals[to].push(c));
+  pending.forEach(g => { if (g.repId) _grSkip(g.repId, from); });   // la instancia de origen no se regenera
   S.goals[from] = (S.goals[from]||[]).filter(g=>g.done);
   return pending;
 }
@@ -1949,11 +1986,122 @@ function cerrarAvisoMetasAyer() {
   const el = document.getElementById('metas-ayer-aviso');
   if (el) el.remove();
 }
+// Botón permanente "Traer de ayer (N)" en las dos cabeceras de la lista (sección y Planificación): todos los días que ayer
+// dejó pendientes que hoy todavía no tiene. N = lo que realmente traería. Reusa pasarMetasAyerAHoy.
+function renderTraerAyer() {
+  const n = _planMoverMetas(_ayerStr(), getActiveDate()).length;
+  document.querySelectorAll('.traer-ayer-btn').forEach(b => {
+    b.hidden = !n;
+    b.textContent = `↶ Traer de ayer (${n})`;
+  });
+}
 function pasarMetasAyerAHoy() {
   const pending = _moverMetasPendientes(_ayerStr(), getActiveDate());
   saveState(); renderGoals();
   cerrarAvisoMetasAyer();
   showToast(pending.length === 1 ? '1 tarea pasada a hoy' : `${pending.length} tareas pasadas a hoy`);
+}
+
+// ── Repetición por días de la semana (mismo modelo que las actividades del planner: byDays en getDay()) ──
+// Regla en S.goalRepeats; cada día tiene su propia instancia en S.goals[fecha] con id determinístico 'rep:<regla>:<fecha>'
+// (dos dispositivos que la generen producen el mismo id, no un duplicado) y su propio done.
+const GOAL_WD = [[1, 'L'], [2, 'M'], [3, 'X'], [4, 'J'], [5, 'V'], [6, 'S'], [0, 'D']];
+function _grStore() { if (!Array.isArray(S.goalRepeats)) S.goalRepeats = []; return S.goalRepeats; }
+function _grFind(id) { return _grStore().find(r => r.id === id) || null; }
+function _grDow(date) { return new Date(date + 'T00:00:00').getDay(); }
+function _grOccursOn(r, date) {
+  return !!r && date >= (r.startDate || '') && (r.byDays || []).includes(_grDow(date)) && !(r.skips || []).includes(date);
+}
+function _grSkip(repId, date) {
+  const r = _grFind(repId);
+  if (r && !(r.skips || []).includes(date)) { if (!r.skips) r.skips = []; r.skips.push(date); }
+}
+function _grCreate(o) {
+  const r = { id: 'gr' + uid(), text: o.text, q: o.q, priority: o.priority, time: o.time || null, byDays: o.byDays.slice(), startDate: o.startDate, skips: [] };
+  _grStore().push(r);
+  return r;
+}
+function _grDaysLabel(days) { return GOAL_WD.filter(([v]) => days.includes(v)).map(([, l]) => l).join(' '); }
+function _goalIsRep(g) { return !!(g && g.repId && _grFind(g.repId)); }
+function _goalRepBtn(g, date, idx) {
+  const on = _goalIsRep(g);
+  return `<button class="goal-rep${on ? ' on' : ''}" type="button" onclick="openGoalRepeat('${escHtml(date)}',${idx})" title="${on ? 'Se repite: ' + _grDaysLabel(_grFind(g.repId).byDays) : 'Repetir en ciertos días'}" aria-label="Repetición de la tarea">↻</button>`;
+}
+function _grFillDays(id, sel) {
+  const box = document.getElementById(id); if (!box) return;
+  box.innerHTML = GOAL_WD.map(([v, l]) => `<button type="button" data-v="${v}" class="${sel.includes(v) ? 'on' : ''}" onclick="this.classList.toggle('on')">${l}</button>`).join('');
+}
+function _grReadDays(id) {
+  const box = document.getElementById(id); if (!box) return [];
+  return Array.from(box.querySelectorAll('button.on')).map(b => parseInt(b.dataset.v, 10));
+}
+// Crea la instancia de hoy y de mañana de cada regla que cae esos días (si no existe ya). Devuelve true si cambió algo.
+function ensureGoalRepeats() {
+  const rules = _grStore(); if (!rules.length) return false;
+  let changed = false;
+  [getActiveDate(), getTomorrow()].forEach(date => {
+    rules.forEach(r => {
+      if (!_grOccursOn(r, date)) return;
+      if (!S.goals[date]) S.goals[date] = [];
+      if (S.goals[date].some(g => g.repId === r.id)) return;
+      S.goals[date].push({ id: `rep:${r.id}:${date}`, repId: r.id, text: r.text, done: false, priority: r.priority, q: r.q, time: r.time || null });
+      changed = true;
+    });
+  });
+  if (changed) saveState();
+  return changed;
+}
+let _grEdit = null;   // { date, gid }
+function _grTarget() {
+  if (!_grEdit) return null;
+  const arr = S.goals[_grEdit.date] || [];
+  const idx = arr.findIndex(g => g.id === _grEdit.gid);
+  return idx < 0 ? null : { g: arr[idx], idx, arr };
+}
+function openGoalRepeat(date, idx) {
+  const g = (S.goals[date] || [])[idx]; if (!g) return;
+  _grEdit = { date, gid: g.id };
+  const r = g.repId ? _grFind(g.repId) : null;
+  document.getElementById('goalRepText').textContent = g.text;
+  _grFillDays('goalRepDays', r ? r.byDays : []);
+  document.getElementById('goalRepStop').hidden = !r;
+  openModal('modal-goal-repeat');
+}
+// Quita de mañana las instancias sin hacer de una regla que ya no cae ese día.
+function _grPruneTomorrow(r) {
+  const tom = getTomorrow();
+  if (!S.goals[tom]) return;
+  S.goals[tom] = S.goals[tom].filter(g => g.repId !== r.id || g.done || _grOccursOn(r, tom));
+}
+function saveGoalRepeat() {
+  const t = _grTarget(); if (!t) { closeModal('modal-goal-repeat'); return; }
+  const days = _grReadDays('goalRepDays');
+  if (!days.length) { showToast('Elegí al menos un día, o tocá "Dejar de repetir"'); return; }
+  let r = t.g.repId ? _grFind(t.g.repId) : null;
+  if (r) { r.byDays = days; _grPruneTomorrow(r); }
+  else {
+    delete t.g.repId;
+    r = _grCreate({ text: t.g.text, q: cuadranteDe(t.g), priority: t.g.priority, time: t.g.time, byDays: days, startDate: _grEdit.date });
+    if (days.includes(_grDow(_grEdit.date))) { t.g.repId = r.id; t.g.id = `rep:${r.id}:${_grEdit.date}`; }
+  }
+  closeModal('modal-goal-repeat');
+  saveState(); renderGoals();
+  showToast('↻ Se repite ' + _grDaysLabel(r.byDays));
+}
+function stopGoalRepeat() {
+  const t = _grTarget(); if (!t) { closeModal('modal-goal-repeat'); return; }
+  const rid = t.g.repId;
+  S.goalRepeats = _grStore().filter(r => r.id !== rid);
+  const hoy = getActiveDate();
+  [hoy, getTomorrow()].forEach(d => {
+    if (!S.goals[d]) return;
+    // Hoy y lo ya hecho quedan como tareas comunes; lo de mañana que se generó solo y no se tocó, se va.
+    S.goals[d] = S.goals[d].filter(g => g.repId !== rid || g.done || d === hoy);
+    S.goals[d].forEach(g => { if (g.repId === rid) delete g.repId; });
+  });
+  closeModal('modal-goal-repeat');
+  saveState(); renderGoals();
+  showToast('Dejó de repetirse');
 }
 
 function updateStreak() {
