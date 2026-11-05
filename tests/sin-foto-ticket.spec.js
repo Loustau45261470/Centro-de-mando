@@ -52,7 +52,7 @@ test('4) no existen abrirGastoFoto ni CMGastoFoto en window ni botón/ids de la 
 });
 
 test('5) cargar Finanzas y abrir cada overlay del FAB no genera errores de consola', async ({ cmPage, consoleErrors }) => {
-  // El overlay de Informes pide <mes>.json al Worker (/datos/), que puede no existir (404 ajeno a esta función): se sirve vacío.
+  // Los overlays piden <mes>.json al Worker (/datos/), que puede no existir (404 ajeno a esta función): se sirve vacío.
   const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization' };
   await cmPage.evaluate(() => { _auth.currentUser.getIdToken = async () => 'token-de-prueba'; });
   await cmPage.route('**/cdm-push-worker.tobiasloustau11.workers.dev/cartera*', (r) => r.request().method() === 'OPTIONS'

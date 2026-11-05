@@ -40,7 +40,7 @@ async function verAusencia(page, donde) {
   expect(r, donde).toEqual({ ids: [], html: false, visible: false });
 }
 
-// El overlay de Informes pide <mes actual>.json al Worker (/datos/), que puede no existir todavía (404 ajeno a esta función): se sirve vacío.
+// Los overlays piden <mes actual>.json al Worker (/datos/), que puede no existir todavía (404 ajeno a esta función): se sirve vacío.
 const sinCarteraDelMes = async (page) => {
   const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization' };
   await page.evaluate(() => { _auth.currentUser.getIdToken = async () => 'token-de-prueba'; });

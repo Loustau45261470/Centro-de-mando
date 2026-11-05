@@ -151,7 +151,7 @@ test.describe('el abanico de cada sección', () => {
       expect(e.length, tab).toBeGreaterThan(0);
       expect(e, tab).not.toContain('Vencimientos');
       expect(e, tab).toContain('Proyectos');
-      expect(e, tab).toContain('Informes');
+      expect(e, tab).not.toContain('Informes');
     }
   });
 });

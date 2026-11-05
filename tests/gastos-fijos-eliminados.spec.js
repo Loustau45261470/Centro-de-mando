@@ -1,5 +1,5 @@
 // Gastos fijos: función eliminada de la app (pedido explícito del usuario; nunca la usó).
-// Estos tests prueban la AUSENCIA: ni modales, ni funciones, ni búsqueda, ni contexto de JARVIS, ni métrica de Informes,
+// Estos tests prueban la AUSENCIA: ni modales, ni funciones, ni búsqueda, ni contexto de JARVIS,
 // (la tarjeta de proyección del mes ya no existe). Al cargar el estado se borran las dos claves SOLO si están vacías.
 // Los datos de ejemplo viven solo acá (si algún día alguien los tuviera cargados, quedan intactos pero ya no hacen nada).
 'use strict';
@@ -61,7 +61,7 @@ test('2) el estado inicial no trae las claves y la búsqueda global ignora los d
 
 // (La tarjeta "Proyección del mes" y su módulo se eliminaron en la reorganización de Finanzas W-B; la prueba de su cálculo se retiró con ella.)
 
-test('4) JARVIS no recibe gastos fijos en su contexto y Informes no ofrece la métrica', async ({ cmPage, consoleErrors }) => {
+test('4) JARVIS no recibe gastos fijos en su contexto', async ({ cmPage, consoleErrors }) => {
   await irAFinanzas(cmPage);
   const r = await cmPage.evaluate((fijos) => {
     S.fixedExpenses = JSON.parse(JSON.stringify(fijos));
@@ -70,12 +70,10 @@ test('4) JARVIS no recibe gastos fijos en su contexto y Informes no ofrece la m�
     return {
       jarvis: /GASTOS FIJOS|Alquiler del depto|Expensas/.test(ctx),
       jarvisVivo: ctx.indexOf('MOVIMIENTOS DEL MES') >= 0,
-      metricas: CMInformesData.CATALOGO.filter((m) => /fijos|fixed/i.test(m.id + ' ' + m.label)).map((m) => m.id),
     };
   }, FIJOS);
   expect(r.jarvisVivo).toBe(true);   // el contexto sigue armándose entero
   expect(r.jarvis).toBe(false);
-  expect(r.metricas).toEqual([]);
   expect(consoleErrors).toEqual([]);
 });
 

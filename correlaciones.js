@@ -6,13 +6,12 @@
    correlación, sí exigir rigor (n mínimo, varianza mínima, ausencia de
    dato ≠ cero, relación ≠ causalidad).
 
-   Estructura del archivo (contrato tipo informes-datos.js):
+   Estructura del archivo:
    - PARTE PURA: mean/stddev/pearson/emparejarSeries/evaluarPar — reciben
      arrays/objetos, nunca tocan `S` ni el DOM. Exportadas aparte
      (CMCorrelacionesCalc) para poder testearlas desde Node.
-   - Construcción de series diarias desde `S` (no reusa los extractores de
-     informes-datos.js: esos calculan UN agregado por rango [desde,hasta],
-     no una serie día a día — ver reporte del ticket T2).
+   - Construcción de series diarias desde `S` (un valor por día, no un
+     agregado por rango).
    - Motor de correlación (matriz de pares + lag ±1) con caché por ventana.
    - UI: tarjeta auto-montada en #tab-vida (mismo patrón que errores.js).
    Solo se auto-monta el DOM si `document` existe — el resto del archivo
@@ -109,14 +108,8 @@
   global.CMCorrelacionesCalc = { mean: mean, stddev: stddev, pearson: pearson, emparejarSeries: emparejarSeries, evaluarPar: evaluarPar, fuerzaDeR: fuerzaDeR };
 
   // ════════════════════════════════════════════════════════════════════
-  // Series diarias desde `S` — NO se reusan los extractores de
-  // informes-datos.js: su `calc(desde,hasta)` devuelve UN agregado del
-  // rango completo (para el informe mensual/trimestral), no un valor por
-  // día — acá se necesita el punto diario para poder cruzar dos variables
-  // fecha a fecha. Donde la regla de negocio coincide (ej. umbral de
-  // dieta, 'rest' no cuenta en hábitos) se reimplementa igual, en pocas
-  // líneas, porque esas funciones tampoco están expuestas en
-  // window.CMInformesData (viven cerradas dentro de su IIFE).
+  // Series diarias desde `S` — un valor por día, para poder cruzar dos variables
+  // fecha a fecha (ej. umbral de dieta; 'rest' no cuenta en hábitos).
   // ════════════════════════════════════════════════════════════════════
 
   function ST() { return (typeof S !== 'undefined' && S) ? S : {}; }
@@ -157,8 +150,7 @@
     });
     return out;
   }
-  // % de cumplimiento diario de hábitos (mismo criterio que _fraccionPeriodo de
-  // informes-datos.js: 'rest' no entra al denominador, 'done'/'studied'=1, 'partial'=0.5).
+  // % de cumplimiento diario de hábitos: 'rest' no entra al denominador, 'done'/'studied'=1, 'partial'=0.5.
   function _pctHabitosPorDia(secciones) {
     var out = {}, porDia = {};
     secciones.forEach(function (sec) {
@@ -218,7 +210,7 @@
     });
     return out;
   }
-  // Mismo umbral que salud_dieta_pct de informes-datos.js. Limitación heredada
+  // Umbral de dieta. Limitación heredada
   // del propio S.dieta.log (app.js): si el usuario destilda todas las reglas
   // de un día, la clave se borra (arr.length===0 → delete) — ese día vuelve a
   // verse igual que "nunca registrado". No es un bug de este archivo, es el

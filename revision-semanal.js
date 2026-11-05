@@ -7,11 +7,8 @@
 //
 // Patrón de módulo (CONVENCIONES.md): IIFE que se auto-inyecta (style + DOM)
 // y expone su API en window. Reusa CMOverlay (overlay-core.js) para la
-// pantalla completa y CMInformesData (informes-datos.js) para los números
-// de la semana — ninguna cuenta de hábitos/calendario/gasto se reimplementa
-// acá, se llama a la MISMA función `calc(desde,hasta)` que usa el motor de
-// informes mensuales (esas funciones ya trabajan con cualquier rango de
-// fechas, no solo con meses).
+// pantalla completa. El paso 1 (números de la semana) quedó sin métricas al
+// borrarse los Informes (2026-11-05); se rehace junto con los informes nuevos.
 // ════════════════════════════════════════════════════════════════════════
 (function () {
 
@@ -43,17 +40,6 @@
     .rs-sub { font-family: var(--mono); font-size: var(--fs-12-5); letter-spacing: 1.5px; text-transform: uppercase; color: var(--ts); margin: 16px 2px 9px; }
     .rs-sub:first-child { margin-top: 2px; }
     .rs-sub::before { content: '▸'; color: var(--c-vida, var(--hud)); margin-right: 6px; }
-
-    .rs-metric-list { display: flex; flex-direction: column; gap: 7px; }
-    .rs-metric-row {
-      display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px;
-      padding: 11px 12px; border-radius: 11px; border: 1px solid var(--border);
-      background: linear-gradient(180deg, color-mix(in oklab, var(--c-vida, var(--hud)) 6%, transparent), rgba(10,16,30,.35));
-    }
-    .rs-metric-label { flex: 1 1 140px; font-size: var(--fs-14); color: var(--tp); }
-    .rs-metric-val { font-family: var(--mono); font-weight: 700; font-size: var(--fs-15-5, var(--fs-14)); color: var(--tp); }
-    .rs-metric-delta { flex-basis: 100%; }
-    @media (min-width: 480px) { .rs-metric-delta { flex-basis: auto; margin-left: auto; } }
 
     .rs-empty { font-size: var(--fs-13); color: var(--tt); padding: 8px 2px; line-height: 1.5; }
 
@@ -135,72 +121,6 @@
     };
   }
 
-  // ── Métricas de la semana — reusan CMInformesData.CATALOGO[].calc(desde,hasta),
-  // el mismo cálculo que informes.js usa para meses/trimestres/semestres/años.
-  // Esas `calc` ya devuelven null cuando no hay datos suficientes (regla de
-  // honestidad del proyecto) — acá no se reimplementa esa lógica. ──────────
-  const _RS_HABIT_IDS = ['vida_habitos_pct', 'fin_habitos_pct', 'con_habitos_pct', 'salud_habitos_pct', 'ia_habitos_pct'];
-  function _rsMetricCalc(id, desde, hasta) {
-    if (typeof CMInformesData === 'undefined') return null;
-    const m = CMInformesData.CATALOGO.find(x => x.id === id);
-    return m ? m.calc(desde, hasta) : null;
-  }
-  function _rsHabitosPct(desde, hasta) {
-    const vals = _RS_HABIT_IDS.map(id => _rsMetricCalc(id, desde, hasta)).filter(v => v !== null && v !== undefined);
-    if (!vals.length) return null;
-    return Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10;
-  }
-  function _rsWeekMetrics(dates) {
-    const desde = dates[0], hasta = dates[dates.length - 1];
-    return {
-      habitos: _rsHabitosPct(desde, hasta),
-      entreno: _rsMetricCalc('salud_workoutcalendar_pct', desde, hasta),
-      estudio: _rsMetricCalc('con_studycalendar_pct', desde, hasta),
-      planner: _rsMetricCalc('vida_dayplan_pct', desde, hasta),
-      gasto: _rsMetricCalc('fin_egresos', desde, hasta),
-      sueno: _rsMetricCalc('salud_sueno_horas_prom', desde, hasta),
-    };
-  }
-  const _RS_METRICS = [
-    { key: 'habitos', label: '% de hábitos cumplidos', unidad: 'pct', dir: 'up' },
-    { key: 'entreno', label: '% de días entrenados', unidad: 'pct', dir: 'up' },
-    { key: 'estudio', label: '% de días estudiando', unidad: 'pct', dir: 'up' },
-    { key: 'planner', label: '% del planner cumplido', unidad: 'pct', dir: 'up' },
-    { key: 'gasto', label: 'Gasto total', unidad: 'ARS', dir: 'down' },
-    { key: 'sueno', label: 'Horas de sueño (prom.)', unidad: 'h', dir: 'up' },
-  ];
-  function _rsFmt(valor, unidad) {
-    if (valor === null || valor === undefined) return null;
-    return (typeof CMInformesData !== 'undefined') ? CMInformesData.fmt(valor, unidad) : String(valor);
-  }
-  function _rsFmtDelta(delta, unidad) {
-    const sign = delta > 0 ? '+' : (delta < 0 ? '−' : '');
-    const abs = Math.abs(delta);
-    if (unidad === 'pct') return `${sign}${Math.round(abs)} pts`;
-    if (unidad === 'ARS') return `${sign}${_rsFmt(abs, 'ARS')}`;
-    if (unidad === 'h') return `${sign}${abs.toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} h`;
-    return `${sign}${abs}`;
-  }
-  function _rsMetricRowHTML(cfg, curVal, prevVal) {
-    const curTxt = (curVal === null || curVal === undefined) ? 'sin datos esta semana' : _rsFmt(curVal, cfg.unidad);
-    let deltaHTML = '';
-    if (curVal !== null && curVal !== undefined) {
-      if (prevVal === null || prevVal === undefined) {
-        deltaHTML = `<span class="pill pill-ghost">sin dato de la semana previa</span>`;
-      } else {
-        const delta = curVal - prevVal;
-        const mejora = cfg.dir === 'up' ? delta > 0 : delta < 0;
-        const cls = delta === 0 ? 'pill-ghost' : (mejora ? 'pill-ok' : 'pill-warn');
-        deltaHTML = `<span class="pill ${cls}">${_rsFmtDelta(delta, cfg.unidad)} vs. semana previa</span>`;
-      }
-    }
-    return `<div class="rs-metric-row">
-      <div class="rs-metric-label">${escHtml(cfg.label)}</div>
-      <div class="rs-metric-val">${escHtml(curTxt)}</div>
-      <div class="rs-metric-delta">${deltaHTML}</div>
-    </div>`;
-  }
-
   // ── Metas del día sin hacer + objetivos del trimestre pendientes ────────
   function _rsMetasIncumplidas() {
     const out = [];
@@ -274,12 +194,10 @@
   function _rsRenderStep1() {
     const host = document.getElementById('rs-pane-1');
     if (!host) return;
-    const cur = _rsWeekMetrics(_rsInfo.closeDates);
-    const prev = _rsWeekMetrics(_rsInfo.prevDates);
     const rango = `${fmtDate(_rsInfo.closeDates[0])} – ${fmtDate(_rsInfo.closeDates[6])}`;
     host.innerHTML = `
       <div class="rs-sub">Cómo fue la semana · ${escHtml(rango)}</div>
-      <div class="rs-metric-list">${_RS_METRICS.map(cfg => _rsMetricRowHTML(cfg, cur[cfg.key], prev[cfg.key])).join('')}</div>`;
+      <div class="rs-empty">Por ahora no hay números de la semana: vuelven con los informes nuevos.</div>`;
   }
 
   function _rsRenderStep2() {

@@ -529,7 +529,7 @@ test('14. Deshacer devuelve el mes a como estaba, y deja de estar disponible si 
   expect((await mes(cmPage, '2026-11')).fixed[0].v3).toBe(5);
 });
 
-test('15. el estacional también cuenta en el presupuesto del objetivo y del informe (140.000 sobre 100.000 + 50.000 está dentro)', async ({ cmPage }) => {
+test('15. el estacional también cuenta en el presupuesto y en el objetivo (140.000 sobre 100.000 + 50.000 está dentro)', async ({ cmPage }) => {
   const [c1] = await cats(cmPage);
   await prep(cmPage, {
     hoy: '2026-10-20',
@@ -538,7 +538,6 @@ test('15. el estacional también cuenta en el presupuesto del objetivo y del inf
   });
   await cmPage.evaluate((c) => {
     S.transactions = [{ id: 't1', type: 'expense', currency: 'ARS', category: c, date: '2026-10-10', amount: 140000 }];
-    S.informes = {};
   }, c1);
   // Pantalla de presupuestos: dentro (140.000 de 150.000).
   await abrirPresupuesto(cmPage, '2026-10');
@@ -551,9 +550,6 @@ test('15. el estacional también cuenta en el presupuesto del objetivo y del inf
   expect(obj.label).toMatch(/140[.,]000\/\S*\s?150[.,]000/);
   expect(obj.exceeded).toBe(false);
   expect(obj.pct).toBe(93);
-  // Informe: % ejecutado = 140.000 / 150.000.
-  const pct = await cmPage.evaluate(() => { CMInformesData.invalidarCache(); return CMInformesData.valor('fin_presupuesto_ejecutado_pct', CMInformesData.claveDe('M', '2026-10-10')); });
-  expect(pct).toBe(93.3);
 });
 
 // ── UX de la etapa 8: números largos en 390px, lista que se resuelve de una vez y aviso en el resumen ──

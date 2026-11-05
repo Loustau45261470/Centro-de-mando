@@ -295,7 +295,7 @@ test.describe('sw.js: respuestas de /datos/', () => {
     const pos = (s) => html.indexOf(`<script src="${s}`);
     const dp = pos('datos-privados.js');
     expect(dp).toBeGreaterThan(-1);
-    for (const consumidor of ['jarvis-brain.js', 'cartera-inversion.js', 'tenencias.js', 'sgc.js', 'informes-datos.js']) {
+    for (const consumidor of ['jarvis-brain.js', 'cartera-inversion.js', 'tenencias.js', 'sgc.js']) {
       expect(pos(consumidor), consumidor).toBeGreaterThan(dp);
     }
   });
