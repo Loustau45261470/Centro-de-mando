@@ -1,4 +1,4 @@
-// A10 — Aviso "Te quedaron N metas de ayer sin hacer": aparece una vez por día por dispositivo (localStorage),
+// A10 — Aviso "Te quedaron N tareas de ayer sin hacer": aparece una vez por día por dispositivo (localStorage),
 // con "Pasarlas a hoy" (sin duplicar por texto) y "Dejarlas". Nada se mueve solo.
 'use strict';
 const { test, expect } = require('./support/fixtures');
@@ -27,7 +27,7 @@ test('1) con metas de ayer sin hacer aparece el cartel con la cuenta, sin mover 
   await irAVida(cmPage);
   await armar(cmPage, { ayer: [{ text: 'A' }, { text: 'B' }, { text: 'C', done: true }] });
   await expect(aviso(cmPage)).toBeVisible();
-  await expect(aviso(cmPage)).toContainText('Te quedaron 2 metas de ayer sin hacer');
+  await expect(aviso(cmPage)).toContainText('Te quedaron 2 tareas de ayer sin hacer');
   expect(await textos(cmPage, 'ayer')).toEqual(['A', 'B', 'C']);
   expect(await textos(cmPage, 'hoy')).toEqual([]);
   expect(consoleErrors).toEqual([]);
@@ -36,7 +36,7 @@ test('1) con metas de ayer sin hacer aparece el cartel con la cuenta, sin mover 
 test('2) singular con una sola meta', async ({ cmPage }) => {
   await irAVida(cmPage);
   await armar(cmPage, { ayer: [{ text: 'A' }] });
-  await expect(aviso(cmPage)).toContainText('Te quedó 1 meta de ayer sin hacer');
+  await expect(aviso(cmPage)).toContainText('Te quedó 1 tarea de ayer sin hacer');
 });
 
 test('3) sin metas pendientes de ayer (vacío o todas hechas) no aparece', async ({ cmPage }) => {

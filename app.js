@@ -1398,8 +1398,8 @@ function buildTickerAlerts() {
   // Pending goals
   const todayGoals = S.goals[today] || [];
   const pending = todayGoals.filter(g => !g.done);
-  if (pending.length > 0) alerts.push({ text: `${pending.length} meta${pending.length>1?'s':''} pendiente${pending.length>1?'s':''} hoy`, cls: 'warn' });
-  if (todayGoals.length > 0 && pending.length === 0) alerts.push({ text: '✓ ¡Todas las metas completadas!', cls: 'ok' });
+  if (pending.length > 0) alerts.push({ text: `${pending.length} tarea${pending.length>1?'s':''} pendiente${pending.length>1?'s':''} hoy`, cls: 'warn' });
+  if (todayGoals.length > 0 && pending.length === 0) alerts.push({ text: '✓ ¡Todas las tareas completadas!', cls: 'ok' });
 
   // Pending habits
   const HABIT_SECTIONS = ['vida','finanzas','salud','conocimiento','ia'];
@@ -1494,6 +1494,32 @@ function updateDayProgress() {
 // MAIN TAB — GOALS
 // ════════════════════════════════════════════════════════
 const PRIORITY_COLOR = { high:'#FF6B6B', mid:'#F2C063', low:'#6BE3A4' };
+
+// Lista de tareas del día: 4 categorías de la matriz de Eisenhower (campo opcional g.q en S.goals).
+// Sin g.q (tareas viejas, de Proyectos o de JARVIS) la categoría se deriva de la prioridad al leer; no hay migración.
+const GOAL_QUADS = [
+  ['ui', 'Urgente-importante'],
+  ['un', 'Urgente-no importante'],
+  ['ni', 'No urgente-importante'],
+  ['nn', 'No urgente-no importante'],
+];
+const GOAL_QUAD_PRIO = { ui: 'high', un: 'mid', ni: 'mid', nn: 'low' };   // prioridad que acompaña a una categoría elegida
+function cuadranteDe(g) {
+  if (g && GOAL_QUAD_PRIO[g.q]) return g.q;
+  const p = g && g.priority;
+  if (p === 'high' || p === 'alta' || p === 'critical' || p === 3) return 'ui';
+  if (p === 'low' || p === 'baja' || p === 1) return 'nn';
+  return 'ni';   // mid / medium / media / sin prioridad / valor desconocido
+}
+function goalQuadOptions(sel) {
+  return GOAL_QUADS.map(([k, l]) => `<option value="${k}"${k === sel ? ' selected' : ''}>${l}</option>`).join('');
+}
+function setGoalQuad(date, idx, q) {
+  const g = (S.goals[date] || [])[idx];
+  if (!g || !GOAL_QUAD_PRIO[q]) return;
+  g.q = q; g.priority = GOAL_QUAD_PRIO[q];
+  saveState(); renderGoals();
+}
 // Tareas del planner: 3 niveles, gradiente de apagado (baja) a llamativo (alta).
 // La distinción es por combinación de factores (color de barra + badge + peso/saturación via clase .prio-N en CSS).
 const PLANNER_PRIO = {
@@ -1558,23 +1584,30 @@ function renderGoals() {
   if (hasTimed) renderReminders('vida');
 }
 
-// Metas de hoy en la sección: ver, marcar y agregar (botón + Meta). Editar/borrar viven en Planificación (overlay).
+// Lista de tareas del día en la sección: ver, marcar y agregar (botón + Tarea). Editar/borrar/cambiar de categoría viven en Planificación (overlay).
 function renderMetasReadonly() {
   const body = document.getElementById('metasReadonlyBody'); if (!body) return;
   const date = getActiveDate();
   const goals = S.goals[date] || [];
   if (!goals.length) {
-    body.innerHTML = '<div class="mrd-empty">Sin metas para hoy. Tocá <b>+ Meta</b> para agregar la primera.</div>';
+    body.innerHTML = '<div class="mrd-empty">Sin tareas para hoy. Tocá <b>+ Tarea</b> para agregar la primera.</div>';
     return;
   }
   const done = goals.filter(g => g.done).length;
+  const view = sortGoalsView(goals);
   body.innerHTML = `<div class="mrd-prog"><span class="mrd-prog-num">${done}</span><span class="mrd-prog-sep">/</span><span class="mrd-prog-tot">${goals.length}</span><span class="mrd-prog-lbl">completadas</span></div>`
-    + sortGoalsView(goals).map(({ g, i: idx }) => `<div class="mrd-item${g.done ? ' done' : ''}">
+    + '<div class="tl-matrix">' + GOAL_QUADS.map(([key, label]) => {
+      const items = view.filter(x => cuadranteDe(x.g) === key);
+      const nDone = items.filter(x => x.g.done).length;
+      return `<section class="tl-q" data-q="${key}"><div class="tl-q-head"><span class="tl-q-name">${label}</span><span class="gs-count">${nDone}/${items.length}</span></div>`
+        + (items.length ? items.map(({ g, i: idx }) => `<div class="mrd-item${g.done ? ' done' : ''}">
         ${g.time ? `<span class="mrd-time">${fmtGoalTime(g.time)}</span>` : ''}
         <span class="mrd-prio" style="background:${PRIORITY_COLOR[g.priority] || '#666'}"></span>
         <span class="mrd-text">${escHtml(g.text)}</span>
-        <button class="mrd-check" onclick="toggleGoal('${escHtml(date)}',${idx})" aria-label="Marcar meta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></button>
-      </div>`).join('');
+        <button class="mrd-check" onclick="toggleGoal('${escHtml(date)}',${idx})" aria-label="Marcar tarea"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></button>
+      </div>`).join('') : '<div class="tl-q-vacia">Nada acá</div>')
+        + '</section>';
+    }).join('') + '</div>';
 }
 
 // ── Orden automático de metas (capa de vista: ordena una copia y conserva el índice real) ──
@@ -1593,31 +1626,6 @@ function sortGoalsView(goals) {
   });
 }
 
-const GOAL_PERIODS = [
-  ['manana', '🌅 Mañana'],
-  ['tarde',  '☀️ Tarde'],
-  ['noche',  '🌙 Noche']
-];
-
-function goalPeriodFromHour(h) {
-  return h < 6 ? 'noche' : h < 13 ? 'manana' : h < 19 ? 'tarde' : 'noche';
-}
-
-// Sección efectiva de una meta: period explícito > derivado del horario > mañana.
-// Nunca devuelve un valor fuera de las 3 secciones (evita metas invisibles).
-function goalPeriodOf(g) {
-  if (g.period === 'manana' || g.period === 'tarde' || g.period === 'noche') return g.period;
-  if (g.time) return goalPeriodFromHour(parseInt(g.time.split(':')[0], 10));
-  return 'manana';
-}
-
-// Al elegir horario en el modal, sincroniza el selector de parte del día
-function syncNewGoalPeriod(t) {
-  if (!t) return;
-  const sel = document.getElementById('newGoalPeriod');
-  if (sel) sel.value = goalPeriodFromHour(parseInt(t.split(':')[0], 10));
-}
-
 function buildGoalItem(g, idx, date, readOnly) {
   const li = document.createElement('div');
   li.className = 'goal-item' + (g.done ? ' done-row' : '');
@@ -1626,12 +1634,15 @@ function buildGoalItem(g, idx, date, readOnly) {
     <span class="goal-drag" title="Arrastrar">⋮⋮</span>
     <span class="goal-priority" style="background:${PRIORITY_COLOR[g.priority]||'#666'}"></span>
     ${g.time ? `<span class="goal-time-badge">${fmtGoalTime(g.time)}</span>` : ''}
-    <span class="goal-text-el">${g.text}</span>
+    <span class="goal-text-el">${escHtml(g.text)}</span>
+    <span class="goal-q-wrap" title="Cambiar de categoría"><span class="goal-q-ic" aria-hidden="true">⇅</span><select class="goal-q-sel" aria-label="Categoría de la tarea">${goalQuadOptions(cuadranteDe(g))}</select></span>
     <button class="goal-del" data-idx="${idx}" data-date="${date}" title="Eliminar">×</button>
     <span class="check-box ${g.done?'checked':''}" data-idx="${idx}" data-date="${date}"></span>
   `;
   // Checkbox click
   li.querySelector('.check-box').addEventListener('click', () => { toggleGoal(date, idx); });
+  // Cambiar de categoría
+  li.querySelector('.goal-q-sel').addEventListener('change', (e) => { setGoalQuad(date, idx, e.target.value); });
   // Delete
   li.querySelector('.goal-del').addEventListener('click', () => { deleteGoal(date, idx); });
   // Inline edit (text)
@@ -1664,48 +1675,38 @@ function renderGoalList(date, listId, emptyId, readOnly) {
   list.innerHTML = '';
   empty.style.display = goals.length ? 'none' : '';
 
-  // Today's list: grouped by part of day (Mañana / Tarde / Noche)
+  // Today's list: matriz de 4 categorías (Urgente/importante). El orden dentro de cada una sigue sortGoalsView.
   if (listId === 'goalList') {
     if (!goals.length) return;
-    GOAL_PERIODS.forEach(([key, label]) => {
-      const items = sortGoalsView(goals).filter(x => goalPeriodOf(x.g) === key);
+    const matrix = document.createElement('div');
+    matrix.className = 'tl-matrix';
+    const view = sortGoalsView(goals);
+    GOAL_QUADS.forEach(([key, label]) => {
+      const items = view.filter(x => cuadranteDe(x.g) === key);
       const done = items.filter(x => x.g.done).length;
-      const head = document.createElement('div');
-      head.className = 'goal-section-head';
-      head.innerHTML = `<span>${label}</span><span class="gs-count">${items.length ? `${done}/${items.length}` : ''}</span>`;
+      const box = document.createElement('section');
+      box.className = 'tl-q';
+      box.dataset.q = key;
+      box.innerHTML = `<div class="tl-q-head"><span class="tl-q-name">${label}</span><span class="gs-count">${done}/${items.length}</span><button class="tl-q-add" onclick="openAddGoalToday('${key}')" title="Agregar tarea en ${label}" aria-label="Agregar tarea en ${label}">+</button></div>`;
       const sec = document.createElement('div');
-      sec.className = 'goal-section-list';
-      sec.dataset.period = key;
+      sec.className = 'goal-section-list tl-q-list';
+      sec.dataset.q = key;
       items.forEach(({ g, i }) => sec.appendChild(buildGoalItem(g, i, date, readOnly)));
-      list.appendChild(head);
-      list.appendChild(sec);
+      box.appendChild(sec);
+      matrix.appendChild(box);
 
       if (!readOnly && typeof Sortable !== 'undefined') {
         Sortable.create(sec, {
           handle: '.goal-drag', animation: 150, group: 'goalsToday',
-          onEnd: (evt) => {
+          onEnd: () => {
             // Uses live state (not the render-time closure) to avoid re-entrant renderGoals() corruption.
+            // Arrastrar a otra categoría guarda q (y la prioridad que le corresponde); dentro de la misma no cambia nada.
             const cur = S.goals[date] || [];
-            const li = evt.item;
-            const sectionEl = li.closest('.goal-section-list');
-            const g = cur[+li.dataset.idx];
-            if (g && !g.done && sectionEl) {
-              // Dragging changes priority: adopt the nearest pending neighbor's priority (up, then down), within the same section.
-              let neighbor = li.previousElementSibling;
-              while (neighbor && neighbor.classList.contains('done-row')) neighbor = neighbor.previousElementSibling;
-              if (!neighbor) {
-                neighbor = li.nextElementSibling;
-                while (neighbor && neighbor.classList.contains('done-row')) neighbor = neighbor.nextElementSibling;
-              }
-              const ng = neighbor ? cur[+neighbor.dataset.idx] : null;
-              if (ng && !ng.done) g.priority = ng.priority;
-            }
-            // Rebuild order from DOM across all sections; section determines period
             const newArr = [];
-            list.querySelectorAll('.goal-section-list').forEach(s => {
-              s.querySelectorAll('.goal-item').forEach(el => {
+            matrix.querySelectorAll('.tl-q-list').forEach(s2 => {
+              s2.querySelectorAll('.goal-item').forEach(el => {
                 const item = cur[+el.dataset.idx];
-                item.period = s.dataset.period;
+                if (cuadranteDe(item) !== s2.dataset.q) { item.q = s2.dataset.q; item.priority = GOAL_QUAD_PRIO[s2.dataset.q]; }
                 newArr.push(item);
               });
             });
@@ -1716,6 +1717,7 @@ function renderGoalList(date, listId, emptyId, readOnly) {
         });
       }
     });
+    list.appendChild(matrix);
     return;
   }
 
@@ -1760,7 +1762,7 @@ function renderGoalsHeader(date) {
   const total = goals.length;
   document.getElementById('goalsDoneNum').textContent = done;
   document.getElementById('goalsTotalNum').textContent = `/ ${total}`;
-  document.getElementById('goalsLabel').textContent = total===0?'sin metas':done===total&&total>0?'¡todo listo!':'completadas';
+  document.getElementById('goalsLabel').textContent = total===0?'sin tareas':done===total&&total>0?'¡todo listo!':'completadas';
 
   // Segmented bar
   const bar = document.getElementById('goalsBar');
@@ -1800,7 +1802,7 @@ function toggleGoal(date, idx) {
       setTimeout(showMissionBanner, 180);
       showToast('🏆 ¡MISIÓN CUMPLIDA!', 4000);
     } else {
-      showToast('✓ Meta completada');
+      showToast('✓ Tarea completada');
     }
   }
 }
@@ -1817,27 +1819,27 @@ function deleteGoal(date, idx) {
   saveState(); renderGoals();
 }
 
-function openAddGoalToday() {
-  // Preselect part of day based on current time
-  const sel = document.getElementById('newGoalPeriod');
-  if (sel) sel.value = goalPeriodFromHour(new Date().getHours());
+function openAddGoalToday(q) {
+  // Categoría por defecto: No urgente-importante, o la del botón "+" de la categoría desde la que se tocó.
+  const sel = document.getElementById('newGoalQuad');
+  if (sel) sel.value = (typeof q === 'string' && GOAL_QUAD_PRIO[q]) ? q : 'ni';
   openModal('modal-add-goal');
 }
 
 function addGoal(when) {
   const isTom = when === 'tomorrow';
   const textId = isTom ? 'newGoalTextTom' : 'newGoalText';
-  const prioId = isTom ? 'newGoalPriorityTom' : 'newGoalPriority';
+  const quadEl = document.getElementById(isTom ? 'newGoalQuadTom' : 'newGoalQuad');
+  const q = (quadEl && GOAL_QUAD_PRIO[quadEl.value]) ? quadEl.value : 'ni';
   const text = document.getElementById(textId).value.trim();
-  if (!text) { showToast('Escribe una meta primero'); return; }
+  if (!text) { showToast('Escribe una tarea primero'); return; }
   const date = isTom ? getTomorrow() : getActiveDate();
   if (!S.goals[date]) S.goals[date] = [];
   const timeEl = document.getElementById('newGoalTime');
   const timeVal = (!isTom && timeEl) ? (timeEl.value || null) : null;
-  const periodEl = document.getElementById('newGoalPeriod');
-  const period = (!isTom && periodEl) ? periodEl.value : 'manana';
-  S.goals[date].push({ id: uid(), text, done: false, priority: document.getElementById(prioId).value, time: timeVal, period });
+  S.goals[date].push({ id: uid(), text, done: false, priority: GOAL_QUAD_PRIO[q], q, time: timeVal });
   document.getElementById(textId).value = '';
+  if (quadEl) quadEl.value = 'ni';
   if (timeEl) timeEl.value = '';
   saveState(); renderGoals();
   closeModal(isTom ? 'modal-add-goal-tom' : 'modal-add-goal');
@@ -1856,20 +1858,20 @@ function _moverMetasPendientes(from, to) {
 }
 
 function pushRemaining() {
-  if (!confirm('¿Empujar metas pendientes a mañana?')) return;
+  if (!confirm('¿Empujar tareas pendientes a mañana?')) return;
   const today = getActiveDate(), tom = getTomorrow();
   const pending = _moverMetasPendientes(today, tom);
   saveState(); renderGoals();
   if (pending.length > 0) {
     showFireEffect();
     showFailBanner();
-    showToast(`🔥 ${pending.length} meta(s) sin cumplir`, 3500);
+    showToast(`🔥 ${pending.length} tarea(s) sin cumplir`, 3500);
   } else {
     showToast('Sin pendientes que empujar');
   }
 }
 
-// Aviso de metas de ayer sin hacer: una vez por día por dispositivo (localStorage), al abrir la app.
+// Aviso de tareas de ayer sin hacer: una vez por día por dispositivo (localStorage), al abrir la app.
 // Nada se mueve solo: "Pasarlas a hoy" las trae (sin duplicar por texto) y "Dejarlas" solo cierra el cartel.
 const METAS_AYER_KEY = 'cdm_metas_ayer_aviso';
 function _ayerStr() {
@@ -1887,7 +1889,7 @@ function mostrarAvisoMetasAyer() {
   el.className = 'card metas-ayer-aviso';
   el.id = 'metas-ayer-aviso';
   el.setAttribute('role', 'status');
-  el.innerHTML = `<div class="maa-txt">${n === 1 ? 'Te quedó <b>1 meta</b> de ayer sin hacer' : `Te quedaron <b>${n} metas</b> de ayer sin hacer`}</div>
+  el.innerHTML = `<div class="maa-txt">${n === 1 ? 'Te quedó <b>1 tarea</b> de ayer sin hacer' : `Te quedaron <b>${n} tareas</b> de ayer sin hacer`}</div>
     <div class="maa-acc"><button class="btn btn-sm btn-primary" onclick="pasarMetasAyerAHoy()">Pasarlas a hoy</button>
     <button class="btn btn-ghost btn-sm" onclick="cerrarAvisoMetasAyer()">Dejarlas</button></div>`;
   ref.parentNode.insertBefore(el, ref);
@@ -1900,7 +1902,7 @@ function pasarMetasAyerAHoy() {
   const pending = _moverMetasPendientes(_ayerStr(), getActiveDate());
   saveState(); renderGoals();
   cerrarAvisoMetasAyer();
-  showToast(pending.length === 1 ? '1 meta pasada a hoy' : `${pending.length} metas pasadas a hoy`);
+  showToast(pending.length === 1 ? '1 tarea pasada a hoy' : `${pending.length} tareas pasadas a hoy`);
 }
 
 function updateStreak() {
@@ -2354,7 +2356,7 @@ function plannerBlockHTML(date, t, hourPx, compact, lay) {
   const rid = escHtml(t.id);
   const range = `${t.time}–${_minToTimeDisp(endMin)}`;
   const colorVar = isGoal ? '--hud' : areaCfg.cssVar;
-  const label = isGoal ? 'Meta' : areaCfg.label;
+  const label = isGoal ? 'Tarea' : areaCfg.label;
   // Vista previa minimalista: sólo título (hora/área/repetición/prioridad se ven al abrir la tarjeta).
   // El tooltip conserva el detalle para hover. El color del bloque ya comunica el área.
   return `<div class="pcal-block${compact ? ' pcal-compact' : ''}${isGoal ? ' pcal-goal' : ''} prio-${t.priority}${t.done ? ' done' : ''}" data-id="${rid}"
@@ -2365,7 +2367,7 @@ function plannerBlockHTML(date, t, hourPx, compact, lay) {
       ${isGoal ? '' : `<button class="pcal-del" onclick="event.stopPropagation();plannerDeleteTask('${escHtml(date)}','${rid}')" title="Eliminar" aria-label="Eliminar">✕</button>`}
       <label class="pcal-check" onclick="event.stopPropagation()"><input type="checkbox" aria-label="Marcar como hecha: ${escHtml(t.text)}"${t.done ? ' checked' : ''} onchange="plannerToggleTask('${escHtml(date)}','${rid}',event)"></label>
     </div>
-    ${compact ? '' : `<div class="pcal-foot"><span class="pcal-prio-tag">${isGoal ? 'Meta · ' + prioCfg.label : prioCfg.label}</span></div>`}
+    ${compact ? '' : `<div class="pcal-foot"><span class="pcal-prio-tag">${isGoal ? 'Tarea · ' + prioCfg.label : prioCfg.label}</span></div>`}
   </div>`;
 }
 
@@ -2432,13 +2434,13 @@ function plannerListRowHTML(date, t) {
   const prioCfg = PLANNER_PRIO[t.priority] || PLANNER_PRIO[2];
   const rid     = escHtml(t.id);
   const range   = isGoal ? t.time : `${t.time}–${_minToTimeDisp(endMin)}`;
-  const label   = isGoal ? 'Meta' : areaCfg.label;
+  const label   = isGoal ? 'Tarea' : areaCfg.label;
   return `<div class="pcal-row${isGoal ? ' pcal-goal' : ''}${t.done ? ' done' : ''}" data-id="${rid}"
     style="--area-c:var(${isGoal ? '--hud' : areaCfg.cssVar})"
     ${isGoal ? '' : `onclick="openPlanModal('${escHtml(date)}','${rid}')"`} title="${escHtml(t.text)} · ${label} · ${prioCfg.label}">
     <span class="pcal-row-time">${range}</span>
     <div class="pcal-text">${hIcon}${escHtml(t.text) || '<span class="pcal-empty">Sin título</span>'}</div>
-    ${isGoal ? '<span class="pcal-row-tag">Meta</span>' : `<button class="pcal-del" onclick="event.stopPropagation();plannerDeleteTask('${escHtml(date)}','${rid}')" title="Eliminar" aria-label="Eliminar">✕</button>`}
+    ${isGoal ? '<span class="pcal-row-tag">Tarea</span>' : `<button class="pcal-del" onclick="event.stopPropagation();plannerDeleteTask('${escHtml(date)}','${rid}')" title="Eliminar" aria-label="Eliminar">✕</button>`}
     <label class="pcal-check" onclick="event.stopPropagation()"><input type="checkbox" aria-label="Marcar como hecha: ${escHtml(t.text)}"${t.done ? ' checked' : ''} onchange="plannerToggleTask('${escHtml(date)}','${rid}',event)"></label>
   </div>`;
 }
@@ -3820,12 +3822,12 @@ const ACHIEVEMENTS = [
   // ── VIDA ──────────────────────────────────────────────
   { id:'streak_7',  section:'vida', icon:'⚡', rarity:'silver',
     name:'Disciplinado',
-    desc:'Completar todas las metas del día 7 días seguidos',
+    desc:'Completar todas las tareas del día 7 días seguidos',
     check() { const m=S.streak?.count||0; return {metric:m, threshold:7}; } },
 
   { id:'streak_30', section:'vida', icon:'🔥', rarity:'gold',
     name:'Imparable',
-    desc:'Completar todas las metas del día 30 días seguidos',
+    desc:'Completar todas las tareas del día 30 días seguidos',
     check() { const m=S.streak?.count||0; return {metric:m, threshold:30}; } },
 
   { id:'sleep_14',  section:'vida', icon:'😴', rarity:'silver',
@@ -4125,7 +4127,7 @@ function showMissionBanner() {
   el.innerHTML = `
     <div style="font-size:36px;line-height:1;margin-bottom:6px">🏆</div>
     <div style="font-size:22px;font-weight:900;letter-spacing:.06em;color:#6BE3A4;text-shadow:0 0 30px rgba(107,227,164,.8)">¡MISIÓN CUMPLIDA!</div>
-    <div style="font-size:var(--fs-14);color:rgba(255,255,255,.7);margin-top:5px;font-weight:600">Todas las metas del día completadas</div>
+    <div style="font-size:var(--fs-14);color:rgba(255,255,255,.7);margin-top:5px;font-weight:600">Todas las tareas del día completadas</div>
   `;
   document.body.appendChild(el);
   setTimeout(() => el.remove(), 4000);

@@ -221,7 +221,7 @@
   /* ── state snapshot ── */
   function _snapshot() {
     const today = (typeof getActiveDate === 'function') ? getActiveDate() : new Date().toISOString().slice(0,10);
-    const goals = (S.goals[today] || []).map(g => ({ id: g.id, text: g.text, done: g.done, priority: g.priority }));
+    const goals = (S.goals[today] || []).map(g => ({ id: g.id, text: g.text, done: g.done, priority: g.priority, q: (typeof cuadranteDe === 'function') ? cuadranteDe(g) : undefined }));
     const TABS  = ['vida','finanzas','salud','conocimiento','ia'];
     const projects = {};
     TABS.forEach(tab => {
@@ -300,6 +300,7 @@
           text:     { type: 'string', description: 'Texto de la meta' },
           when:     { type: 'string', enum: ['today','tomorrow'] },
           priority: { type: 'string', enum: ['high','medium','low'] },
+          q:        { type: 'string', enum: ['ui','un','ni','nn'], description: 'Categoría opcional de la lista de tareas: ui = urgente-importante, un = urgente-no importante, ni = no urgente-importante, nn = no urgente-no importante. Si se omite se deduce de la prioridad.' },
         },
         required: ['text'],
       },
@@ -557,7 +558,9 @@
     if (name === 'add_goal') {
       const date = input.when === 'tomorrow' ? (typeof getTomorrow === 'function' ? getTomorrow() : today) : today;
       if (!S.goals[date]) S.goals[date] = [];
-      S.goals[date].push({ id: uid(), text: input.text, done: false, priority: input.priority || 'medium', time: null });
+      const q = ['ui','un','ni','nn'].includes(input.q) ? input.q : null;
+      const qPrio = { ui: 'high', un: 'medium', ni: 'medium', nn: 'low' };
+      S.goals[date].push({ id: uid(), text: input.text, done: false, priority: input.priority || (q ? qPrio[q] : 'medium'), ...(q ? { q } : {}), time: null });
       saveState();
       if (typeof renderGoals === 'function') renderGoals();
       window.JARVIS_BRAIN && JARVIS_BRAIN.audit({ ts: Date.now(), source: 'chat', action: 'add_goal', desc: `Agregó meta: ${input.text}`, inverse: null });

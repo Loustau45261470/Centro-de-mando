@@ -12,7 +12,7 @@ test('un cambio sobrevive a recargar la página', async ({ cmPage }) => {
   await cmPage.evaluate(() => window.plannerOverlayOpen());
   await expect(cmPage.locator('#metas-hoy-card')).toBeVisible();
 
-  await cmPage.click('#metas-hoy-card button:has-text("+ Meta")');
+  await cmPage.click('#metas-hoy-card button:has-text("+ Tarea")');
   await cmPage.fill('#newGoalText', text);
   await cmPage.click('#modal-add-goal button:has-text("Agregar")');
   await expect(cmPage.locator('#modal-add-goal')).not.toHaveClass(/open/);

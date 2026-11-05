@@ -21,7 +21,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-<link rel="stylesheet" href="styles.css?v=250">
+<link rel="stylesheet" href="styles.css?v=251">
 <script>try{if(localStorage.getItem('cm_rail_off')==='1')document.documentElement.classList.add('rail-off')}catch(e){}</script>
 <link rel="stylesheet" href="gamemode.css">
 <link rel="stylesheet" href="overlay-core.css">
@@ -268,11 +268,11 @@
       </div>
     </div>
 
-    <!-- Metas de hoy (sección): ver, marcar y agregar. Editar/borrar viven en Planificación (overlay). -->
+    <!-- Lista de tareas del día (sección): ver, marcar y agregar. Editar/borrar viven en Planificación (overlay). -->
     <div class="card" id="metas-readonly-card">
       <div class="card-title">
-        <div class="flex items-center gap-8">🎯 Metas de hoy</div>
-        <button class="btn btn-ghost btn-sm" onclick="openAddGoalToday()">+ Meta</button>
+        <div class="flex items-center gap-8">🎯 Lista de tareas del día</div>
+        <button class="btn btn-ghost btn-sm" onclick="openAddGoalToday()">+ Tarea</button>
       </div>
       <div id="metasReadonlyBody"></div>
     </div>
@@ -281,20 +281,20 @@
     <div class="card" id="metas-hoy-card">
       <div class="card-title">
         <div class="flex items-center gap-8">
-          🎯 Metas de Hoy
+          🎯 Lista de tareas del día
           <div class="streak-pill zero" id="streakPill">⚡ 0 días</div>
         </div>
-        <button class="btn btn-ghost btn-sm" onclick="openAddGoalToday()">+ Meta</button>
+        <button class="btn btn-ghost btn-sm" onclick="openAddGoalToday()">+ Tarea</button>
       </div>
       <div class="flex items-center gap-8 mb-8">
         <span id="goalsDoneNum" style="font-size:36px;font-weight:800;letter-spacing:-.04em;line-height:1">0</span>
         <span class="text-ter">/</span>
         <span id="goalsTotalNum" class="text-ter" style="font-size:18px;font-family:var(--mono)">0</span>
-        <span id="goalsLabel" class="text-xs text-ter" style="text-transform:uppercase;letter-spacing:.1em">sin metas</span>
+        <span id="goalsLabel" class="text-xs text-ter" style="text-transform:uppercase;letter-spacing:.1em">sin tareas</span>
       </div>
       <div id="goalsBar" class="flex gap-8 mb-8" style="height:5px"></div>
       <div id="goalList"></div>
-      <div id="goalsEmpty" class="empty-state">Agrega tu primera meta del día</div>
+      <div id="goalsEmpty" class="empty-state">Agrega tu primera tarea del día</div>
       <button class="push-btn" id="pushBtn" onclick="pushRemaining()" style="display:none">→ Empujar restantes a mañana</button>
     </div>
       </div>
@@ -306,7 +306,7 @@
         <div class="card" id="tomorrow-card">
           <div class="card-title">
             📋 Plan Mañana
-            <button class="btn btn-ghost btn-sm" onclick="openModal('modal-add-goal-tom')">+ Meta</button>
+            <button class="btn btn-ghost btn-sm" onclick="openModal('modal-add-goal-tom')">+ Tarea</button>
           </div>
           <div id="tomorrowList"></div>
           <div id="tomorrowEmpty" class="empty-state">Nada planeado para mañana</div>
@@ -786,27 +786,20 @@
 <div class="modal-overlay" id="modal-add-goal">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-title">Nueva meta — Hoy</div>
+    <div class="modal-title">Nueva tarea — Hoy</div>
     <div class="field"><label>Descripción</label><input class="inp" id="newGoalText" placeholder="Ej: Grabar un TikTok…"></div>
     <div class="field">
-      <label>Prioridad</label>
-      <select class="inp" id="newGoalPriority">
-        <option value="high">Alta 🔴</option>
-        <option value="mid" selected>Media 🟡</option>
-        <option value="low">Baja 🟢</option>
-      </select>
-    </div>
-    <div class="field">
-      <label>Parte del día</label>
-      <select class="inp" id="newGoalPeriod">
-        <option value="manana">Mañana 🌅</option>
-        <option value="tarde">Tarde ☀️</option>
-        <option value="noche">Noche 🌙</option>
+      <label>Categoría</label>
+      <select class="inp" id="newGoalQuad">
+        <option value="ui">Urgente-importante</option>
+        <option value="un">Urgente-no importante</option>
+        <option value="ni" selected>No urgente-importante</option>
+        <option value="nn">No urgente-no importante</option>
       </select>
     </div>
     <div class="field">
       <label>Horario en el planner <span style="font-weight:400;color:var(--tt)">(opcional)</span></label>
-      <input type="time" class="inp" id="newGoalTime" style="color-scheme:dark" onchange="syncNewGoalPeriod(this.value)">
+      <input type="time" class="inp" id="newGoalTime" style="color-scheme:dark">
     </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('modal-add-goal')">Cancelar</button>
@@ -819,14 +812,15 @@
 <div class="modal-overlay" id="modal-add-goal-tom">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-title">Nueva meta — Mañana</div>
+    <div class="modal-title">Nueva tarea — Mañana</div>
     <div class="field"><label>Descripción</label><input class="inp" id="newGoalTextTom" placeholder="Ej: Hacer la tarea…"></div>
     <div class="field">
-      <label>Prioridad</label>
-      <select class="inp" id="newGoalPriorityTom">
-        <option value="high">Alta 🔴</option>
-        <option value="mid" selected>Media 🟡</option>
-        <option value="low">Baja 🟢</option>
+      <label>Categoría</label>
+      <select class="inp" id="newGoalQuadTom">
+        <option value="ui">Urgente-importante</option>
+        <option value="un">Urgente-no importante</option>
+        <option value="ni" selected>No urgente-importante</option>
+        <option value="nn">No urgente-no importante</option>
       </select>
     </div>
     <div class="modal-actions">
@@ -1879,7 +1873,7 @@
 <script src="errores.js?v=1"></script>
 <script src="deadlines.js?v=8"></script>
 <script src="motion.js?v=1"></script>
-<script src="app.js?v=211"></script>
+<script src="app.js?v=212"></script>
 <script src="datos-privados.js?v=2"></script>
 <script src="sync-diagnostico.js?v=1"></script>
 <script src="archivo.js?v=2"></script>

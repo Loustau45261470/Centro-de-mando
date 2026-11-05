@@ -17,7 +17,7 @@ test('crear, completar y borrar una meta de hoy', async ({ cmPage }) => {
   const text = 'Meta E2E ' + Date.now();
 
   async function addGoalToday(goalText) {
-    await cmPage.click('#metas-hoy-card button:has-text("+ Meta")');
+    await cmPage.click('#metas-hoy-card button:has-text("+ Tarea")');
     await expect(cmPage.locator('#modal-add-goal')).toHaveClass(/open/);
     await cmPage.fill('#newGoalText', goalText);
     await cmPage.click('#modal-add-goal button:has-text("Agregar")');
