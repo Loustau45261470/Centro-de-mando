@@ -1584,8 +1584,30 @@ function renderGoals() {
   if (hasTimed) renderReminders('vida');
 }
 
+// La tarjeta entera abre Planificación (patrón .cc-card-link). Las filas (zona de arrastre y edición) y los controles NO la abren.
+// Se mira dónde EMPEZÓ el clic: un arrastre de Sortable o una selección de texto que termina fuera de la fila genera un click
+// cuyo target es un ancestro común, así que el target solo no alcanza.
+const _MRD_PROPIO = '.mrd-item, button, select, input, a, [contenteditable="true"]';
+function _initMetasCardLink() {
+  const card = document.getElementById('metas-readonly-card');
+  if (!card || card._linkInit) return;
+  card._linkInit = true;
+  let desdeInterno = false;
+  card.addEventListener('pointerdown', e => { desdeInterno = !!(e.target.closest && e.target.closest(_MRD_PROPIO)); }, true);
+  card.addEventListener('click', e => {
+    const interno = desdeInterno || (e.target.closest && e.target.closest(_MRD_PROPIO));
+    desdeInterno = false;
+    if (interno) return;
+    if (typeof plannerOverlayOpen === 'function') plannerOverlayOpen();
+  });
+  card.addEventListener('keydown', e => {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target === card) { e.preventDefault(); if (typeof plannerOverlayOpen === 'function') plannerOverlayOpen(); }
+  });
+}
+
 // Lista de tareas del día en la sección: ver, marcar, agregar, editar el texto (clic), cambiar de categoría (⇅) y arrastrar entre categorías. Borrar vive en Planificación (overlay).
 function renderMetasReadonly() {
+  _initMetasCardLink();
   const body = document.getElementById('metasReadonlyBody'); if (!body) return;
   const date = getActiveDate();
   const goals = S.goals[date] || [];

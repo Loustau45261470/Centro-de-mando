@@ -237,5 +237,44 @@ test('10) en la tarjeta de la sección se puede editar el texto, cambiar de cate
   expect(otra.q).toBe('nn');
   expect(otra.priority).toBe('low');
   expect(await cmPage.evaluate(() => S.goals[getActiveDate()].length)).toBe(2);
+  // El arrastre que termina fuera de la fila no abre Planificación
+  expect(await cmPage.evaluate(() => !!document.getElementById('ov-planner')?.classList.contains('show'))).toBe(false);
+  expect(consoleErrors).toEqual([]);
+});
+
+test('11) la tarjeta de la sección abre Planificación; sus controles y las filas no', async ({ cmPage, consoleErrors }) => {
+  await irAVida(cmPage);
+  await cmPage.evaluate(() => {
+    S.goals[getActiveDate()] = [
+      { id: 'o1', text: 'Tarea abierta', done: false, priority: 'high' },
+      { id: 'o2', text: 'Otra tarea', done: false, priority: 'low' },
+    ];
+    renderMetasReadonly();
+  });
+  const t = cmPage.locator('#metas-readonly-card');
+  const abierto = () => cmPage.evaluate(() => !!document.getElementById('ov-planner')?.classList.contains('show'));
+  await expect(t).toHaveClass(/cc-card-link/);
+  expect(await abierto()).toBe(false);
+  // Controles internos: ninguno abre Planificación
+  await t.locator('.tl-q[data-q="ui"] .goal-q-sel').selectOption('ni');
+  await t.locator('.mrd-check').first().click();
+  await t.locator('.mrd-text').first().click();
+  await cmPage.keyboard.press('Escape');
+  await t.getByRole('button', { name: '+ Tarea' }).click();
+  await expect(cmPage.locator('#modal-add-goal')).toHaveClass(/open/);
+  await cmPage.evaluate(() => closeModal('modal-add-goal'));
+  expect(await abierto()).toBe(false);
+  // Clic en una fila fuera de sus controles: tampoco (es zona de arrastre)
+  await t.locator('.mrd-item').first().click({ position: { x: 3, y: 3 } });
+  expect(await abierto()).toBe(false);
+  // Clic en el título: abre
+  await t.locator('.card-title').click({ position: { x: 150, y: 4 } });
+  await expect.poll(abierto).toBe(true);
+  await cmPage.evaluate(() => CMOverlay.close('ov-planner'));
+  await expect.poll(abierto).toBe(false);
+  // Enter con foco en la tarjeta: abre
+  await t.focus();
+  await cmPage.keyboard.press('Enter');
+  await expect.poll(abierto).toBe(true);
   expect(consoleErrors).toEqual([]);
 });
