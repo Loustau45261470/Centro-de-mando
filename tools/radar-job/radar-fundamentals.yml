@@ -2,7 +2,7 @@
 # Radar de empresas — baja los fundamentals de la SEC y los guarda como fund-<TICKER>.json + fund-index.json
 #
 # ESTE ARCHIVO SE SUBE AL REPO PRIVADO  Loustau45261470/centro-de-mando-datos  en  .github/workflows/radar-fundamentals.yml
-# (no corre desde el repo público). Pasos exactos: cf-worker/README.md, sección "Radar de empresas".
+# (no corre desde el repo público). El código (radar-calc.js y tools/radar-job/run.js) vive COPIADO en este repo privado: no se baja nada del repo público. Pasos exactos: cf-worker/README.md, sección "Radar de empresas".
 #
 # Cuándo corre:
 #   - todos los días hábiles ~06:30 de Argentina: refresca todas las empresas que ya tienen fund-<TICKER>.json
@@ -41,16 +41,6 @@ jobs:
       - name: Repo de datos (privado)
         uses: actions/checkout@v4
 
-      - name: Código del Centro de Mando (público; solo se usa radar-calc.js y tools/radar-job)
-        uses: actions/checkout@v4
-        with:
-          repository: Loustau45261470/Centro-de-mando
-          path: app
-          sparse-checkout: |
-            radar-calc.js
-            tools/radar-job
-          sparse-checkout-cone-mode: false
-
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -59,7 +49,7 @@ jobs:
         env:
           SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
           TICKERS: ${{ github.event.inputs.tickers }}   # por variable de entorno, nunca pegado en el comando (evita inyección); run.js lo valida
-        run: node app/tools/radar-job/run.js --datos . --tickers "$TICKERS"
+        run: node tools/radar-job/run.js --datos . --tickers "$TICKERS"
 
       - name: Guardar cambios
         run: |
