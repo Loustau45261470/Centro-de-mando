@@ -1,7 +1,7 @@
 // Centro de Mando — Service Worker
 // Maneja Web Push, clicks de notificación, y caché offline del app shell.
 
-const CACHE = 'cdm-shell-v368';
+const CACHE = 'cdm-shell-v369';
 const BASE  = '/Centro-de-mando/';
 const SHELL = [
   BASE,
@@ -143,18 +143,6 @@ self.addEventListener('fetch', event => {
 
   // Datos privados de la cartera (Worker /datos/<archivo>, requiere ID token): network-only. Nunca se guardan en la caché del SW.
   if (url.pathname.startsWith('/datos/')) return;
-
-  // Datos de cartera (JSON que commitea el agente cloud cada mes) → network-first,
-  // fallback a caché para offline. Cache-first lo dejaría congelado en la 1ª versión.
-  // TRANSITORIO: copia pública que se borra del repo; quitar esta regla en el paso de limpieza de data/cartera.
-  if (url.pathname.includes('/data/cartera/')) {
-    event.respondWith(
-      fetch(req)
-        .then(res => { if (res && res.ok) { const c = res.clone(); caches.open(CACHE).then(ch => ch.put(req, c)); } return res; })
-        .catch(() => caches.match(req))
-    );
-    return;
-  }
 
   // Assets estáticos: mismo origen, o uno de los CDNs precacheados del shell → cache-first
   const isStatic = url.origin === self.location.origin || SHELL.includes(url.href);

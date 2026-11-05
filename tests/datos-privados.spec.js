@@ -50,7 +50,7 @@ test.describe('CMDatos.cartera (cliente)', () => {
     expect(visto.worker).toEqual(['Bearer tok-1', 'Bearer tok-2']);
   });
 
-  const TRANSITORIOS = [
+  const SIN_LECTURA = [
     ['Worker viejo sin la ruta (401 unauthorized de texto)', (r) => r.fulfill({ status: 401, contentType: 'text/plain', headers: CORS, body: 'unauthorized' })],
     ['Worker viejo sin la ruta (404 de texto)', (r) => r.fulfill({ status: 404, contentType: 'text/plain', headers: CORS, body: 'not found' })],
     ['401 invalid_token', (r) => r.fulfill({ status: 401, contentType: 'application/json', headers: CORS, body: '{"error":"invalid_token"}' })],
@@ -58,18 +58,19 @@ test.describe('CMDatos.cartera (cliente)', () => {
     ['502 github_error', (r) => r.fulfill({ status: 502, contentType: 'application/json', headers: CORS, body: '{"error":"github_error"}' })],
     ['falla de red', (r) => r.abort('failed')],
   ];
-  for (const [nombre, worker] of TRANSITORIOS) {
-    test(`cae a la copia pública (transitorio): ${nombre}`, async ({ cmPage: page }) => {
+  for (const [nombre, worker] of SIN_LECTURA) {
+    test(`status 0 y sin copia pública: ${nombre}`, async ({ cmPage: page }) => {
       const visto = await armar(page, { worker });
-      expect(await pedir(page)).toEqual(ESTATICO);
-      expect(visto.publico).toBe(1);
+      expect(await page.evaluate(() => CMDatos.carteraDetalle('prueba.json'))).toEqual({ data: null, status: 0 });
+      expect(visto.publico).toBe(0);
     });
   }
 
-  test('sin getIdToken (sin sesión usable) cae a la copia pública sin pegarle al Worker', async ({ cmPage: page }) => {
+  test('sin getIdToken (sin sesión usable): status 0, sin pegarle al Worker ni al público', async ({ cmPage: page }) => {
     const visto = await armar(page, { worker: ok, sesion: false });
-    expect(await pedir(page)).toEqual(ESTATICO);
+    expect(await page.evaluate(() => CMDatos.carteraDetalle('prueba.json'))).toEqual({ data: null, status: 0 });
     expect(visto.worker).toEqual([]);
+    expect(visto.publico).toBe(0);
   });
 
   test('403 forbidden (usuario equivocado): null y NO cae a la copia pública', async ({ cmPage: page }) => {
@@ -282,9 +283,9 @@ test.describe('sw.js: respuestas de /datos/', () => {
     expect(sw.llamadas.fetch).toEqual([]);
   });
 
-  test('la regla transitoria de la copia pública sigue activa mientras dure la transición', async () => {
-    const sw = cargarSw();
-    expect(sw.disparar('https://loustau45261470.github.io/Centro-de-mando/data/cartera/tenencias.json')).toBe(true);
+  test('el SW ya no tiene la regla de /data/cartera/ (la copia pública se borró): ni regla ni archivos en el shell', async () => {
+    const swTxt = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
+    expect(swTxt).not.toContain('data/cartera');
   });
 
   test('datos-privados.js está en el shell del SW y en index.html antes de sus consumidores', async () => {
