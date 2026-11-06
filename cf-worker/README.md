@@ -241,7 +241,7 @@ ahí puede cortarse a mitad. Con `companyconcept` (un JSON por concepto) harían
   Errores: 500 `missing_gh_token`; 502 `github_token` (token rechazado), `github_permiso` (falta el permiso Actions o el archivo del workflow en el repo de datos), `github_error`, `github_unavailable`.
 - `POST /radar/reportar` — «este número está mal». Body JSON:
   `{ "ticker": "V", "kpi_id": "margen_op", "trimestre": "2026-09-30", "valor_mostrado": "31,2%", "comentario": "opcional, hasta 500 caracteres" }`.
-  Validación (400 `bad_param` con el motivo en `message`): `ticker` como en el resto del radar (se pasa a mayúsculas); `kpi_id` y `trimestre` `^[A-Za-z0-9_.-]{1,24}$`; `valor_mostrado` texto o número, 1 a 60 caracteres (se guarda como texto); `comentario` ≤ 500.
+  Validación (400 `bad_param` con el motivo en `message`): `ticker` como en el resto del radar (se pasa a mayúsculas); `kpi_id` y `trimestre` `^[A-Za-z0-9_.-]{1,64}$`; `valor_mostrado` texto o número, 1 a 60 caracteres (se guarda como texto); `comentario` ≤ 500.
   Agrega la entrada al final de `reportes.json` del repo privado (Contents API con `GH_DATA_TOKEN`: lee el `sha`, agrega, `PUT`; si GitHub da 409 relee y reintenta **una** vez; si el archivo no existe lo crea). Entrada:
   `{ id, ticker, kpi_id, trimestre, valor_mostrado, comentario, estado: "en_revision", reportado_en (ISO), resuelto_en: null, resolucion: null }`, con `id = "TICKER:kpi_id:trimestre"`.
   Si ya hay un reporte `en_revision` de ese mismo número, **no duplica**: devuelve el existente. Si el anterior ya se resolvió, agrega uno nuevo con `id` `…#2`, `…#3` (el historial no se pisa).

@@ -12,7 +12,7 @@ const GENERALES = [
   ['deuda_neta', 'balance_riesgo', 'Deuda neta', 'USD', 'yahoo'], ['deuda_neta_ebitda', 'balance_riesgo', 'Deuda neta / EBITDA', 'x', 'calc'], ['liquidez_caja_inversiones_de_corto_plazo', 'balance_riesgo', 'Liquidez (caja + inversiones de corto plazo)', 'USD', 'sec'],
   ['recompras', 'capital', 'Recompras', 'USD', 'sec'], ['dilucion_variacion_a_a_de_acciones', 'capital', 'Dilución (variación a/a de acciones)', '%', 'sec'],
   ['p_e_ttm', 'valuacion', 'P/E TTM', 'x', 'yahoo'], ['p_e_vs_media_5_10_15_anos', 'valuacion', 'P/E vs media 5/10/15 años', 'x', 'calc'], ['p_e_forward', 'valuacion', 'P/E forward', 'x', 'yahoo'],
-  ['p_e_forward_vs_media_5_10_15_anos', 'valuacion', 'P/E forward vs media 5/10/15 años', 'x', 'manual'], ['ev_ebitda', 'valuacion', 'EV/EBITDA', 'x', 'yahoo'], ['valuacion_vs_pares', 'valuacion', 'Valuación vs pares', 'x', 'manual'],
+  ['p_e_forward_vs_media_5_10_15_anos', 'valuacion', 'P/E forward vs media 5/10/15 años', 'x', 'manual'], ['ev_ebitda', 'valuacion', 'EV/EBITDA', 'x', 'yahoo'], ['p_fcf', 'valuacion', 'P/FCF', 'x', 'calc'], ['fcf_yield', 'valuacion', 'FCF yield', '%', 'calc'], ['valuacion_vs_pares', 'valuacion', 'Valuación vs pares', 'x', 'manual'],
   ['rule_of_40', 'valuacion', 'Rule of 40', '%', 'calc', ['NUBO']],
   ['sorpresa_vs_consenso_eps', 'expectativas_mercado', 'Sorpresa vs consenso (EPS)', '%', 'yahoo'], ['precio_objetivo_promedio', 'expectativas_mercado', 'Precio objetivo promedio', 'USD', 'yahoo'], ['short_interest', 'expectativas_mercado', 'Short interest', '%', 'yahoo'],
 ].map(([id, seccion, nombre, unidad, fuente, aplica_a]) => Object.assign({ id, seccion, nombre, unidad, fuente }, aplica_a ? { aplica_a } : {}));
@@ -37,7 +37,7 @@ function config(extra = 8) {
 }
 
 const campo = (valor, fecha = '2026-11-06', extra = {}) => Object.assign({ valor, fuente: 'yahoo', fecha }, extra);
-// Mercado de una empresa inventada. o.pf = P/E forward; o.act / o.sig = EPS esperado año en curso / siguiente; o.base = EPS del último año informado; o.cagr = CAGR a 2 años.
+// Mercado de una empresa inventada. o.sorp = sorpresa del último trimestre; o.pf = P/E forward; o.act / o.sig = EPS esperado año en curso / siguiente; o.base = EPS del último año informado; o.cagr = CAGR a 2 años.
 function mercado(o = {}) {
   const act = o.act != null ? o.act : 5, sig = o.sig != null ? o.sig : 6, base = o.base != null ? o.base : 4;
   const m = {
@@ -52,14 +52,14 @@ function mercado(o = {}) {
     pe_forward: campo(o.pf !== undefined ? o.pf : 20, '2026-11-06', { base: 'EPS estimado del año fiscal en curso' }),
     pe_forward_siguiente: campo(o.pfs !== undefined ? o.pfs : 16.7),
     eps_cagr_2a: campo(o.cagr !== undefined ? o.cagr : 0.2, '2026-11-06', { eps_base: base, eps_final: sig }),
-    sorpresa_ultimo_trimestre: campo({ trimestre: '2026-09-30', eps_real: 1.1, eps_estimado: 1, diferencia: 0.1, sorpresa_pct: 0.1, ingresos: null }, '2026-09-30'),
+    sorpresa_ultimo_trimestre: campo(o.sorp || { trimestre: '2026-09-30', eps_real: 1.1, eps_estimado: 1, diferencia: 0.1, sorpresa_pct: 0.1, ingresos: null }, '2026-09-30'),
     revisiones_eps: campo({ anio_actual: { actual: act, variacion_30d: 0.02, variacion_90d: 0.05, analistas_al_alza_30d: 4, analistas_a_la_baja_30d: 1 } }),
     precio_objetivo: campo({ promedio: 130, alto: 160, bajo: 100, mediana: 128, analistas: 25, potencial: 0.3 }),
     recomendaciones: campo({ compra_fuerte: 8, compra: 10, mantener: 5, venta: 1, venta_fuerte: 0, media: 1.9, clave: 'buy' }),
     insiders: campo({ transacciones_recientes: [], periodo: '6m', compras_n: 3, ventas_n: 1, neto_acciones: 12000 }),
     institucional: campo({ pct: 0.8, cantidad: 1200, neto_compra_pct: -0.02, principales: [] }, '2026-06-30'),
     short_interest: campo({ pct_float: 0.03, dias_para_cubrir: 2.5 }, '2026-10-15'),
-    ev: campo(1.2e10), ev_ebitda: campo(14), ev_ventas: campo(4), fcf: campo(6e8), p_fcf: campo(20), fcf_yield: campo(0.05), deuda_neta: campo(2e8),
+    capitalizacion: campo(1.0e10, '2026-11-05'), ev: campo(1.2e10), ev_ebitda: campo(14), ev_ventas: campo(4), fcf: campo(6e8), p_fcf: campo(20), fcf_yield: campo(0.05), deuda_neta: campo(2e8),
     margenes: campo({ bruto: 0.6, operativo: 0.2, neto: 0.15 }), roe: campo(0.3),
     ticker: o.ticker || 'ACME',
   };
@@ -68,6 +68,7 @@ function mercado(o = {}) {
 }
 
 // 19 trimestres inventados (2022-03-31 … 2026-09-30). Ingresos +5% por trimestre; el último reporta 2026-09-30.
+// o.fcf = función (i) → FCF del trimestre i (por defecto 18% de los ingresos); o.pe = false quita el P/E TTM de cada trimestre; o.n = cantidad de trimestres a conservar (los últimos).
 function historia(o = {}) {
   const fines = []; for (let y = 2022, q = 1; ; ) { const f = [`${y}-03-31`, `${y}-06-30`, `${y}-09-30`, `${y}-12-31`][q - 1]; fines.push(f); if (f === '2026-09-30') break; q++; if (q > 4) { q = 1; y++; } }
   const trimestres = fines.map((fin, i) => {
@@ -75,14 +76,14 @@ function historia(o = {}) {
     const r = {
       fin, fuente: o.fuente || 'sec', presentado: o.fuente === 'yahoo' ? null : fin.slice(0, 4) + '-' + String(+fin.slice(5, 7) + 1).padStart(2, '0') + '-20',
       ingresos: ing, utilidad_operativa: o.sinOper ? null : Math.round(ing * 0.2), utilidad_neta: Math.round(ing * 0.15), eps_basico: +(0.5 + i * 0.02).toFixed(2), eps_diluido: +(0.48 + i * 0.02).toFixed(2),
-      cfo: Math.round(ing * 0.22), capex: Math.round(ing * 0.04), fcf: Math.round(ing * 0.18), sbc: Math.round(ing * 0.03), da: Math.round(ing * 0.05),
+      cfo: Math.round(ing * 0.22), capex: Math.round(ing * 0.04), fcf: o.fcf ? o.fcf(i) : Math.round(ing * 0.18), sbc: Math.round(ing * 0.03), da: Math.round(ing * 0.05),
       deuda: 500e6, caja: 800e6, acciones_diluidas: Math.round(300e6 - i * 1e6), acciones_circulacion: null, dividendos: null, recompras: 50e6, derivado_q4: false,
-      precio_cierre: 100, eps_ttm: i >= 3 ? 4 : null, pe_ttm: i >= 3 ? +(20 + i * 0.3).toFixed(2) : null,
+      precio_cierre: 100, eps_ttm: i >= 3 ? 4 : null, pe_ttm: i >= 3 && o.pe !== false ? +(20 + i * 0.3).toFixed(2) : null,
     };
     return r;
   });
   return {
-    v: 1, ticker: o.ticker || 'ACME', generado: '2026-11-06', cotiza_desde: null, fuente_trimestres: 'sec', trimestres,
+    v: 1, ticker: o.ticker || 'ACME', generado: '2026-11-06', cotiza_desde: null, fuente_trimestres: 'sec', trimestres: o.n ? trimestres.slice(-o.n) : trimestres,
     medias_pe_ttm: o.medias || { '5y': { valor: 22, desde: '2023-09-30', hasta: '2026-09-30', trimestres: 13, completo: true }, '10y': { valor: 21, desde: '2023-09-30', hasta: '2026-09-30', trimestres: 13, completo: false, nota: 'desde la salida a bolsa (2021-03-01)' }, '15y': { valor: 21, desde: '2023-09-30', hasta: '2026-09-30', trimestres: 13, completo: false, nota: 'desde la salida a bolsa (2021-03-01)' } },
     splits_aplicados: [], notas: [],
   };

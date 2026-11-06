@@ -499,7 +499,7 @@ const RADAR_PEDIDO_TTL_MS = 10 * 60 * 1000;
 const RADAR_WORKFLOW = 'radar-datos.yml';
 const RADAR_REPORTES_ARCHIVO = 'reportes.json';
 const RADAR_REPORTES_POR_DIA = 20;
-const RADAR_ID_RE = /^[A-Za-z0-9_.-]{1,24}$/; // kpi_id y trimestre (sin «:» ni «#», que arman el id del reporte)
+const RADAR_ID_RE = /^[A-Za-z0-9_.-]{1,64}$/; // kpi_id y trimestre (sin «:» ni «#», que arman el id del reporte)
 function utf8ABase64(texto) { let bin = ''; for (const b of new TextEncoder().encode(texto)) bin += String.fromCharCode(b); return btoa(bin); }
 function utf8DeBase64(b64) { const bin = atob(b64); const bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i); return new TextDecoder().decode(bytes); }
 
@@ -1077,9 +1077,9 @@ function validarReporte(b) {
   const ticker = typeof b.ticker === 'string' ? b.ticker.trim().toUpperCase() : '';
   if (!RADAR_TICKER_RE.test(ticker)) return 'ticker inválido.';
   const kpi = typeof b.kpi_id === 'string' ? b.kpi_id.trim() : '';
-  if (!RADAR_ID_RE.test(kpi)) return 'kpi_id inválido (letras, números, _ . - hasta 24).';
+  if (!RADAR_ID_RE.test(kpi)) return 'kpi_id inválido (letras, números, _ . - hasta 64).';
   const tri = typeof b.trimestre === 'string' ? b.trimestre.trim() : '';
-  if (!RADAR_ID_RE.test(tri)) return 'trimestre inválido (letras, números, _ . - hasta 24; ej. 2026-09-30).';
+  if (!RADAR_ID_RE.test(tri)) return 'trimestre inválido (letras, números, _ . - hasta 64; ej. 2026-09-30).';
   let valor = b.valor_mostrado;
   if (typeof valor === 'number' && Number.isFinite(valor)) valor = String(valor);
   if (typeof valor !== 'string' || !valor.trim() || valor.length > 60) return 'valor_mostrado debe ser un texto o número de hasta 60 caracteres.';

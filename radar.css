@@ -142,6 +142,13 @@
 .rd-fig { margin: 0; }
 .rd-cv-wrap { position: relative; height: 420px; border: 1px solid var(--border); border-radius: 14px; padding: 8px 6px 4px; background: rgba(4,7,12,.55); }
 .rd-fig figcaption { margin: 8px 2px 0; line-height: 1.5; }
+/* En un gráfico chico (menos de 520 px) los rótulos de cuadrante no entran dentro: van en esta leyenda, debajo. */
+.rd-leyenda { display: none; list-style: none; margin: 10px 2px 0; padding: 0; font-size: var(--fs-12-5); color: var(--ts); line-height: 1.4; }
+.rd-chico .rd-leyenda { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; }
+.rd-leyenda li { display: flex; align-items: flex-start; gap: 6px; }
+.rd-lq { flex: none; width: 10px; height: 10px; margin-top: 3px; border-radius: 3px; }
+.rd-lq-verde { background: var(--rd-q-verde); } .rd-lq-azul { background: var(--rd-q-azul); } .rd-lq-rojo { background: var(--rd-q-rojo); } .rd-lq-violeta { background: var(--rd-q-violeta); }
+.rd-leyenda .rd-leyenda-nota { grid-column: 1 / -1; display: block; }
 .rd-aviso {
   margin: 10px 0 0; padding: 9px 12px; border-radius: 11px; font-size: var(--fs-12-5); color: var(--ts); line-height: 1.45; overflow-wrap: anywhere;
   border: 1px solid color-mix(in oklab, var(--warn) 40%, var(--border)); background: color-mix(in oklab, var(--warn) 8%, transparent);

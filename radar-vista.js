@@ -90,8 +90,10 @@
   ];
   // En un banco (financiera: true en el config) la deuda, el valor de empresa y el flujo libre no se interpretan como en una empresa operativa.
   const NO_APLICA_FIN = new Set(['deuda_neta', 'deuda_neta_ebitda', 'cobertura_de_intereses', 'ev_ebitda', 'ev_ventas', 'p_fcf', 'fcf_yield', 'fcf', 'fcf_utilidad_neta', 'fcf_neto_de_sbc']);
-  const rid = id => String(id).slice(0, 24);   // el Worker acepta kpi_id de hasta 24 caracteres
+  const rid = id => String(id).slice(0, 64);   // el Worker acepta kpi_id de hasta 64 caracteres (ningún id del config se acerca)
   const NS = 'ns';
+  const TOL_EPS = 0.011;          // dos EPS que difieren menos que esto (en USD) son el mismo número
+  const UMBRAL_SORPRESA = 0.10;   // con EPS real contable (GAAP), una «sorpresa» mayor a esto se atribuye a la diferencia de base, no se muestra
 
   // ── Comunicados: kpis-<T>.json → trimestres ordenados por fecha de cierre ──
   function trimestresDe(kpis) {
@@ -253,17 +255,20 @@
       const id = 'p_e_vs_media_5_10_15_anos', nombre = 'P/E TTM vs media de 5, 10 y 15 años';
       const med = historia && historia.medias_pe_ttm; const pe = mv('pe_ttm');
       if (!med) return sinDatos(id, nombre);
+      const serie = rows.filter(r => esNum(r.pe_ttm));
+      const desdeSerie = serie.length ? ' (datos desde ' + mesAnio(serie[0].fin) + ')' : '';
       const lineas = []; let principal = null;
       for (const [k, rot] of [['5y', '5 años'], ['10y', '10 años'], ['15y', '15 años']]) {
         const m = med[k]; if (!m) continue;
-        if (!esNum(m.valor)) { lineas.push({ k: 'Media ' + rot, txt: 'sin datos' + (m.trimestres ? ' (solo ' + m.trimestres + ' trimestres de P/E)' : '') }); continue; }
+        if (!esNum(m.valor)) { lineas.push({ k: 'Media ' + rot, txt: 'sin datos suficientes' + (m.trimestres ? ' (solo ' + m.trimestres + ' trimestres de P/E)' : desdeSerie) }); continue; }
         const dif = pe && esNum(pe.valor) && m.valor > 0 ? pe.valor / m.valor - 1 : null;
-        const desde = m.completo === false ? (emp.cotiza_desde ? 'desde la salida a bolsa, ' + fc(emp.cotiza_desde) : 'desde ' + fc(m.desde)) : 'desde ' + fc(m.desde);
-        lineas.push({ k: 'Media ' + rot + ' (' + desde + ')', txt: fmt('x', m.valor) + (dif != null ? ' · hoy ' + fmt('pct', dif, { signo: true }) : '') });
+        const desde = m.completo === false && emp.cotiza_desde ? 'desde la salida a bolsa, ' + fc(emp.cotiza_desde) : (m.desde ? 'desde ' + fc(m.desde) : '');
+        lineas.push({ k: 'Media ' + rot + (desde ? ' (' + desde + ')' : ''), txt: fmt('x', m.valor) + (dif != null ? ' · hoy ' + fmt('pct', dif, { signo: true }) : '') });
         if (!principal && dif != null) principal = { dif, rot };
       }
-      const fuente = srcCalc('media del P/E TTM (GAAP) al cierre de cada trimestre; precio de cierre y EPS de la SEC', { tipo: 'sec', titulo: 'SEC + precios de cierre', detalle: 'hasta ' + fc(med['5y'] && med['5y'].hasta) });
-      if (!principal) return sinDatos(id, nombre, { lineas, fuente, detalle: 'No hay historia suficiente de P/E con ganancias positivas.' });
+      const hasta = ['5y', '10y', '15y'].map(k => med[k] && med[k].hasta).find(Boolean);
+      const fuente = srcCalc('media del P/E TTM (GAAP) al cierre de cada trimestre; precio de cierre y EPS de la SEC', { tipo: 'sec', titulo: 'SEC + precios de cierre', detalle: hasta ? 'hasta ' + fc(hasta) : '' });
+      if (!principal) return falta(id, nombre, 'sin_datos', 'sin datos suficientes' + desdeSerie, { lineas, fuente, detalle: 'No hay historia suficiente de P/E con ganancias positivas.' });
       return base(id, nombre, { txt: fmt('pct', principal.dif, { signo: true }) + ' vs media ' + principal.rot, lineas, fuente, periodo: 'hoy', tri: pe ? pe.fecha : null });
     }
     function peFwdVsMedia() {
@@ -314,10 +319,27 @@
     // ── Expectativas ──
     function sorpresaEps() {
       const m = mv('sorpresa_ultimo_trimestre'); const id = 'sorpresa_vs_consenso_eps', nombre = 'Sorpresa vs consenso (EPS)';
-      if (!m || !esNum(m.valor.sorpresa_pct)) return sinDatos(id, nombre);
+      if (!m || !esNum(m.valor.sorpresa_pct) || !esNum(m.valor.eps_real) || !esNum(m.valor.eps_estimado)) return sinDatos(id, nombre);
       const v = m.valor;
-      return base(id, nombre, { txt: fmt('pct', v.sorpresa_pct, { signo: true }), num: v.sorpresa_pct, kind: 'pct', periodo: 'trim. al ' + fc(v.trimestre), tri: v.trimestre || m.fecha, fuente: srcYahoo(m.fecha),
-        lineas: [{ k: 'EPS real', txt: fmt('usdps', v.eps_real) }, { k: 'EPS que esperaba el consenso', txt: fmt('usdps', v.eps_estimado) }] });
+      const comunes = { periodo: 'trim. al ' + fc(v.trimestre), tri: v.trimestre || m.fecha, fuente: srcYahoo(m.fecha) };
+      const lEst = { k: 'EPS que esperaba el consenso', txt: fmt('usdps', v.eps_estimado) };
+      // Yahoo a veces informa como «EPS real» el EPS contable (GAAP) de la SEC y lo compara contra un consenso sobre base ajustada: ese par no es comparable.
+      // Se detecta porque el «real» coincide con el EPS GAAP diluido de la SEC del mismo trimestre.
+      const cerca = f => typeof f === 'string' && typeof v.trimestre === 'string' && Math.abs(dias(f, v.trimestre)) <= 7;
+      const fila = v.trimestre ? rows.find(r => cerca(r.fin)) : null;
+      const esGaap = !!fila && esNum(fila.eps_diluido) && Math.abs(v.eps_real - fila.eps_diluido) <= TOL_EPS;
+      if (!esGaap) return base(id, nombre, Object.assign({ txt: fmt('pct', v.sorpresa_pct, { signo: true }), num: v.sorpresa_pct, kind: 'pct', lineas: [{ k: 'EPS real', txt: fmt('usdps', v.eps_real) }, lEst] }, comunes));
+      // El real de Yahoo es GAAP: si el comunicado trae el EPS ajustado del mismo trimestre, la sorpresa se calcula con ese (misma base que el consenso).
+      const qa = v.trimestre ? Q.find(q => cerca(q.fin)) : null, aj = qa && qa.kpis.eps_ajustado;
+      if (aj && esNum(aj.valor) && (!aj.unidad || aj.unidad === 'USD') && v.eps_estimado !== 0) {
+        const pct = (aj.valor - v.eps_estimado) / Math.abs(v.eps_estimado);
+        return base(id, nombre, Object.assign({ txt: fmt('pct', pct, { signo: true }), num: pct, kind: 'pct', lineas: [{ k: 'EPS ajustado (comunicado)', txt: fmt('usdps', aj.valor) }, { k: 'EPS GAAP (contable)', txt: fmt('usdps', v.eps_real) }, lEst] }, comunes, { fuente: srcCalc('EPS ajustado del comunicado ÷ EPS que esperaba el consenso − 1', srcYahoo(m.fecha)) }));
+      }
+      const lReal = { k: 'EPS real (contable, GAAP)', txt: fmt('usdps', v.eps_real) };
+      if (Math.abs(v.sorpresa_pct) > UMBRAL_SORPRESA) {
+        return falta(id, nombre, 'ns', 'no comparable (GAAP vs ajustado)', Object.assign({ lineas: [lReal, lEst], detalle: 'Yahoo informa el EPS contable (GAAP) y lo compara contra un consenso que probablemente excluye partidas extraordinarias: la diferencia no es una sorpresa real, así que no se muestra el porcentaje.' }, comunes));
+      }
+      return base(id, nombre, Object.assign({ txt: fmt('pct', v.sorpresa_pct, { signo: true }), num: v.sorpresa_pct, kind: 'pct', lineas: [lReal, lEst], nota: 'El EPS real es el contable (GAAP). Con una diferencia tan chica contra el consenso no hay señal de que las bases difieran.' }, comunes));
     }
     function revisiones() {
       const m = mv('revisiones_eps'); const id = 'revisiones_de_eps_30_90_dias', nombre = 'Revisiones de EPS (30 y 90 días)';
@@ -366,6 +388,33 @@
         lineas: esNum(v.dias_para_cubrir) ? [{ k: 'Días para cubrir', txt: dec(v.dias_para_cubrir, 1) }] : [] });
     }
 
+    // ── Flujo libre: una sola base. El FCF «del trimestre» es el de la SEC; el de «12 meses» es la suma de los últimos 4 trimestres de la SEC
+    // (flujo operativo − capex) y es el que usan el P/FCF y el FCF yield (con el valor de mercado de Yahoo). Solo si no hay 4 trimestres
+    // seguidos se usa el FCF de 12 meses de Yahoo, rotulado como tal (y entonces P/FCF y yield también salen de Yahoo). Nunca dos FCF sin rótulo.
+    function fcf12() {
+      const it = deHistoria('fcf_12m', 'FCF 12 meses', 'usd', i => ttmDe(i, r => (esNum(r.fcf) ? r.fcf : null)), 'suma del flujo libre (flujo operativo − capex) de los últimos 4 trimestres');
+      if (it.estado === 'ok') { it.origen = 'sec'; return it; }
+      const y = deMercado('fcf_12m', 'FCF 12 meses (Yahoo)', 'usd', 'fcf');
+      if (y.estado === 'ok') { y.origen = 'yahoo'; y.detalle = 'No hay 4 trimestres seguidos de la SEC con flujo libre: se usa el de Yahoo.'; return y; }
+      return it;
+    }
+    function porFcf12(id, nombre) {
+      const f = fcf12(), esP = id === 'p_fcf';
+      if (f.estado !== 'ok') return sinDatos(id, nombre, { detalle: 'Falta el FCF de 12 meses.' });
+      if (f.num <= 0) return noSig(id, nombre, 'El flujo libre de los últimos 12 meses es negativo.', { fuente: f.fuente });
+      if (f.origen === 'yahoo') {
+        const it = deMercado(id, nombre, esP ? 'x' : 'pct', id);
+        if (it.estado === 'ok') it.nota = 'Calculado por Yahoo con su FCF de 12 meses.';
+        return it;
+      }
+      const cap = mv('capitalizacion');
+      if (!cap || !esNum(cap.valor) || cap.valor <= 0) return sinDatos(id, nombre, { detalle: 'Falta el valor de mercado de la empresa.' });
+      const v = esP ? cap.valor / f.num : f.num / cap.valor;
+      return base(id, nombre, { txt: fmt(esP ? 'x' : 'pct', v), num: v, kind: esP ? 'x' : 'pct', periodo: 'al ' + fc(cap.fecha), tri: cap.fecha,
+        lineas: [{ k: 'Valor de mercado', txt: fmt('usd', cap.valor) }, { k: 'FCF 12 meses (4 trimestres de la SEC, hasta ' + fc(f.tri) + ')', txt: fmt('usd', f.num) }],
+        fuente: srcCalc(esP ? 'valor de mercado ÷ FCF de los últimos 12 meses' : 'FCF de los últimos 12 meses ÷ valor de mercado', srcYahoo(cap.fecha)) });
+    }
+
     // ── Resolutores por id del config ──
     const ruleOf40 = () => {
       const f = fin ? neto : fcf;
@@ -385,7 +434,7 @@
       fcf_neto_de_sbc: () => deHistoria('fcf_neto_de_sbc', 'FCF neto de SBC', 'usd', i => (esNum(fcf(i)) && esNum(sbc(i)) ? fcf(i) - sbc(i) : null), 'flujo libre − remuneración en acciones del trimestre'),
       d_a_vs_capex: () => deHistoria('d_a_vs_capex', 'D&A vs capex', 'x', razonQ(da, cap), 'depreciación y amortización ÷ inversión en activos (capex) del trimestre'),
       flujo_operativo: () => deHistoria('flujo_operativo', 'Flujo operativo', 'usd', cfo, null),
-      fcf: () => deHistoria('fcf', 'FCF', 'usd', fcf, null),
+      fcf: () => deHistoria('fcf', 'FCF del trimestre', 'usd', fcf, null),
       capex: () => deHistoria('capex', 'Capex', 'usd', cap, null),
       capex_vs_flujo_operativo: () => deHistoria('capex_vs_flujo_operativo', 'Capex vs flujo operativo', 'pct', razonQ(cap, cfo), 'capex ÷ flujo operativo del trimestre'),
       capex_ingresos: () => deHistoria('capex_ingresos', 'Capex / ingresos', 'pct', razonQ(cap, ing), 'capex ÷ ingresos del trimestre'),
@@ -426,9 +475,8 @@
       p_e_ttm: peTtmGaap, p_e_vs_media_5_10_15_anos: peVsMedia, p_e_forward: () => peFwd('pe_forward', 'anio_actual', 'P/E forward', 'p_e_forward'),
       p_e_forward_vs_media_5_10_15_anos: peFwdVsMedia,
       ev_ebitda: () => deMercado('ev_ebitda', 'EV/EBITDA', 'x', 'ev_ebitda'), ev_ventas: () => deMercado('ev_ventas', 'EV/Ventas', 'x', 'ev_ventas'),
-      p_fcf: () => { const f = mv('fcf'); const m = mv('p_fcf'); if (!m && f && esNum(f.valor) && f.valor <= 0) return noSig('p_fcf', 'P/FCF', 'El flujo libre de los últimos 12 meses es negativo.', { fuente: srcYahoo(f.fecha) }); return deMercado('p_fcf', 'P/FCF', 'x', 'p_fcf'); },
+      p_fcf: () => porFcf12('p_fcf', 'P/FCF'), fcf_yield: () => porFcf12('fcf_yield', 'FCF yield'),
       peg: () => deMercado('peg', 'PEG', 'x', 'peg'),
-      fcf_yield: () => deMercado('fcf_yield', 'FCF yield', 'pct', 'fcf_yield'),
       earnings_yield: () => deMercado('earnings_yield', 'Earnings yield', 'pct', 'earnings_yield'),
       valuacion_vs_pares: vsPares, rule_of_40: ruleOf40,
       sorpresa_vs_consenso_eps: sorpresaEps, revisiones_de_eps_30_90_dias: revisiones, precio_objetivo_promedio: precioObjetivo,
@@ -438,6 +486,7 @@
     const extras = {
       eps_gaap: () => [deHistoria('eps_gaap_basico', 'EPS GAAP básico', 'usdps', col('eps_basico'), null)],
       eps_ajustado: () => [],
+      fcf: () => [fcf12()],
       p_e_ttm: () => [peTtmAjustado()],
       p_e_forward: () => [peFwd('pe_forward_siguiente', 'anio_proximo', 'P/E forward', 'p_e_forward_siguiente')],
     };

@@ -327,7 +327,7 @@ test.describe('Worker /radar', () => {
     const w = armar();
     const malos = [
       {}, null, [], Object.assign({}, REP, { ticker: 'no valido' }), Object.assign({}, REP, { ticker: 1 }), Object.assign({}, REP, { kpi_id: 'a:b' }),
-      Object.assign({}, REP, { kpi_id: '' }), Object.assign({}, REP, { kpi_id: 'x'.repeat(25) }), Object.assign({}, REP, { trimestre: '../x' }), Object.assign({}, REP, { trimestre: undefined }),
+      Object.assign({}, REP, { kpi_id: '' }), Object.assign({}, REP, { kpi_id: 'x'.repeat(65) }), Object.assign({}, REP, { trimestre: '../x' }), Object.assign({}, REP, { trimestre: undefined }),
       Object.assign({}, REP, { valor_mostrado: '' }), Object.assign({}, REP, { valor_mostrado: 'v'.repeat(61) }), Object.assign({}, REP, { valor_mostrado: { a: 1 } }),
       Object.assign({}, REP, { comentario: 'c'.repeat(501) }), Object.assign({}, REP, { comentario: 5 }),
     ];
@@ -343,6 +343,12 @@ test.describe('Worker /radar', () => {
     const sinCom = await (await w.pedir('reportar', { body: { ticker: 'AB', kpi_id: 'k2', trimestre: 't', valor_mostrado: '1' } })).json();
     expect(sinCom.reporte.comentario).toBe('');
     expect(w.ll.rep.lista[0].valor_mostrado).toBe('12.5');
+    // kpi_id de hasta 64 caracteres (los ids largos del config, como el de apalancamiento operativo, entran enteros, sin recorte)
+    for (const kpi of ['apalancamiento_operativo_gastos_operativos_vs_ingresos', 'k'.repeat(64)]) {
+      const largo = await w.pedir('reportar', { body: { ticker: 'AB', kpi_id: kpi, trimestre: '2026-09-30', valor_mostrado: '1' } });
+      expect(largo.status).toBe(200);
+      expect((await largo.json()).reporte.id).toBe('AB:' + kpi + ':2026-09-30');
+    }
   });
 
   test('reportar: límite de 20 por día (el 21 da 429 limite_diario sin escribir) y se renueva al día siguiente; los duplicados no gastan cupo', async () => {

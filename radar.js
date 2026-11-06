@@ -402,6 +402,7 @@ const Radar = (() => {
     const sinTxt = sin.length ? `<p class="rd-muted">Sin dato para el gráfico: ${esc(sin.map(p => p.ticker + ' (' + p.motivo + ')').join('; '))}.</p>` : '';
     const fechas = buenos.map(p => p.fecha).filter(Boolean).sort();
     cont.innerHTML = `<figure class="rd-fig"><div class="rd-cv-wrap"><canvas id="rd-cv" role="img" aria-label="Gráfico de dispersión de las empresas: P/E forward en el eje horizontal y crecimiento esperado del EPS a 2 años en el vertical. Los números están en la tabla de abajo."></canvas></div>
+      <ul class="rd-leyenda" aria-label="Cuadrantes del gráfico">${CUADRANTES.map(c => `<li><i class="rd-lq rd-lq-${c[3]}" aria-hidden="true"></i>${esc(c[2])}</li>`).join('')}<li class="rd-leyenda-nota">Los valores de cada punto: tocalo, o mirá la tabla de abajo.</li></ul>
       <figcaption class="rd-muted">Horizontal: P/E forward (precio de hoy ÷ EPS que espera el consenso para el año fiscal en curso). Vertical: crecimiento anual esperado del EPS a 2 años. Cortes en ${CORTE_X}x y ${Math.round(CORTE_Y * 100)}%.${fechas.length ? ' Datos de mercado del ' + V().dm(fechas[fechas.length - 1]) + '.' : ''}</figcaption></figure>
       ${marcas}${avisoMg}${recorte}${sinTxt}${tablaGrafico(todos)}`;
     dibujarGrafico(buenos, sy);
@@ -410,6 +411,9 @@ const Radar = (() => {
     const cv = _box.querySelector('#rd-cv');
     if (!cv || typeof Chart === 'undefined') { if (cv) cv.closest('.rd-fig').insertAdjacentHTML('afterbegin', '<p class="rd-err">No se pudo cargar la librería de gráficos: usá la tabla de abajo.</p>'); return; }
     const sx = escalaX(ps), f = V().fmt;
+    const esChico = w => w < 520, fig = cv.closest('.rd-fig');
+    const yTitulo = w => (esChico(w) ? ['Crec. EPS esperado', '(2 años)'] : 'Crecimiento EPS esperado (2 años)');
+    fig.classList.toggle('rd-chico', esChico(cv.parentElement.clientWidth));
     const verPlot = p => Math.min(p.y, sy.max * 0.97);
     const data = ps.map(p => ({ x: p.x, y: verPlot(p), t: p.ticker }));
     const tinta = css('--tp', '#EDF4FF'), tinta2 = css('--ts', '#8BA5C0'), acento = css('--accent', '#38BDF8'), borde = css('--border', 'rgba(100,155,220,.15)');
@@ -427,7 +431,7 @@ const Radar = (() => {
       },
       afterDatasetsDraw(ch) {
         const { ctx, chartArea: a, scales: { x, y } } = ch; if (!a) return;
-        const chico = ch.width < 520, fs = chico ? 10.5 : 12, fam = getComputedStyle(cv).fontFamily || 'sans-serif';
+        const chico = esChico(ch.width), fs = chico ? 10.5 : 12, fam = getComputedStyle(cv).fontFamily || 'sans-serif';
         const cx = x.getPixelForValue(CORTE_X), cy = y.getPixelForValue(CORTE_Y);
         ctx.save();
         // Cortes
@@ -438,10 +442,10 @@ const Radar = (() => {
         const meta = ch.getDatasetMeta(0), R = 7, lh = chico ? 11 : 13, h2 = 2 * lh;
         const cruza = (r, lista) => lista.some(o => r[0] < o[2] && r[2] > o[0] && r[1] < o[3] && r[3] > o[1]);
         const marcadores = meta.data.map(d => [d.x - R - 3, d.y - R - 3, d.x + R + 3, d.y + R + 3]);
-        const ocupado = [];
+        const ocupado = [], rects = []; ch.rdEtiquetas = rects;
         ctx.fillStyle = tinta2; ctx.font = `600 ${chico ? 9.5 : 11}px ${fam}`; ctx.textBaseline = 'top';
         const ancho = txt => Math.max(...txt.split(' / ').map(t => ctx.measureText(t).width));
-        for (const [i, derecha, arribaQ] of [[0, false, true], [1, true, true], [2, false, false], [3, true, false]]) {
+        for (const [i, derecha, arribaQ] of chico ? [] : [[0, false, true], [1, true, true], [2, false, false], [3, true, false]]) {
           const txt = CUADRANTES[i][2], w = ancho(txt), x0 = derecha ? a.right - 6 - w : a.left + 6;
           const ys = arribaQ ? [a.top + 5, cy + 5] : [a.bottom - 5 - h2, cy - 5 - h2];
           const y0 = ys.find(y => !cruza([x0, y, x0 + w, y + h2], marcadores)) ?? ys[0];
@@ -459,10 +463,11 @@ const Radar = (() => {
           const p = ps[i], pt = meta.data[i];
           const arriba = p.y > sy.max * 0.97;
           const marca = (p.nota ? '*' : '') + (p.aviso ? '†' : '') + (arriba ? ' ▲' : '');
-          const t1 = p.ticker, t2 = `  ${f('x', p.x)}, ${f('pct', p.y)}${marca}`;
+          const t1 = p.ticker, t2 = chico ? marca : `  ${f('x', p.x)}, ${f('pct', p.y)}${marca}`;
           ctx.font = `700 ${fs}px ${fam}`; const w1 = ctx.measureText(t1).width;
           ctx.font = `400 ${fs}px ${fam}`; const w = w1 + ctx.measureText(t2).width, h = fs + 3;
-          const cands = [[R + 3, 0, 'l'], [-R - 3, 0, 'r'], [0, -R - h / 2 - 1, 'c'], [0, R + h / 2 + 1, 'c'], [R + 3, -h - 1, 'l'], [R + 3, h + 1, 'l'], [-R - 3, -h - 1, 'r'], [-R - 3, h + 1, 'r']];
+          const cands = [[R + 3, 0, 'l'], [-R - 3, 0, 'r'], [0, -R - h / 2 - 1, 'c'], [0, R + h / 2 + 1, 'c'], [R + 3, -h - 1, 'l'], [R + 3, h + 1, 'l'], [-R - 3, -h - 1, 'r'], [-R - 3, h + 1, 'r'],
+            [0, -R - h * 1.5 - 2, 'c'], [0, R + h * 1.5 + 2, 'c'], [R + 3, -2 * h - 2, 'l'], [R + 3, 2 * h + 2, 'l'], [-R - 3, -2 * h - 2, 'r'], [-R - 3, 2 * h + 2, 'r']];
           let elegido = null;
           for (const c of cands) {
             const x0 = c[2] === 'l' ? pt.x + c[0] : c[2] === 'r' ? pt.x + c[0] - w : pt.x - w / 2, y0 = pt.y + c[1] - h / 2, r = [x0, y0, x0 + w, y0 + h];
@@ -470,7 +475,7 @@ const Radar = (() => {
             if (!choca(r)) { elegido = r; break; }
           }
           if (!elegido) { const c = cands[0], x0 = pt.x + c[0], y0 = pt.y - h / 2; elegido = [Math.min(x0, ch.width - 2 - w), y0, Math.min(x0, ch.width - 2 - w) + w, y0 + h]; }
-          ocupado.push(elegido);
+          ocupado.push(elegido); rects.push({ t: p.ticker, r: elegido });
           ctx.textAlign = 'left';
           ctx.lineJoin = 'round'; ctx.lineWidth = 3; ctx.strokeStyle = fondo; ctx.globalAlpha = 0.9;
           ctx.font = `700 ${fs}px ${fam}`; ctx.strokeText(t1, elegido[0], (elegido[1] + elegido[3]) / 2);
@@ -490,11 +495,12 @@ const Radar = (() => {
         borderWidth: ctx => (ps[ctx.dataIndex].ticker === _sel || ps[ctx.dataIndex].nota ? 2.5 : 2) }] },
       options: {
         responsive: true, maintainAspectRatio: false, animation: false,
+        onResize: (ch, size) => { fig.classList.toggle('rd-chico', esChico(size.width)); const t = yTitulo(size.width); if (String(ch.options.scales.y.title.text) !== String(t)) { ch.options.scales.y.title.text = t; ch.update('none'); } },
         layout: { padding: { top: 6, right: 10, bottom: 2, left: 2 } },
         onClick: (_e, els) => { if (els.length) seleccionar(ps[els[0].index].ticker); },
         scales: {
           x: { type: 'linear', min: sx.min, max: sx.max, title: { display: true, text: 'P/E forward', color: tinta2, font: { weight: '600' } }, ticks: { color: tinta2, callback: v => v + 'x', maxTicksLimit: 8 }, grid: { color: borde } },
-          y: { type: 'linear', min: sy.min, max: sy.max, title: { display: true, text: 'Crecimiento EPS esperado (2 años)', color: tinta2, font: { weight: '600' } }, ticks: { color: tinta2, callback: v => Math.round(v * 100) + '%', maxTicksLimit: 8 }, grid: { color: borde } },
+          y: { type: 'linear', min: sy.min, max: sy.max, title: { display: true, text: yTitulo(cv.parentElement.clientWidth), color: tinta2, font: { weight: '600' } }, ticks: { color: tinta2, callback: v => Math.round(v * 100) + '%', maxTicksLimit: 8 }, grid: { color: borde } },
         },
         plugins: {
           legend: { display: false },

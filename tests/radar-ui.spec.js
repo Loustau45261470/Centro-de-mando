@@ -51,7 +51,7 @@ async function abrir(page, over = {}) {
 
 const pane = (page) => page.locator('#cov-pane-radar');
 const emp = (page, t) => pane(page).locator(`.rd-emp[data-t="${t}"]`);
-const kpi = (page, t, id) => pane(page).locator(`.rd-kpi[data-k="${t}:${id.slice(0, 24)}"]`);
+const kpi = (page, t, id) => pane(page).locator(`.rd-kpi[data-k="${t}:${id}"]`);
 const elegir = async (page, t) => { await emp(page, t).click(); await expect(pane(page).locator('.rd-fn')).toContainText(t); };
 const abrirFuente = async (page, t, id) => { const k = kpi(page, t, id); await k.locator('.rd-k-v').click(); await expect(k.locator('.rd-k-f')).toBeVisible(); return k; };
 const sinErrores = (consoleErrors) => expect(consoleErrors.filter((e) => !/Failed to load resource/.test(e))).toEqual([]);
@@ -165,7 +165,7 @@ test.describe('pestaña Radar de Cartera (v2)', () => {
     await elegir(page, 'ZETA');
     await expect(kpi(page, 'ZETA', 'p_e_ttm')).toContainText('n/s');
     await expect(kpi(page, 'ZETA', 'p_e_forward')).toContainText('n/s');
-    await expect(kpi(page, 'ZETA', 'p_e_vs_media_5_10_15_anos')).toContainText('sin datos todavía');
+    await expect(kpi(page, 'ZETA', 'p_e_vs_media_5_10_15_anos')).toContainText('sin datos suficientes (datos desde dic-22)');
     await elegir(page, 'NUBO');
     await expect(kpi(page, 'NUBO', 'ev_ebitda')).toContainText('no aplica');
     await expect(kpi(page, 'NUBO', 'deuda_neta')).toContainText('no aplica');
@@ -240,11 +240,11 @@ test.describe('pestaña Radar de Cartera (v2)', () => {
     await k2.locator('.rd-rep').click(); await k2.locator('.rd-repf button[type="submit"]').click();
     await expect(k2.locator('.rd-k-row .rd-badge')).toHaveText('en revisión');
     expect(ctl.posts[1]).toEqual({ ticker: 'ACME', kpi_id: 'capex_ingresos', trimestre: '2026-09-30', valor_mostrado: '4,0%' });
-    // Un número de mercado se reporta con la fecha del dato como período; el id largo se manda recortado a 24 caracteres.
+    // Un número de mercado se reporta con la fecha del dato como período; el id largo se manda entero (el Worker acepta hasta 64 caracteres).
     const k3 = kpi(page, 'ACME', 'crecimiento_de_ingresos_a_moneda_constante');
     await k3.locator('.rd-rep').click(); await k3.locator('.rd-repf button[type="submit"]').click();
     await expect(k3.locator('.rd-k-row .rd-badge')).toHaveText('en revisión');
-    expect(ctl.posts[2].kpi_id).toBe('crecimiento_de_ingresos_a_moneda_constante'.slice(0, 24));
+    expect(ctl.posts[2].kpi_id).toBe('crecimiento_de_ingresos_a_moneda_constante');
     // Escape cancela el formulario.
     const k4 = kpi(page, 'ACME', 'capex');
     await k4.locator('.rd-rep').click(); await expect(k4.locator('.rd-repf')).toBeVisible();
@@ -294,10 +294,13 @@ test.describe('pestaña Radar de Cartera (v2)', () => {
     await esperarGrafico(page);
     const g = await page.evaluate(() => {
       const ch = Chart.getChart(document.getElementById('rd-cv'));
-      return { n: ch.data.datasets[0].data.length, pts: ch.data.datasets[0].data.map((p) => [p.t, p.x, Math.round(p.y * 1000) / 1000]), xt: ch.options.scales.x.title.text, yt: ch.options.scales.y.title.text, xmin: ch.scales.x.min, xmax: ch.scales.x.max, ymin: ch.scales.y.min, ymax: ch.scales.y.max, plugin: ch.config.plugins.map((p) => p.id) };
+      return { n: ch.data.datasets[0].data.length, pts: ch.data.datasets[0].data.map((p) => [p.t, p.x, Math.round(p.y * 1000) / 1000]), xt: ch.options.scales.x.title.text, yt: [].concat(ch.options.scales.y.title.text).join(' '), ancho: ch.width, xmin: ch.scales.x.min, xmax: ch.scales.x.max, ymin: ch.scales.y.min, ymax: ch.scales.y.max, plugin: ch.config.plugins.map((p) => p.id) };
     });
     expect(g.n).toBe(7);                                                     // ACME, NUBO, E05–E09; ZETA (EPS negativo), QUIM y E10–E12 (sin datos) no
-    expect(g.xt).toBe('P/E forward'); expect(g.yt).toBe('Crecimiento EPS esperado (2 años)');
+    expect(g.xt).toBe('P/E forward'); expect(g.yt).toBe(g.ancho < 520 ? 'Crec. EPS esperado (2 años)' : 'Crecimiento EPS esperado (2 años)');   // en el celular el título del eje es corto: no se corta
+    const ley = pane(page).locator('.rd-leyenda');
+    if (g.ancho < 520) { await expect(ley).toBeVisible(); await expect(ley.locator('li').first()).toContainText('Mayor crecimiento / Menor valuación'); }   // rótulos de cuadrante fuera del gráfico
+    else await expect(ley).toBeHidden();
     expect(g.plugin).toContain('rdCuadrantes');
     expect(g.xmin).toBeLessThan(15); expect(g.xmax).toBeGreaterThan(30); expect(g.ymin).toBeLessThanOrEqual(0);
     const pt = Object.fromEntries(g.pts.map((p) => [p[0], p]));
@@ -329,6 +332,54 @@ test.describe('pestaña Radar de Cartera (v2)', () => {
     const xy2 = await page.evaluate(() => { const ch = Chart.getChart(document.getElementById('rd-cv')), m = ch.getDatasetMeta(0).data[0], r = ch.canvas.getBoundingClientRect(); return { x: r.left + m.x, y: r.top + m.y }; });
     await page.mouse.click(xy2.x, xy2.y);
     await expect(pane(page).locator('.rd-fn')).toContainText(xy.t);
+    sinErrores(consoleErrors);
+  });
+
+  test('gráfico con puntos amontonados: las etiquetas no se pisan entre sí ni con los puntos, y en el celular los cuadrantes van en una leyenda debajo (captura en RADAR_SHOTS)', async ({ cmPage: page, consoleErrors }) => {
+    const apretados = {};
+    for (const [t, pf, cagr] of [['E10', 17, 0.19], ['E11', 19, 0.21], ['E12', 18.5, 0.2]]) apretados['mercado-' + t + '.json'] = D.mercado({ ticker: t, pf, act: 5, sig: 6, base: 4.2, cagr });
+    await abrir(page, { archivos: apretados });
+    await esperarGrafico(page);
+    const g = await page.evaluate(() => {
+      const ch = Chart.getChart(document.getElementById('rd-cv')), pts = ch.getDatasetMeta(0).data.map((d) => [d.x, d.y]);
+      return { ancho: ch.width, alto: ch.height, n: pts.length, pts, et: ch.rdEtiquetas };
+    });
+    expect(g.n).toBe(10);
+    expect(g.et).toHaveLength(10);
+    const choca = (a, b) => a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1];
+    for (let i = 0; i < g.et.length; i++) {
+      const r = g.et[i].r;
+      expect(r[0]).toBeGreaterThanOrEqual(0); expect(r[2]).toBeLessThanOrEqual(g.ancho);          // dentro del lienzo
+      for (let j = i + 1; j < g.et.length; j++) expect([g.et[i].t, g.et[j].t, choca(r, g.et[j].r)]).toEqual([g.et[i].t, g.et[j].t, false]);
+      for (const [x, y] of g.pts) expect([g.et[i].t, choca(r, [x - 5, y - 5, x + 5, y + 5])]).toEqual([g.et[i].t, false]);
+    }
+    if (g.ancho < 520) expect(g.et.every((e) => e.t.length <= 4)).toBe(true);                     // en el celular, solo el ticker: los valores salen al tocar o en la tabla
+    await pane(page).locator('.rd-graf').evaluate((e) => e.scrollIntoView({ block: 'start' }));
+    await fotoEl(pane(page).locator('.rd-graf'), 'r5-graf-' + (g.ancho < 520 ? '390' : 'escritorio'));
+    expect((await desborde(page)).doc).toBeLessThanOrEqual(0);
+    sinErrores(consoleErrors);
+  });
+
+  test('ficha: sorpresa vs consenso "no comparable" cuando el real es GAAP y el consenso ajustado, FCF del trimestre y de 12 meses con P/FCF sobre el mismo FCF, y media de P/E sin paréntesis vacíos', async ({ cmPage: page, consoleErrors }) => {
+    const sinMedias = { '5y': { valor: null, desde: null, hasta: null, trimestres: 0, completo: false }, '10y': { valor: null, desde: null, hasta: null, trimestres: 0, completo: false }, '15y': { valor: null, desde: null, hasta: null, trimestres: 0, completo: false } };
+    await abrir(page, { archivos: {
+      'mercado-ACME.json': D.mercado({ ticker: 'ACME', pf: 18, act: 5.5, sig: 6.6, base: 4.6, cagr: 0.2, pfs: 15, sorp: { trimestre: '2026-09-30', eps_real: 0.84, eps_estimado: 1.5, diferencia: -0.66, sorpresa_pct: -0.44, ingresos: null } }),
+      'historia-ACME.json': D.historia({ ticker: 'ACME', medias: sinMedias, pe: false }),
+    } });
+    await elegir(page, 'ACME');
+    const sorp = await abrirFuente(page, 'ACME', 'sorpresa_vs_consenso_eps');
+    await expect(sorp.locator('.rd-k-v')).toHaveText('no comparable (GAAP vs ajustado)');
+    await expect(sorp.locator('.rd-ln')).toContainText('EPS real (contable, GAAP)'); await expect(sorp.locator('.rd-k-v')).not.toContainText('%');
+    await expect(sorp.locator('.rd-rep')).toHaveCount(0);                                          // sin número no hay qué reportar
+    await expect(kpi(page, 'ACME', 'fcf').locator('.rd-k-n')).toContainText('FCF del trimestre');
+    await expect(kpi(page, 'ACME', 'fcf_12m').locator('.rd-k-n')).toContainText('FCF 12 meses');
+    const pf = await abrirFuente(page, 'ACME', 'p_fcf');
+    await expect(pf.locator('.rd-ln')).toContainText('FCF 12 meses'); await expect(pf.locator('.rd-ln')).toContainText('Valor de mercado');
+    await expect(pf.locator('.rd-src')).toContainText('valor de mercado ÷ FCF de los últimos 12 meses');
+    const med = await abrirFuente(page, 'ACME', 'p_e_vs_media_5_10_15_anos');
+    await expect(med.locator('.rd-k-v')).toHaveText('sin datos suficientes');
+    await expect(med.locator('.rd-src')).not.toContainText('hasta )'); await expect(med.locator('.rd-src')).not.toContainText('()');
+    for (const l of await med.locator('.rd-ln dd').allTextContents()) expect(l).toBe('sin datos suficientes');
     sinErrores(consoleErrors);
   });
 
