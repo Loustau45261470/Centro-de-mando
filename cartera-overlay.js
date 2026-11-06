@@ -10,7 +10,7 @@
 // y render de cada pestaña vive sin cambios en su propio archivo. Una tercera,
 // "Historial", lista los activos ya vendidos por completo (ver tenencias.js). Una cuarta, "Rendimiento",
 // calcula el rendimiento como inversor desde la fecha base (ver rendimiento.js / rendimiento-calc.js). Una quinta, "Radar", es la ficha de
-// fundamentals y categoría propia de cada empresa (las de la cartera + las que seguís; ver radar.js / radar-calc.js).
+// fundamentals de cada empresa de radar-config.json, con el gráfico Crecimiento vs Valuación (ver radar.js / radar-vista.js).
 // ════════════════════════════════════════════════════════════════════════
 
 const CarteraOverlay = (() => {
@@ -61,7 +61,7 @@ const CarteraOverlay = (() => {
     if (pHis) pHis.hidden = t !== 'historial';
     if (pRen) pRen.hidden = t !== 'rendimiento';
     if (pRad) pRad.hidden = t !== 'radar';
-    // El radar pega a la red (Worker: precios y datos de la SEC): se arma la primera vez que se abre la pestaña; al volver, se actualiza.
+    // El radar lee archivos del repo privado vía Worker: se arma la primera vez que se abre la pestaña; al volver, se actualiza.
     if (t === 'radar' && pRad && window.Radar) {
       if (!_radarCargado) { _radarCargado = true; Radar.renderInto(pRad); } else Radar.alMostrar();
     }

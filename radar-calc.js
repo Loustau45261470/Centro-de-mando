@@ -1,15 +1,10 @@
 'use strict';
 // ════════════════════════════════════════════════════════════════════════
-// RADAR DE EMPRESAS — cálculo PURO (sin DOM, sin red, sin `S`).
-// Lo carga el navegador como script clásico (window.RadarCalc), lo hace require() el job de la SEC
-// (tools/radar-job/run.js, en GitHub Actions) y los tests (tests/radar.spec.js). Una sola fuente de verdad.
-//
-// Dos mitades:
-//   1) construirFicha(companyfacts)  — job: convierte el JSON "companyfacts" de la SEC (varios MB) en una ficha compacta con
-//      las líneas CRUDAS (ingresos, EBIT, FCF, deuda, acciones…) por año fiscal y TTM. No calcula ratios.
-//   2) completar(ficha) / multiplos(resumen, precio) — navegador: márgenes, crecimiento, FCF, deuda neta, ROIC, y los
-//      múltiplos (P/E, P/S, EV/EBITDA, FCF yield) AL VUELO con el precio en vivo. Solo el precio cambia a cada rato; el
-//      denominador (EPS, ventas, EBITDA, FCF TTM) cambia recién cuando la empresa presenta un reporte nuevo.
+// RADAR DE EMPRESAS — lectura de la SEC (cálculo PURO, sin DOM, sin red, sin `S`).
+// Lo usa SOLO el job de datos (tools/radar-job/historia.js y radar-datos.js, en GitHub Actions del repo privado, que lleva una copia) y
+// sus tests. La ficha del navegador ya no lo carga: lee los JSON listos (radar-vista.js).
+// construirFicha(companyfacts) convierte el JSON "companyfacts" de la SEC (varios MB) en una ficha compacta con las líneas CRUDAS
+// (ingresos, EBIT, FCF, deuda, acciones…) por año fiscal y TTM. No calcula ratios.
 //
 // ── Mapeo de conceptos de la SEC (cada "fuente" = [taxonomía, concepto]) ──
 // Para cada línea se prueban las fuentes EN ORDEN y la elección es POR PERÍODO (no por empresa): si una empresa cambió de etiqueta
@@ -48,19 +43,9 @@
 // TTM = suma de los últimos 4 trimestres sueltos consecutivos; si no hay 4 (empresa que solo presenta anual, como las 20-F) o el año
 // fiscal es más nuevo que el último trimestre, TTM = último año fiscal (ttm.fuente = 'anual'). Nunca se interpola.
 //
-// ── Fórmulas (completar / multiplos) ──
-//   FCF = flujo operativo − |capex|  (null si falta alguno; no se asume capex 0)       margen FCF = FCF / ingresos
-//   EBITDA = EBIT + D&A (D&A del estado de flujos)                                      deuda neta = deuda total − caja
-//   ROIC ≈ EBIT × (1 − t) / (deuda total + patrimonio − caja)   — capital de FIN de año (no promedio).
-//     t = tasa efectiva del año (impuesto / ut. antes de impuestos) si está entre 0% y 40%; si no se puede calcular, 21% (EE.UU.) marcado como estimado.
-//     TTM: EBIT TTM con la t del último año fiscal y el capital del último balance. Capital ≤ 0 → null.
-//   Market cap = precio × acciones diluidas del último período informado (promedio ponderado: va un poco atrás de las recompras).
-//   P/E = precio / EPS diluido TTM (EPS ≤ 0 → null)        P/S = market cap / ingresos TTM
-//   EV = market cap + deuda total − caja                    EV/EBITDA = EV / EBITDA TTM (EBITDA ≤ 0 → null)
-//   FCF yield = FCF TTM / market cap                        Deuda neta/EBITDA = deuda neta / EBITDA TTM
-//   ROE = ut. neta TTM / patrimonio del último balance (si patrimonio > 0)     ROA = ut. neta TTM / activos totales del último balance
+// ── Fórmulas ──
+//   FCF = flujo operativo − |capex|  (null si falta alguno; no se asume capex 0)       EBITDA = EBIT + D&A (D&A del estado de flujos)
 //   Splits: si las acciones diluidas saltan x1,5 (o caen a 2/3) entre dos años seguidos, EPS y acciones de ese año y los anteriores quedan null (ver cortarPorSplit).
-//   EPS TTM = suma de los EPS diluidos de los 4 trimestres (aproximación estándar: no es exacto si cambió la cantidad de acciones).
 // ════════════════════════════════════════════════════════════════════════
 (function (root) {
   const MS_DIA = 86400000;
@@ -311,103 +296,14 @@
     };
   }
 
-  // ── Derivados (navegador) ──
-  const razon = (a, b) => (esNum(a) && esNum(b) && b > 0 ? a / b : null);
-  const restaN = (a, b) => (esNum(a) && esNum(b) ? a - b : null);
-  const sumaN = (a, b) => (esNum(a) && esNum(b) ? a + b : null);
-  // Tasa para NOPAT: la efectiva si está entre 0% y 40%; si no, 21% marcado como estimado.
-  const TASA_ESTIMADA = 0.21;
-  const tasaUsada = t => (esNum(t) && t >= 0 && t <= 0.4 ? { t, est: false } : { t: TASA_ESTIMADA, est: true });
-  const roicDe = (ebit, tasa, deuda, patr, caja) => {
-    if (![ebit, deuda, patr, caja].every(esNum)) return null;
-    const cap = deuda + patr - caja;
-    return cap > 0 ? ebit * (1 - tasa) / cap : null;
-  };
-  const consecutivos = (a, b) => !!a && !!b && dias(a, b) >= 340 && dias(a, b) <= 390;
-
-  function completar(ficha) {
-    const A = (ficha && ficha.anual) || { fin: [] };
-    const n = A.fin.length;
-    const c = k => (Array.isArray(A[k]) && A[k].length === n ? A[k] : new Array(n).fill(null));
-    const ing = c('ingresos'), bruta = c('bruta'), ebit = c('ebit'), neto = c('neto'), cfo = c('cfo'), capex = c('capex'), da = c('da');
-    const acc = c('acciones'), caja = c('caja'), deuda = c('deuda'), patr = c('patrimonio'), tasa = c('tasa');
-    const an = {
-      fin: A.fin.slice(), ingresos: ing, eps: c('eps'), cfo, capex, acciones: acc, caja, deuda, patrimonio: patr, da, ebit, neto, bruta,
-      crecimiento: [], mBruto: [], mOper: [], mNeto: [], fcf: [], mFcf: [], varAcciones: [], deudaNeta: [], ebitda: [], roic: [], tasa: [], tasaEst: [],
-    };
-    for (let i = 0; i < n; i++) {
-      const prev = i > 0 && consecutivos(A.fin[i - 1], A.fin[i]) ? i - 1 : -1;
-      an.crecimiento.push(prev >= 0 && esNum(ing[i]) && esNum(ing[prev]) && ing[prev] > 0 ? ing[i] / ing[prev] - 1 : null);
-      an.mBruto.push(razon(bruta[i], ing[i]));
-      an.mOper.push(razon(ebit[i], ing[i]));
-      an.mNeto.push(razon(neto[i], ing[i]));
-      const f = restaN(cfo[i], esNum(capex[i]) ? Math.abs(capex[i]) : null);
-      an.fcf.push(f);
-      an.mFcf.push(razon(f, ing[i]));
-      an.varAcciones.push(prev >= 0 && esNum(acc[i]) && esNum(acc[prev]) && acc[prev] > 0 ? acc[i] / acc[prev] - 1 : null);
-      an.deudaNeta.push(restaN(deuda[i], caja[i]));
-      an.ebitda.push(sumaN(ebit[i], da[i]));
-      const tu = tasaUsada(tasa[i]);
-      an.tasa.push(tu.t); an.tasaEst.push(tu.est);
-      an.roic.push(roicDe(ebit[i], tu.t, deuda[i], patr[i], caja[i]));
-    }
-    const T0 = (ficha && ficha.ttm) || {}, B = (ficha && ficha.bal) || {};
-    const ultTasa = n ? tasaUsada(tasa[n - 1]) : tasaUsada(null);
-    const fcfT = restaN(T0.cfo, esNum(T0.capex) ? Math.abs(T0.capex) : null);
-    const tt = {
-      fin: T0.fin || null, fuente: T0.fuente || null,
-      ingresos: esNum(T0.ingresos) ? T0.ingresos : null, eps: esNum(T0.eps) ? T0.eps : null, neto: esNum(T0.neto) ? T0.neto : null,
-      ebit: esNum(T0.ebit) ? T0.ebit : null, cfo: esNum(T0.cfo) ? T0.cfo : null, capex: esNum(T0.capex) ? T0.capex : null, da: esNum(T0.da) ? T0.da : null,
-      fcf: fcfT, mFcf: razon(fcfT, T0.ingresos),
-      mBruto: razon(T0.bruta, T0.ingresos), mOper: razon(T0.ebit, T0.ingresos), mNeto: razon(T0.neto, T0.ingresos),
-      ebitda: sumaN(T0.ebit, T0.da),
-      activos: esNum(B.activos) ? B.activos : null, roe: razon(T0.neto, B.patrimonio), roa: razon(T0.neto, B.activos),
-      caja: esNum(B.caja) ? B.caja : null, deuda: esNum(B.deuda) ? B.deuda : null, patrimonio: esNum(B.patrimonio) ? B.patrimonio : null,
-      deudaNeta: restaN(B.deuda, B.caja),
-      acciones: esNum(ficha && ficha.acciones) ? ficha.acciones : null,
-      roic: roicDe(T0.ebit, ultTasa.t, B.deuda, B.patrimonio, B.caja), tasa: ultTasa.t, tasaEst: ultTasa.est,
-    };
-    return { anual: an, ttm: tt };
-  }
-
-  // ── Múltiplos al vuelo ── `r` = ficha o resumen del índice ({ ttm, bal, acciones }); precio en USD.
-  function multiplos(r, precio) {
-    const nulo = { precio: null, marketCap: null, pe: null, ps: null, ev: null, evEbitda: null, fcfYield: null, deudaNetaEbitda: null, motivos: {} };
-    if (!r) return nulo;
-    const c = completar({ anual: { fin: [] }, ttm: r.ttm || {}, bal: r.bal || {}, acciones: r.acciones }).ttm;
-    const out = { precio: null, marketCap: null, pe: null, ps: null, ev: null, evEbitda: null, fcfYield: null, deudaNetaEbitda: c.deudaNeta != null && c.ebitda > 0 ? c.deudaNeta / c.ebitda : null, motivos: {} };
-    if (!esNum(precio) || precio <= 0) return Object.assign(out, { motivos: { precio: 'Sin precio' } });
-    out.precio = precio;
-    if (esNum(c.eps)) { if (c.eps > 0) out.pe = precio / c.eps; else out.motivos.pe = 'Ganancia negativa'; } else out.motivos.pe = 'Sin EPS';
-    if (esNum(c.acciones) && c.acciones > 0) {
-      out.marketCap = precio * c.acciones;
-      out.ps = razon(out.marketCap, c.ingresos);
-      if (out.ps == null) out.motivos.ps = 'Sin ingresos';
-      if (esNum(c.deuda) && esNum(c.caja)) {
-        out.ev = out.marketCap + c.deuda - c.caja;
-        if (esNum(c.ebitda)) { if (c.ebitda > 0) out.evEbitda = out.ev / c.ebitda; else out.motivos.evEbitda = 'EBITDA negativo'; } else out.motivos.evEbitda = 'Sin EBITDA';
-      } else { out.motivos.ev = 'Sin deuda o caja'; out.motivos.evEbitda = 'Sin deuda o caja'; }
-      if (esNum(c.fcf)) out.fcfYield = c.fcf / out.marketCap; else out.motivos.fcfYield = 'Sin FCF';
-    } else { out.motivos.marketCap = 'Sin cantidad de acciones'; }
-    return out;
-  }
-
   // ── Utilidades de tickers y fechas ──
   const TICKER_RE = /^[A-Z][A-Z0-9-]{0,9}$/;
   function normalizarTicker(s) {
     const t = String(s == null ? '' : s).trim().toUpperCase().replace(/\./g, '-');
     return TICKER_RE.test(t) ? t : null;
   }
-  // CEDEAR de IOL → ticker del subyacente en EE.UU. Casi siempre es el mismo símbolo; excepciones documentadas acá.
-  const CEDEAR_EXCEPCIONES = { BRKB: 'BRK-B', BRK: 'BRK-B' };
-  function tickerDeCedear(simbolo, tipo) {
-    if (String(tipo || '').toUpperCase().replace(/\s+/g, '') !== 'CEDEARS') return null;
-    const s = String(simbolo || '').trim().toUpperCase();
-    return normalizarTicker(CEDEAR_EXCEPCIONES[s] || s);
-  }
-  const diasDesde = (fecha, hoy) => (fecha && hoy ? dias(fecha, hoy) : null);
 
-  const API = { FUENTES, leer, anualesDe, trimestresDe, ttmDe, construirFicha, completar, multiplos, normalizarTicker, tickerDeCedear, tasaUsada, roicDe, diasDesde, dias, sumarDias };
+  const API = { FUENTES, leer, anualesDe, trimestresDe, ttmDe, construirFicha, normalizarTicker, dias, sumarDias };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   else root.RadarCalc = API;
 })(typeof window !== 'undefined' ? window : globalThis);
