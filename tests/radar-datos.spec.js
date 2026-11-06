@@ -285,6 +285,25 @@ test.describe('radar v2: el job no pisa archivos buenos', () => {
     expect(r.historia).toEqual({ ACME: 'sin_cambios', NUBO: 'sin_cambios' });
   });
 
+  test('corrida de OTRO día con los mismos datos: solo cambió la fecha de corrida, no reescribe nada', async () => {
+    const e = entorno();
+    await Datos.procesar(e.args);
+    const antes = new Map(e.fs);
+    const r = await Datos.procesar(Object.assign({}, e.args, { hoy: '2026-11-06' }));
+    expect(r.mercado).toEqual({ ACME: 'sin_cambios', NUBO: 'sin_cambios' });
+    expect(r.historia).toEqual({ ACME: 'sin_cambios', NUBO: 'sin_cambios' });
+    expect([...e.fs]).toEqual([...antes]);                       // ni un byte distinto
+  });
+
+  test('otro día Y un dato que cambió de verdad: sí reescribe', async () => {
+    const e = entorno();
+    await Datos.procesar(e.args);
+    const otroPrecio = { resumen: async () => resumenAcme({ price: { regularMarketPrice: 125, regularMarketTime: d('2026-11-06'), currency: 'USD', longName: 'Acme Test Corp', marketCap: 12e9 } }), precios: async () => ({ precios: preciosInventados, splits: [] }), trimestralesYahoo: async () => [] };
+    const r = await Datos.procesar(Object.assign({}, e.args, { yahoo: otroPrecio, hoy: '2026-11-06' }));
+    expect(r.mercado.ACME).toBe('ok');
+    expect(JSON.parse(e.fs.get('mercado-ACME.json')).precio.valor).toBe(125);
+  });
+
   test('Yahoo caído: se conserva el archivo anterior intacto salvo stale_since y ultimo_error', async () => {
     const e = entorno();
     await Datos.procesar(e.args);
@@ -328,7 +347,7 @@ test.describe('radar v2: el job no pisa archivos buenos', () => {
     const sinSec = async () => { throw new Error('HTTP 503'); };
     const r = await Datos.procesar(Object.assign({}, e.args, { fetchJson: sinSec, hoy: '2026-11-06' }));
     expect(r.historia).toEqual({ ACME: 'stale', NUBO: 'stale' });
-    expect(r.mercado.ACME).toBe('ok');
+    expect(r.mercado.ACME).toBe('sin_cambios');              // Yahoo sí corrió (no quedó stale); los datos eran los mismos y solo cambió el día
     expect(JSON.parse(e.fs.get('historia-ACME.json')).stale_since).toBe('2026-11-06');
   });
 

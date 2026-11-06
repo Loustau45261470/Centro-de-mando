@@ -24,7 +24,19 @@ const URL_TICKERS = 'https://www.sec.gov/files/company_tickers.json';
 const urlFacts = cik => `https://data.sec.gov/api/xbrl/companyfacts/CIK${String(cik).padStart(10, '0')}.json`;
 const dormir = ms => new Promise(r => setTimeout(r, ms));
 const jsonEstable = o => JSON.stringify(o, null, 1) + '\n';
-const sinGenerado = o => JSON.stringify({ ...o, generado: undefined });
+// Contenido sin la fecha de la corrida: quita `generado`, la `fecha` de cada campo { valor, fuente, fecha } (sello de cuándo se miró; si el
+// valor no cambió no hace falta reescribir) y todo `fecha` igual a `generado`. Así, si solo cambió el día, el archivo no se reescribe y el repo
+// no suma un commit diario. Una `fecha` dentro de un valor (fecha de resultados, de un insider) sí cuenta como cambio.
+function sinGenerado(o) {
+  const dia = o && o.generado;
+  const limpiar = v => {
+    if (Array.isArray(v)) return v.map(limpiar);
+    if (v && typeof v === 'object') { const r = {}; for (const k of Object.keys(v)) { if (k === 'fecha' && (v[k] === dia || 'fuente' in v)) continue; r[k] = limpiar(v[k]); } return r; }
+    return v;
+  };
+  const { generado, ...resto } = o || {};
+  return JSON.stringify(limpiar(resto));
+}
 const msg = e => String((e && e.message) || e).slice(0, 200);
 
 // fetchJson(url) → { status, json }. Reintenta 429/5xx con espera creciente; 404 = { status: 404, json: null }.
