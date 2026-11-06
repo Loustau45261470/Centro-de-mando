@@ -453,7 +453,7 @@ test.describe('radar v2 (R7): insumos de ROIC, rotación, cobertura y ciclo de c
       operatingCashFlow: 50, capitalExpenditure: -8, freeCashFlow: 999 }]);
     expect(q).toMatchObject({ fin: '2026-09-30', activos_totales: 900, patrimonio: 400, intereses: 5, impuestos: 12, utilidad_antes_impuestos: 60, capital_invertido: 700, cxc: 30, cxp: 25, inventario: 20, costo_ventas: 40, fcf: 42 });
     const sinInt = Historia.serieYahoo([{ date: d('2026-09-30'), periodType: '3M', totalRevenue: 100 }])[0];
-    expect(sinInt.intereses).toBeNull(); expect(sinInt.inventario).toBeNull();   // lo que Yahoo no trae queda null (NU no tiene intereses)
+    expect(sinInt.intereses).toBeNull(); expect(sinInt.inventario).toBeNull();   // lo que Yahoo no trae queda null (un banco puede no informar intereses)
   });
   test('serieSec lee de la SEC activos, patrimonio, intereses, impuestos, utilidad antes de impuestos, costo de ventas, cobrar, pagar e inventario', () => {
     const ent = (start, end, val) => ({ start, end, val, accn: 'x', fy: 2026, fp: 'Q', form: '10-Q', filed: end.slice(0, 4) + '-' + String(+end.slice(5, 7) + 1).padStart(2, '0') + '-20' });
