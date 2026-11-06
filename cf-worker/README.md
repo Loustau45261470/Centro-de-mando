@@ -18,7 +18,7 @@ guarda todo el estado de `/cartera` (ver abajo).
 - `GET /cartera` — requiere `Authorization: Bearer <ID token de Firebase Auth>` (ver abajo). **No** usa `WORKER_SECRET`.
 - `GET /datos/<archivo>.json` — mismo gate que `/cartera`; archivos privados de la cartera (ver abajo).
 - `GET /rendimiento/operaciones`, `/rendimiento/cierres`, `/rendimiento/mercado` — mismo gate que `/cartera`; datos de la pestaña "Rendimiento" (ver abajo).
-- `GET /radar/precios?t=NVDA,MELI` y `POST /radar/pedir` — mismo gate que `/cartera`; pestaña "Radar" de Cartera (ver "Radar de empresas" abajo).
+- `GET /radar/precios?t=NVDA,MELI`, `POST /radar/pedir` y `POST /radar/reportar` — mismo gate que `/cartera`; pestaña "Radar" de Cartera (ver "Radar de empresas" abajo).
 
 `:id` identifica el timer: `pomo` para el Pomodoro (uno a la vez), `rtn-<exId>`
 para cada descanso de gimnasio (puede haber varios en simultáneo).
@@ -214,7 +214,7 @@ curl -H "Authorization: Bearer <ID_TOKEN>" "https://cdm-push-worker.tobiaslousta
 
 Mientras el Worker viejo siga publicado, la pestaña dice "Falta publicar el servidor" (las rutas nuevas responden 401 sin JSON).
 
-## Radar de empresas — `GET /radar/precios` y `POST /radar/pedir`
+## Radar de empresas — `GET /radar/precios`, `POST /radar/pedir` y `POST /radar/reportar`
 
 Alimentan la pestaña **Radar** de Cartera (`radar.js` + `radar-calc.js`): ficha por empresa (las de la cartera + las que seguís) con
 fundamentals de 10 años de la SEC y múltiplos (P/E, P/S, EV/EBITDA, FCF yield) calculados AL VUELO con el precio en vivo.
@@ -225,32 +225,37 @@ fundamentals de 10 años de la SEC y múltiplos (P/E, P/S, EV/EBITDA, FCF yield)
 El JSON `companyfacts` de la SEC pesa 4–10 MB por empresa. El plan gratuito de Workers da **10 ms de CPU por pedido** (y 50 subrequests): parsear eso
 ahí puede cortarse a mitad. Con `companyconcept` (un JSON por concepto) harían falta ~30 pedidos por empresa, también al límite. Por eso:
 
-- Un **workflow de GitHub Actions** en el repo privado de datos (`tools/radar-job/radar-fundamentals.yml`, código en `tools/radar-job/run.js` + `radar-calc.js`)
-  baja EDGAR (sin límite de CPU), calcula un JSON compacto y lo commitea: `fund-<TICKER>.json` (10 años + TTM) y `fund-index.json` (resumen de todas, para la lista).
-- La app los lee con la ruta que ya existe, `GET /datos/fund-<TICKER>.json` (mismo login, mismo `GH_DATA_TOKEN`). **No hay ruta nueva de datos ni escritura de archivos desde el Worker.**
-- El workflow corre solo todos los días hábiles ~06:30 (refresca lo ya cargado: el TTM se pone al día apenas la empresa presenta un reporte) y a pedido:
-  cuando la app ve una empresa que todavía no está en `fund-index.json`, llama a `POST /radar/pedir` y el Worker **solo dispara** el workflow (`workflow_dispatch`).
-  Así el job no necesita saber los tickers del radar (viven en el estado de la app): los recibe en el pedido, y para la corrida diaria usa los archivos que ya existen.
-- El **precio no pasa por el job**: es en vivo (`/radar/precios`), por eso un múltiplo no queda "congelado" cuando la acción se mueve. El denominador (EPS, ventas, EBITDA, FCF TTM)
-  cambia recién cuando la empresa presenta un reporte nuevo, y entonces el job lo actualiza.
+- Un **workflow de GitHub Actions** en el repo privado de datos (`.github/workflows/radar-datos.yml`, Radar v2) baja Yahoo y la SEC y commitea `mercado-<TICKER>.json` y `historia-<TICKER>.json`
+  (qué empresas se procesan lo dice `radar-config.json` del repo privado). Corre solo lunes a viernes 11:00 UTC y a pedido (`workflow_dispatch`, inputs `tickers` y `solo`).
+- La app los lee con la ruta que ya existe, `GET /datos/<archivo>.json` (mismo login, mismo `GH_DATA_TOKEN`). El Worker **solo dispara** el workflow (`POST /radar/pedir`); el único archivo
+  que escribe en el repo privado es `reportes.json` (`POST /radar/reportar`).
+- El **precio no pasa por el job** si se quiere en vivo (`/radar/precios`); el denominador de los múltiplos cambia recién cuando la empresa presenta un reporte nuevo.
 
 ### Rutas
 - `GET /radar/precios?t=NVDA,MELI` — 1 a 30 tickers (`^[A-Z][A-Z0-9-]{0,9}$`, se pasan a mayúsculas; si no, 400 `bad_param`). Último precio regular en USD del subyacente (**no** el CEDEAR en pesos):
   Yahoo Finance `v8/finance/chart/<T>?range=1d&interval=1d` (sin API oficial: se prueban `query1` y `query2`, mismo criterio que el SPY de `/rendimiento/mercado`). Devuelve
   `{ generado, precios: { T: { precio, previo, hora (ms), moneda } | null }, errores: { T: 'not_found' | 'unavailable' } }`. Cada ticker falla por separado.
   Guardado 60 s por ticker en el Durable Object `CarteraGate` (los que Yahoo no conoce, 10 min). La app muestra "hace X min" con `hora` y renueva sola cada minuto.
-- `POST /radar/pedir` con `{ "tickers": ["NVDA","MELI"] }` (1 a 25) — lanza `workflow_dispatch` de `radar-fundamentals.yml` en `DATOS_REPO` (rama por defecto del repo) con los tickers.
+- `POST /radar/pedir` con `{ "tickers": ["NVDA","MELI"] }` (1 a 25) — lanza `workflow_dispatch` de `radar-datos.yml` en `DATOS_REPO` (rama por defecto del repo) con `inputs.tickers` = los tickers separados por coma (sin `solo`: actualiza mercado e historia).
   Freno: el mismo ticker no se vuelve a pedir durante 10 min (guardado en el DO; un pedido fallido no consume el freno). Respuesta: `{ pedidos, yaPedidos }`.
   Errores: 500 `missing_gh_token`; 502 `github_token` (token rechazado), `github_permiso` (falta el permiso Actions o el archivo del workflow en el repo de datos), `github_error`, `github_unavailable`.
+- `POST /radar/reportar` — «este número está mal». Body JSON:
+  `{ "ticker": "V", "kpi_id": "margen_op", "trimestre": "2026-09-30", "valor_mostrado": "31,2%", "comentario": "opcional, hasta 500 caracteres" }`.
+  Validación (400 `bad_param` con el motivo en `message`): `ticker` como en el resto del radar (se pasa a mayúsculas); `kpi_id` y `trimestre` `^[A-Za-z0-9_.-]{1,24}$`; `valor_mostrado` texto o número, 1 a 60 caracteres (se guarda como texto); `comentario` ≤ 500.
+  Agrega la entrada al final de `reportes.json` del repo privado (Contents API con `GH_DATA_TOKEN`: lee el `sha`, agrega, `PUT`; si GitHub da 409 relee y reintenta **una** vez; si el archivo no existe lo crea). Entrada:
+  `{ id, ticker, kpi_id, trimestre, valor_mostrado, comentario, estado: "en_revision", reportado_en (ISO), resuelto_en: null, resolucion: null }`, con `id = "TICKER:kpi_id:trimestre"`.
+  Si ya hay un reporte `en_revision` de ese mismo número, **no duplica**: devuelve el existente. Si el anterior ya se resolvió, agrega uno nuevo con `id` `…#2`, `…#3` (el historial no se pisa).
+  Respuesta 200: `{ ok: true, duplicado: boolean, reporte: {…entrada…} }`. Errores: 400 `bad_param`; 401/403/500 del gate; 429 `limite_diario` (máx. 20 reportes nuevos por día de Buenos Aires, contador en el storage del DO; los duplicados no gastan cupo);
+  409 `conflicto` (dos conflictos seguidos con GitHub); 500 `missing_gh_token`; 502 `github_token`, `github_permiso` (el token necesita **Contents: Read and write** sobre el repo de datos, no solo lectura), `github_error`, `reportes_ilegible` (el archivo no es una lista; no se toca).
+  Las escrituras se serializan dentro del Durable Object. Como el token de `/datos/` también lee el repo, `GET /datos/reportes.json` sirve la lista (hasta 5 min de caché si el despliegue tuviera caché de Cache API).
 
 ### Puesta en marcha (una sola vez) — pasos exactos
-1. **Subir el workflow al repo de datos.** En el repo privado `Loustau45261470/centro-de-mando-datos`, crear el archivo `.github/workflows/radar-fundamentals.yml` con el contenido
-   de `tools/radar-job/radar-fundamentals.yml` de este repo (GitHub → Add file → Create new file → pegar → Commit).
+1. **Workflow en el repo de datos.** Ya subido en Radar v2: `.github/workflows/radar-datos.yml` (reemplazó a `radar-fundamentals.yml`).
 2. **Secret de la SEC.** En ese repo: Settings → Secrets and variables → Actions → New repository secret. Nombre: `SEC_USER_AGENT`. Valor: tu nombre y un mail de contacto, por ejemplo
    `Centro de Mando tu-mail@ejemplo.com`. La SEC lo exige para dejar bajar datos; así el mail no queda en ningún archivo del repo público.
 3. **Permisos del workflow.** En ese repo: Settings → Actions → General → Workflow permissions → "Read and write permissions" → Save (el workflow necesita guardar los archivos).
 4. **Ampliar el token de GitHub del Worker.** GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens → el token que ya usa el Worker (`GH_DATA_TOKEN`) →
-   Permissions → Repository permissions: dejar **Contents: Read-only** y agregar **Actions: Read and write** (solo sobre `centro-de-mando-datos`). Es el mismo token: no hay que cambiar el secret.
+   Permissions → Repository permissions: poner **Contents: Read and write** (hace falta para que `/radar/reportar` escriba `reportes.json`) y agregar **Actions: Read and write**, solo sobre `centro-de-mando-datos`. Es el mismo token: no hay que cambiar el secret.
    Si el token fuera nuevo (otro valor), correr `npx wrangler secret put GH_DATA_TOKEN` y pegarlo.
 5. **Desplegar el Worker** (cambió `src/index.js`; no hay migraciones ni secrets nuevos del lado del Worker):
    ```bash
@@ -258,13 +263,13 @@ ahí puede cortarse a mitad. Con `companyconcept` (un JSON por concepto) harían
    CLOUDFLARE_API_TOKEN=<token> npx wrangler deploy
    ```
 6. **Primera carga.** Abrir Cartera → pestaña Radar: las empresas de la cartera se piden solas y a los 1–2 minutos aparecen los datos. También se puede correr a mano:
-   repo de datos → Actions → radar-fundamentals → Run workflow (en "Tickers" poner por ejemplo `NVDA,MELI`, o dejar vacío para refrescar todo).
+   repo de datos → Actions → radar-datos → Run workflow (en "Tickers" poner por ejemplo `NVDA,MELI`, o dejar vacío para refrescar todo).
 7. **Probar** (ID token fresco: `await _auth.currentUser.getIdToken()` en la consola con la app abierta):
    ```bash
    curl -H "Authorization: Bearer <ID_TOKEN>" "https://cdm-push-worker.tobiasloustau11.workers.dev/radar/precios?t=NVDA"
    curl -X POST -H "Authorization: Bearer <ID_TOKEN>" -H "content-type: application/json" -d '{"tickers":["NVDA"]}' https://cdm-push-worker.tobiasloustau11.workers.dev/radar/pedir
    ```
-   Sin token deben dar 401. Variable opcional en `[vars]` de `wrangler.toml`: `DATOS_REF` (rama del repo de datos si no se quiere la rama por defecto).
+   Sin token deben dar 401 (con POST) o 405 (un GET a `/radar/reportar`: el método se chequea antes que el login). Variable opcional en `[vars]` de `wrangler.toml`: `DATOS_REF` (rama del repo de datos si no se quiere la rama por defecto).
 
 ### Mapeo de conceptos de la SEC, fórmulas y TTM
 Todo está documentado arriba de `radar-calc.js` (conceptos `us-gaap` e `ifrs-full` con fallback por período, trimestres desde acumulados, Q4 = año − 9 meses, TTM, FCF, EBITDA, ROIC, múltiplos).

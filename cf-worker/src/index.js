@@ -16,8 +16,10 @@
 //   GET  /rendimiento/mercado?desde=YYYY-MM-DD  — MEP, SPY, IPC INDEC y CPI EE.UU. (fuentes públicas) — mismo gate que /cartera
 //                    las tres comparten el token de IOL y el estado de CarteraGate; ver handleRendimiento() más abajo
 //   GET  /radar/precios?t=NVDA,MELI  — precio en vivo (USD) del subyacente de cada ticker (Yahoo Finance, caché 60 s) — mismo gate que /cartera
-//   POST /radar/pedir  { tickers:[...] }  — lanza el workflow del repo privado que baja los fundamentals de la SEC (workflow_dispatch) — mismo gate
-//                    Radar de empresas; ver handleRadar() más abajo. Los fundamentals NO se calculan acá: se leen con GET /datos/fund-<TICKER>.json
+//   POST /radar/pedir  { tickers:[...] }  — lanza el workflow radar-datos.yml del repo privado (Yahoo + historia de la SEC) (workflow_dispatch) — mismo gate
+//   POST /radar/reportar { ticker, kpi_id, trimestre, valor_mostrado, comentario? } — agrega un reporte «este número está mal» a reportes.json del
+//                    repo privado (Contents API, GH_DATA_TOKEN) — mismo gate; 20 por día
+//                    Radar de empresas; ver handleRadar() más abajo. Los datos NO se calculan acá: se leen con GET /datos/<archivo>.json
 //
 // :id identifica el timer — 'pomo' para el Pomodoro (uno a la vez), 'rtn-<exId>'
 // para cada descanso de gimnasio (puede haber varios en simultáneo).
@@ -396,6 +398,7 @@ export class CarteraGate {
         for (const t of tickers) await this.state.storage.put('radar:pedido:' + t, Date.now());
         return ok({ marcados: tickers });
       }
+      if (ruta === 'reportar') return await this.radarReportar(params.reporte);
       return { status: 404, body: JSON.stringify({ error: 'not_found_route', message: 'Ruta del radar inexistente.' }) };
     } catch (e) {
       console.error('radar error', ruta, e);
@@ -427,6 +430,63 @@ export class CarteraGate {
     await Promise.all([trabajar(), trabajar(), trabajar(), trabajar()]);
     return { generado: new Date().toISOString(), precios, errores };
   }
+
+  // Reportes de números mal: se escriben de a uno (cadena de promesas) para que el DO nunca pise su propia escritura; GitHub puede
+  // igual devolver 409 si alguien (el job) tocó el archivo entre la lectura y la escritura: se relee y se reintenta una vez.
+  radarReportar(reporte) {
+    const p = (this.cadenaReportes || Promise.resolve()).then(() => this.radarReportarUnico(reporte));
+    this.cadenaReportes = p.catch(() => {});
+    return p;
+  }
+
+  async radarReportarUnico(r) {
+    const res = (status, obj) => ({ status, body: JSON.stringify(obj) });
+    const token = this.env.GH_DATA_TOKEN;
+    if (!token) return res(500, { error: 'missing_gh_token', message: 'El Worker no tiene configurado el secret GH_DATA_TOKEN.' });
+    const url = `https://api.github.com/repos/${this.env.DATOS_REPO || DATOS_REPO_DEFAULT}/contents/${RADAR_REPORTES_ARCHIVO}`;
+    const gh = { Accept: 'application/vnd.github+json', Authorization: `Bearer ${token}`, 'User-Agent': 'cdm-push-worker', 'X-GitHub-Api-Version': '2022-11-28' };
+    const base = r.ticker + ':' + r.kpi_id + ':' + r.trimestre;
+    const dia = new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10); // día de Buenos Aires (UTC-3)
+    const claveDia = 'radar:reportes:' + dia;
+
+    for (let intento = 0; intento < 2; intento++) {
+      const g = await fetch(url, { headers: gh });
+      let lista = [], sha;
+      if (g.status === 404) { /* todavía no hay archivo: se crea */ }
+      else if (g.ok) {
+        const j = await g.json();
+        sha = j.sha;
+        try { lista = JSON.parse(utf8DeBase64(String(j.content || '').replace(/\n/g, ''))); } catch (_) { lista = null; }
+        if (!Array.isArray(lista)) return res(502, { error: 'reportes_ilegible', message: 'reportes.json no es una lista válida; no se tocó.' });
+      } else if (g.status === 401) return res(502, { error: 'github_token', message: 'GitHub rechazó el token (¿venció?).' });
+      else return res(502, { error: 'github_error', message: 'GitHub respondió HTTP ' + g.status + ' al leer ' + RADAR_REPORTES_ARCHIVO + '.' });
+
+      const previos = lista.filter(x => x && (x.id === base || String(x.id).startsWith(base + '#')));
+      const abierto = previos.find(x => x.estado === 'en_revision');
+      if (abierto) return res(200, { ok: true, duplicado: true, reporte: abierto });
+
+      const usados = (await this.state.storage.get(claveDia)) || 0;
+      if (usados >= RADAR_REPORTES_POR_DIA) return res(429, { error: 'limite_diario', message: 'Ya se enviaron ' + RADAR_REPORTES_POR_DIA + ' reportes hoy. Probá mañana.' });
+
+      // El primer reporte de un número usa el id determinístico; si ya hubo uno resuelto, los siguientes llevan #2, #3… (el historial no se pisa).
+      const reporte = {
+        id: previos.length ? base + '#' + (previos.length + 1) : base,
+        ticker: r.ticker, kpi_id: r.kpi_id, trimestre: r.trimestre, valor_mostrado: r.valor_mostrado, comentario: r.comentario,
+        estado: 'en_revision', reportado_en: new Date(Date.now()).toISOString(), resuelto_en: null, resolucion: null,
+      };
+      const cuerpo = { message: 'radar: reporte ' + reporte.id, content: utf8ABase64(JSON.stringify(lista.concat([reporte]), null, 1) + '\n') };
+      if (sha) cuerpo.sha = sha;
+      const w = await fetch(url, { method: 'PUT', headers: { ...gh, 'content-type': 'application/json' }, body: JSON.stringify(cuerpo) });
+      if (w.status === 409 && intento === 0) continue;
+      if (w.status === 409) return res(409, { error: 'conflicto', message: 'El archivo de reportes cambió mientras se guardaba. Probá de nuevo.' });
+      if (w.status === 401) return res(502, { error: 'github_token', message: 'GitHub rechazó el token (¿venció?).' });
+      if (w.status === 403 || w.status === 404) return res(502, { error: 'github_permiso', message: 'GitHub no dejó escribir ' + RADAR_REPORTES_ARCHIVO + ': el token necesita el permiso «Contents: Read and write» sobre el repo de datos.' });
+      if (!w.ok) return res(502, { error: 'github_error', message: 'GitHub respondió HTTP ' + w.status + ' al guardar el reporte.' });
+      await this.state.storage.put(claveDia, usados + 1);
+      return res(200, { ok: true, duplicado: false, reporte });
+    }
+    return res(409, { error: 'conflicto', message: 'El archivo de reportes cambió mientras se guardaba. Probá de nuevo.' });
+  }
 }
 
 // ── Utilidades de /radar ──
@@ -436,7 +496,12 @@ const RADAR_MAX_PEDIR = 25;
 const RADAR_PX_TTL_MS = 60 * 1000;
 const RADAR_NF_TTL_MS = 10 * 60 * 1000;
 const RADAR_PEDIDO_TTL_MS = 10 * 60 * 1000;
-const RADAR_WORKFLOW = 'radar-fundamentals.yml';
+const RADAR_WORKFLOW = 'radar-datos.yml';
+const RADAR_REPORTES_ARCHIVO = 'reportes.json';
+const RADAR_REPORTES_POR_DIA = 20;
+const RADAR_ID_RE = /^[A-Za-z0-9_.-]{1,24}$/; // kpi_id y trimestre (sin «:» ni «#», que arman el id del reporte)
+function utf8ABase64(texto) { let bin = ''; for (const b of new TextEncoder().encode(texto)) bin += String.fromCharCode(b); return btoa(bin); }
+function utf8DeBase64(b64) { const bin = atob(b64); const bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i); return new TextDecoder().decode(bytes); }
 
 // Último precio regular de un ticker en Yahoo Finance (sin API oficial: se prueban dos hosts). null = Yahoo no lo conoce.
 async function traerPrecioYahoo(ticker) {
@@ -986,10 +1051,11 @@ async function handleRendimiento(request, env, ruta) {
   }
 }
 
-// ── /radar/{precios,pedir} — Radar de empresas (pestaña Radar de Cartera) ──
-// Mismo gate que /cartera (ID token de Firebase + OWNER_UID). El cálculo de fundamentals NO corre acá (companyfacts pesa varios MB y el
-// plan gratuito de Workers da 10 ms de CPU por pedido): lo hace un workflow de GitHub Actions del repo privado, que este Worker solo
-// dispara (workflow_dispatch, sin escribir archivos) y el cliente lee después con GET /datos/fund-<TICKER>.json.
+// ── /radar/{precios,pedir,reportar} — Radar de empresas (pestaña Radar de Cartera) ──
+// Mismo gate que /cartera (ID token de Firebase + OWNER_UID). El cálculo de datos NO corre acá (companyfacts pesa varios MB y el
+// plan gratuito de Workers da 10 ms de CPU por pedido): lo hace el workflow radar-datos.yml del repo privado, que este Worker solo
+// dispara (workflow_dispatch) y el cliente lee después con GET /datos/{mercado,historia}-<TICKER>.json. Lo único que el Worker escribe
+// en el repo privado es reportes.json (POST /radar/reportar).
 const RADAR_CORS_HEADERS = { ...CARTERA_CORS_HEADERS, 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'authorization, content-type' };
 function radarJson(status, obj) {
   return new Response(JSON.stringify(obj), { status, headers: { ...RADAR_CORS_HEADERS, 'content-type': 'application/json', 'Cache-Control': 'private, no-store' } });
@@ -1005,9 +1071,26 @@ function radarTickers(lista, max) {
   return out.length >= 1 && out.length <= max ? out : null;
 }
 
+// Devuelve el reporte normalizado o un string con el motivo del rechazo.
+function validarReporte(b) {
+  if (!b || typeof b !== 'object' || Array.isArray(b)) return 'El body debe ser { ticker, kpi_id, trimestre, valor_mostrado, comentario? }.';
+  const ticker = typeof b.ticker === 'string' ? b.ticker.trim().toUpperCase() : '';
+  if (!RADAR_TICKER_RE.test(ticker)) return 'ticker inválido.';
+  const kpi = typeof b.kpi_id === 'string' ? b.kpi_id.trim() : '';
+  if (!RADAR_ID_RE.test(kpi)) return 'kpi_id inválido (letras, números, _ . - hasta 24).';
+  const tri = typeof b.trimestre === 'string' ? b.trimestre.trim() : '';
+  if (!RADAR_ID_RE.test(tri)) return 'trimestre inválido (letras, números, _ . - hasta 24; ej. 2026-09-30).';
+  let valor = b.valor_mostrado;
+  if (typeof valor === 'number' && Number.isFinite(valor)) valor = String(valor);
+  if (typeof valor !== 'string' || !valor.trim() || valor.length > 60) return 'valor_mostrado debe ser un texto o número de hasta 60 caracteres.';
+  const com = b.comentario == null ? '' : b.comentario;
+  if (typeof com !== 'string' || com.length > 500) return 'comentario debe ser un texto de hasta 500 caracteres.';
+  return { ticker, kpi_id: kpi, trimestre: tri, valor_mostrado: valor.trim(), comentario: com.trim() };
+}
+
 async function handleRadar(request, env, ruta) {
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: RADAR_CORS_HEADERS });
-  const esperado = ruta === 'precios' ? 'GET' : ruta === 'pedir' ? 'POST' : null;
+  const esperado = ruta === 'precios' ? 'GET' : (ruta === 'pedir' || ruta === 'reportar') ? 'POST' : null;
   if (!esperado) return radarError(404, 'not_found_route', 'Ruta del radar inexistente.');
   if (request.method !== esperado) return radarError(405, 'method_not_allowed', 'Este endpoint solo acepta ' + esperado + '.');
 
@@ -1029,6 +1112,20 @@ async function handleRadar(request, env, ruta) {
     } catch (e) {
       console.error('radar precios gate error', e);
       return radarError(502, 'radar_unavailable', 'No se pudieron consultar los precios.');
+    }
+  }
+
+  if (ruta === 'reportar') {
+    const b = await request.json().catch(() => null);
+    const reporte = validarReporte(b);
+    if (typeof reporte === 'string') return radarError(400, 'bad_param', reporte);
+    if (!env.GH_DATA_TOKEN) return radarError(500, 'missing_gh_token', 'El Worker no tiene configurado el secret GH_DATA_TOKEN.');
+    try {
+      const r = await viaGate('reportar', { reporte });
+      return radarJson(r.status, r.json || { error: 'radar_unavailable', message: 'Respuesta vacía.' });
+    } catch (e) {
+      console.error('radar reportar gate error', e);
+      return radarError(502, 'radar_unavailable', 'No se pudo guardar el reporte.');
     }
   }
 
