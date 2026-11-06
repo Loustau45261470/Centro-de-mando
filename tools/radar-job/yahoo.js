@@ -105,9 +105,7 @@ function parsearMercado(resumen, hist, opts) {
   const peFwdY = num(sd.forwardPE) != null ? num(sd.forwardPE) : num(ks.forwardPE);
   const pe = (valor, eps) => (esNum(eps) && eps <= 0 ? campo(null, hoy, 'n/s') : esNum(valor) && valor > 0 ? campo(redond(valor, 4), hoy) : campo(null, hoy, esNum(eps) ? undefined : 'sin dato'));
   out.pe_ttm = pe(peTtmY, epsTtm);
-  out.pe_forward = pe(peFwdY, epsFwd);
   out.eps_ttm_gaap = campo(epsTtm, hoy);
-  out.eps_forward = campo(epsFwd, hoy);
   out.earnings_yield = campo(esNum(epsTtm) && esNum(precio) && precio > 0 && epsTtm > 0 ? redond(epsTtm / precio) : null, hoy, esNum(epsTtm) && epsTtm <= 0 ? 'n/s' : undefined);
   out.peg = campo(num(ks.pegRatio), hoy);
 
@@ -116,6 +114,16 @@ function parsearMercado(resumen, hist, opts) {
   const est = {};
   for (const [k, p] of [['trimestre_actual', '0q'], ['trimestre_proximo', '+1q'], ['anio_actual', '0y'], ['anio_proximo', '+1y']]) est[k] = estimacion(periodo(trend, p));
   out.estimaciones = campo(est, hoy);
+  // P/E forward = precio / EPS estimado del año fiscal EN CURSO (el que Yahoo web muestra como Forward P/E). El forwardPE crudo de la API de Yahoo
+  // salta al año siguiente apenas la empresa cierra su año fiscal (ej. cierre en septiembre: 24,7x en la API vs 29,0x en la web), por eso se guarda aparte.
+  const epsAct = est.anio_actual && est.anio_actual.eps.promedio, epsSig = est.anio_proximo && est.anio_proximo.eps.promedio;
+  const peDe = e => (esNum(e) && e > 0 && esNum(precio) ? campo(redond(precio / e, 4), hoy) : campo(null, hoy, esNum(e) ? 'n/s' : 'sin dato'));
+  out.pe_forward = esNum(epsAct) ? peDe(epsAct) : pe(peFwdY, epsFwd);
+  out.pe_forward.base = esNum(epsAct) ? 'EPS estimado del año fiscal en curso' : 'forwardPE de la API de Yahoo';
+  out.pe_forward_siguiente = peDe(epsSig);
+  out.pe_forward_yahoo_api = pe(peFwdY, epsFwd);
+  out.eps_forward = campo(esNum(epsAct) ? epsAct : epsFwd, hoy);
+  out.eps_forward_siguiente = campo(esNum(epsSig) ? epsSig : null, hoy);
   const base = est.anio_actual && est.anio_actual.eps.hace_un_anio, fin2 = est.anio_proximo && est.anio_proximo.eps.promedio;
   let cagr = null, motivoCagr;
   if (esNum(base) && esNum(fin2)) {

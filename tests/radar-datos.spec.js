@@ -53,9 +53,11 @@ test.describe('radar v2: datos de mercado (Yahoo)', () => {
     expect(m.rango_52s.valor).toMatchObject({ min: 80, max: 130 });
     expect(m.rango_52s.valor.posicion).toBeCloseTo(0.8, 5);
     expect(m.pe_ttm.valor).toBe(24);
-    expect(m.pe_forward.valor).toBe(16);
+    expect(m.pe_forward.valor).toBe(20);                              // 120 / 6 (EPS estimado del año fiscal en curso)
+    expect(m.pe_forward_siguiente.valor).toBeCloseTo(120 / 7.2, 3);
+    expect(m.pe_forward_yahoo_api.valor).toBe(16);                    // el forwardPE crudo de la API (usa otro año) queda aparte
     expect(m.eps_ttm_gaap.valor).toBe(5);
-    expect(m.eps_forward.valor).toBe(7.5);
+    expect(m.eps_forward.valor).toBe(6);
     expect(m.earnings_yield.valor).toBeCloseTo(5 / 120, 5);
     expect(m.ev_ebitda.valor).toBe(14);
     expect(m.p_fcf.valor).toBeCloseTo(12e9 / 6e8, 3);
