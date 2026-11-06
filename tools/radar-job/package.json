@@ -1,0 +1,8 @@
+{
+  "name": "radar-job",
+  "private": true,
+  "description": "Dependencias del job de datos del Radar (se instalan en el repo privado de datos, no en la PWA).",
+  "dependencies": {
+    "yahoo-finance2": "4.0.5"
+  }
+}

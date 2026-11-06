@@ -1,0 +1,78 @@
+# ════════════════════════════════════════════════════════════════════════════════
+# Radar v2 — datos de mercado (Yahoo) e historia trimestral (SEC) de las empresas listadas en radar-config.json.
+# Escribe mercado-<TICKER>.json y historia-<TICKER>.json en la raíz del repo de datos.
+#
+# ESTE ARCHIVO SE COPIA AL REPO PRIVADO  Loustau45261470/centro-de-mando-datos  en  .github/workflows/radar-datos.yml
+# junto con tools/radar-job/{radar-datos.js,yahoo.js,historia.js,package.json} y radar-calc.js (raíz). Reemplaza a radar-fundamentals.yml.
+# Qué empresas se procesan lo dice radar-config.json (repo privado): este archivo y el código no listan ningún ticker.
+#
+# Cuándo corre: lunes a viernes 11:00 UTC (antes de la apertura de EE.UU.) y a mano (Actions → radar-datos → Run workflow;
+# se puede limitar con tickers=A,B y/o solo=mercado|historia).
+#
+# Secret requerido (repo privado → Settings → Secrets and variables → Actions):
+#   SEC_USER_AGENT   ej:  Centro de Mando tu-mail@ejemplo.com   (la SEC lo exige)
+#
+# Yahoo puede bloquear IPs de datacenter: si pasa, el job conserva el último archivo bueno (campo stale_since) y no pisa nada.
+# ════════════════════════════════════════════════════════════════════════════════
+name: radar-datos
+
+on:
+  schedule:
+    - cron: '0 11 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      tickers:
+        description: 'Tickers separados por coma (vacío = todos los de radar-config.json)'
+        required: false
+        default: ''
+      solo:
+        description: 'mercado | historia (vacío = ambos)'
+        required: false
+        default: ''
+
+# Un solo proceso a la vez: dos corridas juntas se pisarían al hacer commit.
+concurrency:
+  group: radar-datos
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  actualizar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Repo de datos (privado)
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Instalar yahoo-finance2
+        run: npm install --prefix tools/radar-job --no-audit --no-fund
+
+      - name: Bajar datos de Yahoo y de la SEC
+        env:
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+          TICKERS: ${{ github.event.inputs.tickers }}   # por variable de entorno, nunca pegado en el comando (evita inyección); el job lo valida
+          SOLO: ${{ github.event.inputs.solo }}
+        run: |
+          args=(--datos .)
+          [ -n "$TICKERS" ] && args+=(--tickers "$TICKERS")
+          [ -n "$SOLO" ] && args+=(--solo "$SOLO")
+          node tools/radar-job/radar-datos.js "${args[@]}"
+
+      - name: Guardar cambios
+        run: |
+          git config user.name "radar-datos"
+          git config user.email "radar-datos@users.noreply.github.com"
+          git add mercado-*.json historia-*.json
+          if git diff --cached --quiet; then echo "Sin cambios."; exit 0; fi
+          git commit -m "datos: mercado e historia del radar"
+          for i in 1 2 3; do
+            git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" && exit 0
+            sleep 5
+          done
+          echo "::error::No se pudo hacer push"; exit 1

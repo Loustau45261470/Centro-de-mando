@@ -1,0 +1,225 @@
+'use strict';
+// ════════════════════════════════════════════════════════════════════════
+// RADAR v2 — datos de mercado de Yahoo Finance (cliente + parseo PURO).
+// Paquete: yahoo-finance2 (npm). Se eligió sobre un fetch a mano porque Yahoo exige cookie + crumb en cada sesión y cambia
+// el formato seguido; ese paquete lo resuelve, está mantenido (v4, 2026) y expone quoteSummary / chart / fundamentalsTimeSeries.
+// Todo se pide con validateResult:false: si Yahoo cambia un campo, el job no revienta, ese campo queda null.
+//
+// Convenciones de salida (las fija radar-config.json → _convenciones): ratios como fracción (0,0119 = 1,19%), fechas ISO yyyy-mm-dd,
+// cada dato de mercado = { valor, fuente: 'yahoo', fecha } (+ motivo cuando valor es null por una razón conocida: 'n/s', 'no aplica…').
+//
+// Este archivo no sabe qué empresas existen: recibe el resumen de Yahoo y la historia de precios de una empresa y devuelve el JSON.
+// ════════════════════════════════════════════════════════════════════════
+
+const MODULOS = ['price', 'summaryDetail', 'defaultKeyStatistics', 'financialData', 'earningsTrend', 'earningsHistory',
+  'recommendationTrend', 'insiderTransactions', 'netSharePurchaseActivity', 'majorHoldersBreakdown', 'institutionOwnership', 'calendarEvents'];
+
+const esNum = v => typeof v === 'number' && isFinite(v);
+const num = v => { if (v && typeof v === 'object' && 'raw' in v) v = v.raw; return esNum(v) ? v : null; };
+const iso = d => {
+  if (d == null) return null;
+  const t = d instanceof Date ? d.getTime() : typeof d === 'number' ? (d < 1e11 ? d * 1000 : d) : Date.parse(d);
+  return isFinite(t) && t > 86400000 * 366 ? new Date(t).toISOString().slice(0, 10) : null; // 1970 = valor basura de Yahoo
+};
+const redond = (v, d = 6) => (esNum(v) ? Math.round(v * 10 ** d) / 10 ** d : null);
+
+function campo(valor, fecha, motivo) {
+  const c = { valor: valor === undefined ? null : valor, fuente: 'yahoo', fecha: fecha || null };
+  if (motivo) c.motivo = motivo;
+  return c;
+}
+
+// Máximo histórico y peor caída (pico a valle) sobre precios diarios [{fecha, high, close}] (ya ajustados por splits).
+function atl(precios, precioActual) {
+  let ath = null, athFecha = null;
+  let pico = null, picoFecha = null, peor = 0, peorPico = null, peorValle = null;
+  for (const p of precios) {
+    if (esNum(p.high) && (ath == null || p.high > ath)) { ath = p.high; athFecha = p.fecha; }
+    if (!esNum(p.close)) continue;
+    if (pico == null || p.close > pico) { pico = p.close; picoFecha = p.fecha; }
+    const dd = p.close / pico - 1;
+    if (dd < peor) { peor = dd; peorPico = picoFecha; peorValle = p.fecha; }
+  }
+  if (ath != null && esNum(precioActual) && precioActual > ath) { ath = precioActual; athFecha = null; }
+  return { ath, athFecha, drawdownMax: precios.length ? { valor: redond(peor), pico: peorPico, valle: peorValle } : null };
+}
+
+const periodo = (trend, p) => (trend || []).find(t => t && t.period === p) || null;
+function estimacion(t) {
+  if (!t) return null;
+  const e = t.earningsEstimate || {}, r = t.revenueEstimate || {};
+  return {
+    fin: iso(t.endDate),
+    eps: { promedio: num(e.avg), bajo: num(e.low), alto: num(e.high), analistas: num(e.numberOfAnalysts), hace_un_anio: num(e.yearAgoEps), crecimiento: num(e.growth) },
+    ventas: { promedio: num(r.avg), bajo: num(r.low), alto: num(r.high), analistas: num(r.numberOfAnalysts), hace_un_anio: num(r.yearAgoRevenue), crecimiento: num(r.growth) },
+  };
+}
+function revision(t) {
+  if (!t || !t.epsTrend) return null;
+  const a = t.epsTrend, act = num(a.current);
+  const v = k => num(a[k]);
+  const var_ = k => (esNum(act) && esNum(v(k)) && v(k) !== 0 ? redond(act / v(k) - 1) : null);
+  const r = t.epsRevisions || {};
+  return {
+    actual: act, hace_7d: v('7daysAgo'), hace_30d: v('30daysAgo'), hace_60d: v('60daysAgo'), hace_90d: v('90daysAgo'),
+    variacion_7d: var_('7daysAgo'), variacion_30d: var_('30daysAgo'), variacion_60d: var_('60daysAgo'), variacion_90d: var_('90daysAgo'),
+    analistas_al_alza_30d: num(r.upLast30days), analistas_a_la_baja_30d: num(r.downLast30days),
+  };
+}
+
+// ── Parseo principal ──
+// resumen: salida de quoteSummary (objeto de módulos). hist: { precios:[{fecha,high,close}] }. opts: { hoy:'yyyy-mm-dd', financiera:boolean }
+function parsearMercado(resumen, hist, opts) {
+  const R = resumen || {};
+  const hoy = (opts && opts.hoy) || new Date().toISOString().slice(0, 10);
+  const financiera = !!(opts && opts.financiera);
+  const price = R.price || {}, sd = R.summaryDetail || {}, ks = R.defaultKeyStatistics || {}, fd = R.financialData || {};
+  const precio = num(price.regularMarketPrice) != null ? num(price.regularMarketPrice) : num(fd.currentPrice);
+  const fechaPrecio = iso(price.regularMarketTime) || hoy;
+  const noAplica = 'no aplica (financiera)';
+  const ev = x => (financiera ? campo(null, hoy, noAplica) : x);
+  const out = { v: 1 };
+
+  out.nombre = price.longName || price.shortName || null;
+  out.moneda = price.currency || null;
+  out.moneda_financiera = fd.financialCurrency || null;
+  out.precio = campo(precio, fechaPrecio);
+  out.capitalizacion = campo(num(price.marketCap), fechaPrecio);
+
+  // Precio: ATH, distancia, peor caída, rango 52 semanas
+  const precios = (hist && hist.precios) || [];
+  const a = atl(precios, precio);
+  const athYahoo = num(sd.allTimeHigh);
+  const athVal = a.ath != null ? a.ath : athYahoo;
+  out.ath = campo(athVal, a.athFecha || fechaPrecio);
+  if (a.ath != null && athYahoo != null) out.ath.ath_yahoo = athYahoo;
+  out.distancia_ath = campo(esNum(precio) && esNum(athVal) && athVal > 0 ? redond(precio / athVal - 1) : null, fechaPrecio);
+  out.drawdown_maximo = campo(a.drawdownMax ? a.drawdownMax.valor : null, hoy);
+  if (a.drawdownMax) { out.drawdown_maximo.pico = a.drawdownMax.pico; out.drawdown_maximo.valle = a.drawdownMax.valle; }
+  const lo = num(sd.fiftyTwoWeekLow), hi = num(sd.fiftyTwoWeekHigh);
+  out.rango_52s = campo({ min: lo, max: hi, posicion: esNum(precio) && esNum(lo) && esNum(hi) && hi > lo ? redond((precio - lo) / (hi - lo)) : null }, fechaPrecio);
+
+  // Múltiplos de resultados. EPS ≤ 0 → P/E "n/s" (no significativo), nunca un número absurdo.
+  const epsTtm = num(ks.trailingEps), epsFwd = num(ks.forwardEps);
+  const peTtmY = num(sd.trailingPE) != null ? num(sd.trailingPE) : num(ks.trailingPE);
+  const peFwdY = num(sd.forwardPE) != null ? num(sd.forwardPE) : num(ks.forwardPE);
+  const pe = (valor, eps) => (esNum(eps) && eps <= 0 ? campo(null, hoy, 'n/s') : esNum(valor) && valor > 0 ? campo(redond(valor, 4), hoy) : campo(null, hoy, esNum(eps) ? undefined : 'sin dato'));
+  out.pe_ttm = pe(peTtmY, epsTtm);
+  out.pe_forward = pe(peFwdY, epsFwd);
+  out.eps_ttm_gaap = campo(epsTtm, hoy);
+  out.eps_forward = campo(epsFwd, hoy);
+  out.earnings_yield = campo(esNum(epsTtm) && esNum(precio) && precio > 0 && epsTtm > 0 ? redond(epsTtm / precio) : null, hoy, esNum(epsTtm) && epsTtm <= 0 ? 'n/s' : undefined);
+  out.peg = campo(num(ks.pegRatio), hoy);
+
+  // Estimaciones de consenso y CAGR de EPS a 2 años (último año fiscal informado → estimación del 2.º año siguiente)
+  const trend = (R.earningsTrend && R.earningsTrend.trend) || [];
+  const est = {};
+  for (const [k, p] of [['trimestre_actual', '0q'], ['trimestre_proximo', '+1q'], ['anio_actual', '0y'], ['anio_proximo', '+1y']]) est[k] = estimacion(periodo(trend, p));
+  out.estimaciones = campo(est, hoy);
+  const base = est.anio_actual && est.anio_actual.eps.hace_un_anio, fin2 = est.anio_proximo && est.anio_proximo.eps.promedio;
+  let cagr = null, motivoCagr;
+  if (esNum(base) && esNum(fin2)) {
+    if (base > 0 && fin2 > 0) cagr = redond(Math.sqrt(fin2 / base) - 1);
+    else motivoCagr = 'n/s';
+  } else motivoCagr = 'sin dato';
+  out.eps_cagr_2a = campo(cagr, hoy, motivoCagr);
+  if (esNum(base) || esNum(fin2)) { out.eps_cagr_2a.eps_base = base == null ? null : base; out.eps_cagr_2a.eps_final = fin2 == null ? null : fin2; out.eps_cagr_2a.anio_base = 'último año fiscal informado'; out.eps_cagr_2a.anio_final = est.anio_proximo ? est.anio_proximo.fin : null; }
+
+  // Alternativa con base consistente de consenso (año fiscal en curso → siguiente): útil cuando el último año informado trae partidas no recurrentes
+  // (ej. beneficio fiscal que infla el EPS GAAP) y el CAGR a 2 años sale distorsionado.
+  const b1 = est.anio_actual && est.anio_actual.eps.promedio;
+  out.eps_crecimiento_1a_consenso = campo(esNum(b1) && esNum(fin2) && b1 > 0 && fin2 > 0 ? redond(fin2 / b1 - 1) : null, hoy, esNum(b1) && esNum(fin2) ? undefined : 'sin dato');
+  if (esNum(b1) && esNum(fin2)) { out.eps_crecimiento_1a_consenso.eps_base = b1; out.eps_crecimiento_1a_consenso.eps_final = fin2; }
+
+  // Sorpresa del último trimestre (Yahoo solo informa la de EPS; la de ingresos sale del comunicado)
+  const hh = (R.earningsHistory && R.earningsHistory.history) || [];
+  const ult = hh.filter(h => h && esNum(num(h.epsActual))).sort((x, y) => (iso(x.quarter) || '') < (iso(y.quarter) || '') ? -1 : 1).pop();
+  out.sorpresa_ultimo_trimestre = campo(ult ? { trimestre: iso(ult.quarter), eps_real: num(ult.epsActual), eps_estimado: num(ult.epsEstimate), diferencia: num(ult.epsDifference), sorpresa_pct: num(ult.surprisePercent), ingresos: null } : null, ult ? iso(ult.quarter) : hoy, ult ? undefined : 'sin dato');
+
+  // Revisiones de EPS (7/30/60/90 días)
+  out.revisiones_eps = campo({ trimestre_actual: revision(periodo(trend, '0q')), anio_actual: revision(periodo(trend, '0y')), anio_proximo: revision(periodo(trend, '+1y')) }, hoy);
+
+  // Precio objetivo y recomendaciones
+  const tMean = num(fd.targetMeanPrice);
+  out.precio_objetivo = campo(tMean == null && num(fd.targetHighPrice) == null ? null : { promedio: tMean, alto: num(fd.targetHighPrice), bajo: num(fd.targetLowPrice), mediana: num(fd.targetMedianPrice), analistas: num(fd.numberOfAnalystOpinions), potencial: esNum(tMean) && esNum(precio) && precio > 0 ? redond(tMean / precio - 1) : null }, hoy);
+  const rt = ((R.recommendationTrend && R.recommendationTrend.trend) || []).find(t => t.period === '0m') || null;
+  out.recomendaciones = campo(rt || num(fd.recommendationMean) != null ? {
+    compra_fuerte: rt ? num(rt.strongBuy) : null, compra: rt ? num(rt.buy) : null, mantener: rt ? num(rt.hold) : null, venta: rt ? num(rt.sell) : null, venta_fuerte: rt ? num(rt.strongSell) : null,
+    media: num(fd.recommendationMean), clave: fd.recommendationKey || null,
+  } : null, hoy);
+
+  // Insiders
+  const tx = ((R.insiderTransactions && R.insiderTransactions.transactions) || []).filter(t => t && iso(t.startDate)).sort((x, y) => (iso(x.startDate) < iso(y.startDate) ? 1 : -1)).slice(0, 10)
+    .map(t => ({ fecha: iso(t.startDate), nombre: t.filerName || null, cargo: t.filerRelation || null, acciones: num(t.shares), valor: num(t.value), texto: t.transactionText || null }));
+  const ns = R.netSharePurchaseActivity || {};
+  out.insiders = campo(tx.length || num(ns.netInfoShares) != null ? {
+    transacciones_recientes: tx,
+    periodo: ns.period || null, compras_n: num(ns.buyInfoCount), compras_acciones: num(ns.buyInfoShares), ventas_n: num(ns.sellInfoCount), ventas_acciones: num(ns.sellInfoShares),
+    neto_acciones: num(ns.netInfoShares), neto_pct_de_acciones_insiders: num(ns.netPercentInsiderShares), tenencia_insiders_pct: num(ks.heldPercentInsiders),
+  } : null, hoy);
+
+  // Institucionales (foto actual; la serie se arma guardando cada corrida si se pide)
+  const mh = R.majorHoldersBreakdown || {};
+  const top = ((R.institutionOwnership && R.institutionOwnership.ownershipList) || []).slice(0, 10)
+    .map(h => ({ nombre: h.organization || null, pct: num(h.pctHeld), acciones: num(h.position), valor: num(h.value), variacion_pct: num(h.pctChange), fecha_reporte: iso(h.reportDate) }));
+  out.institucional = campo(num(mh.institutionsPercentHeld) != null || top.length ? {
+    pct: num(mh.institutionsPercentHeld) != null ? num(mh.institutionsPercentHeld) : num(ks.heldPercentInstitutions), pct_float: num(mh.institutionsFloatPercentHeld), cantidad: num(mh.institutionsCount),
+    neto_compra_pct: num(ns.netInstBuyingPercent), principales: top,
+  } : null, top[0] && top[0].fecha_reporte ? top[0].fecha_reporte : hoy);
+
+  // Short interest
+  out.short_interest = campo(num(ks.shortPercentOfFloat) != null || num(ks.shortRatio) != null ? { pct_float: num(ks.shortPercentOfFloat), dias_para_cubrir: num(ks.shortRatio), acciones_short: num(ks.sharesShort), pct_acciones: num(ks.sharesPercentSharesOut) } : null, iso(ks.dateShortInterest) || hoy);
+
+  // Próxima fecha de resultados
+  const ce = (R.calendarEvents && R.calendarEvents.earnings) || {};
+  const fechas = (ce.earningsDate || []).map(iso).filter(Boolean).sort();
+  const prox = fechas.find(f => f >= hoy) || null;
+  out.proximos_resultados = campo(prox ? { fecha: prox, estimada: ce.isEarningsDateEstimate === true } : null, hoy, prox ? undefined : 'sin fecha futura');
+
+  // EV, EBITDA, FCF y derivados (no aplican a financieras)
+  const fcf = num(fd.freeCashflow), cap = num(price.marketCap), deuda = num(fd.totalDebt), caja = num(fd.totalCash);
+  out.ev = ev(campo(num(ks.enterpriseValue), hoy));
+  out.ebitda = ev(campo(num(fd.ebitda), hoy));
+  out.ev_ebitda = ev(campo(num(ks.enterpriseToEbitda), hoy));
+  out.ev_ventas = ev(campo(num(ks.enterpriseToRevenue), hoy));
+  out.fcf = ev(campo(fcf, hoy));
+  out.p_fcf = ev(campo(esNum(fcf) && fcf > 0 && esNum(cap) ? redond(cap / fcf, 4) : null, hoy, esNum(fcf) && fcf <= 0 ? 'n/s' : undefined));
+  out.fcf_yield = ev(campo(esNum(fcf) && esNum(cap) && cap > 0 ? redond(fcf / cap) : null, hoy));
+  out.deuda_neta = ev(campo(esNum(deuda) && esNum(caja) ? deuda - caja : null, hoy));
+  out.margenes = campo({ bruto: num(fd.grossMargins), operativo: num(fd.operatingMargins), neto: num(fd.profitMargins), ebitda: num(fd.ebitdaMargins) }, hoy);
+  out.roe = campo(num(fd.returnOnEquity), hoy);
+  out.beta = campo(num(sd.beta) != null ? num(sd.beta) : num(ks.beta), hoy);
+  return out;
+}
+
+// ── Cliente ──
+// yf = instancia de yahoo-finance2 (inyectable). Un ticker a la vez; cada pedido se reintenta con espera creciente.
+const dormir = ms => new Promise(r => setTimeout(r, ms));
+async function conReintentos(fn, { intentos = 4, esperaMs = 2500, log = () => {} } = {}) {
+  let ultimo = null;
+  for (let i = 0; i < intentos; i++) {
+    try { return await fn(); } catch (e) {
+      ultimo = e;
+      log(`  reintento ${i + 1}/${intentos}: ${(e && e.message || e).toString().slice(0, 120)}`);
+      if (i < intentos - 1) await dormir(esperaMs * (i + 1));
+    }
+  }
+  throw ultimo;
+}
+
+function crearClienteYahoo(yf, opts = {}) {
+  const o = { intentos: 4, esperaMs: 2500, log: () => {}, ...opts };
+  return {
+    resumen: t => conReintentos(() => yf.quoteSummary(t, { modules: MODULOS }, { validateResult: false }), o),
+    // Precios diarios desde siempre (ajustados por splits, no por dividendos) + splits.
+    async precios(t) {
+      const c = await conReintentos(() => yf.chart(t, { period1: '1970-01-01', interval: '1d', events: 'div|split' }, { validateResult: false }), o);
+      const precios = (c.quotes || []).filter(q => q && esNum(q.close)).map(q => ({ fecha: iso(q.date), high: esNum(q.high) ? q.high : q.close, close: q.close })).filter(q => q.fecha);
+      const splits = ((c.events && c.events.splits) || []).map(s => ({ fecha: iso(s.date), factor: s.numerator / s.denominator })).filter(s => s.fecha && esNum(s.factor) && s.factor > 0);
+      return { precios, splits };
+    },
+    trimestralesYahoo: t => conReintentos(() => yf.fundamentalsTimeSeries(t, { period1: '2010-01-01', type: 'quarterly', module: 'all' }, { validateResult: false }), o),
+  };
+}
+
+module.exports = { MODULOS, parsearMercado, crearClienteYahoo, conReintentos, campo, atl, iso, num, esNum, redond, dormir };
