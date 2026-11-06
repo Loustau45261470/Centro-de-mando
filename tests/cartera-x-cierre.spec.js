@@ -36,7 +36,7 @@ test('ningún botón de ninguna pestaña de Cartera queda debajo de la X (reposo
   await page.evaluate(() => CarteraOverlay.open());
   await page.waitForTimeout(800);
   const out = [];
-  for (const t of ['tenencias', 'analisis', 'historial', 'rendimiento', 'radar']) {
+  for (const t of ['tenencias', 'historial', 'rendimiento', 'radar']) {
     await page.evaluate((t) => CarteraOverlay._tab(t), t);
     await page.waitForTimeout(1200);
     const res = await page.evaluate(async () => {
@@ -67,5 +67,5 @@ test('ningún botón de ninguna pestaña de Cartera queda debajo de la X (reposo
   }
   if (process.env.ZZ_OUT) fs.writeFileSync(process.env.ZZ_OUT, JSON.stringify(out, null, 1));
   for (const o of out) { expect(o.rest, 'reposo ' + o.tab).toEqual([]); expect(o.ejemplo, 'scrolleado ' + o.tab).toEqual([]); expect(o.scrolledHits, 'scrolleado ' + o.tab).toBe(0); }
-  expect(out.filter((o) => o.max > 0).length).toBeGreaterThanOrEqual(3);   // que de verdad haya contenido para scrollear
+  expect(out.filter((o) => o.max > 0).length).toBeGreaterThanOrEqual(2);   // que de verdad haya contenido para scrollear (Mis tenencias y Rendimiento; Historial y Radar quedan vacíos en este fixture)
 });

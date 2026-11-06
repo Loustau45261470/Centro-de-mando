@@ -5565,7 +5565,7 @@ input:focus, select:focus, textarea:focus {
 #ov-gym .rtn-timer-band { border-radius: 12px; background: linear-gradient(90deg, rgba(244,63,94,.12), rgba(10,16,30,.4) 60%); border: 1px solid rgba(244,63,94,.35); }
 #ov-gym .rtn-hist-vol { color: var(--tp); }
 
-/* ════ Cartera de inversión (overlay, cartera-inversion.js) ════ */
+/* ════ Cartera de inversión (overlay; las clases .ci-* también las usan sgc.js y tenencias.js) ════ */
 .ci-body { display: flex; flex-direction: column; gap: 14px; }
 .ci-meta { font-family: var(--mono); font-size: var(--fs-12-5); color: var(--ts); letter-spacing: .02em; }
 .ci-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
@@ -5729,23 +5729,20 @@ input:focus, select:focus, textarea:focus {
 }
 
 /* ── Cartera: registrar venta + pestaña Historial (tres pestañas: el layout base de overlay-core.css es de dos) ── */
-/* Cartera: cinco pestañas (Mis tenencias · Análisis mensual · Historial · Rendimiento · Radar). Escritorio: una fila con la barra deslizante;
-   celular (≤640px): 3 + 2 en dos filas y la pestaña activa se marca con su propio fondo (la barra deslizante no sirve en dos filas). */
+/* Cartera: cuatro pestañas (Mis tenencias · Historial · Rendimiento · Radar). Escritorio: una fila con la barra deslizante;
+   celular (≤640px): 2 + 2 en dos filas y la pestaña activa se marca con su propio fondo (la barra deslizante no sirve en dos filas). */
 /* La X de cierre (.cm-ov-close, top:16 + 40px = 56) queda fija arriba a la derecha: el cuerpo que scrollea arranca justo debajo para
    que ningún botón (Actualizar, + Empresa, ↻…) pase por debajo y un toque ahí cierre la pantalla en vez de apretar el botón. */
 #ov-cartera .cm-ov-body { margin-top: 36px; }
 #ov-cartera .cm-ov-head { margin-top: 0; }
-#ov-cartera .plov-tabs:not(.rd-tabs) { grid-template-columns: repeat(5, 1fr); }
+#ov-cartera .plov-tabs:not(.rd-tabs) { grid-template-columns: repeat(4, 1fr); }
 #ov-cartera .plov-tab { min-width: 0; padding: 10px 4px; font-size: var(--fs-13); line-height: 1.2; }
-#ov-cartera .plov-tabs:not(.rd-tabs) .plov-tab-ink { width: calc((100% - 24px) / 5); }
-#ov-cartera .plov-tabs[data-on="analisis"] .plov-tab-ink { left: calc(8px + (100% - 24px) / 5); }
-#ov-cartera .plov-tabs[data-on="historial"] .plov-tab-ink { left: calc(12px + 2 * (100% - 24px) / 5); }
-#ov-cartera .plov-tabs[data-on="rendimiento"] .plov-tab-ink { left: calc(16px + 3 * (100% - 24px) / 5); }
-#ov-cartera .plov-tabs[data-on="radar"] .plov-tab-ink { left: calc(20px + 4 * (100% - 24px) / 5); }
+#ov-cartera .plov-tabs:not(.rd-tabs) .plov-tab-ink { width: calc((100% - 20px) / 4); }
+#ov-cartera .plov-tabs[data-on="historial"] .plov-tab-ink { left: calc(8px + (100% - 20px) / 4); }
+#ov-cartera .plov-tabs[data-on="rendimiento"] .plov-tab-ink { left: calc(12px + 2 * (100% - 20px) / 4); }
+#ov-cartera .plov-tabs[data-on="radar"] .plov-tab-ink { left: calc(16px + 3 * (100% - 20px) / 4); }
 @media (max-width: 640px) {
-  #ov-cartera .plov-tabs:not(.rd-tabs) { grid-template-columns: repeat(6, 1fr); }
-  #ov-cartera .plov-tabs:not(.rd-tabs) .plov-tab:nth-child(-n+3) { grid-column: span 2; }
-  #ov-cartera .plov-tabs:not(.rd-tabs) .plov-tab:nth-child(n+4) { grid-column: span 3; }
+  #ov-cartera .plov-tabs:not(.rd-tabs) { grid-template-columns: repeat(2, 1fr); }
   #ov-cartera .plov-tabs:not(.rd-tabs) .plov-tab-ink { display: none; }
   #ov-cartera .plov-tabs:not(.rd-tabs) .plov-tab.on {
     background: linear-gradient(150deg, color-mix(in oklab, var(--cm-accent) 60%, transparent), color-mix(in oklab, var(--cm-accent) 28%, transparent));

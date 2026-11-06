@@ -6,8 +6,7 @@
 // 8:00 ART) que commitea tenencias.json en el repo privado de datos. No escribe
 // estado: la única fuente es ese JSON, que llega por CMDatos (datos-privados.js). No construye su
 // propio overlay: expone renderInto(container) para que cartera-overlay.js
-// la monte dentro de su pane. Distinto de CarteraInversion
-// (cartera-inversion.js, análisis mensual de CEDEARs con predicciones).
+// la monte dentro de su pane.
 // ════════════════════════════════════════════════════════════════════════
 
 const Tenencias = (() => {

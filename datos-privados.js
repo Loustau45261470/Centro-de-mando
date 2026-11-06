@@ -4,7 +4,7 @@
 // (tenencias.json, latest.json, <YYYY-MM>.json). Viven en un repo PRIVADO de
 // GitHub y el Worker (cf-worker/, ruta GET /datos/<archivo>) los sirve solo al
 // dueño: Bearer = ID token de Firebase fresco, el mismo gate que /cartera.
-// Los consumidores (tenencias, cartera-inversion, jarvis-brain,
+// Los consumidores (tenencias, jarvis-brain,
 // sgc) piden TODO por acá — no hay otro fetch de archivos de cartera.
 //
 // Ante 401 / 5xx, red caída, timeout o sin sesión devuelve { data: null, status: 0 }: NO hay copia
