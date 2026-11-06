@@ -7,7 +7,7 @@
 // Todo sale de archivos JSON del repo PRIVADO de datos, que el Worker sirve con login (GET /datos/<archivo>, vía CMDatos):
 //   radar-config.json   empresas, KPIs generales por sección y KPIs específicos de cada una (se edita sin tocar código; `icono` = slug de
 //                       Simple Icons, `aviso_margenes` = advertencia en el gráfico)
-//   mercado-<T>.json · historia-<T>.json · kpis-<T>.json · pares-mercado.json · radar-manual.json · reportes.json     (los arma radar-vista.js / el job de datos)
+//   mercado-<T>.json · historia-<T>.json · kpis-<T>.json · pares-mercado.json · pe-forward-sa.json (job semanal: P/E fwd de hoy y media 5a, Stock Analysis) · radar-manual.json · reportes.json     (los arma radar-vista.js / el job de datos)
 // Cálculo y formato: radar-vista.js (puro, con tests de Node). Acá solo hay DOM, red y el gráfico (Chart.js).
 // Reportar un número: POST /radar/reportar { ticker, kpi_id, trimestre, valor_mostrado, comentario? } → queda «en revisión» en reportes.json
 // hasta que la rutina lo resuelve («corregido de X a Y» o «confirmado»). Nada de esto toca S: el estado de la pestaña vive en memoria.
@@ -99,7 +99,7 @@ const Radar = (() => {
     const mp = man && man.empresas && man.empresas[t] && man.empresas[t].pares;
     const pm = dato('pares-mercado.json'), pe = pm && pm.empresas ? pm.empresas : {};   // mercado mínimo de los pares (lo baja el job)
     if (Array.isArray(mp)) for (const p of mp) if (pe[p]) pares[p] = pe[p];
-    return V().vista({ config: _cfg, emp, mercado: dato('mercado-' + t + '.json'), historia: dato('historia-' + t + '.json'), kpis: dato('kpis-' + t + '.json'), manual: man, paresMercado: pares });
+    return V().vista({ config: _cfg, emp, mercado: dato('mercado-' + t + '.json'), historia: dato('historia-' + t + '.json'), kpis: dato('kpis-' + t + '.json'), manual: man, peSa: dato('pe-forward-sa.json'), paresMercado: pares });
   }
   const reportes = () => { const r = dato('reportes.json'); return Array.isArray(r) ? r : []; };
 
@@ -520,7 +520,7 @@ const Radar = (() => {
   // Montaje
   // ════════════════════════════════════════════════════════════════════
   async function cargarComplementos() {
-    await Promise.all([leer('radar-manual.json', true), leer('reportes.json', true)]);
+    await Promise.all([leer('radar-manual.json', true), leer('pe-forward-sa.json', true), leer('reportes.json', true)]);
     if (_sel) { pintarFicha(); pintarEstado(); }
   }
   function renderInto(el) {

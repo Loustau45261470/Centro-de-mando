@@ -7,6 +7,7 @@
 //   mercado-<T>.json    → Yahoo: precio, múltiplos, consenso, insiders…                             (job diario)
 //   historia-<T>.json   → SEC / Yahoo: trimestres de ingresos, resultados, flujos, balance, P/E     (job diario)
 //   kpis-<T>.json       → comunicados y presentaciones: KPIs trimestrales con página y cita         (rutina de extracción)
+//   pe-forward-sa.json  → P/E fwd de hoy y media/mediana de 5 años de Stock Analysis (job semanal); si existe, reemplaza a pe_forward_media de radar-manual.json
 //   radar-manual.json   → lo que carga Tobías a mano (media de P/E forward, pares, WACC)
 //   pares-mercado.json  → mercado mínimo de los pares de radar-manual.json (precio, P/E TTM, P/E fwd NTM, EV/EBITDA, crecimiento esperado)  (job diario)
 // Reglas que no se negocian: un valor faltante nunca es un cero falso ('pendiente' = lo carga Tobías, 'no informado en Qx' = el comunicado
@@ -350,8 +351,30 @@
       if (!principal) return falta(id, nombre, 'sin_datos', 'sin datos suficientes' + desdeSerie, { lineas, fuente, detalle: 'No hay historia suficiente de P/E con ganancias positivas.' });
       return base(id, nombre, { txt: fmt('pct', principal.dif, { signo: true }) + ' vs media ' + principal.rot, lineas, fuente, periodo: 'hoy', tri: pe ? pe.fecha : null });
     }
+    // Con pe-forward-sa.json (job semanal, Stock Analysis) el P/E de hoy y la media 5a/mediana 5a salen del MISMO consenso: se comparan entre sí, no contra el NTM de Yahoo.
+    // Si el job quedó bloqueado (stale_since) se muestran los últimos valores buenos con su fecha. Sin ese archivo (o sin la empresa) rige la carga a mano de radar-manual.json.
+    function peFwdVsMediaSA(sa) {
+      const id = 'p_e_forward_vs_media_5_10_15_anos', nombre = 'P/E fwd vs media de 5 años';
+      const stale = !!sa.stale_since, rotulo = stale ? 'Stock Analysis, datos del ' + manualFecha(sa.actualizado) : 'Stock Analysis, semana del ' + manualFecha(sa.actualizado);
+      const fuente = { tipo: 'stockanalysis', titulo: rotulo, detalle: (stale ? 'no se pudo actualizar desde el ' + manualFecha(sa.stale_since) + ' · ' : '') + 'Forward PE de hoy y media de ' + (sa.trimestres || '?') + ' trimestres de la misma fuente', url: urlSegura(sa.url) };
+      const actual = esNum(sa.actual) ? sa.actual : null, media5 = esNum(sa.media_5a) ? sa.media_5a : null, med5 = esNum(sa.mediana_5a) ? sa.mediana_5a : null;
+      const tri = typeof sa.actualizado === 'string' && ISO.test(sa.actualizado) ? sa.actualizado.slice(0, 10) : null;
+      const lineas = [{ k: 'P/E fwd de hoy', txt: actual != null ? fmt('x', actual) : 'n/s' }];
+      if (media5 == null) {
+        const donde = sa.trimestres ? ' (solo ' + sa.trimestres + ' trimestres' + (sa.desde ? ', desde ' + sa.desde : '') + ')' : '';
+        return falta(id, nombre, 'sin_datos', 'sin datos suficientes' + donde, { lineas, fuente, periodo: rotulo, tri, detalle: sa.nota || 'Hacen falta al menos 16 trimestres de Forward PE para una media de 5 años.' });
+      }
+      if (actual == null) return noSig(id, nombre, 'Stock Analysis no tiene Forward PE de hoy (ganancias esperadas ≤ 0 o sin dato).', { lineas, fuente, periodo: rotulo, tri });
+      const desde = sa.desde ? ' (desde ' + sa.desde + ')' : '';
+      const dif = actual / media5 - 1, dmed = med5 != null && med5 > 0 ? actual / med5 - 1 : null;
+      lineas.push({ k: 'Media 5a / mediana 5a' + desde, txt: fmt('x', media5) + (med5 != null ? ' / ' + fmt('x', med5) : '') + ' · hoy ' + fmt('pct', dif, { signo: true }) + ' vs media' + (dmed != null ? ' · ' + fmt('pct', dmed, { signo: true }) + ' vs mediana' : '') });
+      return base(id, nombre, { txt: fmt('pct', dif, { signo: true }) + ' vs media 5 años', num: dif, kind: 'pct', lineas, fuente, periodo: rotulo, tri,
+        nota: 'El P/E de hoy y la media salen de la misma fuente (Forward PE de Stock Analysis), por eso se comparan entre sí; el resto de la ficha usa el P/E fwd de 12 meses calculado con Yahoo.' });
+    }
     function peFwdVsMedia() {
       const id = 'p_e_forward_vs_media_5_10_15_anos', nombre = 'P/E fwd (12 meses) vs media de 5, 10 y 15 años';
+      const sa = ctx.peSa && ctx.peSa.empresas && ctx.peSa.empresas[T];
+      if (sa && typeof sa === 'object' && (esNum(sa.media_5a) || esNum(sa.actual) || esNum(sa.trimestres))) return peFwdVsMediaSA(sa);
       const m = man && man.pe_forward_media; const pe = mv('pe_forward_ntm');
       if (!m || ![m['5y'], m['10y'], m['15y']].some(esNum)) return pendiente(id, nombre, 'Lo cargás vos en radar-manual.json (media del P/E forward a 5, 10 y 15 años).');
       const lineas = []; let principal = null;

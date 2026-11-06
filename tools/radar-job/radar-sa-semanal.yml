@@ -1,0 +1,66 @@
+# ════════════════════════════════════════════════════════════════════════════════
+# Radar v2 — P/E forward de hoy vs su media de 5 años, con UNA sola fuente (Stock Analysis, página trimestral de ratios).
+# Escribe pe-forward-sa.json en la raíz del repo de datos (el Radar lo lee en la fila "P/E fwd vs media de 5 años").
+#
+# ESTE ARCHIVO SE COPIA AL REPO PRIVADO  Loustau45261470/centro-de-mando-datos  en  .github/workflows/radar-sa-semanal.yml
+# junto con tools/radar-job/stockanalysis.js y radar-calc.js (raíz). Qué empresas se procesan lo dice radar-config.json: ni este
+# archivo ni el código listan ningún ticker. No necesita secrets ni dependencias (usa el fetch de Node).
+#
+# Cuándo corre: lunes 12:00 UTC y a mano (Actions → radar-sa-semanal → Run workflow; se puede limitar con tickers=A,B).
+# Pausa ≥3 s entre pedidos, máx 2 reintentos. Si Stock Analysis bloquea (403/429/captcha) o cambia el HTML, el job conserva el último
+# dato bueno con stale_since y el Radar lo muestra con su fecha ("datos del dd/mm"). Solo hace commit si cambió algo relevante.
+# ════════════════════════════════════════════════════════════════════════════════
+name: radar-sa-semanal
+
+on:
+  schedule:
+    - cron: '0 12 * * 1'
+  workflow_dispatch:
+    inputs:
+      tickers:
+        description: 'Tickers separados por coma (vacío = todos los de radar-config.json)'
+        required: false
+        default: ''
+
+# Un solo proceso a la vez: dos corridas juntas se pisarían al hacer commit.
+concurrency:
+  group: radar-sa-semanal
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  actualizar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Repo de datos (privado)
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Bajar el Forward PE de Stock Analysis
+        env:
+          TICKERS: ${{ github.event.inputs.tickers }}   # por variable de entorno, nunca pegado en el comando (evita inyección); el job lo valida
+        run: |
+          args=(--datos .)
+          [ -n "$TICKERS" ] && args+=(--tickers "$TICKERS")
+          node tools/radar-job/stockanalysis.js "${args[@]}"
+
+      # También si el paso anterior falló (bloqueo): así queda guardada la marca stale_since del dato conservado.
+      - name: Guardar cambios
+        if: ${{ !cancelled() }}
+        run: |
+          git config user.name "radar-sa-semanal"
+          git config user.email "radar-sa-semanal@users.noreply.github.com"
+          [ -f pe-forward-sa.json ] && git add pe-forward-sa.json
+          if git diff --cached --quiet; then echo "Sin cambios."; exit 0; fi
+          git commit -m "datos: P/E forward de Stock Analysis"
+          for i in 1 2 3; do
+            git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" && exit 0
+            sleep 5
+          done
+          echo "::error::No se pudo hacer push"; exit 1

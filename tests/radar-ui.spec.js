@@ -172,6 +172,30 @@ test.describe('pestaña Radar de Cartera (v2)', () => {
     sinErrores(consoleErrors);
   });
 
+  test('P/E fwd vs media de 5 años: con pe-forward-sa.json compara Stock Analysis contra Stock Analysis y rotula la semana', async ({ cmPage: page, consoleErrors }) => {
+    const man = { v: 1, empresas: { ACME: { pe_forward_media: { '5y': 20, '10y': null, '15y': null, mediana: 16, desde: 'dic-21', fuente: 'Fuente inventada', fecha_dato: '2026-11-06' } } } };
+    const sa = { v: 1, fuente: 'Stock Analysis (Forward PE trimestral)', empresas: { ACME: { actual: 28, actual_fecha: '2026-11-09', serie: [], media_5a: 20, mediana_5a: 16, desde: 'dic-21', trimestres: 20, url: 'https://example.test/sa', actualizado: '2026-11-09' } } };
+    const ctl = await abrir(page, { archivos: { 'radar-manual.json': man, 'pe-forward-sa.json': sa } });
+    await elegir(page, 'ACME');
+    const media = await abrirFuente(page, 'ACME', 'p_e_forward_vs_media_5_10_15_anos');
+    await expect(media.locator('.rd-k-v')).toHaveText('+40,0% vs media 5 años');            // 28 / 20 − 1; con el NTM de Yahoo (18x) daría -10%
+    await expect(media).toContainText('Stock Analysis, semana del 09/11');
+    await expect(media.locator('.rd-ln')).toContainText('P/E fwd de hoy');
+    await expect(media.locator('.rd-k-f')).toContainText('Stock Analysis, semana del 09/11');
+    expect(ctl.llamadas).toContain('GET pe-forward-sa.json');
+    await expect(kpi(page, 'ACME', 'p_e_forward')).toContainText('18,0x');                 // el resto de la ficha sigue con el NTM de Yahoo
+    sinErrores(consoleErrors);
+  });
+
+  test('P/E fwd vs media de 5 años: con el job bloqueado muestra los últimos valores con "datos del dd/mm"', async ({ cmPage: page, consoleErrors }) => {
+    const sa = { v: 1, empresas: { ACME: { actual: 28, media_5a: 20, mediana_5a: 16, desde: 'dic-21', trimestres: 20, url: 'https://example.test/sa', actualizado: '2026-11-09', stale_since: '2026-11-16', ultimo_error: 'HTTP 403' } } };
+    await abrir(page, { archivos: { 'pe-forward-sa.json': sa } });
+    await elegir(page, 'ACME');
+    await expect(kpi(page, 'ACME', 'p_e_forward_vs_media_5_10_15_anos')).toContainText('Stock Analysis, datos del 09/11');
+    await expect(kpi(page, 'ACME', 'p_e_forward_vs_media_5_10_15_anos').locator('.rd-k-v')).toHaveText('+40,0% vs media 5 años');
+    sinErrores(consoleErrors);
+  });
+
   test('cada estado se dice con su nombre y nunca con un cero: pendiente, no informado en Q3 2026, sin datos todavía, n/s y no aplica', async ({ cmPage: page, consoleErrors }) => {
     await abrir(page);
     await elegir(page, 'ACME');
