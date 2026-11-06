@@ -9,6 +9,7 @@
 //
 // Salida en --datos (por empresa de radar-config.json):
 //   mercado-<T>.json   Yahoo: precio, ATH, múltiplos, consenso, revisiones, insiders, institucionales, short, próxima fecha…
+//   pares-mercado.json mercado mínimo (precio, P/E TTM, P/E fwd NTM, EV/EBITDA, crecimiento esperado) de los pares que lista radar-manual.json (no son fichas)
 //   historia-<T>.json  SEC (+ Yahoo si la SEC no trae trimestres): serie trimestral, P/E TTM por trimestre, medias a 5/10/15 años
 // Reglas: un archivo bueno NUNCA se pisa con uno vacío o con error — si una fuente falla se conserva el anterior y se anota
 // `stale_since` (fecha de la primera falla) + `ultimo_error`. Un archivo solo se reescribe si su contenido cambió.
@@ -95,11 +96,12 @@ async function procesar({ config, tickers, solo, yahoo, fetchJson, leer, escribi
     } catch (e) { secCaida = msg(e); log('SEC no disponible: ' + secCaida); }
   }
 
+  const resumenes = new Map();   // ticker → resumen de Yahoo de esta corrida (los pares que también son empresas del Radar no se piden dos veces)
   for (const emp of empresas) {
     const t = emp.ticker;
     log(`== ${t}`);
     let resumen = null, hist = null, errMercado = null, errHist = null;
-    if (hacerMercado) try { resumen = await yahoo.resumen(t); } catch (e) { errMercado = 'Yahoo resumen: ' + msg(e); }
+    if (hacerMercado) try { resumen = await yahoo.resumen(t); resumenes.set(t, resumen); } catch (e) { errMercado = 'Yahoo resumen: ' + msg(e); }
     await dormir(pausaYahooMs / 3);
     try { hist = await yahoo.precios(t); } catch (e) { if (!errMercado) errMercado = 'Yahoo precios: ' + msg(e); hist = null; }
 
@@ -128,12 +130,12 @@ async function procesar({ config, tickers, solo, yahoo, fetchJson, leer, escribi
       else if (!hist || !hist.precios || !hist.precios.length) errHist = errMercado || 'Yahoo sin precios';
       else {
         try {
-          // Si la SEC no alcanza (<12 trimestres), se pide la serie trimestral de Yahoo.
+          // La serie trimestral de Yahoo se pide siempre: completa EPS y los insumos de ROIC/rotación/cobertura que la SEC no trae, reemplaza el EPS de los Q4 derivados y, si la SEC no alcanza (<12 trimestres), aporta los trimestres.
           const splits = hist.splits || [];
           const secQs = cf ? Historia.serieSec(cf, splits) : [];
           const nSec = secQs.length;
           let filas = [];
-          if (nSec < 12 || Historia.faltaEps(secQs)) { try { await dormir(pausaYahooMs / 3); filas = await yahoo.trimestralesYahoo(t); } catch (e) { log(`  ${t}: serie trimestral de Yahoo no disponible (${msg(e)})`); } }
+          { try { await dormir(pausaYahooMs / 3); filas = await yahoo.trimestralesYahoo(t); } catch (e) { log(`  ${t}: serie trimestral de Yahoo no disponible (${msg(e)})`); } }
           nuevo = Historia.construirHistoria({ ticker: t, cf, yahooFilas: filas, hist, cotizaDesde: emp.cotiza_desde || null, hoy });
         } catch (e) { errHist = 'cálculo: ' + msg(e); }
       }
@@ -142,7 +144,36 @@ async function procesar({ config, tickers, solo, yahoo, fetchJson, leer, escribi
     log(`  mercado: ${res.mercado[t] || '-'} · historia: ${res.historia[t] || '-'}`);
     await dormir(pausaYahooMs);
   }
+  if (hacerMercado && !tickers) { const p = await procesarPares({ config, resumenes, yahoo, leer, escribir, hoy, log, pausaYahooMs }); if (p) res.pares = p; }
   return res;
+}
+
+// pares-mercado.json: un solo archivo con el mercado mínimo de los tickers de pares de radar-manual.json (dos a cuatro comparables por empresa).
+// Si un par falla se conserva su entrada anterior marcada stale_since; si nunca existió, no aparece (la ficha dice que falta).
+function paresDe(manual) {
+  const set = new Set();
+  const emps = (manual && manual.empresas) || {};
+  for (const k of Object.keys(emps)) for (const p of (emps[k] && Array.isArray(emps[k].pares) ? emps[k].pares : [])) { const t = Calc.normalizarTicker(p); if (t) set.add(t); }
+  return [...set].sort();
+}
+async function procesarPares({ config, resumenes, yahoo, leer, escribir, hoy, log, pausaYahooMs }) {
+  let manual = null;
+  try { const t = leer('radar-manual.json'); manual = t ? JSON.parse(t) : null; } catch (_) { manual = null; }
+  const lista = paresDe(manual);
+  if (!lista.length) return null;
+  let prev = null;
+  try { const t = leer('pares-mercado.json'); prev = t ? JSON.parse(t) : null; } catch (_) { prev = null; }
+  const financieras = new Set(((config && config.empresas) || []).filter(e => e.financiera).map(e => Calc.normalizarTicker(e.ticker)));
+  const empresas = {}; let errores = 0;
+  for (const t of lista) {
+    let resumen = resumenes.get(t) || null;
+    if (!resumen) { try { resumen = await yahoo.resumen(t); await dormir(pausaYahooMs); } catch (e) { log(`  par ${t}: ${msg(e)}`); } }
+    let par = null;
+    if (resumen) { try { par = Yahoo.parsearPar(resumen, { hoy, financiera: financieras.has(t) }); } catch (e) { log(`  par ${t}: parseo ${msg(e)}`); } }
+    if (par && par.precio && typeof par.precio.valor === 'number') empresas[t] = par;
+    else { errores++; const ant = prev && prev.empresas && prev.empresas[t]; if (ant) empresas[t] = { ...ant, stale_since: ant.stale_since || hoy }; }
+  }
+  return guardar({ nombre: 'pares-mercado.json', nuevo: { v: 1, generado: hoy, empresas }, valido: p => !!p && !!p.empresas && Object.keys(p.empresas).length > 0, error: errores ? `${errores} par(es) sin datos` : 'sin datos de pares', hoy, leer, escribir, log });
 }
 
 async function main(argv, env) {
@@ -169,12 +200,12 @@ async function main(argv, env) {
   const r = await procesar({ config, tickers, solo, yahoo, fetchJson: crearFetchJson(ua || 'sin-user-agent'), leer, escribir, hoy, log: m => console.log(m) });
 
   const cuenta = o => Object.values(o).reduce((a, v) => (a[v] = (a[v] || 0) + 1, a), {});
-  console.log('Resumen mercado:', JSON.stringify(cuenta(r.mercado)), '· historia:', JSON.stringify(cuenta(r.historia)));
+  console.log('Resumen mercado:', JSON.stringify(cuenta(r.mercado)), '· historia:', JSON.stringify(cuenta(r.historia)), r.pares ? '· pares: ' + r.pares : '');
   const malos = [...Object.entries(r.mercado), ...Object.entries(r.historia)].filter(([, v]) => v === 'stale' || v === 'vacio').length;
   if (malos) console.log(`::warning::${malos} archivo(s) sin actualizar (se conservó el anterior o no existe).`);
-  const todos = [...Object.values(r.mercado), ...Object.values(r.historia)];
+  const todos = [...Object.values(r.mercado), ...Object.values(r.historia)];   // los pares no cuentan: un par caído no tira la corrida
   if (todos.length && todos.every(v => v === 'stale' || v === 'vacio')) throw new Error('Ninguna fuente respondió: no se actualizó nada.');
 }
 
 if (require.main === module) main(process.argv.slice(2), process.env).catch(e => { console.error('::error::' + e.message); process.exit(1); });
-module.exports = { procesar, guardar, crearFetchJson, mercadoValido, historiaValida, urlFacts, main };
+module.exports = { procesar, procesarPares, paresDe, guardar, crearFetchJson, mercadoValido, historiaValida, urlFacts, main };

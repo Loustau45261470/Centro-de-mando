@@ -8,11 +8,11 @@ const GENERALES = [
   ['margen_bruto', 'rentabilidad', 'Margen bruto', '%', 'sec'], ['margen_operativo', 'rentabilidad', 'Margen operativo', '%', 'sec'], ['margen_neto', 'rentabilidad', 'Margen neto', '%', 'sec'], ['eps_gaap', 'rentabilidad', 'EPS GAAP', 'USD', 'sec'], ['eps_ajustado', 'rentabilidad', 'EPS ajustado', 'USD', 'comunicado'],
   ['fcf_utilidad_neta', 'calidad_ganancias', 'FCF / utilidad neta', 'x', 'calc'], ['sbc_ingresos', 'calidad_ganancias', 'SBC % ingresos', '%', 'sec'], ['fcf_neto_de_sbc', 'calidad_ganancias', 'FCF neto de SBC', 'USD', 'calc'],
   ['flujo_operativo', 'caja', 'Flujo operativo', 'USD', 'sec'], ['fcf', 'caja', 'FCF', 'USD', 'sec'], ['capex', 'caja', 'Capex', 'USD', 'sec'], ['capex_ingresos', 'caja', 'Capex / ingresos', '%', 'calc'],
-  ['roe', 'eficiencia_retorno', 'ROE', '%', 'yahoo'], ['roic', 'eficiencia_retorno', 'ROIC', '%', 'calc'], ['roic_vs_wacc', 'eficiencia_retorno', 'ROIC vs WACC', 'pp', 'calc'], ['margen_incremental', 'eficiencia_retorno', 'Margen incremental', '%', 'calc'],
-  ['deuda_neta', 'balance_riesgo', 'Deuda neta', 'USD', 'yahoo'], ['deuda_neta_ebitda', 'balance_riesgo', 'Deuda neta / EBITDA', 'x', 'calc'], ['liquidez_caja_inversiones_de_corto_plazo', 'balance_riesgo', 'Liquidez (caja + inversiones de corto plazo)', 'USD', 'sec'],
+  ['roe', 'eficiencia_retorno', 'ROE', '%', 'yahoo'], ['roic', 'eficiencia_retorno', 'ROIC', '%', 'calc'], ['roic_vs_wacc', 'eficiencia_retorno', 'ROIC vs WACC', 'pp', 'calc'], ['rotacion_de_activos', 'eficiencia_retorno', 'Rotación de activos', 'x', 'calc'], ['ciclo_de_conversion_de_caja', 'eficiencia_retorno', 'Ciclo de conversión de caja', 'días', 'calc'], ['margen_incremental', 'eficiencia_retorno', 'Margen incremental', '%', 'calc'],
+  ['deuda_neta', 'balance_riesgo', 'Deuda neta', 'USD', 'yahoo'], ['deuda_neta_ebitda', 'balance_riesgo', 'Deuda neta / EBITDA', 'x', 'calc'], ['cobertura_de_intereses', 'balance_riesgo', 'Cobertura de intereses', 'x', 'calc'], ['liquidez_caja_inversiones_de_corto_plazo', 'balance_riesgo', 'Liquidez (caja + inversiones de corto plazo)', 'USD', 'sec'],
   ['recompras', 'capital', 'Recompras', 'USD', 'sec'], ['dilucion_variacion_a_a_de_acciones', 'capital', 'Dilución (variación a/a de acciones)', '%', 'sec'],
   ['p_e_ttm', 'valuacion', 'P/E TTM', 'x', 'yahoo'], ['p_e_vs_media_5_10_15_anos', 'valuacion', 'P/E vs media 5/10/15 años', 'x', 'calc'], ['p_e_forward', 'valuacion', 'P/E forward', 'x', 'yahoo'],
-  ['p_e_forward_vs_media_5_10_15_anos', 'valuacion', 'P/E forward vs media 5/10/15 años', 'x', 'manual'], ['ev_ebitda', 'valuacion', 'EV/EBITDA', 'x', 'yahoo'], ['p_fcf', 'valuacion', 'P/FCF', 'x', 'calc'], ['fcf_yield', 'valuacion', 'FCF yield', '%', 'calc'], ['valuacion_vs_pares', 'valuacion', 'Valuación vs pares', 'x', 'manual'],
+  ['p_e_forward_vs_media_5_10_15_anos', 'valuacion', 'P/E forward vs media 5/10/15 años', 'x', 'manual'], ['ev_ebitda', 'valuacion', 'EV/EBITDA', 'x', 'yahoo'], ['p_fcf', 'valuacion', 'P/FCF', 'x', 'calc'], ['fcf_yield', 'valuacion', 'FCF yield', '%', 'calc'], ['peg', 'valuacion', 'PEG', 'x', 'calc'], ['valuacion_vs_pares', 'valuacion', 'Valuación vs pares', 'x', 'manual'],
   ['rule_of_40', 'valuacion', 'Rule of 40', '%', 'calc', ['NUBO']],
   ['sorpresa_vs_consenso_eps', 'expectativas_mercado', 'Sorpresa vs consenso (EPS)', '%', 'yahoo'], ['precio_objetivo_promedio', 'expectativas_mercado', 'Precio objetivo promedio', 'USD', 'yahoo'], ['short_interest', 'expectativas_mercado', 'Short interest', '%', 'yahoo'],
 ].map(([id, seccion, nombre, unidad, fuente, aplica_a]) => Object.assign({ id, seccion, nombre, unidad, fuente }, aplica_a ? { aplica_a } : {}));
@@ -47,9 +47,11 @@ function mercado(o = {}) {
     drawdown_maximo: campo(-0.55, '2026-11-06', { pico: '2021-11-04', valle: '2022-12-28' }),
     rango_52s: campo({ min: 80, max: 120, posicion: 0.5 }, '2026-11-05'),
     pe_ttm: campo(o.pe_ttm !== undefined ? o.pe_ttm : 25), eps_ttm_gaap: campo(o.eps_ttm != null ? o.eps_ttm : 4),
-    earnings_yield: campo(0.04), peg: campo(1.8),
+    earnings_yield: campo(0.04), ultimo_trimestre_yahoo: o.ultQ !== undefined ? o.ultQ : '2026-09-30',
     estimaciones: campo({ anio_actual: { fin: '2026-12-31', eps: { promedio: act, analistas: 20, hace_un_anio: base } }, anio_proximo: { fin: '2027-12-31', eps: { promedio: sig, analistas: 18, hace_un_anio: act } } }),
-    pe_forward: campo(o.pf !== undefined ? o.pf : 20, '2026-11-06', { base: 'EPS estimado del año fiscal en curso' }),
+    // pe_forward_ntm = P/E forward de los próximos 12 meses (o.pf); pe_forward = el del año fiscal en curso (o.pfa, por defecto igual); pe_forward_siguiente = año siguiente (o.pfs).
+    pe_forward_ntm: o.pf === null ? campo(null, '2026-11-06', { motivo: o.pfMotivo || 'n/s', eps_ntm: -0.1 }) : campo(o.pf !== undefined ? o.pf : 20, '2026-11-06', { eps_ntm: +(act * 0.15 + sig * 0.85).toFixed(4), peso_fy_actual: 0.15, fin_fy_actual: '2026-12-31', eps_fy_actual: act, eps_fy_siguiente: sig, base: 'EPS estimado de los próximos 12 meses' }),
+    pe_forward: campo(o.pfa !== undefined ? o.pfa : o.pf !== undefined ? o.pf : 20, '2026-11-06', { base: 'EPS estimado del año fiscal en curso' }),
     pe_forward_siguiente: campo(o.pfs !== undefined ? o.pfs : 16.7),
     eps_cagr_2a: campo(o.cagr !== undefined ? o.cagr : 0.2, '2026-11-06', { eps_base: base, eps_final: sig }),
     sorpresa_ultimo_trimestre: campo(o.sorp || { trimestre: '2026-09-30', eps_real: 1.1, eps_estimado: 1, diferencia: 0.1, sorpresa_pct: 0.1, ingresos: null }, '2026-09-30'),
@@ -59,7 +61,7 @@ function mercado(o = {}) {
     insiders: campo({ transacciones_recientes: [], periodo: '6m', compras_n: 3, ventas_n: 1, neto_acciones: 12000 }),
     institucional: campo({ pct: 0.8, cantidad: 1200, neto_compra_pct: -0.02, principales: [] }, '2026-06-30'),
     short_interest: campo({ pct_float: 0.03, dias_para_cubrir: 2.5 }, '2026-10-15'),
-    capitalizacion: campo(1.0e10, '2026-11-05'), ev: campo(1.2e10), ev_ebitda: campo(14), ev_ventas: campo(4), fcf: campo(6e8), p_fcf: campo(20), fcf_yield: campo(0.05), deuda_neta: campo(2e8),
+    capitalizacion: campo(1.0e10, '2026-11-05'), ev: campo(1.2e10), ev_ebitda: campo(14), ev_ventas: campo(4), deuda_neta: campo(2e8),
     margenes: campo({ bruto: 0.6, operativo: 0.2, neto: 0.15 }), roe: campo(0.3),
     ticker: o.ticker || 'ACME',
   };
@@ -78,6 +80,9 @@ function historia(o = {}) {
       ingresos: ing, utilidad_operativa: o.sinOper ? null : Math.round(ing * 0.2), utilidad_neta: Math.round(ing * 0.15), eps_basico: +(0.5 + i * 0.02).toFixed(2), eps_diluido: +(0.48 + i * 0.02).toFixed(2),
       cfo: Math.round(ing * 0.22), capex: Math.round(ing * 0.04), fcf: o.fcf ? o.fcf(i) : Math.round(ing * 0.18), sbc: Math.round(ing * 0.03), da: Math.round(ing * 0.05),
       deuda: 500e6, caja: 800e6, acciones_diluidas: Math.round(300e6 - i * 1e6), acciones_circulacion: null, dividendos: null, recompras: 50e6, derivado_q4: false,
+      costo_ventas: Math.round(ing * 0.4), impuestos: o.insumos === false ? null : Math.round(ing * 0.05), utilidad_antes_impuestos: o.insumos === false ? null : Math.round(ing * 0.2), intereses: o.insumos === false ? null : Math.round(ing * 0.01),
+      activos_totales: o.insumos === false ? null : Math.round(5000e6 * Math.pow(1.02, i)), patrimonio: o.insumos === false ? null : Math.round(2000e6 + i * 50e6), capital_invertido: null,
+      cxc: o.insumos === false ? null : Math.round(ing * 0.1), cxp: o.insumos === false ? null : Math.round(ing * 0.16), inventario: o.insumos === false || o.sinInventario ? null : Math.round(ing * 0.05),
       precio_cierre: 100, eps_ttm: i >= 3 ? 4 : null, pe_ttm: i >= 3 && o.pe !== false ? +(20 + i * 0.3).toFixed(2) : null,
     };
     return r;

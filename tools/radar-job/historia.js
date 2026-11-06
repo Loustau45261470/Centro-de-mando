@@ -10,6 +10,7 @@
 //  - Monto = moneda de reporte, sin escalar. capex, dividendos y recompras se guardan POSITIVOS (pagos).
 //  - EPS TTM = suma de los 4 EPS diluidos trimestrales consecutivos (Q4 = año − 9 meses, aproximación estándar).
 //  - P/E TTM = precio de cierre del trimestre / EPS TTM. EPS ≤ 0 o P/E > PE_MAX → null con motivo 'n/s'.
+//  - Insumos de ROIC / rotación de activos / cobertura de intereses / ciclo de caja por trimestre (balance, intereses, impuestos): SEC y, donde falta, Yahoo.
 //  - Splits: el EPS/acciones de la SEC se llevan a la base actual con los splits de Yahoo posteriores a la fecha de presentación.
 //  - Media de P/E a N años: promedio de los P/E trimestrales significativos de los últimos N años; si no hay tantos años de datos
 //    (o la empresa cotiza hace menos) se promedia desde el primero que hay y se marca completo:false + desde.
@@ -28,6 +29,11 @@ const EXTRA = {
   dividendos: { u: 'USD', f: [].concat(T('us-gaap', ['PaymentsOfDividends', 'PaymentsOfDividendsCommonStock']), T('ifrs-full', ['DividendsPaidClassifiedAsFinancingActivities'])) },
   recompras: { u: 'USD', f: [].concat(T('us-gaap', ['PaymentsForRepurchaseOfCommonStock']), T('ifrs-full', ['PaymentsToAcquireOrRedeemEntitysShares'])) },
   accionesCirc: { u: 'shares', f: T('us-gaap', ['CommonStockSharesOutstanding']) },
+  // Para ROIC, rotación de activos, cobertura de intereses y ciclo de conversión de caja (la ficha los calcula con estos insumos).
+  intereses: { u: 'USD', f: [].concat(T('us-gaap', ['InterestExpense', 'InterestExpenseDebt', 'InterestExpenseNonoperating']), T('ifrs-full', ['InterestExpense'])) },
+  cxc: { u: 'USD', f: T('us-gaap', ['AccountsReceivableNetCurrent', 'ReceivablesNetCurrent', 'AccountsAndOtherReceivablesNetCurrent']) },
+  cxp: { u: 'USD', f: T('us-gaap', ['AccountsPayableCurrent', 'AccountsPayableTradeCurrent', 'AccountsPayableAndAccruedLiabilitiesCurrent']) },
+  inventario: { u: 'USD', f: T('us-gaap', ['InventoryNet']) },
 };
 const fuenteDe = k => Calc.FUENTES[k] || EXTRA[k];
 const leer = (facts, k) => Calc.leer(facts, fuenteDe(k).f, fuenteDe(k).u);
@@ -82,10 +88,10 @@ function serieSec(cf, splits) {
   const eps = mapaPorFin(Calc.trimestresDe(ajustarEps(L('eps'), splits)));
   const epsB = mapaPorFin(Calc.trimestresDe(ajustarEps(L('epsBasico'), splits)));
   const F = {};
-  for (const k of ['ebit', 'neto', 'cfo', 'capex', 'da', 'sbc', 'dividendos', 'recompras']) F[k] = flujo(k);
+  for (const k of ['ebit', 'neto', 'cfo', 'capex', 'da', 'sbc', 'dividendos', 'recompras', 'costo', 'impuesto', 'aai', 'intereses']) F[k] = flujo(k);
   const fines = qIng.map(q => q.end);
   const acc = accionesTrimestrales(ajustarAcc(L('acciones'), splits), fines);
-  const I = {}; for (const k of ['efectivo', 'invCP', 'deudaLP', 'deudaTotalUs', 'deudaTotalIfrs', 'deudaCP', 'deudaCPparte', 'prestCP', 'papel', 'accionesCirc']) I[k] = instantes(L(k));
+  const I = {}; for (const k of ['efectivo', 'invCP', 'deudaLP', 'deudaTotalUs', 'deudaTotalIfrs', 'deudaCP', 'deudaCPparte', 'prestCP', 'papel', 'accionesCirc', 'activos', 'patrimonio', 'cxc', 'cxp', 'inventario']) I[k] = instantes(L(k));
   const ing = mapaPorFin(qIng);
 
   const inst = (k, f) => buscar(I[k], f, 5);
@@ -112,6 +118,8 @@ function serieSec(cf, splits) {
       sbc: buscar(F.sbc, f, 6), da: buscar(F.da, f, 6),
       deuda: deudaEn(f), caja: cajaEn(f), acciones_diluidas: accAcc == null ? null : Math.round(accAcc), acciones_circulacion: inst('accionesCirc', f),
       dividendos: (v => (v == null ? null : Math.abs(v)))(buscar(F.dividendos, f, 6)), recompras: (v => (v == null ? null : Math.abs(v)))(buscar(F.recompras, f, 6)),
+      costo_ventas: buscar(F.costo, f, 6), impuestos: buscar(F.impuesto, f, 6), utilidad_antes_impuestos: buscar(F.aai, f, 6), intereses: (v => (v == null ? null : Math.abs(v)))(buscar(F.intereses, f, 6)),
+      activos_totales: inst('activos', f), patrimonio: inst('patrimonio', f), capital_invertido: null, cxc: inst('cxc', f), cxp: inst('cxp', f), inventario: inst('inventario', f),
       derivado_q4: !!q.derivado,
     };
   });
@@ -133,11 +141,14 @@ function serieYahoo(filas) {
       ingresos: pick(r, 'totalRevenue', 'operatingRevenue'), utilidad_operativa: pick(r, 'operatingIncome'),
       utilidad_neta: pick(r, 'netIncomeCommonStockholders', 'netIncome'),
       eps_basico: pick(r, 'basicEPS'), eps_diluido: pick(r, 'dilutedEPS'),
-      cfo, capex, fcf: fcfY != null ? fcfY : cfo != null && capex != null ? cfo - capex : null,
+      cfo, capex, fcf: cfo != null && capex != null ? cfo - capex : fcfY,
       sbc: pick(r, 'stockBasedCompensation'), da: pick(r, 'depreciationAndAmortization', 'reconciledDepreciation'),
       deuda: pick(r, 'totalDebt'), caja: pick(r, 'cashCashEquivalentsAndShortTermInvestments', 'cashAndCashEquivalents'),
       acciones_diluidas: pick(r, 'dilutedAverageShares'), acciones_circulacion: pick(r, 'ordinarySharesNumber', 'shareIssued'),
       dividendos: abs(pick(r, 'cashDividendsPaid', 'commonStockDividendPaid')), recompras: abs(pick(r, 'repurchaseOfCapitalStock', 'commonStockPayments')),
+      costo_ventas: pick(r, 'costOfRevenue', 'reconciledCostOfRevenue'), impuestos: pick(r, 'taxProvision'), utilidad_antes_impuestos: pick(r, 'pretaxIncome'), intereses: abs(pick(r, 'interestExpense', 'interestExpenseNonOperating')),
+      activos_totales: pick(r, 'totalAssets'), patrimonio: pick(r, 'stockholdersEquity', 'commonStockEquity'), capital_invertido: pick(r, 'investedCapital'),
+      cxc: pick(r, 'accountsReceivable'), cxp: pick(r, 'accountsPayable'), inventario: pick(r, 'inventory'),
       derivado_q4: false,
     });
   }
@@ -151,15 +162,28 @@ function unirSeries(sec, yahoo) {
   return out.sort((a, b) => (a.fin < b.fin ? -1 : a.fin > b.fin ? 1 : 0));
 }
 
-// Algunos emisores (ej. con acciones de varias clases) tienen el EPS en XBRL con dimensión y companyfacts no lo trae:
-// el trimestre existe en la SEC pero sin EPS. Se completa EPS y acciones con la serie de Yahoo (misma fecha ±10 días) y se anota cuáles.
+// Yahoo completa lo que la SEC no trae para un trimestre que la SEC sí tiene (misma fecha ±10 días) y se anota cuáles campos vinieron de Yahoo:
+//  - EPS y acciones: algunos emisores (ej. con acciones de varias clases) tienen el EPS en XBRL con dimensión y companyfacts no lo trae.
+//  - Insumos de ROIC / rotación / cobertura / ciclo de caja (activos, patrimonio, capital invertido, intereses, impuestos, utilidad antes de impuestos, cobrar, pagar, inventario, costo de ventas).
+//  - Trimestres Q4 DERIVADOS (año − 9 meses): si Yahoo tiene el dilutedEPS/basicEPS reportado de ese trimestre se usa ese (el derivado se guarda en eps_diluido_derivado_sec).
 const CAMPOS_EPS = ['eps_basico', 'eps_diluido', 'acciones_diluidas'];
-function completarDeYahoo(sec, yahoo) {
+const CAMPOS_INSUMOS = ['activos_totales', 'patrimonio', 'capital_invertido', 'intereses', 'impuestos', 'utilidad_antes_impuestos', 'cxc', 'cxp', 'inventario', 'costo_ventas'];
+function completarDeYahoo(sec, yahoo, splits) {
   for (const q of sec) {
     const y = yahoo.find(x => Math.abs(dias(q.fin, x.fin)) <= 10);
     if (!y) continue;
-    const llenos = CAMPOS_EPS.filter(k => q[k] == null && esNum(y[k]));
+    const llenos = CAMPOS_EPS.concat(CAMPOS_INSUMOS).filter(k => q[k] == null && esNum(y[k]));
     for (const k of llenos) q[k] = y[k];
+    if (q.derivado_q4) {
+      const f = factorSplits(splits, y.fin);   // el EPS que informa Yahoo no se reexpresa por splits posteriores
+      for (const k of ['eps_diluido', 'eps_basico']) {
+        if (!esNum(y[k])) continue;
+        const v = redond(y[k] / f);
+        if (esNum(q[k]) && Math.abs(q[k] - v) < 0.005) continue;
+        if (k === 'eps_diluido' && esNum(q[k])) q.eps_diluido_derivado_sec = q[k];
+        q[k] = v; if (!llenos.includes(k)) llenos.push(k);
+      }
+    }
     if (llenos.length) q.campos_yahoo = llenos;
   }
   return sec;
@@ -222,7 +246,7 @@ function construirHistoria({ ticker, cf, yahooFilas, hist, cotizaDesde, hoy }) {
   const splits = (hist && hist.splits) || [];
   const sec = cf ? serieSec(cf, splits) : [];
   const yah = serieYahoo(yahooFilas);
-  if (yah.length) completarDeYahoo(sec, yah);
+  if (yah.length) completarDeYahoo(sec, yah, splits);
   const usarYahoo = sec.length < 12;                // la SEC alcanza (≥12 trimestres) → Yahoo no se mezcla
   const qs = agregarValuacion(usarYahoo ? unirSeries(sec, yah) : sec, hist && hist.precios);
   const h = {

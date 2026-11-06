@@ -55,13 +55,20 @@ test.describe('radar v2: datos de mercado (Yahoo)', () => {
     expect(m.pe_ttm.valor).toBe(24);
     expect(m.pe_forward.valor).toBe(20);                              // 120 / 6 (EPS estimado del año fiscal en curso)
     expect(m.pe_forward_siguiente.valor).toBeCloseTo(120 / 7.2, 3);
-    expect(m.pe_forward_yahoo_api.valor).toBe(16);                    // el forwardPE crudo de la API (usa otro año) queda aparte
+    expect(m.pe_forward_yahoo_api.valor).toBe(16);
+    // NTM: cierre del año fiscal 31/12/2026, hoy 05/11/2026 → faltan 56 días → w = 56 / 365,25; EPS NTM = w · 6 + (1 − w) · 7,2
+    const w = 56 / 365.25, epsNtm = w * 6 + (1 - w) * 7.2;
+    expect(m.pe_forward_ntm.valor).toBeCloseTo(120 / epsNtm, 3);
+    expect(m.pe_forward_ntm).toMatchObject({ eps_fy_actual: 6, eps_fy_siguiente: 7.2, fin_fy_actual: '2026-12-31' });
+    expect(m.pe_forward_ntm.peso_fy_actual).toBeCloseTo(w, 3);
+    expect(m.pe_forward_ntm.eps_ntm).toBeCloseTo(epsNtm, 3);
+    expect(m.eps_forward_ntm.valor).toBeCloseTo(epsNtm, 3);                    // el forwardPE crudo de la API (usa otro año) queda aparte
     expect(m.eps_ttm_gaap.valor).toBe(5);
     expect(m.eps_forward.valor).toBe(6);
     expect(m.earnings_yield.valor).toBeCloseTo(5 / 120, 5);
     expect(m.ev_ebitda.valor).toBe(14);
-    expect(m.p_fcf.valor).toBeCloseTo(12e9 / 6e8, 3);
-    expect(m.fcf_yield.valor).toBeCloseTo(6e8 / 12e9, 5);
+    for (const k of ['fcf', 'p_fcf', 'fcf_yield', 'peg']) expect(m[k]).toBeUndefined();   // el FCF «levered» y el PEG de la API de Yahoo no se publican: la ficha calcula los suyos
+    expect(m.ultimo_trimestre_yahoo).toBeNull();                       // el resumen inventado no trae mostRecentQuarter: no se inventa
     expect(m.deuda_neta.valor).toBe(1e9);
     expect(m.beta.valor).toBe(1.1);
     for (const k of ['precio', 'pe_ttm', 'eps_forward', 'ev', 'insiders']) expect(m[k].fuente).toBe('yahoo');
@@ -108,7 +115,7 @@ test.describe('radar v2: datos de mercado (Yahoo)', () => {
 
   test('empresa financiera: EV, EBITDA, FCF y deuda neta quedan en null con motivo "no aplica"; el P/E sigue', () => {
     const m = Yahoo.parsearMercado(resumenAcme(), { precios: preciosInventados }, { hoy: HOY, financiera: true });
-    for (const k of ['ev', 'ebitda', 'ev_ebitda', 'ev_ventas', 'fcf', 'p_fcf', 'fcf_yield', 'deuda_neta']) expect(m[k]).toMatchObject({ valor: null, motivo: 'no aplica (financiera)' });
+    for (const k of ['ev', 'ebitda', 'ev_ebitda', 'ev_ventas', 'deuda_neta']) expect(m[k]).toMatchObject({ valor: null, motivo: 'no aplica (financiera)' });
     expect(m.pe_ttm.valor).toBe(24);
   });
 
@@ -241,7 +248,8 @@ function entorno({ archivos = [], yahoo, sec } = {}) {
   const pedidos = [];
   const config = { v: 1, empresas: [{ ticker: 'ACME', nombre: 'Acme', financiera: false, cotiza_desde: null }, { ticker: 'NUBO', nombre: 'Nubo', financiera: true, cotiza_desde: '2021-12-09' }] };
   const yahooOk = {
-    resumen: async () => resumenAcme(),
+    // El año fiscal en curso ya cerró (31/12/2025): el EPS NTM no depende del día, así que «mismos datos otro día» sigue sin reescribir nada.
+    resumen: async () => { const r = resumenAcme(); r.earningsTrend.trend[1].endDate = d('2025-12-31'); return r; },
     precios: async () => ({ precios: [{ fecha: '2025-12-31', high: 60, close: 60 }, { fecha: '2026-03-31', high: 70, close: 70 }, { fecha: '2026-06-30', high: 80, close: 80 }, { fecha: '2026-11-05', high: 130, close: 120 }], splits: [] }),
     trimestralesYahoo: async () => [
       { date: d('2025-12-31'), periodType: '3M', totalRevenue: 100, dilutedEPS: 0.1 }, { date: d('2026-03-31'), periodType: '3M', totalRevenue: 110, dilutedEPS: 0.12 },
@@ -372,5 +380,162 @@ test.describe('radar v2: el job no pisa archivos buenos', () => {
     const r = await Datos.procesar(Object.assign({}, e.args, { tickers: ['NUBO'], solo: 'mercado' }));
     expect(r).toEqual({ mercado: { NUBO: 'ok' }, historia: {} });
     expect([...e.fs.keys()]).toEqual(['mercado-NUBO.json']);
+  });
+});
+
+// ───────────────────────── R7: P/E forward NTM, insumos de retorno, Q4 derivado, pares ─────────────────────────
+test.describe('radar v2 (R7): P/E forward de los próximos 12 meses (NTM)', () => {
+  test.beforeEach(({}, testInfo) => { test.skip(testInfo.project.name !== 'chromium-desktop', 'cálculo puro: una sola vez'); });
+
+  test('ponderación por los meses que faltan para cerrar el año fiscal: w = días / 365,25, EPS NTM = w · FY0 + (1 − w) · FY1', () => {
+    // hoy 05/11/2026; EPS del año fiscal en curso 6, del siguiente 7,2
+    const caso = (fin0) => Yahoo.epsNtm(fin0, '2026-11-05', 6, 7.2);
+    const dic = caso('2026-12-31');                         // cierre en 56 días → casi todo el NTM es el año siguiente
+    expect(dic.w).toBeCloseTo(56 / 365.25, 3); expect(dic.eps).toBeCloseTo(56 / 365.25 * 6 + (1 - 56 / 365.25) * 7.2, 6); expect(dic.cerrado).toBe(false);
+    const jun = caso('2027-06-30');                         // cierre en 237 días (~7,8 meses) → mayoría del año en curso
+    expect(jun.w).toBeCloseTo(237 / 365.25, 3); expect(jun.eps).toBeCloseTo(237 / 365.25 * 6 + (1 - 237 / 365.25) * 7.2, 6);
+    const sep = caso('2027-09-30');                         // cierre en 329 días (~10,8 meses)
+    expect(sep.eps).toBeCloseTo(329 / 365.25 * 6 + (1 - 329 / 365.25) * 7.2, 6);
+    expect(sep.eps).toBeLessThan(jun.eps); expect(jun.eps).toBeLessThan(dic.eps);   // mientras más lejos el cierre, más pesa el EPS del año en curso (el menor)
+    const lejos = caso('2028-11-05');                       // más de 12 meses: w topa en 1 (solo el año en curso)
+    expect(lejos.w).toBe(1); expect(lejos.eps).toBe(6);
+    const cerrado = caso('2026-09-30');                     // el año en curso ya cerró (Yahoo todavía no lo rodó): w = 0, EPS del año siguiente, y lo marca
+    expect(cerrado).toMatchObject({ w: 0, eps: 7.2, cerrado: true });
+  });
+  test('faltan estimaciones o la fecha de cierre: sin EPS NTM (no se inventa); w = 0 no necesita el EPS del año en curso', () => {
+    expect(Yahoo.epsNtm('2026-12-31', '2026-11-05', null, 7.2)).toBeNull();
+    expect(Yahoo.epsNtm('2026-12-31', '2026-11-05', 6, null)).toBeNull();
+    expect(Yahoo.epsNtm(null, '2026-11-05', 6, 7.2)).toBeNull();
+    expect(Yahoo.epsNtm('2026-09-30', '2026-11-05', null, 7.2).eps).toBe(7.2);
+  });
+  test('mercado: pe_forward_ntm = precio / EPS NTM; el del año en curso y el del siguiente quedan aparte; EPS NTM ≤ 0 → n/s; sin estimaciones → sin dato', () => {
+    const r = resumenAcme(); r.earningsTrend.trend[1].endDate = d('2027-06-30');
+    const m = Yahoo.parsearMercado(r, { precios: preciosInventados }, { hoy: HOY });
+    const w = 237 / 365.25;
+    expect(m.pe_forward_ntm.valor).toBeCloseTo(120 / (w * 6 + (1 - w) * 7.2), 3);
+    expect(m.pe_forward.valor).toBe(20); expect(m.pe_forward_siguiente.valor).toBeCloseTo(120 / 7.2, 3);
+    const neg = resumenAcme(); neg.earningsTrend.trend[1].earningsEstimate.avg = -1; neg.earningsTrend.trend[2].earningsEstimate.avg = -2;
+    expect(Yahoo.parsearMercado(neg, { precios: preciosInventados }, { hoy: HOY }).pe_forward_ntm).toMatchObject({ valor: null, motivo: 'n/s' });
+    const sin = resumenAcme(); sin.earningsTrend.trend = [];
+    expect(Yahoo.parsearMercado(sin, { precios: preciosInventados }, { hoy: HOY }).pe_forward_ntm).toMatchObject({ valor: null, motivo: 'sin dato' });
+  });
+  test('banco: el margen bruto 0 de Yahoo no es un dato → null con "no aplica (banco)"; en una empresa operativa el 0 se conserva', () => {
+    const r = resumenAcme(); r.financialData.grossMargins = 0;
+    const nu = Yahoo.parsearMercado(r, { precios: preciosInventados }, { hoy: HOY, financiera: true });
+    expect(nu.margenes.valor.bruto).toBeNull(); expect(nu.margenes.motivo_bruto).toBe('no aplica (banco)');
+    expect(Yahoo.parsearMercado(r, { precios: preciosInventados }, { hoy: HOY, financiera: false }).margenes.valor.bruto).toBe(0);
+  });
+  test('ADR con EPS en otra moneda que el precio (ganancias en yuanes, precio en dólares): P/E forward y EV/EBITDA quedan null con el motivo, nunca un cociente falso; el par también lo marca', () => {
+    const r = resumenAcme(); r.financialData.financialCurrency = 'CNY'; r.price.currency = 'USD';
+    const m = Yahoo.parsearMercado(r, { precios: preciosInventados }, { hoy: HOY });
+    for (const k of ['pe_forward_ntm', 'pe_forward', 'pe_forward_siguiente', 'ev_ebitda', 'ev_ventas']) expect(m[k]).toMatchObject({ valor: null, motivo: 'no comparable: EPS en CNY, precio en USD' });
+    expect(m.pe_ttm.valor).toBe(24);                                  // el P/E TTM lo calcula Yahoo con su propia conversión
+    expect(Yahoo.parsearPar(r, { hoy: HOY })).toMatchObject({ moneda: 'USD', moneda_financiera: 'CNY', pe_forward_ntm: { valor: null } });
+    expect(Yahoo.parsearMercado(resumenAcme(), { precios: preciosInventados }, { hoy: HOY }).pe_forward_ntm.valor).toBeGreaterThan(0);   // misma moneda: se calcula
+  });
+  test('ultimo_trimestre_yahoo sale de mostRecentQuarter (para detectar que la SEC trae un trimestre más nuevo)', () => {
+    const r = resumenAcme(); r.defaultKeyStatistics.mostRecentQuarter = d('2026-06-30');
+    expect(Yahoo.parsearMercado(r, { precios: preciosInventados }, { hoy: HOY }).ultimo_trimestre_yahoo).toBe('2026-06-30');
+  });
+  test('mercado mínimo de un par: precio, P/E TTM, P/E fwd NTM, EV/EBITDA y crecimiento esperado; sin ficha ni historia', () => {
+    const p = Yahoo.parsearPar(resumenAcme(), { hoy: HOY });
+    expect(Object.keys(p).sort()).toEqual(['crecimiento_eps_1a', 'crecimiento_eps_2a', 'ev_ebitda', 'moneda', 'moneda_financiera', 'nombre', 'pe_forward_ntm', 'pe_ttm', 'precio'].sort());
+    expect(p.precio.valor).toBe(120); expect(p.pe_ttm.valor).toBe(24); expect(p.ev_ebitda.valor).toBe(14); expect(p.pe_forward_ntm.valor).toBeGreaterThan(0);
+    expect(p.crecimiento_eps_1a.valor).toBeCloseTo(7.2 / 6 - 1, 5);
+  });
+});
+
+test.describe('radar v2 (R7): insumos de ROIC, rotación, cobertura y ciclo de caja; Q4 derivado', () => {
+  test.beforeEach(({}, testInfo) => { test.skip(testInfo.project.name !== 'chromium-desktop', 'cálculo puro: una sola vez'); });
+
+  test('serieYahoo mapea activos, patrimonio, intereses, impuestos, utilidad antes de impuestos, capital invertido, cobrar, pagar, inventario y costo de ventas; FCF = flujo operativo − capex', () => {
+    const [q] = Historia.serieYahoo([{ date: d('2026-09-30'), periodType: '3M', totalRevenue: 100, totalAssets: 900, stockholdersEquity: 400, interestExpense: 5, taxProvision: 12, pretaxIncome: 60, investedCapital: 700, accountsReceivable: 30, accountsPayable: 25, inventory: 20, costOfRevenue: 40,
+      operatingCashFlow: 50, capitalExpenditure: -8, freeCashFlow: 999 }]);
+    expect(q).toMatchObject({ fin: '2026-09-30', activos_totales: 900, patrimonio: 400, intereses: 5, impuestos: 12, utilidad_antes_impuestos: 60, capital_invertido: 700, cxc: 30, cxp: 25, inventario: 20, costo_ventas: 40, fcf: 42 });
+    const sinInt = Historia.serieYahoo([{ date: d('2026-09-30'), periodType: '3M', totalRevenue: 100 }])[0];
+    expect(sinInt.intereses).toBeNull(); expect(sinInt.inventario).toBeNull();   // lo que Yahoo no trae queda null (NU no tiene intereses)
+  });
+  test('serieSec lee de la SEC activos, patrimonio, intereses, impuestos, utilidad antes de impuestos, costo de ventas, cobrar, pagar e inventario', () => {
+    const ent = (start, end, val) => ({ start, end, val, accn: 'x', fy: 2026, fp: 'Q', form: '10-Q', filed: end.slice(0, 4) + '-' + String(+end.slice(5, 7) + 1).padStart(2, '0') + '-20' });
+    const inst = (end, val) => ({ end, val, accn: 'x', fy: 2026, fp: 'Q', form: '10-Q', filed: end.slice(0, 4) + '-' + String(+end.slice(5, 7) + 1).padStart(2, '0') + '-20' });
+    const Qs = [['2025-01-01', '2025-03-31'], ['2025-04-01', '2025-06-30'], ['2025-07-01', '2025-09-30'], ['2025-10-01', '2025-12-31'], ['2026-01-01', '2026-03-31'], ['2026-04-01', '2026-06-30']];
+    const fl = v => Qs.map(([a, b], i) => ent(a, b, v + i));
+    const bal = v => Qs.map(([, b], i) => inst(b, v + i));
+    const us = (n, u, e) => [n, { label: n, units: { [u]: e } }];
+    const cf = { facts: { 'us-gaap': Object.fromEntries([
+      us('Revenues', 'USD', fl(1000)), us('CostOfRevenue', 'USD', fl(400)), us('IncomeTaxExpenseBenefit', 'USD', fl(30)),
+      us('IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest', 'USD', fl(150)), us('InterestExpense', 'USD', fl(-10)),
+      us('Assets', 'USD', bal(5000)), us('StockholdersEquity', 'USD', bal(2000)), us('AccountsReceivableNetCurrent', 'USD', bal(100)), us('AccountsPayableCurrent', 'USD', bal(160)), us('InventoryNet', 'USD', bal(80)),
+    ]) } };
+    const q = Historia.serieSec(cf, []).at(-1);
+    expect(q).toMatchObject({ fin: '2026-06-30', costo_ventas: 405, impuestos: 35, utilidad_antes_impuestos: 155, intereses: 5, activos_totales: 5005, patrimonio: 2005, cxc: 105, cxp: 165, inventario: 85, capital_invertido: null });
+  });
+  test('Q4 derivado (año − 9 meses) con dilutedEPS reportado por Yahoo ese trimestre: se usa el de Yahoo y queda anotado el derivado; los trimestres no derivados no se tocan', () => {
+    const sec = [
+      { fin: '2025-12-31', derivado_q4: true, eps_basico: 1.12, eps_diluido: 1.1 },
+      { fin: '2026-03-31', derivado_q4: false, eps_basico: 1.2, eps_diluido: 1.18 },
+    ];
+    const y = [{ fin: '2025-12-31', eps_basico: 1.07, eps_diluido: 1.05 }, { fin: '2026-03-31', eps_basico: 9, eps_diluido: 9 }];
+    Historia.completarDeYahoo(sec, y, []);
+    expect(sec[0]).toMatchObject({ eps_diluido: 1.05, eps_basico: 1.07, eps_diluido_derivado_sec: 1.1 });
+    expect(sec[0].campos_yahoo).toEqual(expect.arrayContaining(['eps_diluido', 'eps_basico']));
+    expect(sec[1]).toMatchObject({ eps_diluido: 1.18, eps_basico: 1.2 }); expect(sec[1].campos_yahoo).toBeUndefined();
+    const h = Historia.completarDeYahoo([{ fin: '2025-12-31', derivado_q4: true, eps_diluido: 1.1 }], [{ fin: '2025-12-31', eps_diluido: null }], []);
+    expect(h[0].eps_diluido).toBe(1.1);                     // Yahoo sin EPS ese trimestre: queda el derivado
+  });
+  test('los insumos que la SEC no trae se completan con Yahoo del mismo trimestre (±10 días) y se anotan', () => {
+    const sec = [{ fin: '2026-09-30', derivado_q4: false, eps_diluido: 1, activos_totales: null, patrimonio: 500, cxc: null }];
+    Historia.completarDeYahoo(sec, [{ fin: '2026-09-29', activos_totales: 900, patrimonio: 111, cxc: 33 }], []);
+    expect(sec[0]).toMatchObject({ activos_totales: 900, patrimonio: 500, cxc: 33 });   // lo que la SEC sí trae manda
+    expect(sec[0].campos_yahoo).toEqual(['activos_totales', 'cxc']);
+  });
+});
+
+test.describe('radar v2 (R7): pares-mercado.json', () => {
+  test.beforeEach(({}, testInfo) => { test.skip(testInfo.project.name !== 'chromium-desktop', 'job con IO falsa: una sola vez'); });
+  const manual = { v: 1, empresas: { ACME: { pares: ['PAR1', 'PAR2', 'nubo'] }, NUBO: { pares: ['PAR2', 'PAR3'] } } };
+
+  test('paresDe: tickers únicos y ordenados de todas las empresas del manual', () => {
+    expect(Datos.paresDe(manual)).toEqual(['NUBO', 'PAR1', 'PAR2', 'PAR3']);
+    expect(Datos.paresDe(null)).toEqual([]);
+  });
+  test('corrida completa: baja un archivo único con el mercado mínimo de cada par (reusa el resumen de las empresas del Radar, no las pide dos veces)', async () => {
+    const e = entorno({ archivos: [['radar-manual.json', JSON.stringify(manual)]] });
+    const pedidosYahoo = [];
+    const base = e.args.yahoo;
+    const yahoo = Object.assign({}, base, { resumen: async t => { pedidosYahoo.push(t); return base.resumen(t); } });
+    const r = await Datos.procesar(Object.assign({}, e.args, { yahoo }));
+    expect(r.pares).toBe('ok');
+    const p = JSON.parse(e.fs.get('pares-mercado.json'));
+    expect(Object.keys(p.empresas)).toEqual(['NUBO', 'PAR1', 'PAR2', 'PAR3']);
+    expect(p.empresas.PAR1).toMatchObject({ precio: { valor: 120 }, pe_ttm: { valor: 24 } });
+    expect(p.empresas.PAR1.pe_forward_ntm.valor).toBeGreaterThan(0);
+    expect(p.empresas.PAR1.ficha).toBeUndefined();
+    expect(pedidosYahoo.filter(t => t === 'NUBO')).toHaveLength(1);        // NUBO ya se pidió como empresa del Radar
+  });
+  test('un par que falla conserva su entrada anterior marcada stale_since; el que nunca existió no aparece; la segunda corrida igual no reescribe', async () => {
+    const e = entorno({ archivos: [['radar-manual.json', JSON.stringify(manual)]] });
+    await Datos.procesar(e.args);
+    const yahoo = Object.assign({}, e.args.yahoo, { resumen: async t => { if (t === 'PAR2' || t === 'PAR3') throw new Error('Yahoo 429'); return e.args.yahoo.resumen(t); } });
+    e.fs.delete('pares-mercado.json');
+    await Datos.procesar(Object.assign({}, e.args, { yahoo }));            // sin archivo previo: PAR2 y PAR3 no existen
+    expect(Object.keys(JSON.parse(e.fs.get('pares-mercado.json')).empresas)).toEqual(['NUBO', 'PAR1']);
+    const ok = entorno({ archivos: [['radar-manual.json', JSON.stringify(manual)]] });
+    await Datos.procesar(ok.args);
+    const antes = ok.fs.get('pares-mercado.json');
+    const r2 = await Datos.procesar(ok.args);
+    expect(r2.pares).toBe('sin_cambios'); expect(ok.fs.get('pares-mercado.json')).toBe(antes);
+    const y2 = Object.assign({}, ok.args.yahoo, { resumen: async t => { if (t === 'PAR2') throw new Error('Yahoo 429'); return ok.args.yahoo.resumen(t); } });
+    await Datos.procesar(Object.assign({}, ok.args, { yahoo: y2, hoy: '2026-11-06' }));
+    const p = JSON.parse(ok.fs.get('pares-mercado.json'));
+    expect(p.empresas.PAR2.stale_since).toBe('2026-11-06'); expect(p.empresas.PAR2.precio.valor).toBe(120);
+  });
+  test('sin pares en radar-manual.json, o con --tickers, no se baja nada de pares', async () => {
+    const e = entorno();
+    const r = await Datos.procesar(e.args);
+    expect(r.pares).toBeUndefined(); expect(e.fs.has('pares-mercado.json')).toBe(false);
+    const e2 = entorno({ archivos: [['radar-manual.json', JSON.stringify(manual)]] });
+    const r2 = await Datos.procesar(Object.assign({}, e2.args, { tickers: ['ACME'] }));
+    expect(r2.pares).toBeUndefined(); expect(e2.fs.has('pares-mercado.json')).toBe(false);
   });
 });

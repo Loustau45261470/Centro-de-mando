@@ -23,6 +23,24 @@ const iso = d => {
 };
 const redond = (v, d = 6) => (esNum(v) ? Math.round(v * 10 ** d) / 10 ** d : null);
 
+const MS_DIA = 86400000;
+const diasEntre = (a, b) => Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / MS_DIA);
+
+// EPS estimado de los PRÓXIMOS 12 MESES (NTM): ponderación por los meses que faltan para cerrar el año fiscal en curso.
+//   w = meses que faltan para el cierre del año fiscal actual / 12  (meses = días / (365,25 / 12), tope [0, 1])
+//   EPS_NTM = w · EPS_FY0 + (1 − w) · EPS_FY1       (FY0/FY1 = earningsTrend '0y' / '+1y'; el cierre sale de la fecha de fin del '0y')
+// Si el '0y' ya cerró (fecha de fin pasada, Yahoo todavía no rodó el año) w = 0 y el NTM es el EPS del año siguiente.
+function epsNtm(fin0, hoy, eps0, eps1) {
+  if (!fin0 || !hoy) return null;
+  const faltan = diasEntre(hoy, fin0);
+  const w = Math.min(1, Math.max(0, faltan / 365.25));
+  const cerrado = faltan < 0;
+  if (w > 0 && !esNum(eps0)) return null;
+  if (w < 1 && !esNum(eps1)) return null;
+  const e = (w > 0 ? w * eps0 : 0) + (w < 1 ? (1 - w) * eps1 : 0);
+  return { eps: e, w: redond(w, 4), fin_fy_actual: fin0, cerrado, eps_fy_actual: esNum(eps0) ? eps0 : null, eps_fy_siguiente: esNum(eps1) ? eps1 : null };
+}
+
 function campo(valor, fecha, motivo) {
   const c = { valor: valor === undefined ? null : valor, fuente: 'yahoo', fecha: fecha || null };
   if (motivo) c.motivo = motivo;
@@ -107,7 +125,7 @@ function parsearMercado(resumen, hist, opts) {
   out.pe_ttm = pe(peTtmY, epsTtm);
   out.eps_ttm_gaap = campo(epsTtm, hoy);
   out.earnings_yield = campo(esNum(epsTtm) && esNum(precio) && precio > 0 && epsTtm > 0 ? redond(epsTtm / precio) : null, hoy, esNum(epsTtm) && epsTtm <= 0 ? 'n/s' : undefined);
-  out.peg = campo(num(ks.pegRatio), hoy);
+  out.ultimo_trimestre_yahoo = iso(ks.mostRecentQuarter);   // hasta qué trimestre llegan trailingEps / EBITDA / P/E de Yahoo (para detectar que la SEC trae uno más nuevo)
 
   // Estimaciones de consenso y CAGR de EPS a 2 años (último año fiscal informado → estimación del 2.º año siguiente)
   const trend = (R.earningsTrend && R.earningsTrend.trend) || [];
@@ -117,11 +135,21 @@ function parsearMercado(resumen, hist, opts) {
   // P/E forward = precio / EPS estimado del año fiscal EN CURSO (el que Yahoo web muestra como Forward P/E). El forwardPE crudo de la API de Yahoo
   // salta al año siguiente apenas la empresa cierra su año fiscal (ej. cierre en septiembre: 24,7x en la API vs 29,0x en la web), por eso se guarda aparte.
   const epsAct = est.anio_actual && est.anio_actual.eps.promedio, epsSig = est.anio_proximo && est.anio_proximo.eps.promedio;
-  const peDe = e => (esNum(e) && e > 0 && esNum(precio) ? campo(redond(precio / e, 4), hoy) : campo(null, hoy, esNum(e) ? 'n/s' : 'sin dato'));
+  // ADR cuyo EPS (y EBITDA) vienen en otra moneda que el precio (ej. ganancias en yuanes, precio en dólares): el cociente sería un número falso → no se calcula.
+  const monedaDistinta = !!(price.currency && fd.financialCurrency && price.currency !== fd.financialCurrency);
+  const motivoMoneda = 'no comparable: EPS en ' + fd.financialCurrency + ', precio en ' + price.currency;
+  const peDe = e => (monedaDistinta ? campo(null, hoy, motivoMoneda) : esNum(e) && e > 0 && esNum(precio) ? campo(redond(precio / e, 4), hoy) : campo(null, hoy, esNum(e) ? 'n/s' : 'sin dato'));
   out.pe_forward = esNum(epsAct) ? peDe(epsAct) : pe(peFwdY, epsFwd);
   out.pe_forward.base = esNum(epsAct) ? 'EPS estimado del año fiscal en curso' : 'forwardPE de la API de Yahoo';
   out.pe_forward_siguiente = peDe(epsSig);
   out.pe_forward_yahoo_api = pe(peFwdY, epsFwd);
+  // P/E forward NTM = precio / EPS estimado de los próximos 12 meses (el que usa la ficha, el gráfico y el PEG). Ver epsNtm().
+  const ntm = epsNtm(est.anio_actual && est.anio_actual.fin, hoy, epsAct, epsSig);
+  if (ntm) {
+    out.pe_forward_ntm = peDe(ntm.eps);
+    Object.assign(out.pe_forward_ntm, { eps_ntm: redond(ntm.eps, 4), peso_fy_actual: ntm.w, fin_fy_actual: ntm.fin_fy_actual, eps_fy_actual: ntm.eps_fy_actual, eps_fy_siguiente: ntm.eps_fy_siguiente, base: 'EPS estimado de los próximos 12 meses' + (ntm.cerrado ? ' (el año fiscal en curso ya cerró: EPS del año siguiente)' : ' (ponderado entre el año fiscal en curso y el siguiente)') });
+  } else { out.pe_forward_ntm = campo(null, hoy, monedaDistinta ? motivoMoneda : 'sin dato'); out.pe_forward_ntm.base = 'EPS estimado de los próximos 12 meses'; }
+  out.eps_forward_ntm = campo(ntm ? redond(ntm.eps, 4) : null, hoy, ntm ? undefined : 'sin dato');
   out.eps_forward = campo(esNum(epsAct) ? epsAct : epsFwd, hoy);
   out.eps_forward_siguiente = campo(esNum(epsSig) ? epsSig : null, hoy);
   const base = est.anio_actual && est.anio_actual.eps.hace_un_anio, fin2 = est.anio_proximo && est.anio_proximo.eps.promedio;
@@ -185,19 +213,30 @@ function parsearMercado(resumen, hist, opts) {
   out.proximos_resultados = campo(prox ? { fecha: prox, estimada: ce.isEarningsDateEstimate === true } : null, hoy, prox ? undefined : 'sin fecha futura');
 
   // EV, EBITDA, FCF y derivados (no aplican a financieras)
-  const fcf = num(fd.freeCashflow), cap = num(price.marketCap), deuda = num(fd.totalDebt), caja = num(fd.totalCash);
+  const deuda = num(fd.totalDebt), caja = num(fd.totalCash);
   out.ev = ev(campo(num(ks.enterpriseValue), hoy));
   out.ebitda = ev(campo(num(fd.ebitda), hoy));
-  out.ev_ebitda = ev(campo(num(ks.enterpriseToEbitda), hoy));
-  out.ev_ventas = ev(campo(num(ks.enterpriseToRevenue), hoy));
-  out.fcf = ev(campo(fcf, hoy));
-  out.p_fcf = ev(campo(esNum(fcf) && fcf > 0 && esNum(cap) ? redond(cap / fcf, 4) : null, hoy, esNum(fcf) && fcf <= 0 ? 'n/s' : undefined));
-  out.fcf_yield = ev(campo(esNum(fcf) && esNum(cap) && cap > 0 ? redond(fcf / cap) : null, hoy));
+  out.ev_ebitda = ev(monedaDistinta ? campo(null, hoy, motivoMoneda) : campo(num(ks.enterpriseToEbitda), hoy));
+  out.ev_ventas = ev(monedaDistinta ? campo(null, hoy, motivoMoneda) : campo(num(ks.enterpriseToRevenue), hoy));
+  // Sin fcf / p_fcf / fcf_yield: el freeCashflow de Yahoo es un FCF «levered» que no es flujo operativo − capex. La ficha usa solo el FCF de la
+  // SEC (suma de 4 trimestres de flujo operativo − capex) o, si la SEC no lo trae, el de las series trimestrales de Yahoo, siempre rotulado.
   out.deuda_neta = ev(campo(esNum(deuda) && esNum(caja) ? deuda - caja : null, hoy));
-  out.margenes = campo({ bruto: num(fd.grossMargins), operativo: num(fd.operatingMargins), neto: num(fd.profitMargins), ebitda: num(fd.ebitdaMargins) }, hoy);
+  // Un banco no tiene margen bruto: Yahoo lo informa en 0 y eso no es un dato.
+  const brutoY = num(fd.grossMargins), brutoNoAplica = financiera && (brutoY == null || brutoY === 0);
+  out.margenes = campo({ bruto: brutoNoAplica ? null : brutoY, operativo: num(fd.operatingMargins), neto: num(fd.profitMargins), ebitda: num(fd.ebitdaMargins) }, hoy);
+  if (brutoNoAplica) out.margenes.motivo_bruto = 'no aplica (banco)';
   out.roe = campo(num(fd.returnOnEquity), hoy);
   out.beta = campo(num(sd.beta) != null ? num(sd.beta) : num(ks.beta), hoy);
   return out;
+}
+
+// Mercado mínimo de un PAR (comparable): precio, P/E TTM, P/E forward NTM, EV/EBITDA y crecimiento esperado del EPS. Sin ficha ni historia.
+function parsearPar(resumen, opts) {
+  const m = parsearMercado(resumen, null, opts);
+  return {
+    nombre: m.nombre, moneda: m.moneda, moneda_financiera: m.moneda_financiera, precio: m.precio, pe_ttm: m.pe_ttm, pe_forward_ntm: m.pe_forward_ntm, ev_ebitda: m.ev_ebitda,
+    crecimiento_eps_2a: m.eps_cagr_2a, crecimiento_eps_1a: m.eps_crecimiento_1a_consenso,
+  };
 }
 
 // ── Cliente ──
@@ -230,4 +269,4 @@ function crearClienteYahoo(yf, opts = {}) {
   };
 }
 
-module.exports = { MODULOS, parsearMercado, crearClienteYahoo, conReintentos, campo, atl, iso, num, esNum, redond, dormir };
+module.exports = { MODULOS, parsearMercado, parsearPar, epsNtm, crearClienteYahoo, conReintentos, campo, atl, iso, num, esNum, redond, dormir };

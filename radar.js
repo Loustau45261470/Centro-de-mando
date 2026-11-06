@@ -7,7 +7,7 @@
 // Todo sale de archivos JSON del repo PRIVADO de datos, que el Worker sirve con login (GET /datos/<archivo>, vía CMDatos):
 //   radar-config.json   empresas, KPIs generales por sección y KPIs específicos de cada una (se edita sin tocar código; `icono` = slug de
 //                       Simple Icons, `aviso_margenes` = advertencia en el gráfico)
-//   mercado-<T>.json · historia-<T>.json · kpis-<T>.json · radar-manual.json · reportes.json     (los arma radar-vista.js / el job de datos)
+//   mercado-<T>.json · historia-<T>.json · kpis-<T>.json · pares-mercado.json · radar-manual.json · reportes.json     (los arma radar-vista.js / el job de datos)
 // Cálculo y formato: radar-vista.js (puro, con tests de Node). Acá solo hay DOM, red y el gráfico (Chart.js).
 // Reportar un número: POST /radar/reportar { ticker, kpi_id, trimestre, valor_mostrado, comentario? } → queda «en revisión» en reportes.json
 // hasta que la rutina lo resuelve («corregido de X a Y» o «confirmado»). Nada de esto toca S: el estado de la pestaña vive en memoria.
@@ -18,7 +18,7 @@ const Radar = (() => {
   const URL_WORKER = 'https://cdm-push-worker.tobiasloustau11.workers.dev';
   const TIMEOUT_MS = 12000;
   const ICONOS = 'https://cdn.jsdelivr.net/npm/simple-icons@14.15.0/icons/';   // logos monocromos, solo para identificar el ticker
-  const CORTE_X = 15, CORTE_Y = 0.10;                                          // cuadrantes del gráfico: 15x de P/E forward y 10% de crecimiento
+  const CORTE_X = 15, CORTE_Y = 0.10;                                          // cuadrantes del gráfico: 15x de P/E fwd (12 meses) y 10% de crecimiento
   const MAX_SPARK = 16;                                                        // trimestres que dibuja la sparkline
   const V = () => window.RadarVista;
 
@@ -82,7 +82,7 @@ const Radar = (() => {
     } else _cfgEstado = { tipo: 'error', texto: a.status === 404 ? 'No encuentro radar-config.json en el repositorio de datos.' : a.status === 403 ? 'Esta cuenta no tiene permiso para ver el Radar.' : 'No se pudieron leer los datos (sin conexión o sin sesión).' };
   }
   async function cargarEmpresa(t, forzar) {
-    await Promise.all([leer('mercado-' + t + '.json', forzar), leer('historia-' + t + '.json', forzar), leer('kpis-' + t + '.json', forzar)]);
+    await Promise.all([leer('mercado-' + t + '.json', forzar), leer('historia-' + t + '.json', forzar), leer('kpis-' + t + '.json', forzar), leer('pares-mercado.json', forzar)]);
   }
   const empresaCargando = t => ['mercado-', 'historia-', 'kpis-'].some(p => _arch[p + t + '.json'] && _arch[p + t + '.json'].en);
   async function cargarMercados(forzar) {
@@ -97,7 +97,8 @@ const Radar = (() => {
     const pares = {};
     const man = dato('radar-manual.json');
     const mp = man && man.empresas && man.empresas[t] && man.empresas[t].pares;
-    if (Array.isArray(mp)) for (const p of mp) { const m = dato('mercado-' + p + '.json'); if (m) pares[p] = m; }
+    const pm = dato('pares-mercado.json'), pe = pm && pm.empresas ? pm.empresas : {};   // mercado mínimo de los pares (lo baja el job)
+    if (Array.isArray(mp)) for (const p of mp) if (pe[p]) pares[p] = pe[p];
     return V().vista({ config: _cfg, emp, mercado: dato('mercado-' + t + '.json'), historia: dato('historia-' + t + '.json'), kpis: dato('kpis-' + t + '.json'), manual: man, paresMercado: pares });
   }
   const reportes = () => { const r = dato('reportes.json'); return Array.isArray(r) ? r : []; };
@@ -382,7 +383,7 @@ const Radar = (() => {
     const filas = todos.map(p => p.ok
       ? `<tr><th scope="row">${esc(p.nombre)} <span class="rd-tk">${esc(p.ticker)}</span></th><td>${esc(f('x', p.x))}</td><td>${esc(f('pct', p.y))}</td><td>${esc(cuadranteDe(p))}</td></tr>`
       : `<tr class="rd-sd"><th scope="row">${esc(p.nombre)} <span class="rd-tk">${esc(p.ticker)}</span></th><td colspan="3">sin dato: ${esc(p.motivo)}</td></tr>`).join('');
-    return `<details class="rd-tabla-det"><summary>Ver los números del gráfico</summary><div class="rd-tabla-wrap" tabindex="0"><table class="rd-tabla"><thead><tr><th scope="col">Empresa</th><th scope="col">P/E forward</th><th scope="col">Crecimiento EPS (2 años)</th><th scope="col">Cuadrante</th></tr></thead><tbody>${filas}</tbody></table></div></details>`;
+    return `<details class="rd-tabla-det"><summary>Ver los números del gráfico</summary><div class="rd-tabla-wrap" tabindex="0"><table class="rd-tabla"><thead><tr><th scope="col">Empresa</th><th scope="col">P/E fwd (12 meses)</th><th scope="col">Crecimiento EPS (2 años)</th><th scope="col">Cuadrante</th></tr></thead><tbody>${filas}</tbody></table></div></details>`;
   }
   function pintarGrafico() {
     const cont = _box && _box.querySelector('.rd-graf-cuerpo'); if (!cont) return;
@@ -401,9 +402,9 @@ const Radar = (() => {
     const recorte = sy.recorta ? `<p class="rd-aviso">${esc(buenos.filter(p => p.y > sy.max).map(p => p.ticker).join(', '))} ▲ queda fuera de escala hacia arriba: se dibuja en el borde y el rótulo trae el valor real.</p>` : '';
     const sinTxt = sin.length ? `<p class="rd-muted">Sin dato para el gráfico: ${esc(sin.map(p => p.ticker + ' (' + p.motivo + ')').join('; '))}.</p>` : '';
     const fechas = buenos.map(p => p.fecha).filter(Boolean).sort();
-    cont.innerHTML = `<figure class="rd-fig"><div class="rd-cv-wrap"><canvas id="rd-cv" role="img" aria-label="Gráfico de dispersión de las empresas: P/E forward en el eje horizontal y crecimiento esperado del EPS a 2 años en el vertical. Los números están en la tabla de abajo."></canvas></div>
+    cont.innerHTML = `<figure class="rd-fig"><div class="rd-cv-wrap"><canvas id="rd-cv" role="img" aria-label="Gráfico de dispersión de las empresas: P/E fwd de los próximos 12 meses en el eje horizontal y crecimiento esperado del EPS a 2 años en el vertical. Los números están en la tabla de abajo."></canvas></div>
       <ul class="rd-leyenda" aria-label="Cuadrantes del gráfico">${CUADRANTES.map(c => `<li><i class="rd-lq rd-lq-${c[3]}" aria-hidden="true"></i>${esc(c[2])}</li>`).join('')}<li class="rd-leyenda-nota">Los valores de cada punto: tocalo, o mirá la tabla de abajo.</li></ul>
-      <figcaption class="rd-muted">Horizontal: P/E forward (precio de hoy ÷ EPS que espera el consenso para el año fiscal en curso). Vertical: crecimiento anual esperado del EPS a 2 años. Cortes en ${CORTE_X}x y ${Math.round(CORTE_Y * 100)}%.${fechas.length ? ' Datos de mercado del ' + V().dm(fechas[fechas.length - 1]) + '.' : ''}</figcaption></figure>
+      <figcaption class="rd-muted">Horizontal: P/E fwd de los próximos 12 meses (precio de hoy ÷ EPS que espera el consenso para los próximos 12 meses). Vertical: crecimiento anual esperado del EPS a 2 años. Cortes en ${CORTE_X}x y ${Math.round(CORTE_Y * 100)}%.${fechas.length ? ' Datos de mercado del ' + V().dm(fechas[fechas.length - 1]) + '.' : ''}</figcaption></figure>
       ${marcas}${avisoMg}${recorte}${sinTxt}${tablaGrafico(todos)}`;
     dibujarGrafico(buenos, sy);
   }
@@ -499,14 +500,14 @@ const Radar = (() => {
         layout: { padding: { top: 6, right: 10, bottom: 2, left: 2 } },
         onClick: (_e, els) => { if (els.length) seleccionar(ps[els[0].index].ticker); },
         scales: {
-          x: { type: 'linear', min: sx.min, max: sx.max, title: { display: true, text: 'P/E forward', color: tinta2, font: { weight: '600' } }, ticks: { color: tinta2, callback: v => v + 'x', maxTicksLimit: 8 }, grid: { color: borde } },
+          x: { type: 'linear', min: sx.min, max: sx.max, title: { display: true, text: 'P/E fwd (12 meses)', color: tinta2, font: { weight: '600' } }, ticks: { color: tinta2, callback: v => v + 'x', maxTicksLimit: 8 }, grid: { color: borde } },
           y: { type: 'linear', min: sy.min, max: sy.max, title: { display: true, text: yTitulo(cv.parentElement.clientWidth), color: tinta2, font: { weight: '600' } }, ticks: { color: tinta2, callback: v => Math.round(v * 100) + '%', maxTicksLimit: 8 }, grid: { color: borde } },
         },
         plugins: {
           legend: { display: false },
           tooltip: { callbacks: {
             title: items => { const p = ps[items[0].dataIndex]; return `${p.nombre} (${p.ticker})`; },
-            label: item => { const p = ps[item.dataIndex]; return [`P/E forward: ${f('x', p.x)}`, `Crecimiento del EPS (2 años): ${f('pct', p.y)}`, cuadranteDe(p)].concat(p.aviso ? ['† márgenes en expansión: el crecimiento del EPS puede exagerar el del negocio'] : []).concat(p.nota ? ['* ' + p.nota] : []); },
+            label: item => { const p = ps[item.dataIndex]; return [`P/E fwd (12 meses): ${f('x', p.x)}`, `Crecimiento del EPS (2 años): ${f('pct', p.y)}`, cuadranteDe(p)].concat(p.aviso ? ['† márgenes en expansión: el crecimiento del EPS puede exagerar el del negocio'] : []).concat(p.nota ? ['* ' + p.nota] : []); },
           } },
         },
       },

@@ -133,16 +133,17 @@ test.describe('pestaña Radar de Cartera (v2)', () => {
     sinErrores(consoleErrors);
   });
 
-  test('P/E con la variante en el rótulo (TTM GAAP, ajustado, forward del año en curso y del siguiente), EPS básico y diluido y las medias de 5/10/15 años', async ({ cmPage: page }) => {
+  test('P/E con la variante en el rótulo (TTM GAAP, ajustado, forward de 12 meses con el del año en curso y el del siguiente como detalle), EPS básico y diluido y las medias de 5/10/15 años', async ({ cmPage: page }) => {
     await abrir(page);
     await elegir(page, 'ACME');
     await expect(kpi(page, 'ACME', 'p_e_ttm')).toContainText('P/E TTM (GAAP)');
     await expect(kpi(page, 'ACME', 'p_e_ttm')).toContainText('25,0x');
     await expect(kpi(page, 'ACME', 'p_e_ttm_ajustado')).toContainText('P/E TTM ajustado');
     await expect(kpi(page, 'ACME', 'p_e_ttm_ajustado')).toContainText('sin datos todavía');
-    await expect(kpi(page, 'ACME', 'p_e_forward')).toContainText('P/E forward (EPS 2026e)');
+    await expect(kpi(page, 'ACME', 'p_e_forward')).toContainText('P/E fwd (12 meses)');
     await expect(kpi(page, 'ACME', 'p_e_forward')).toContainText('18,0x');
-    await expect(kpi(page, 'ACME', 'p_e_forward_siguiente')).toContainText('P/E forward (EPS 2027e)');
+    await expect(kpi(page, 'ACME', 'p_e_forward_fy_actual')).toContainText('P/E fwd año fiscal en curso (EPS 2026e)');
+    await expect(kpi(page, 'ACME', 'p_e_forward_siguiente')).toContainText('P/E fwd año fiscal siguiente (EPS 2027e)');
     await expect(kpi(page, 'ACME', 'p_e_forward_siguiente')).toContainText('15,0x');
     await expect(kpi(page, 'ACME', 'eps_gaap')).toContainText('EPS GAAP diluido');
     await expect(kpi(page, 'ACME', 'eps_gaap_basico')).toContainText('EPS GAAP básico');
@@ -152,6 +153,25 @@ test.describe('pestaña Radar de Cartera (v2)', () => {
     await expect(med.locator('.rd-ln')).toContainText('desde la salida a bolsa, 01/03/21');
   });
 
+  test('retorno y valuación: ROIC, rotación, cobertura, ciclo de caja, WACC visible, ROIC vs WACC, PEG y valuación vs la mediana de los pares', async ({ cmPage: page, consoleErrors }) => {
+    const man = { v: 1, empresas: { ACME: { pe_forward_media: { '5y': 20, '10y': null, '15y': null, mediana: 16, desde: 'dic-21', fuente: 'Fuente inventada', fecha_dato: '2026-11-06' }, pares: ['PA', 'PB', 'PC'], pares_fecha: '2026-11-06', wacc: { valor: 0.0733, rango: { bajo: 0.064, alto: 0.083 }, fuente: 'ValueInvesting.io', fecha_dato: '2026-11-06' } } } };
+    const par = (v, n) => ({ nombre: n, precio: { valor: 10, fecha: '2026-11-05' }, pe_forward_ntm: { valor: v, fuente: 'yahoo', fecha: '2026-11-06' } });
+    await abrir(page, { archivos: { 'radar-manual.json': man, 'pares-mercado.json': { v: 1, generado: '2026-11-06', empresas: { PA: par(15, 'Par A'), PB: par(20, 'Par B'), PC: par(25, 'Par C') } } } });
+    await elegir(page, 'ACME');
+    for (const id of ['roic', 'rotacion_de_activos', 'cobertura_de_intereses', 'ciclo_de_conversion_de_caja']) await expect(kpi(page, 'ACME', id)).not.toContainText('sin datos todavía');
+    await expect(kpi(page, 'ACME', 'wacc')).toContainText('7,3%');
+    const wacc = await abrirFuente(page, 'ACME', 'wacc');
+    await expect(wacc.locator('.rd-ln')).toContainText('6,4% – 8,3%'); await expect(wacc.locator('.rd-k-f')).toContainText('ValueInvesting.io');
+    await expect(kpi(page, 'ACME', 'roic_vs_wacc')).toContainText('crea valor');
+    await expect(kpi(page, 'ACME', 'peg')).toContainText('0,90x');
+    const pares = await abrirFuente(page, 'ACME', 'valuacion_vs_pares');
+    await expect(pares.locator('.rd-k-v')).toHaveText('-10,0% vs mediana de pares');
+    await expect(pares.locator('.rd-ln')).toContainText('Mediana de 3 pares'); await expect(pares.locator('.rd-ln')).toContainText('PB · Par B');
+    const media = await abrirFuente(page, 'ACME', 'p_e_forward_vs_media_5_10_15_anos');
+    await expect(media.locator('.rd-ln').first()).toContainText('Media 5a / mediana 5a');
+    sinErrores(consoleErrors);
+  });
+
   test('cada estado se dice con su nombre y nunca con un cero: pendiente, no informado en Q3 2026, sin datos todavía, n/s y no aplica', async ({ cmPage: page, consoleErrors }) => {
     await abrir(page);
     await elegir(page, 'ACME');
@@ -159,9 +179,8 @@ test.describe('pestaña Radar de Cartera (v2)', () => {
     await expect(kpi(page, 'ACME', 'valuacion_vs_pares')).toContainText('pendiente');
     await expect(kpi(page, 'ACME', 'eps_ajustado')).toContainText('no informado en Q3 2026');
     await expect(kpi(page, 'ACME', 'mora_90_dias')).toContainText('no informado en Q3 2026');
-    await expect(kpi(page, 'ACME', 'roic')).toContainText('sin datos todavía');
     await expect(kpi(page, 'ACME', 'costo_por_envio')).toContainText('sin datos todavía');
-    await expect(kpi(page, 'ACME', 'roic').locator('.rd-rep')).toHaveCount(0);                // lo que no es un número no se reporta
+    await expect(kpi(page, 'ACME', 'costo_por_envio').locator('.rd-rep')).toHaveCount(0);                // lo que no es un número no se reporta
     await elegir(page, 'ZETA');
     await expect(kpi(page, 'ZETA', 'p_e_ttm')).toContainText('n/s');
     await expect(kpi(page, 'ZETA', 'p_e_forward')).toContainText('n/s');
@@ -297,7 +316,7 @@ test.describe('pestaña Radar de Cartera (v2)', () => {
       return { n: ch.data.datasets[0].data.length, pts: ch.data.datasets[0].data.map((p) => [p.t, p.x, Math.round(p.y * 1000) / 1000]), xt: ch.options.scales.x.title.text, yt: [].concat(ch.options.scales.y.title.text).join(' '), ancho: ch.width, xmin: ch.scales.x.min, xmax: ch.scales.x.max, ymin: ch.scales.y.min, ymax: ch.scales.y.max, plugin: ch.config.plugins.map((p) => p.id) };
     });
     expect(g.n).toBe(7);                                                     // ACME, NUBO, E05–E09; ZETA (EPS negativo), QUIM y E10–E12 (sin datos) no
-    expect(g.xt).toBe('P/E forward'); expect(g.yt).toBe(g.ancho < 520 ? 'Crec. EPS esperado (2 años)' : 'Crecimiento EPS esperado (2 años)');   // en el celular el título del eje es corto: no se corta
+    expect(g.xt).toBe('P/E fwd (12 meses)'); expect(g.yt).toBe(g.ancho < 520 ? 'Crec. EPS esperado (2 años)' : 'Crecimiento EPS esperado (2 años)');   // en el celular el título del eje es corto: no se corta
     const ley = pane(page).locator('.rd-leyenda');
     if (g.ancho < 520) { await expect(ley).toBeVisible(); await expect(ley.locator('li').first()).toContainText('Mayor crecimiento / Menor valuación'); }   // rótulos de cuadrante fuera del gráfico
     else await expect(ley).toBeHidden();
