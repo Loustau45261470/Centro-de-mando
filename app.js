@@ -2627,6 +2627,107 @@ function plannerDeleteTask(date, id) {
   saveState(); renderDayPlanner();
 }
 
+// ── Atajos del día de HOY: correr todo el plan / vaciarlo ──
+// Solo afectan a la fecha de hoy. Las puntuales (S.dayPlan[hoy].tasks) se modifican directo; las
+// ocurrencias de reglas recurrentes se tocan por la excepción de esa fecha (r.exceptions[hoy], el
+// mismo mecanismo de "solo este día"), así la regla no cambia y mañana vuelven en su horario.
+// Las metas con horario (Lista de tareas) no se tocan. Cada atajo registra un Deshacer (CMUndo).
+function _plannerSnap(date) {
+  const clone = v => JSON.parse(JSON.stringify(v));
+  const rec = {};
+  _recStore().forEach(r => {
+    const e = (r.exceptions || {})[date];
+    rec[r.id] = { hadProp: 'exceptions' in r, ex: e === undefined ? null : clone(e) };
+  });
+  return { tasks: clone(getDayPlan(date).tasks), rec };
+}
+function _plannerRestore(date, snap) {
+  getDayPlan(date).tasks = snap.tasks;
+  _recStore().forEach(r => {
+    const s = snap.rec[r.id]; if (!s) return;
+    if (s.ex === null) {
+      if (r.exceptions) delete r.exceptions[date];
+      if (!s.hadProp) delete r.exceptions;
+    } else {
+      if (!r.exceptions) r.exceptions = {};
+      r.exceptions[date] = s.ex;
+    }
+  });
+}
+function _plannerAfterBulk() {
+  saveState(); renderDayPlanner();
+  if (typeof buildTickerAlerts === 'function') buildTickerAlerts();
+}
+function _plannerBulkUndo(date, snap, descripcion) {
+  const deshacer = () => { _plannerRestore(date, snap); renderDayPlanner(); if (typeof buildTickerAlerts === 'function') buildTickerAlerts(); };
+  if (window.CMUndo) CMUndo.registrar({ descripcion, deshacer });
+  else showToast(descripcion, 4000);
+}
+function _plannerFmtMin(m) {
+  const h = Math.floor(m / 60), r = m % 60;
+  return (h ? h + ' h' : '') + (h && r ? ' ' : '') + (r || !h ? r + ' min' : '');
+}
+function plannerShiftToday(mins) {
+  mins = Math.round(Number(mins));
+  if (!(mins > 0)) { showToast('Poné una cantidad mayor a 0'); return; }
+  const date = getActiveDate();
+  const acts = plannerDayTasks(date);
+  if (!acts.length) { showToast('No hay actividades para correr hoy'); return; }
+  const snap = _plannerSnap(date);
+  const plan = getDayPlan(date);
+  let fuera = 0;
+  acts.forEach(t => {
+    const start = _timeToMin(t.time) + mins;
+    const pasa = start + (t.duration || 30) > PCAL_END_MIN;   // terminaría después de las 00:00 → sale del plan de hoy
+    if (t._rec) {
+      const r = _recFind(t._rec); if (!r) return;
+      if (!r.exceptions) r.exceptions = {};
+      const ex = r.exceptions[date] || {};
+      r.exceptions[date] = pasa ? { ...ex, deleted: true } : { ...ex, time: _minToTime(start) };
+    } else {
+      const pt = plan.tasks.find(x => x.id === t.id); if (!pt) return;
+      if (pasa) plan.tasks = plan.tasks.filter(x => x.id !== t.id); else pt.time = _minToTime(start);
+    }
+    if (pasa) fuera++;
+  });
+  _plannerAfterBulk();
+  _plannerBulkUndo(date, snap, 'Corriste el día ' + _plannerFmtMin(mins) +
+    (fuera ? ` · ${fuera} ${fuera === 1 ? 'actividad quedó' : 'actividades quedaron'} fuera (pasaban la medianoche)` : ''));
+}
+// Campo de cantidad libre de la barra de atajos (número + unidad min/h).
+function plannerShiftCustom(el) {
+  const bar = el.closest('.planner-atajos'); if (!bar) return;
+  const n = parseFloat(bar.querySelector('.pat-num').value);
+  plannerShiftToday(bar.querySelector('.pat-unit').value === 'h' ? n * 60 : n);
+}
+function plannerClearToday() {
+  const date = getActiveDate();
+  const acts = plannerDayTasks(date);
+  if (!acts.length) { showToast('No hay actividades para vaciar hoy'); return; }
+  const snap = _plannerSnap(date);
+  getDayPlan(date).tasks = [];
+  acts.filter(t => t._rec).forEach(t => {
+    const r = _recFind(t._rec); if (!r) return;
+    if (!r.exceptions) r.exceptions = {};
+    r.exceptions[date] = { ...(r.exceptions[date] || {}), deleted: true };
+  });
+  _plannerAfterBulk();
+  _plannerBulkUndo(date, snap, 'Vaciaste el día · ' + acts.length + (acts.length === 1 ? ' actividad' : ' actividades'));
+}
+function plannerAtajosHTML(date) {
+  const d = plannerDayTasks(date).length ? '' : ' disabled';
+  const chip = (m, l) => `<button type="button" class="pat-chip" onclick="plannerShiftToday(${m})"${d}>${l}</button>`;
+  return `<div class="planner-atajos" role="group" aria-label="Atajos del día de hoy">
+    <span class="pat-lbl">Correr</span>
+    ${chip(30, '+30 min')}${chip(60, '+1 h')}${chip(120, '+2 h')}${chip(180, '+3 h')}
+    <input class="pat-num" type="number" min="1" step="1" inputmode="numeric" placeholder="otra" aria-label="Otra cantidad para correr el día"${d}
+      onkeydown="if(event.key==='Enter'){event.preventDefault();plannerShiftCustom(this)}">
+    <select class="pat-unit" aria-label="Unidad"${d}><option value="min">min</option><option value="h">h</option></select>
+    <button type="button" class="pat-chip pat-go" onclick="plannerShiftCustom(this)"${d}>Correr</button>
+    <button type="button" class="pat-chip pat-clear" onclick="plannerClearToday()"${d}>Vaciar día</button>
+  </div>`;
+}
+
 // ── Bloque de calendario (relleno sólido por área, alto proporcional a la duración) ──
 // El bloque es de sólo lectura: se toca para abrir el modal de edición. Sólo el check
 // (hecho) y el ✕ (borrar) actúan directo. Las tareas recurrentes llevan id compuesto.
@@ -2682,7 +2783,7 @@ function plannerDaybarHTML(date) {
       <span class="pdb-pill prio-2">Media ${pend(2)}</span>
       <span class="pdb-pill prio-1">Baja ${pend(1)}</span>
     </div>
-  </div>`;
+  </div>${date === getActiveDate() ? plannerAtajosHTML(date) : ''}`;
 }
 
 // Convierte una coordenada Y (px, relativa al track) en 'HH:MM' redondeado a 15 min, dentro de la ventana visible.
