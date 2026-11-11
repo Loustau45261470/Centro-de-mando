@@ -6739,3 +6739,8 @@ input:focus, select:focus, textarea:focus {
 .goal-rep { flex: none; width: 20px; height: 20px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 6px; background: none; color: var(--tt); font-size: var(--fs-13); line-height: 1; cursor: pointer; opacity: .55; }
 .goal-rep:hover { color: var(--tp); background: rgba(255,255,255,.06); opacity: 1; }
 .goal-rep.on { color: var(--accent); opacity: 1; }
+
+/* Cartera: frase de cabecera (Munger) */
+.cov-quote { margin: 4px 0 14px; padding: 8px 12px; border-left: 2px solid var(--cm-accent, #22C55E); }
+.cov-quote blockquote { margin: 0; font-style: italic; font-size: var(--fs-13); line-height: 1.45; color: var(--ts); }
+.cov-quote figcaption { margin-top: 4px; font-size: var(--fs-12-5); color: var(--tt); }

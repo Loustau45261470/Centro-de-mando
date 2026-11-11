@@ -22,6 +22,7 @@ const CarteraOverlay = (() => {
     _radarCargado = false;
     body.innerHTML = `
       <div class="cm-ov-head"><div class="cm-ov-eyebrow">FINANZAS · CARTERA</div><div class="cm-ov-title">Cartera</div></div>
+      <figure class="cov-quote"><blockquote>“If you're not willing to react with equanimity to a market price decline of 50%, you're not fit to be a common shareholder.”</blockquote><figcaption>— Charlie Munger</figcaption></figure>
       <div class="plov-tabs" data-on="tenencias" role="tablist">
         <button class="plov-tab on" data-t="tenencias" role="tab" aria-selected="true" onclick="CarteraOverlay._tab('tenencias')">Mis tenencias</button>
         <button class="plov-tab" data-t="historial" role="tab" aria-selected="false" onclick="CarteraOverlay._tab('historial')">Historial</button>
