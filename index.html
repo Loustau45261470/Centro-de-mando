@@ -21,7 +21,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-<link rel="stylesheet" href="styles.css?v=256">
+<link rel="stylesheet" href="styles.css?v=257">
 <script>try{if(localStorage.getItem('cm_rail_off')==='1')document.documentElement.classList.add('rail-off')}catch(e){}</script>
 <link rel="stylesheet" href="gamemode.css">
 <link rel="stylesheet" href="overlay-core.css">
@@ -272,8 +272,9 @@
     <div class="card cc-card-link" id="metas-readonly-card" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Abrir la planificación del día">
       <div class="card-title">
         <div class="flex items-center gap-8">🎯 Lista de tareas del día</div>
-        <div class="card-title-acc"><button class="btn btn-ghost btn-sm traer-ayer-btn" type="button" onclick="pasarMetasAyerAHoy()" hidden>↶ Traer de ayer (0)</button><button class="btn btn-ghost btn-sm" onclick="openAddGoalToday()">+ Tarea</button></div>
+        <div class="card-title-acc"><button class="btn btn-ghost btn-sm" onclick="openAddGoalToday()">+ Tarea</button></div>
       </div>
+      <div id="pendientesCard" class="pend-block" hidden></div>
       <div id="metasReadonlyBody"></div>
     </div>
 
@@ -284,7 +285,7 @@
           🎯 Lista de tareas del día
           <div class="streak-pill zero" id="streakPill">⚡ 0 días</div>
         </div>
-        <div class="card-title-acc"><button class="btn btn-ghost btn-sm traer-ayer-btn" type="button" onclick="pasarMetasAyerAHoy()" hidden>↶ Traer de ayer (0)</button><button class="btn btn-ghost btn-sm" onclick="openAddGoalToday()">+ Tarea</button></div>
+        <div class="card-title-acc"><button class="btn btn-ghost btn-sm" onclick="openAddGoalToday()">+ Tarea</button></div>
       </div>
       <div class="flex items-center gap-8 mb-8">
         <span id="goalsDoneNum" style="font-size:36px;font-weight:800;letter-spacing:-.04em;line-height:1">0</span>
@@ -293,6 +294,7 @@
         <span id="goalsLabel" class="text-xs text-ter" style="text-transform:uppercase;letter-spacing:.1em">sin tareas</span>
       </div>
       <div id="goalsBar" class="flex gap-8 mb-8" style="height:5px"></div>
+      <div id="pendientesPlan" class="pend-block" hidden></div>
       <div id="goalList"></div>
       <div id="goalsEmpty" class="empty-state">Agrega tu primera tarea del día</div>
       <button class="push-btn" id="pushBtn" onclick="pushRemaining()" style="display:none">→ Empujar restantes a mañana</button>
@@ -841,6 +843,20 @@
 </div>
 
 <!-- Repetir una tarea del día en ciertos días de la semana -->
+<div class="modal-overlay" id="modal-pend-repro" onclick="if(event.target===this)closeModal('modal-pend-repro')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Reprogramar tarea</div>
+    <div class="field">
+      <label id="pendReproText" style="color:var(--tp);font-weight:600"></label>
+      <input type="date" id="pendReproFecha" aria-label="Fecha en la que aparece la tarea">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-pend-repro')">Cancelar</button>
+      <button class="btn btn-primary" onclick="pendReproGuardar()">Reprogramar</button>
+    </div>
+  </div>
+</div>
 <div class="modal-overlay" id="modal-goal-repeat" onclick="if(event.target===this)closeModal('modal-goal-repeat')">
   <div class="modal">
     <div class="modal-handle"></div>
@@ -1904,7 +1920,7 @@
 <script src="errores.js?v=1"></script>
 <script src="deadlines.js?v=8"></script>
 <script src="motion.js?v=1"></script>
-<script src="app.js?v=215"></script>
+<script src="app.js?v=216"></script>
 <script src="datos-privados.js?v=2"></script>
 <script src="sync-diagnostico.js?v=1"></script>
 <script src="archivo.js?v=2"></script>

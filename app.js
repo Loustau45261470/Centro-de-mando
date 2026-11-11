@@ -1516,8 +1516,11 @@ function goalQuadOptions(sel) {
   return GOAL_QUADS.map(([k, l]) => `<option value="${k}"${k === sel ? ' selected' : ''}>${l}</option>`).join('');
 }
 function setGoalQuad(date, idx, q) {
-  const g = (S.goals[date] || [])[idx];
-  if (!g || !GOAL_QUAD_PRIO[q]) return;
+  if (!GOAL_QUAD_PRIO[q]) return;
+  const m = _aHoySiPasada(date, idx);   // una arrastrada primero pasa a hoy
+  if (!m) return;
+  const g = (S.goals[m.date] || [])[m.idx];
+  if (!g) return;
   g.q = q; g.priority = GOAL_QUAD_PRIO[q];
   saveState(); renderGoals();
 }
@@ -1576,7 +1579,7 @@ function renderGoals() {
   renderGoalList(tom, 'tomorrowList', 'tomorrowEmpty', false);
   renderGoalsHeader(today);
   renderMetasReadonly();
-  renderTraerAyer();
+  renderPendientes();
   updateStreak();
   buildTickerAlerts();
   renderDayPlanner();
@@ -1590,7 +1593,7 @@ function renderGoals() {
 // La tarjeta entera abre Planificación (patrón .cc-card-link). Las filas (zona de arrastre y edición) y los controles NO la abren.
 // Se mira dónde EMPEZÓ el clic: un arrastre de Sortable o una selección de texto que termina fuera de la fila genera un click
 // cuyo target es un ancestro común, así que el target solo no alcanza.
-const _MRD_PROPIO = '.mrd-item, button, select, input, a, [contenteditable="true"]';
+const _MRD_PROPIO = '.mrd-item, .pend-item, button, select, input, a, [contenteditable="true"]';
 function _initMetasCardLink() {
   const card = document.getElementById('metas-readonly-card');
   if (!card || card._linkInit) return;
@@ -1614,31 +1617,32 @@ function renderMetasReadonly() {
   const body = document.getElementById('metasReadonlyBody'); if (!body) return;
   const date = getActiveDate();
   const goals = S.goals[date] || [];
-  if (!goals.length) {
+  const view = _goalsHoyVista(date);   // las de hoy + las arrastradas de días anteriores (estas no cuentan en el progreso)
+  if (!view.length) {
     body.innerHTML = '<div class="mrd-empty">Sin tareas para hoy. Tocá <b>+ Tarea</b> para agregar la primera.</div>';
     return;
   }
   const done = goals.filter(g => g.done).length;
-  const view = sortGoalsView(goals);
   body.innerHTML = `<div class="mrd-prog"><span class="mrd-prog-num">${done}</span><span class="mrd-prog-sep">/</span><span class="mrd-prog-tot">${goals.length}</span><span class="mrd-prog-lbl">completadas</span></div>`
     + '<div class="tl-matrix">' + GOAL_QUADS.map(([key, label]) => {
       const items = view.filter(x => cuadranteDe(x.g) === key);
-      const nDone = items.filter(x => x.g.done).length;
-      return `<section class="tl-q" data-q="${key}"><div class="tl-q-head"><span class="tl-q-name">${label}</span><span class="gs-count">${nDone}/${items.length}</span></div>`
-        + `<div class="tl-q-list" data-q="${key}">` + (items.length ? items.map(({ g, i: idx }) => `<div class="mrd-item${g.done ? ' done' : ''}" data-idx="${idx}">
+      const propias = items.filter(x => x.date === date);   // las arrastradas no entran en el contador de la categoría
+      const nDone = propias.filter(x => x.g.done).length;
+      return `<section class="tl-q" data-q="${key}"><div class="tl-q-head"><span class="tl-q-name">${label}</span><span class="gs-count">${nDone}/${propias.length}</span></div>`
+        + `<div class="tl-q-list" data-q="${key}">` + (items.length ? items.map(({ g, i: idx, date: gd }) => `<div class="mrd-item${g.done ? ' done' : ''}${gd !== date ? ' mrd-arrastrada' : ''}" data-idx="${idx}"${gd !== date ? ` data-from="${escHtml(gd)}"` : ''}>
         ${g.time ? `<span class="mrd-time">${fmtGoalTime(g.time)}</span>` : ''}
         <span class="mrd-prio" style="background:${PRIORITY_COLOR[g.priority] || '#666'}"></span>
         <span class="mrd-text" title="Tocá para editar">${escHtml(g.text)}</span>
-        ${_goalRepBtn(g, date, idx)}
+        ${_goalRepBtn(g, gd, idx)}
         <span class="goal-q-wrap" title="Cambiar de categoría"><span class="goal-q-ic" aria-hidden="true">⇅</span><select class="goal-q-sel" aria-label="Categoría de la tarea">${goalQuadOptions(key)}</select></span>
-        <button class="mrd-check" onclick="toggleGoal('${escHtml(date)}',${idx})" aria-label="Marcar tarea"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></button>
+        <button class="mrd-check" onclick="toggleGoal('${escHtml(gd)}',${idx})" aria-label="Marcar tarea"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></button>
       </div>`).join('') : '<div class="tl-q-vacia">Nada acá</div>')
         + '</div></section>';
     }).join('') + '</div>';
   body.querySelectorAll('.mrd-item').forEach(row => {
-    const idx = +row.dataset.idx;
-    row.querySelector('.goal-q-sel').addEventListener('change', e => setGoalQuad(date, idx, e.target.value));
-    _goalTextEditable(row.querySelector('.mrd-text'), date, idx);
+    const idx = +row.dataset.idx, rd = row.dataset.from || date;
+    row.querySelector('.goal-q-sel').addEventListener('change', e => setGoalQuad(rd, idx, e.target.value));
+    _goalTextEditable(row.querySelector('.mrd-text'), rd, idx);
   });
   if (typeof Sortable !== 'undefined') {
     const matrix = body.querySelector('.tl-matrix');
@@ -1653,18 +1657,25 @@ function renderMetasReadonly() {
 
 // Reordena S.goals[date] según el DOM de una matriz de categorías; mover a otra categoría guarda q (y su prioridad).
 // Usa el estado vivo (no el del render) para evitar corrupción por renderGoals() re-entrante.
+// Una arrastrada (data-from = su fecha vieja) que se mueve en la lista pasa a ser de hoy: se saca de su fecha y entra en el nuevo orden.
 function _goalMatrixReorder(matrix, date, itemSel) {
   const cur = S.goals[date] || [];
   const newArr = [];
+  const traidas = [];
   matrix.querySelectorAll('.tl-q-list').forEach(s2 => {
     s2.querySelectorAll(itemSel).forEach(el => {
-      const item = cur[+el.dataset.idx];
+      const from = el.dataset.from;
+      const item = from ? (S.goals[from] || [])[+el.dataset.idx] : cur[+el.dataset.idx];
       if (!item) return;
+      if (from) { if (!item.id) item.id = uid(); traidas.push({ from, item }); }
       if (cuadranteDe(item) !== s2.dataset.q) { item.q = s2.dataset.q; item.priority = GOAL_QUAD_PRIO[s2.dataset.q]; }
       newArr.push(item);
     });
   });
-  if (newArr.length === cur.length) { S.goals[date] = newArr; saveState(); }
+  if (newArr.length === cur.length + traidas.length) {
+    traidas.forEach(({ from, item }) => { S.goals[from] = S.goals[from].filter(x => x !== item); });
+    S.goals[date] = newArr; saveState();
+  }
 }
 
 // Edición en línea del texto de una tarea (clic → editable; Enter guarda, Escape cancela).
@@ -1684,8 +1695,10 @@ function _goalTextEditable(textEl, date, idx) {
       textEl.removeEventListener('keydown', onKey);
       textEl.removeAttribute('contenteditable');
       const v = textEl.textContent.trim();
-      const g = (S.goals[date] || [])[idx];
-      if (g && v && v !== orig) { g.text = v; saveState(); }
+      let d = date, i = idx;
+      if (v && v !== orig && _esPasada(date)) { const m = _aHoySiPasada(date, idx); if (m) { d = m.date; i = m.idx; } }   // arrastrada: se edita ya movida a hoy
+      const g = (S.goals[d] || [])[i];
+      if (g && v && v !== orig) { g.text = v; saveState(); if (d !== date) renderGoals(); }
       else textEl.textContent = orig;
     };
     textEl.addEventListener('blur', commit, { once: true });
@@ -1699,8 +1712,8 @@ function _goalTextEditable(textEl, date, idx) {
 // Empates: sort nativo estable → respeta el orden manual (drag) dentro del mismo nivel.
 const GOAL_PRIO_ORDER = { high: 0, mid: 1, low: 2 };
 function goalPrioRank(g) { const v = GOAL_PRIO_ORDER[g.priority]; return v == null ? 1 : v; }
-function sortGoalsView(goals) {
-  return (goals || []).map((g, i) => ({ g, i })).sort((a, b) => {
+function _sortVista(items) {
+  return items.sort((a, b) => {
     const ra = a.g.done ? 2 : (a.g.time ? 0 : 1);
     const rb = b.g.done ? 2 : (b.g.time ? 0 : 1);
     if (ra !== rb) return ra - rb;
@@ -1708,11 +1721,22 @@ function sortGoalsView(goals) {
     return goalPrioRank(a.g) - goalPrioRank(b.g);
   });
 }
+function sortGoalsView(goals) {
+  return _sortVista((goals || []).map((g, i) => ({ g, i })));
+}
+// Lista de hoy: sus tareas + las arrastradas (pendientes de días anteriores). Cada ítem lleva su fecha real: i es el índice en S.goals[date].
+function _goalsHoyVista(hoy) {
+  const propias = (S.goals[hoy] || []).map((g, i) => ({ g, i, date: hoy }));
+  const arrastradas = _pendientesCalc().map(p => ({ g: p.g, i: p.idx, date: p.date }));
+  return _sortVista(propias.concat(arrastradas));
+}
 
 function buildGoalItem(g, idx, date, readOnly) {
   const li = document.createElement('div');
-  li.className = 'goal-item' + (g.done ? ' done-row' : '');
+  const arrastrada = _esPasada(date);   // tarea de un día anterior mostrada en hoy: sin marca visible, solo clase/atributo internos
+  li.className = 'goal-item' + (g.done ? ' done-row' : '') + (arrastrada ? ' goal-arrastrada' : '');
   li.dataset.idx = idx;
+  if (arrastrada) li.dataset.from = date;
   li.innerHTML = `
     <span class="goal-drag" title="Arrastrar">⋮⋮</span>
     <span class="goal-priority" style="background:${PRIORITY_COLOR[g.priority]||'#666'}"></span>
@@ -1739,25 +1763,27 @@ function renderGoalList(date, listId, emptyId, readOnly) {
   const list = document.getElementById(listId);
   const empty = document.getElementById(emptyId);
   list.innerHTML = '';
-  empty.style.display = goals.length ? 'none' : '';
+  const hoyView = listId === 'goalList' ? _goalsHoyVista(date) : null;
+  empty.style.display = (hoyView ? hoyView.length : goals.length) ? 'none' : '';
 
   // Today's list: matriz de 4 categorías (Urgente/importante). El orden dentro de cada una sigue sortGoalsView.
   if (listId === 'goalList') {
-    if (!goals.length) return;
+    if (!hoyView.length) return;
     const matrix = document.createElement('div');
     matrix.className = 'tl-matrix';
-    const view = sortGoalsView(goals);
+    const view = hoyView;
     GOAL_QUADS.forEach(([key, label]) => {
       const items = view.filter(x => cuadranteDe(x.g) === key);
-      const done = items.filter(x => x.g.done).length;
+      const propias = items.filter(x => x.date === date);   // las arrastradas no entran en el contador de la categoría
+      const done = propias.filter(x => x.g.done).length;
       const box = document.createElement('section');
       box.className = 'tl-q';
       box.dataset.q = key;
-      box.innerHTML = `<div class="tl-q-head"><span class="tl-q-name">${label}</span><span class="gs-count">${done}/${items.length}</span><button class="tl-q-add" onclick="openAddGoalToday('${key}')" title="Agregar tarea en ${label}" aria-label="Agregar tarea en ${label}">+</button></div>`;
+      box.innerHTML = `<div class="tl-q-head"><span class="tl-q-name">${label}</span><span class="gs-count">${done}/${propias.length}</span><button class="tl-q-add" onclick="openAddGoalToday('${key}')" title="Agregar tarea en ${label}" aria-label="Agregar tarea en ${label}">+</button></div>`;
       const sec = document.createElement('div');
       sec.className = 'goal-section-list tl-q-list';
       sec.dataset.q = key;
-      items.forEach(({ g, i }) => sec.appendChild(buildGoalItem(g, i, date, readOnly)));
+      items.forEach(({ g, i, date: gd }) => sec.appendChild(buildGoalItem(g, i, gd, readOnly)));
       box.appendChild(sec);
       matrix.appendChild(box);
 
@@ -1812,6 +1838,7 @@ function renderGoalList(date, listId, emptyId, readOnly) {
   }
 }
 
+// Progreso del día (número, barra, "¡todo listo!"): solo cuenta S.goals[hoy]; las arrastradas se suman al confirmarlas o marcarlas hechas.
 function renderGoalsHeader(date) {
   const goals = S.goals[date] || [];
   const done = goals.filter(g=>g.done).length;
@@ -1836,6 +1863,11 @@ function renderGoalsHeader(date) {
 
 function toggleGoal(date, idx) {
   if (!S.goals[date]) return;
+  if (_esPasada(date)) {   // arrastrada: se mueve a hoy y se marca ahí, así cuenta en el progreso de hoy
+    const m = _aHoySiPasada(date, idx);
+    if (!m) return;
+    date = m.date; idx = m.idx;
+  }
   const g = S.goals[date][idx];
   g.done = !g.done;
   // Meta vinculada a una tarea de Proyectos: completarla también completa la tarea de origen.
@@ -1959,47 +1991,109 @@ function pushRemaining() {
   }
 }
 
-// Aviso de tareas de ayer sin hacer: una vez por día por dispositivo (localStorage), al abrir la app.
-// Nada se mueve solo: "Pasarlas a hoy" las trae (sin duplicar por texto) y "Dejarlas" solo cierra el cartel.
-const METAS_AYER_KEY = 'cdm_metas_ayer_aviso';
-function _ayerStr() {
-  const d = new Date(); d.setDate(d.getDate() - 1);
-  return localStr(d);
-}
-function mostrarAvisoMetasAyer() {
-  const hoy = getActiveDate(), ayer = _ayerStr();
-  const n = (S.goals[ayer] || []).filter(g => !g.done).length;
-  if (!n) return;
-  try { if (localStorage.getItem(METAS_AYER_KEY) === hoy) return; localStorage.setItem(METAS_AYER_KEY, hoy); } catch (e) {}
-  const ref = document.getElementById('metas-readonly-card');
-  if (!ref || document.getElementById('metas-ayer-aviso')) return;
-  const el = document.createElement('div');
-  el.className = 'card metas-ayer-aviso';
-  el.id = 'metas-ayer-aviso';
-  el.setAttribute('role', 'status');
-  el.innerHTML = `<div class="maa-txt">${n === 1 ? 'Te quedó <b>1 tarea</b> de ayer sin hacer' : `Te quedaron <b>${n} tareas</b> de ayer sin hacer`}</div>
-    <div class="maa-acc"><button class="btn btn-sm btn-primary" onclick="pasarMetasAyerAHoy()">Pasarlas a hoy</button>
-    <button class="btn btn-ghost btn-sm" onclick="cerrarAvisoMetasAyer()">Dejarlas</button></div>`;
-  ref.parentNode.insertBefore(el, ref);
-}
-function cerrarAvisoMetasAyer() {
-  const el = document.getElementById('metas-ayer-aviso');
-  if (el) el.remove();
-}
-// Botón permanente "Traer de ayer (N)" en las dos cabeceras de la lista (sección y Planificación): todos los días que ayer
-// dejó pendientes que hoy todavía no tiene. N = lo que realmente traería. Reusa pasarMetasAyerAHoy.
-function renderTraerAyer() {
-  const n = _planMoverMetas(_ayerStr(), getActiveDate()).length;
-  document.querySelectorAll('.traer-ayer-btn').forEach(b => {
-    b.hidden = !n;
-    b.textContent = `↶ Traer de ayer (${n})`;
+// ── Pendientes: tareas no hechas de días anteriores ──
+// Vista CALCULADA: nada se escribe en S al cambiar de día (evita carreras de sync entre dispositivos). Son pendientes las tareas
+// con done=false de los últimos PEND_DIAS días anteriores a hoy que no son instancias de repetición (esas se regeneran solas)
+// ni vienen de Proyectos (fromTask: syncDueProjectsToGoals las manejaría por su fecha de vencimiento).
+// Se muestran en la lista de hoy (sin marca de fecha) y en el bloque "Pendientes" con Confirmar / Reprogramar / Descartar.
+// Solo las acciones explícitas del usuario escriben en S: mover = sacar de la fecha vieja y agregar al destino si ese id no está.
+// PROGRESO: las arrastradas NO cuentan en el contador/barra/racha de hoy hasta que se confirmen o se marquen hechas
+// (así lo de ayer no castiga el día actual); al hacerlo ya son tareas de hoy.
+const PEND_DIAS = 14;
+function _esPasada(date) { return !!date && date < getActiveDate(); }
+function _pendientesCalc() {
+  const hoy = getActiveDate();
+  const d0 = new Date(hoy + 'T00:00:00'); d0.setDate(d0.getDate() - PEND_DIAS);
+  const desde = localStr(d0);
+  const idsHoy = new Set((S.goals[hoy] || []).map(g => g && g.id).filter(Boolean));
+  const out = [];
+  Object.keys(S.goals || {}).filter(f => /^\d{4}-\d\d-\d\d$/.test(f) && f < hoy && f >= desde).sort().forEach(f => {
+    (S.goals[f] || []).forEach((g, idx) => {
+      if (!g || g.done || g.repId || g.fromTask || String(g.id || '').startsWith('rep:')) return;
+      if (g.id && idsHoy.has(g.id)) return;   // ya está hoy (otro dispositivo la movió): no se muestra dos veces
+      out.push({ date: f, idx, g });
+    });
   });
+  return out;
 }
-function pasarMetasAyerAHoy() {
-  const pending = _moverMetasPendientes(_ayerStr(), getActiveDate());
+// Mueve la tarea idx de la fecha 'from' a 'to' (mismo id y campos). Idempotente: si 'to' ya tiene ese id no se duplica.
+function _pendMover(from, idx, to) {
+  const src = S.goals[from] || [];
+  const g = src[idx]; if (!g) return null;
+  if (!g.id) g.id = uid();
+  if (!S.goals[to]) S.goals[to] = [];
+  let j = S.goals[to].findIndex(x => x && x.id === g.id);
+  if (j < 0) { S.goals[to].push(g); j = S.goals[to].length - 1; }
+  src.splice(idx, 1);
+  return { g: S.goals[to][j], idx: j };
+}
+function _pendMoverId(from, id, to) {
+  const idx = (S.goals[from] || []).findIndex(g => g && g.id === id);
+  return idx < 0 ? null : _pendMover(from, idx, to);
+}
+// Editar / marcar / cambiar de grupo una arrastrada se hace sobre la tarea ya movida a hoy.
+function _aHoySiPasada(date, idx) {
+  if (!_esPasada(date)) return { date, idx };
+  const hoy = getActiveDate();
+  const m = _pendMover(date, idx, hoy);
+  return m ? { date: hoy, idx: m.idx } : null;
+}
+function pendConfirmar(date, id) {
+  if (!_pendMoverId(date, id, getActiveDate())) return;
   saveState(); renderGoals();
-  cerrarAvisoMetasAyer();
-  showToast(pending.length === 1 ? '1 tarea pasada a hoy' : `${pending.length} tareas pasadas a hoy`);
+  showToast('Tarea confirmada para hoy');
+}
+let _pendRepro = null;   // { date, id }
+function pendReprogramar(date, id) {
+  const g = (S.goals[date] || []).find(x => x && x.id === id); if (!g) return;
+  _pendRepro = { date, id };
+  document.getElementById('pendReproText').textContent = g.text;
+  const inp = document.getElementById('pendReproFecha');
+  inp.min = getTomorrow(); inp.value = getTomorrow();
+  openModal('modal-pend-repro');
+}
+function pendReproGuardar() {
+  if (!_pendRepro) return;
+  const f = document.getElementById('pendReproFecha').value;
+  if (!f || f < getTomorrow()) { showToast('Elegí una fecha desde mañana'); return; }
+  const { date, id } = _pendRepro;
+  _pendRepro = null;
+  closeModal('modal-pend-repro');
+  if (!_pendMoverId(date, id, f)) return;
+  saveState(); renderGoals();
+  showToast('Tarea reprogramada');
+}
+function pendDescartar(date, id) {
+  const arr = S.goals[date] || [];
+  const idx = arr.findIndex(g => g && g.id === id); if (idx < 0) return;
+  if (!confirm('¿Descartar esta tarea? Se borra y no vuelve.')) return;
+  arr.splice(idx, 1);
+  saveState(); renderGoals();
+  showToast('Tarea descartada');
+}
+function _pendHtml(lista, conAcceso) {
+  return `<div class="pend-head"><span class="pend-tit">Pendientes</span><span class="gs-count">${lista.length}</span>`
+    + (conAcceso ? '<button type="button" class="pend-btn pend-acceso" onclick="plannerOverlayOpen()">Abrir planificación</button>' : '') + '</div>'
+    + lista.map(p => {
+      const a = `'${escHtml(p.date)}','${escHtml(p.g.id || '')}'`;
+      return `<div class="pend-item"><span class="mrd-prio" style="background:${PRIORITY_COLOR[p.g.priority] || '#666'}"></span>`
+        + `<span class="pend-text">${escHtml(p.g.text)}</span>`
+        + `<span class="pend-acc"><button type="button" class="pend-btn pend-confirmar" onclick="pendConfirmar(${a})">Confirmar</button>`
+        + `<button type="button" class="pend-btn pend-reprogramar" onclick="pendReprogramar(${a})">Reprogramar</button>`
+        + `<button type="button" class="pend-btn pend-descartar" onclick="pendDescartar(${a})">Descartar</button></span></div>`;
+    }).join('');
+}
+function renderPendientes() {
+  // Los ids se aseguran acá (no en el render) para que los botones siempre tengan a qué apuntar.
+  const lista = _pendientesCalc();
+  let nuevo = false;
+  lista.forEach(p => { if (!p.g.id) { p.g.id = uid(); nuevo = true; } });
+  if (nuevo) saveState();
+  [['pendientesPlan', false], ['pendientesCard', true]].forEach(([id, acceso]) => {
+    const el = document.getElementById(id); if (!el) return;
+    el.hidden = !lista.length;
+    el.innerHTML = lista.length ? _pendHtml(lista, acceso) : '';
+  });
 }
 
 // ── Repetición por días de la semana (mismo modelo que las actividades del planner: byDays en getDay()) ──
@@ -2024,6 +2118,7 @@ function _grCreate(o) {
 function _grDaysLabel(days) { return GOAL_WD.filter(([v]) => days.includes(v)).map(([, l]) => l).join(' '); }
 function _goalIsRep(g) { return !!(g && g.repId && _grFind(g.repId)); }
 function _goalRepBtn(g, date, idx) {
+  if (_esPasada(date)) return '';   // una arrastrada no se repite: primero se confirma o se marca hecha
   const on = _goalIsRep(g);
   return `<button class="goal-rep${on ? ' on' : ''}" type="button" onclick="openGoalRepeat('${escHtml(date)}',${idx})" title="${on ? 'Se repite: ' + _grDaysLabel(_grFind(g.repId).byDays) : 'Repetir en ciertos días'}" aria-label="Repetición de la tarea">↻</button>`;
 }
@@ -4500,7 +4595,6 @@ setTimeout(() => _msHub.showReminders(), 500);
 // Atajo del ícono de la app o algo compartido desde otra app: se aplica acá,
 // ya con sesión iniciada y el estado cargado (ver share-target.js).
 if (typeof aplicarAccionPendiente === 'function') aplicarAccionPendiente();
-mostrarAvisoMetasAyer();
 }
 
 // ════════════════════════════════════════════════════════
