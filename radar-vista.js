@@ -36,7 +36,7 @@
     if (a >= 1e5) return dec(v / 1e3, 0) + ' mil';
     return dec(v, a >= 100 ? 0 : 1);
   }
-  // kind: pct (razón) · pp · x · usd (importe en USD) · usdps (USD por acción) · n (cantidad) · dias · usdtarjeta
+  // kind: pct (razón) · pp · x · usd (importe en USD) · usdps (USD por acción) · n (cantidad) · u (unidades, p. ej. artículos por comprador) · dias · usdtarjeta
   function fmt(kind, v, opts) {
     if (!esNum(v)) return null;
     const con = opts && opts.signo;
@@ -48,6 +48,7 @@
       case 'usd': return (v < 0 ? '-' : '') + 'US$ ' + compacto(Math.abs(v));
       case 'usdps': return (v < 0 ? '-' : '') + 'US$ ' + dec(Math.abs(v), 2);
       case 'n': return compacto(v);
+      case 'u': return dec(v, 1);
       case 'dias': return dec(v, 0) + ' días';
       case 'usdtarjeta': return 'US$ ' + dec(v, 0) + ' por tarjeta';
       default: return dec(v, 2);
@@ -65,6 +66,7 @@
       case 'x': return { kind: 'x', v: valor };
       case 'días': return { kind: 'dias', v: valor };
       case 'n': return { kind: 'n', v: valor };
+      case 'unidades': return { kind: 'u', v: valor };
       case 'miles': return { kind: 'n', v: valor * 1e3 };
       case 'millones': return { kind: 'n', v: valor * 1e6 };
       case 'USD/tarjeta': return { kind: 'usdtarjeta', v: valor };
