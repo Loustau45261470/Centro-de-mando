@@ -46,6 +46,7 @@ jobs:
             | grep -v -E '(^|/)sw\.js$' \
             | grep -v -E '^\.github/' \
             | grep -v -E '^cf-worker/' \
+            | grep -v -E '^(tools|tests)/' \
             | grep -v -E '(^|/)_[^/]*$' \
             || true)
 
