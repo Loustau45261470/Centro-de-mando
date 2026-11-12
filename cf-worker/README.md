@@ -14,10 +14,8 @@ guarda todo el estado de `/cartera` (ver abajo).
 
 ## Rutas
 
-- `POST /schedule/:id` y `POST /cancel/:id` — aceptan **cualquiera** de dos credenciales en `Authorization: Bearer ...`:
-  (a) ID token de Firebase Auth del dueño (`uid === OWNER_UID`, mismo gate `autorizarDueno` que `/cartera`; 401 sin token/inválido, 403 si el uid no es el del dueño);
-  (b) `WORKER_SECRET` — **LEGADO**, solo para dispositivos con la app vieja en caché; se elimina en el paso 3 de la migración (secreto expuesto en el repo público).
-- `GET /cartera` — requiere `Authorization: Bearer <ID token de Firebase Auth>` (ver abajo). **No** usa `WORKER_SECRET`.
+- `POST /schedule/:id` y `POST /cancel/:id` — requieren `Authorization: Bearer <ID token de Firebase Auth del dueño>` (`uid === OWNER_UID`, mismo gate `autorizarDueno` que `/cartera`; 401 sin token/inválido, 403 si el uid no es el del dueño). El secreto fijo `WORKER_SECRET` que se usaba antes se eliminó (2026-11-12): estaba en texto plano en el repo público. No volver a poner un secreto en el cliente.
+- `GET /cartera` — requiere `Authorization: Bearer <ID token de Firebase Auth>` (ver abajo).
 - `GET /datos/<archivo>.json` — mismo gate que `/cartera`; archivos privados de la cartera (ver abajo).
 - `GET /rendimiento/operaciones`, `/rendimiento/cierres`, `/rendimiento/mercado` — mismo gate que `/cartera`; datos de la pestaña "Rendimiento" (ver abajo).
 - `GET /radar/precios?t=NVDA,MELI`, `POST /radar/pedir` y `POST /radar/reportar` — mismo gate que `/cartera`; pestaña "Radar" de Cartera (ver "Radar de empresas" abajo).
@@ -31,11 +29,8 @@ Consultada por `tenencias.js` (pestaña "Mis tenencias") con fallback automátic
 al `tenencias.json` privado (`/datos/`, ver más abajo) si esta ruta falla por cualquier motivo. Solo
 lectura: nunca envía una orden a IOL.
 
-- **Auth: ID token de Firebase, no el `WORKER_SECRET` compartido.** Este repo
-  es público y `WORKER_SECRET` está commiteado en texto plano en `app.js`
-  (`_PUSH_WORKER_SECRET`) — perfecto para gatear `/schedule`/`/cancel` (lo
-  peor que puede pasar es una notificación de pomodoro de más), pero un
-  "secret" legible por cualquiera no protege datos financieros reales. `/cartera`
+- **Auth: ID token de Firebase.** Este repo es público, así que ningún
+  "secret" embebido en el cliente protege nada. `/cartera`
   exige el ID token que ya emite Firebase Auth cuando el usuario entra con
   Google (`login.js`), lo verifica de punta a punta con WebCrypto — firma
   RS256 contra las claves públicas de Google, `exp`, `iat`, `aud` (= project id
@@ -106,7 +101,6 @@ ese mismo `wrangler deploy`; no hay pasos extra.
 ## Secrets del Worker (una sola vez, o al rotar claves)
 
 ```bash
-npx wrangler secret put WORKER_SECRET       # gate de /schedule y /cancel (embebido también en app.js)
 npx wrangler secret put VAPID_PUBLIC_KEY    # mismo par de claves que usa push-reminders.js
 npx wrangler secret put VAPID_PRIVATE_KEY   # (Firestore: appdata/lifedash_v2.vapidKeys)
 npx wrangler secret put IOL_USER            # usuario de la cuenta IOL (para /cartera)
