@@ -66,7 +66,11 @@ const CMDeadlines = (() => {
     // sin lead = aviso "es ahora", que tarde ya no sirve.
     const push = (suffix, at, title, lead) => { if (!isNaN(at)) out.push({ key: it.id + suffix, at, title, body: it.notifBody, lead: !!lead }); };
 
-    if (it.allDay) {
+    if (it.kind === 'foco') {
+      // Chequeo de Foco: un solo aviso "es ahora" (tarde ya no sirve), con destino dentro de la app.
+      // winMs propio (60 min): si el cron de Actions se atrasa más que la ventana corta, el chequeo no se pierde.
+      out.push({ key: it.id, at: it.at, title: it.title, body: it.cuerpo, lead: false, url: it.url, winMs: FOCO_WIN_MS });
+    } else if (it.allDay) {
       // Se muestran al cierre del día pero avisan a las 09:00 (nadie quiere el aviso 23:59).
       (it.leads || LEADS[it.kind] || [1]).forEach(d => {
         if (d > 0) push('_d' + d, toMs(addDays(it.date, -d), ALLDAY_HOUR, tz),
@@ -254,7 +258,37 @@ const CMDeadlines = (() => {
       });
     }
 
+    // 11) Chequeos de Foco ("¿En qué estuviste?"): uno por cada hora de S.foco.config.horas, todos los días.
+    //     Sin `tab` → no aparece en las cards de Recordatorios ni en el ticker; solo genera el aviso.
+    //     Si la config no existe todavía rigen las horas por defecto; con [] no hay avisos.
+    const horas = focoHoras(S.foco);
+    const chequeos = (S.foco && Array.isArray(S.foco.chequeos)) ? S.foco.chequeos : [];
+    // Aceptado: cambiar una hora que ya avisó puede avisar de nuevo si la nueva cae dentro de la ventana (clave distinta).
+    for (let i = -1; i <= 0; i++) {   // ayer también: un aviso de las 23:xx puede salir pasada la medianoche
+      const date = addDays(today, i);
+      horas.forEach((hora, k) => {
+        if (focoRespondido(chequeos, date, hora, horas[k + 1])) return;
+        add({ id: 'foco_' + date + '_' + hora, kind: 'foco', kindLabel: 'Chequeo', icon: '🧭', date, time: hora, allDay: false,
+              title: '¿En qué estuviste?', cuerpo: 'Tocá para anotar las últimas horas.', url: FOCO_URL, priority: 'low' });
+      });
+    }
+
     return items.sort((a, b) => a.at - b.at);
+  }
+
+  const FOCO_URL = '#foco-chequeo';   // relativo al scope del SW; sw.js lo resuelve contra su scope
+  const FOCO_WIN_MS = 60 * 60000;
+  const FOCO_HORAS_DEF =['11:00', '15:00', '19:00'];
+  const minDe = h => parseInt(h.slice(0, 2), 10) * 60 + parseInt(h.slice(3, 5), 10);
+  // Horas de los chequeos: 'HH:MM' válidas, sin duplicados, ordenadas. Sin config → por defecto.
+  function focoHoras(foco) {
+    const raw = foco && foco.config && Array.isArray(foco.config.horas) ? foco.config.horas : FOCO_HORAS_DEF;
+    return Array.from(new Set(raw.filter(h => typeof h === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(h)))).sort();
+  }
+  // Un chequeo ya anotado desde 30 min antes de la hora y hasta la hora siguiente cubre ese aviso.
+  function focoRespondido(chequeos, date, hora, siguiente) {
+    const desde = minDe(hora) - 30, hasta = siguiente ? minDe(siguiente) : 24 * 60;
+    return chequeos.some(c => c && c.fecha === date && /^\d{2}:\d{2}$/.test(c.hora || '') && minDe(c.hora) >= desde && minDe(c.hora) < hasta);
   }
 
   // Avisos que deben dispararse ahora: cayeron dentro de su ventana de rescate y
@@ -274,13 +308,13 @@ const CMDeadlines = (() => {
     const has = k => (typeof seen.has === 'function' ? seen.has(k) : !!seen[k]);
     const out = [];
     collect(state, opts).forEach(it => (it.alerts || []).forEach(a => {
-      const win = a.lead ? winLead : winTimed;
+      const win = a.winMs || (a.lead ? winLead : winTimed);   // winMs propio del aviso gana sobre la regla por lead
       if (a.at <= now && now - a.at < win && !has(a.key)) out.push({ ...a, item: it });
     }));
     return out;
   }
 
-  return { collect, dueAlerts };
+  return { collect, dueAlerts, focoHoras };
 })();
 
 if (typeof window !== 'undefined') window.CMDeadlines = CMDeadlines;

@@ -6893,3 +6893,9 @@ textarea.pr-in { resize: vertical; min-height: 60px; }
 .fo-cruce { flex-direction: column; align-items: stretch; }
 .fo-txt { color: var(--ts); font-size: var(--fs-13-5); line-height: 1.45; }
 .fo-sin { font-style: italic; }
+.fo-cats { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.fo-cat { flex: 1 0 40%; min-height: 44px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border); background: none; color: var(--ts); font: 600 var(--fs-13) var(--sans); cursor: pointer; }
+.fo-cat.on { color: var(--hud-bright); border-color: var(--hud-dim); background: var(--hud-glow); }
+.fo-btn { min-height: 44px; }
+.fo-rep { flex-wrap: nowrap; }
+.pr-in.fo-hora { width: 120px; }

@@ -11,9 +11,9 @@ const Module = require('module');
 const BORRAR = { __borrar: true };
 const doc = JSON.parse(fs.readFileSync(process.env.MOCK_DOC, 'utf8'));
 const envio = process.env.MOCK_SEND || 'ok';
-const sends = [];
+const sends = [], payloads = [];
 
-const volcar = () => fs.writeFileSync(process.env.MOCK_OUT, JSON.stringify({ doc, sends }));
+const volcar = () => fs.writeFileSync(process.env.MOCK_OUT, JSON.stringify({ doc, sends, payloads }));
 
 const ref = {
   get: async () => {
@@ -30,7 +30,7 @@ const dobles = {
   'web-push': {
     setVapidDetails() {},
     sendNotification: async (sub, payload) => {
-      sends.push(JSON.parse(payload).tag);
+      sends.push(JSON.parse(payload).tag); payloads.push(JSON.parse(payload));
       if (envio === 'ok') return { statusCode: 201 };
       const e = new Error('mock ' + envio); e.statusCode = Number(envio); throw e;
     },

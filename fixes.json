@@ -414,6 +414,13 @@
       "desc": "repObjetivosPorCategoria no usa el plazo (fecha) como fecha de cumplimiento y guardarObjetivo solo pone cumplidoEl en la transicion a cumplido: sin eso, objetivos se atribuian al periodo equivocado",
       "file": "reportes.js",
       "marker": "let f = o.cumplidoEl || '';"
+    },
+    {
+      "id": "push-destino-url-y-ventana-foco",
+      "fecha": "2026-11-12",
+      "desc": "Los avisos llevan url de destino (sw.js notificationclick la respeta, también el aviso local de recordatorios.js) y los chequeos de Foco tienen ventana propia de 60 min (winMs) para no perderse si el cron se atrasa",
+      "file": "deadlines.js",
+      "marker": "a.winMs || (a.lead ? winLead : winTimed)"
     }
   ]
 }

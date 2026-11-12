@@ -336,14 +336,21 @@ function initNotifications() {
 }
 
 function _showNotif(title, opts) {
+  // Con data.url (ej. chequeos de Foco) el clic navega al destino; sin url, solo enfoca.
+  const _click = n => () => {
+    window.focus(); n.close();
+    const u = opts && opts.data && opts.data.url;
+    // Mismo canal que el clic del SW (foco.js escucha 'abrir-destino'); la app ya está abierta.
+    if (u && navigator.serviceWorker) { try { navigator.serviceWorker.dispatchEvent(new MessageEvent('message', { data: { tipo: 'abrir-destino', url: String(u) } })); } catch(e) {} }
+  };
   if (_swReg) {
     _swReg.showNotification(title, opts).catch(() => {
       // Fallback: SW showNotification falló (ej. iOS foreground), usar API directa
-      try { const n = new Notification(title, opts); n.onclick = () => { window.focus(); n.close(); }; } catch(e) {}
+      try { const n = new Notification(title, opts); n.onclick = _click(n); } catch(e) {}
     });
     return;
   }
-  try { const n = new Notification(title, opts); n.onclick = () => { window.focus(); n.close(); }; } catch(e) {}
+  try { const n = new Notification(title, opts); n.onclick = _click(n); } catch(e) {}
 }
 
 // Notifica TODO lo que vence (recordatorios, proyectos, finales, cursada, metas,
@@ -356,12 +363,14 @@ function checkReminderNotifications() {
   CMDeadlines.dueAlerts(S, { now: Date.now(), windowMs: 5 * 60000, seen: _notifiedSet })
     .forEach(a => {
       _notifiedSet.add(a.key);
-      _showNotif(a.title, {
+      const o = {
         body: a.body,
         tag: a.key,
         requireInteraction: !!a.lead,
         icon: './icon.svg',
-      });
+      };
+      if (a.url) o.data = { url: a.url };
+      _showNotif(a.title, o);
     });
 }
 

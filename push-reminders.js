@@ -32,8 +32,10 @@ const WINDOW_TIMED = 20 * MIN;
 // Devuelve true si el servicio push aceptó el envío, o el statusCode del error (0 si no hubo código).
 // Así main solo marca como "ya avisado" lo que de verdad salió, y un fallo transitorio se reintenta
 // en la próxima corrida.
-function send(sub, title, body, tag, requireInteraction) {
-  return webpush.sendNotification(sub, JSON.stringify({ title, body, tag, requireInteraction }))
+function send(sub, title, body, tag, requireInteraction, url) {
+  const payload = { title, body, tag, requireInteraction };
+  if (url) payload.url = url;   // destino al tocar el aviso (lo resuelve sw.js); sin url abre el Centro
+  return webpush.sendNotification(sub, JSON.stringify(payload))
     .then(() => true)
     .catch(err => { console.error('[push] error', tag, err.statusCode, err.message); return err.statusCode || 0; });
 }
@@ -68,7 +70,7 @@ async function main() {
   // pasan ventanas de rescate más anchas, porque el cron corre cada 5 minutos y
   // GitHub Actions suele atrasarlo.
   for (const a of CMDeadlines.dueAlerts(state, { now, tz: TZ, seen: notified, windowMs: WINDOW_TIMED, windowLeadMs: WINDOW_LEAD })) {
-    sends.push({ key: a.key, p: send(pushSub, a.title, a.body, a.key, a.lead) });
+    sends.push({ key: a.key, p: send(pushSub, a.title, a.body, a.key, a.lead, a.url) });
   }
   const results = await Promise.all(sends.map(s => s.p));
   let okCount = 0, muerta = null;

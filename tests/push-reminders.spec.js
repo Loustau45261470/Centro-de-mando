@@ -26,7 +26,7 @@ function correr(doc, envio, extraEnv) {
 // Documento con UN recordatorio que venció hace 2 minutos (hora de Argentina, UTC-3).
 function docBase() {
   const dt = new Date(Date.now() - 3 * 3600000 - 2 * 60000).toISOString().slice(0, 16);
-  const state = { reminders: { vida: [{ id: 'r1', title: 'Prueba de aviso', datetime: dt, priority: 'high' }] } };
+  const state = { foco: { config: { horas: [] } }, reminders: { vida: [{ id: 'r1', title: 'Prueba de aviso', datetime: dt, priority: 'high' }] } };   // sin chequeos de Foco: el test mira solo el recordatorio
   return {
     state: JSON.stringify(state),
     pushSubscription: { endpoint: 'https://push.invalido/x', keys: { p256dh: 'a', auth: 'b' } },

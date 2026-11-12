@@ -1,7 +1,7 @@
 // Centro de Mando — Service Worker
 // Maneja Web Push, clicks de notificación, y caché offline del app shell.
 
-const CACHE = 'cdm-shell-v406';
+const CACHE = 'cdm-shell-v408';
 const BASE  = '/Centro-de-mando/';
 const SHELL = [
   BASE,
@@ -155,6 +155,14 @@ self.addEventListener('fetch', event => {
   );
 });
 
+// Resuelve el destino contra el scope del SW y lo limita al Centro (cualquier otra cosa → BASE).
+function _destino(u) {
+  try {
+    const url = new URL(u || BASE, self.registration.scope);
+    return url.origin === self.location.origin && url.pathname.startsWith(BASE) ? url.href : self.location.origin + BASE;
+  } catch { return self.location.origin + BASE; }
+}
+
 self.addEventListener('push', event => {
   if (!event.data) return;
   let payload;
@@ -168,19 +176,25 @@ self.addEventListener('push', event => {
       icon:                BASE + 'icon-192.png',
       badge:               BASE + 'icon-192.png',
       vibrate:             [200, 100, 200],
-      data:                { url: BASE },
+      // url del aviso (relativa al scope, ej. '#foco-chequeo'); sin url abre el Centro.
+      data:                { url: _destino(payload.url) },
     })
   );
 });
 
 self.addEventListener('notificationclick', event => {
   event.notification.close();
+  const destino = _destino(event.notification.data && event.notification.data.url);
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
       for (const c of list) {
-        if (c.url.includes('Centro-de-mando') && 'focus' in c) return c.focus();
+        if (c.url.includes('Centro-de-mando') && 'focus' in c) {
+          // Ventana ya abierta: se enfoca y se le avisa el destino (la app abre la sub-pestaña; no recarga).
+          c.postMessage({ tipo: 'abrir-destino', url: destino });
+          return c.focus();
+        }
       }
-      if (self.clients.openWindow) return self.clients.openWindow(BASE);
+      if (self.clients.openWindow) return self.clients.openWindow(destino);
     })
   );
 });
