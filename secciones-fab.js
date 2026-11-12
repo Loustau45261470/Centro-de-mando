@@ -85,6 +85,19 @@ function _sfEnsureBudget() {
       <div class="plov-pane cm-ov-host" id="bd-pane-presupuestos" role="tabpanel" aria-labelledby="bd-tab-presupuestos"></div>
       <div class="plov-pane cm-ov-host" id="bd-pane-fondos" role="tabpanel" aria-labelledby="bd-tab-fondos" hidden></div>
       <div class="plov-pane" id="bd-pane-historial" role="tabpanel" aria-labelledby="bd-tab-historial" hidden>
+        <div class="gacc-card" id="gacc-card">
+          <div class="gacc-head"><span class="gacc-title">Acumulado de gastos</span><span class="gacc-total" id="gaccTotal"></span></div>
+          <div class="gacc-chips" id="gaccChips" role="group" aria-label="Período del acumulado"></div>
+          <div id="gaccBody">
+            <div class="gacc-charts">
+              <div class="gacc-donut"><canvas id="gaccDonut" role="img" aria-label="Gasto acumulado por categoría"></canvas></div>
+              <div class="gacc-bars"><canvas id="gaccBars" role="img" aria-label="Gasto acumulado por mes"></canvas></div>
+            </div>
+            <div class="gacc-table-wrap"><table class="gacc-table" id="gaccTable"></table></div>
+          </div>
+          <div class="gacc-empty" id="gaccEmpty" hidden>Sin gastos en este período.</div>
+          <div class="gacc-note">Solo gastos en ARS · incluye el mes en curso · sin programados pendientes.</div>
+        </div>
         <div class="txn-hist-filters">
           <div class="txn-month-filter" id="txnHistMonthFilter"></div>
           <select class="txn-hist-cat-filter" id="txnHistCatFilter" aria-label="Filtrar por categoría" onchange="setTxnHistCat(this.value)"></select>

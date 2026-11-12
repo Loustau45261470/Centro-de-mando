@@ -3911,6 +3911,7 @@ function renderActivity() {
 
   // Expense chart
   renderTxnChart(filtered);
+  renderGastoAcumulado();
 
   // "Ver historial →" en la sección (abre el overlay que aloja la lista)
   const verHistBtn = document.getElementById('verHistorialBtn');
@@ -3999,6 +4000,88 @@ function renderTxnChart(transactions) {
       }
     }
   });
+}
+
+// ── Acumulado de gastos (pestaña Historial del overlay Presupuesto) ──
+// Ventanas: últimos N meses calendario contando el mes en curso, y YTD (enero → mes en curso).
+// Solo gastos en ARS y sin los programados pendientes (aún no ocurrieron), igual que el resto del historial.
+let gaccPeriod = 6;   // 3 | 6 | 9 | 12 | 'ytd'
+let _gaccDonut = null, _gaccBars = null;
+const GACC_PERIODS = [[3, '3M'], [6, '6M'], [9, '9M'], [12, '12M'], ['ytd', 'YTD']];
+function setGaccPeriod(p) { gaccPeriod = p === 'ytd' ? 'ytd' : +p; renderGastoAcumulado(); }
+function _gaccKeys(p) {
+  const now = new Date(), y = now.getFullYear(), m = now.getMonth();
+  const n = p === 'ytd' ? m + 1 : p;
+  const keys = [];
+  for (let i = n - 1; i >= 0; i--) { const d = new Date(y, m - i, 1); keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`); }
+  return keys;
+}
+function _gaccShort(v) { return v >= 1e6 ? (v / 1e6).toFixed(1).replace('.0', '') + 'M' : v >= 1e3 ? Math.round(v / 1e3) + 'k' : String(Math.round(v)); }
+function renderGastoAcumulado() {
+  const host = document.getElementById('gacc-card');
+  if (!host || host.offsetParent === null || typeof Chart === 'undefined' || !Array.isArray(S.transactions)) return;
+  const byMonthCat = {};   // 'YYYY-MM' → { cat: monto }
+  S.transactions.forEach(t => {
+    if (t.type !== 'expense' || t.pending || !t.date || (t.currency || 'ARS') !== 'ARS') return;
+    const mk = t.date.slice(0, 7), k = t.category || 'other';
+    (byMonthCat[mk] = byMonthCat[mk] || {})[k] = ((byMonthCat[mk] || {})[k] || 0) + (+t.amount || 0);
+  });
+  const sumCats = keys => { const o = {}; keys.forEach(mk => Object.entries(byMonthCat[mk] || {}).forEach(([k, v]) => { o[k] = (o[k] || 0) + v; })); return o; };
+  const sum = o => Object.values(o).reduce((a, b) => a + b, 0);
+  const keys = _gaccKeys(gaccPeriod);
+  const cur = sumCats(keys), total = sum(cur);
+
+  document.getElementById('gaccChips').innerHTML = GACC_PERIODS.map(([p, l]) =>
+    `<button type="button" class="gacc-chip${p === gaccPeriod ? ' on' : ''}" aria-pressed="${p === gaccPeriod}" onclick="setGaccPeriod('${p}')">${l}</button>`).join('');
+  document.getElementById('gaccTotal').textContent = fmtMoney(total, 'ARS');
+  const body = document.getElementById('gaccBody'), empty = document.getElementById('gaccEmpty');
+  body.hidden = !total; empty.hidden = !!total;
+  if (_gaccDonut) { _gaccDonut.destroy(); _gaccDonut = null; }
+  if (_gaccBars) { _gaccBars.destroy(); _gaccBars = null; }
+  if (!total) return;
+
+  const catInfo = k => TXN_CATEGORIES[k] || null;
+  const catLabel = k => { const c = catInfo(k); return c ? c.icon + ' ' + c.label : k; };
+  const catColor = k => catInfo(k)?.chartColor || 'rgba(255,255,255,.4)';
+  const tick = 'rgba(255,255,255,.65)', fs = typeof _cfs === 'function' ? _cfs(12) : 12;
+
+  // Donut: acumulado del período por categoría
+  const sorted = Object.entries(cur).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+  _gaccDonut = new Chart(document.getElementById('gaccDonut').getContext('2d'), {
+    type: 'doughnut',
+    data: { labels: sorted.map(([k]) => catLabel(k)), datasets: [{ data: sorted.map(([, v]) => v), backgroundColor: sorted.map(([k]) => catColor(k)), borderWidth: 0, hoverOffset: 6 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '62%', _noCrosshair: true, animation: { duration: 500 },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ${c.label}: ${fmtMoney(c.raw, 'ARS')} (${(c.raw / total * 100).toFixed(1)}%)` } } },
+    },
+  });
+
+  // Barras: gasto por mes dentro del período
+  _gaccBars = new Chart(document.getElementById('gaccBars').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: keys.map(mk => CAL_MONTHS[+mk.slice(5) - 1].slice(0, 3) + ' ' + mk.slice(2, 4)),
+      datasets: [{ data: keys.map(mk => sum(byMonthCat[mk] || {})), backgroundColor: 'rgba(255,107,107,.85)', borderRadius: 4, maxBarThickness: 34 }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, _noCrosshair: true, animation: { duration: 500 },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ' ' + fmtMoney(c.raw, 'ARS') } } },
+      scales: {
+        x: { ticks: { color: tick, font: { size: fs }, maxRotation: 0, autoSkip: true }, grid: { display: false } },
+        y: { beginAtZero: true, ticks: { color: tick, font: { size: fs }, callback: v => _gaccShort(v) }, grid: { color: 'rgba(255,255,255,.08)' } },
+      },
+    },
+  });
+
+  // Tabla categoría × período (3/6/9/12/YTD); la columna del período elegido va resaltada
+  const per = GACC_PERIODS.map(([p]) => [p, sumCats(_gaccKeys(p))]);
+  const catKeys = [...new Set(per.flatMap(([, o]) => Object.keys(o).filter(k => o[k] > 0)))]
+    .sort((a, b) => (cur[b] || 0) - (cur[a] || 0) || (per[4][1][b] || 0) - (per[4][1][a] || 0));
+  const sel = p => p === gaccPeriod ? ' class="sel"' : '';
+  document.getElementById('gaccTable').innerHTML =
+    `<thead><tr><th>Categoría</th>${GACC_PERIODS.map(([p, l]) => `<th${sel(p)}>${l}</th>`).join('')}</tr></thead><tbody>` +
+    catKeys.map(k => `<tr><td><span class="gacc-dot" style="background:${catColor(k)}"></span>${escHtml(catLabel(k))}</td>${per.map(([p, o]) => `<td${sel(p)}>${o[k] ? fmtMoney(o[k], 'ARS') : '—'}</td>`).join('')}</tr>`).join('') +
+    `<tr class="gacc-sum"><td>Total</td>${per.map(([p, o]) => `<td${sel(p)}>${fmtMoney(sum(o), 'ARS')}</td>`).join('')}</tr></tbody>`;
 }
 
 function renderMonthBalanceList() {
