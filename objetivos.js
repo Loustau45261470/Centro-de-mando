@@ -592,7 +592,9 @@ function selectQPeriod(id) {
 function toggleQObj(periodId, objId) {
   const period = S.quarterlyObjectives.periods.find(p=>p.id===periodId);
   const o = period.objectives.find(o=>o.id===objId);
-  o.done = !o.done; saveState(); renderQuarterlyObjectives();
+  o.done = !o.done;
+  if (o.done) { const n = new Date(), q = x => String(x).padStart(2, '0'); o.doneAt = n.getFullYear() + '-' + q(n.getMonth() + 1) + '-' + q(n.getDate()); } else delete o.doneAt;
+  saveState(); renderQuarterlyObjectives();
   if (o.done) {
     const allDone = period.objectives.every(o => o.done);
     if (allDone) {

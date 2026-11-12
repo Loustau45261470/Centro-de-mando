@@ -407,6 +407,13 @@
       "desc": "app.js ya no lleva el secreto fijo del Worker de push (repo publico): _schedulePushAlarm/_cancelPushAlarm mandan el ID token de Firebase del usuario (_pushWorkerToken). No volver a hardcodear un secreto en el cliente.",
       "file": "app.js",
       "marker": "async function _pushWorkerToken"
+    },
+    {
+      "id": "objetivos-cumplimiento-sin-atribuir-por-plazo",
+      "fecha": "2026-11-12",
+      "desc": "repObjetivosPorCategoria no usa el plazo (fecha) como fecha de cumplimiento y guardarObjetivo solo pone cumplidoEl en la transicion a cumplido: sin eso, objetivos se atribuian al periodo equivocado",
+      "file": "reportes.js",
+      "marker": "let f = o.cumplidoEl || '';"
     }
   ]
 }

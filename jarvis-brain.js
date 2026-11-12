@@ -510,7 +510,7 @@
         case 'toggle_back': {
           switch (inv.kind) {
             case 'daily_goal': { const it = ((S.goals || {})[inv.date] || []).find(x => x.id === inv.id); if (!it) return { ok: false, msg: "I couldn't find that goal anymore, sir." }; it.done = inv.prevValue; saveState(); if (typeof renderGoals === 'function') renderGoals(); return { ok: true, msg: `Reverted the goal '${it.text}', sir.` }; }
-            case 'quarterly': { const p = (S.quarterlyObjectives && S.quarterlyObjectives.periods || []).find(x => x.id === inv.periodId); const it = p && p.objectives.find(x => x.id === inv.id); if (!it) return { ok: false, msg: "I couldn't find that objective anymore, sir." }; it.done = inv.prevValue; saveState(); if (typeof renderQuarterlyObjectives === 'function') renderQuarterlyObjectives(); return { ok: true, msg: `Reverted the quarterly objective '${it.text}', sir.` }; }
+            case 'quarterly': { const p = (S.quarterlyObjectives && S.quarterlyObjectives.periods || []).find(x => x.id === inv.periodId); const it = p && p.objectives.find(x => x.id === inv.id); if (!it) return { ok: false, msg: "I couldn't find that objective anymore, sir." }; it.done = inv.prevValue; if (inv.prevDoneAt) it.doneAt = inv.prevDoneAt; else delete it.doneAt; saveState(); if (typeof renderQuarterlyObjectives === 'function') renderQuarterlyObjectives(); return { ok: true, msg: `Reverted the quarterly objective '${it.text}', sir.` }; }
             case 'monthly_goal': { if (typeof _mgSection !== 'function') return { ok: false, msg: 'Monthly goals unavailable, sir.' }; const m = _mgSection(inv.section); const it = ((m && m[inv.month]) || []).find(x => x.id === inv.id); if (!it) return { ok: false, msg: "I couldn't find that monthly goal anymore, sir." }; it.done = inv.prevValue; saveState(); if (typeof renderQObjForTab === 'function') renderQObjForTab(inv.section); return { ok: true, msg: `Reverted the monthly goal '${it.text}', sir.` }; }
             case 'task': { if (!window.Proyectos) return { ok: false, msg: 'Projects unavailable, sir.' }; const node = window.Proyectos.findById(inv.tab, inv.id); if (!node) return { ok: false, msg: "I couldn't find that task anymore, sir." }; node.done = inv.prevValue; window.Proyectos.save(inv.tab); return { ok: true, msg: `Reverted the task '${node.label}', sir.` }; }
             case 'habit_day': { const habit = (typeof _getHabits === 'function' ? _getHabits(inv.section) : []).find(h => h.id === inv.habitId); if (!habit) return { ok: false, msg: "I couldn't find that habit anymore, sir." }; habit.days = habit.days || {}; if (inv.prevValue == null) delete habit.days[inv.date]; else habit.days[inv.date] = inv.prevValue; saveState(); if (typeof renderHabitCal === 'function') renderHabitCal(inv.section); if (typeof renderHabitsCard === 'function') renderHabitsCard(inv.section); return { ok: true, msg: `Reverted the habit '${habit.name}', sir.` }; }
@@ -622,10 +622,10 @@
           if (!p) return { ok: false, msg: 'No quarter set up yet, sir.' };
           const f = _find(p.objectives, a.search, 'text');
           if (!f) return { ok: false, msg: "I couldn't find that quarterly objective, sir." };
-          const prevValue = !!f.item.done;
+          const prevValue = !!f.item.done, prevDoneAt = f.item.doneAt || null;
           if (typeof toggleQObj === 'function') toggleQObj(p.id, f.item.id);
           else { f.item.done = !f.item.done; saveState(); if (typeof renderQuarterlyObjectives === 'function') renderQuarterlyObjectives(); }
-          _logAudit(a, action, `Cambió objetivo trimestral: ${f.item.text} → ${f.item.done ? 'hecho' : 'pendiente'}`, { type: 'toggle_back', kind: 'quarterly', periodId: p.id, id: f.item.id, prevValue });
+          _logAudit(a, action, `Cambió objetivo trimestral: ${f.item.text} → ${f.item.done ? 'hecho' : 'pendiente'}`, { type: 'toggle_back', kind: 'quarterly', periodId: p.id, id: f.item.id, prevValue, prevDoneAt });
           return { ok: true, done: f.item.done };
         }
         case 'add_quarterly': {

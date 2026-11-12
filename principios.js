@@ -42,6 +42,8 @@ function prSembrarCategorias() {
   return out;
 }
 
+function _prHoyLocal() { const d = new Date(), q = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + q(d.getMonth() + 1) + '-' + q(d.getDate()); }
+
 function prKeyTrimestral(periodId, objId) { return 'q:' + periodId + ':' + objId; }
 
 // Une los objetivos propios con los trimestrales existentes (solo lectura de estos) en una lista homogénea.
@@ -50,7 +52,7 @@ function prVistaObjetivos(data, qo, catASeccion) {
   const out = [];
   (data.objetivos || []).forEach(o => out.push({
     key: o.id, origen: 'propio', texto: o.texto, horizonte: o.horizonte, seccion: o.seccion || '', categoriaId: o.categoriaId || '',
-    estado: o.estado || 'pendiente', fecha: o.fecha || '', padreKey: o.padreKey || '',
+    estado: o.estado || 'pendiente', fecha: o.fecha || '', padreKey: o.padreKey || '', cumplidoEl: o.cumplidoEl || '',
     principiosIds: (o.principiosIds || []).slice(), habitosIds: (o.habitosIds || []).slice(), periodo: '',
   }));
   const ex = data.extras || {};
@@ -59,7 +61,7 @@ function prVistaObjetivos(data, qo, catASeccion) {
     const secDef = (catASeccion && catASeccion[o.category]) || '';
     out.push({
       key, origen: 'trimestral', texto: o.text, horizonte: 'trimestral', seccion: e.seccion != null ? e.seccion : secDef,
-      categoriaId: e.categoriaId || '', estado: o.done ? 'cumplido' : 'pendiente', fecha: '', padreKey: e.padreKey || '',
+      categoriaId: e.categoriaId || '', estado: o.done ? 'cumplido' : 'pendiente', fecha: '', padreKey: e.padreKey || '', cumplidoEl: o.doneAt || '', periodoId: p.id,
       principiosIds: (e.principiosIds || []).slice(), habitosIds: (e.habitosIds || []).slice(), periodo: p.label || p.id,
     });
   }));
@@ -482,6 +484,7 @@ const Principios = {
       if (!o.texto.trim()) { _prToast('Escribí el objetivo'); return; }
       const reg = { id: o.key || _prUid(), texto: o.texto.trim(), horizonte: o.horizonte, seccion: o.seccion, categoriaId: o.categoriaId, estado: o.estado, fecha: o.fecha, padreKey: o.padreKey, principiosIds: o.principiosIds, habitosIds: o.habitosIds };
       const i = d.objetivos.findIndex(x => x.id === reg.id);
+      if (reg.estado === 'cumplido') { const prev = i >= 0 ? d.objetivos[i] : null; if (prev && prev.estado === 'cumplido') { if (prev.cumplidoEl) reg.cumplidoEl = prev.cumplidoEl; } else reg.cumplidoEl = _prHoyLocal(); }
       if (i >= 0) d.objetivos[i] = reg; else d.objetivos.push(reg);
     } else {
       d.extras[o.key] = { seccion: o.seccion, categoriaId: o.categoriaId, padreKey: o.padreKey, principiosIds: o.principiosIds, habitosIds: o.habitosIds };
