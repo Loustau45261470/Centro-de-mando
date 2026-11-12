@@ -14,7 +14,9 @@ guarda todo el estado de `/cartera` (ver abajo).
 
 ## Rutas
 
-- `POST /schedule/:id` y `POST /cancel/:id` — requieren `Authorization: Bearer <WORKER_SECRET>`.
+- `POST /schedule/:id` y `POST /cancel/:id` — aceptan **cualquiera** de dos credenciales en `Authorization: Bearer ...`:
+  (a) ID token de Firebase Auth del dueño (`uid === OWNER_UID`, mismo gate `autorizarDueno` que `/cartera`; 401 sin token/inválido, 403 si el uid no es el del dueño);
+  (b) `WORKER_SECRET` — **LEGADO**, solo para dispositivos con la app vieja en caché; se elimina en el paso 3 de la migración (secreto expuesto en el repo público).
 - `GET /cartera` — requiere `Authorization: Bearer <ID token de Firebase Auth>` (ver abajo). **No** usa `WORKER_SECRET`.
 - `GET /datos/<archivo>.json` — mismo gate que `/cartera`; archivos privados de la cartera (ver abajo).
 - `GET /rendimiento/operaciones`, `/rendimiento/cierres`, `/rendimiento/mercado` — mismo gate que `/cartera`; datos de la pestaña "Rendimiento" (ver abajo).

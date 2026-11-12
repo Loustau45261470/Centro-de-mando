@@ -5,8 +5,8 @@
 // timestamp exacto de fin — no hay polling ni cron de por medio.
 //
 // Rutas:
-//   POST /schedule/:id  { delaySeconds, subscription, title, body, tag }  — Bearer <WORKER_SECRET>
-//   POST /cancel/:id                                                      — Bearer <WORKER_SECRET>
+//   POST /schedule/:id  { delaySeconds, subscription, title, body, tag }  — Bearer <ID token del dueño> (o WORKER_SECRET legado)
+//   POST /cancel/:id                                                      — Bearer <ID token del dueño> (o WORKER_SECRET legado)
 //   GET  /cartera  — cartera IOL en vivo — Bearer <ID token de Firebase Auth>, ver más abajo
 //                    (el estado — caché, token de IOL, frenos — vive en el Durable Object CarteraGate)
 //   GET  /datos/<archivo>.json — archivos privados de la cartera (repo privado de GitHub) — Bearer <ID token de Firebase Auth>
@@ -1169,9 +1169,12 @@ export default {
 
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS_HEADERS });
 
+    // Gate dual: (a) ID token de Firebase del dueño, o (b) Bearer WORKER_SECRET (LEGADO, se elimina en el paso 3).
     const auth = request.headers.get('Authorization');
-    if (auth !== `Bearer ${env.WORKER_SECRET}`) {
-      return withCors(new Response('unauthorized', { status: 401 }));
+    const legacyOk = !!env.WORKER_SECRET && auth === `Bearer ${env.WORKER_SECRET}`;
+    if (!legacyOk) {
+      const denegado = await autorizarDueno(request, env);
+      if (denegado) return withCors(denegado);
     }
     const m = url.pathname.match(/^\/(schedule|cancel)\/([a-zA-Z0-9_-]+)$/);
     if (!m || request.method !== 'POST') return withCors(new Response('not found', { status: 404 }));
