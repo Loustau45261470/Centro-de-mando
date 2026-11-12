@@ -71,6 +71,7 @@ const LISTAS = [
     },
     fila: '#dayPlannerList .pcal-row', casilla: '.pcal-check input', texto: '.pcal-text',
     estado: () => getDayPlan(getActiveDate()).tasks[0].done, click: true,
+    maxCasilla: 24, // pedido 2026-11-12: en la planificación del día la casilla va más grande (y la ✕ de borrar, a la izquierda)
   },
   {
     id: 'planner-bloque', tab: 'vida',
@@ -234,8 +235,13 @@ for (const L of LISTAS) {
     const bc = await casilla.boundingBox();
     const bt = await texto.boundingBox();
     expect(bc, 'la casilla tiene caja').toBeTruthy();
-    expect(bc.width, 'ancho de la casilla').toBeLessThanOrEqual(18);
-    expect(bc.height, 'alto de la casilla').toBeLessThanOrEqual(18);
+    expect(bc.width, 'ancho de la casilla').toBeLessThanOrEqual(L.maxCasilla || 18);
+    expect(bc.height, 'alto de la casilla').toBeLessThanOrEqual(L.maxCasilla || 18);
+    if (L.maxCasilla) {
+      // La ✕ de borrar queda lejos de la casilla: a la izquierda del horario.
+      const bd = await fila.locator('.pcal-del').first().boundingBox();
+      expect(bd.x + bd.width, 'la ✕ queda antes del texto').toBeLessThanOrEqual(bt.x);
+    }
     expect(bc.x, 'la casilla queda a la derecha del texto').toBeGreaterThan(bt.x);
     expect(bc.x + bc.width, 'la casilla queda al final de la fila').toBeGreaterThanOrEqual(bf.x + bf.width - 70);
     expect(await texto.evaluate((el) => getComputedStyle(el).textAlign), 'el texto queda alineado a la izquierda').toMatch(/^(left|start)$/);
