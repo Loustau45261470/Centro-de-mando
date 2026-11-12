@@ -189,13 +189,14 @@ function _prCatNombre(id) { const c = _prData().categorias.find(x => x.id === id
 function prRender() {
   const root = _prRoot(); if (!root) return;
   const d = _prData();
-  const subs = [['principios', 'Principios'], ['objetivos', 'Objetivos'], ['categorias', 'Categorías'], ['huecos', 'Huecos']];
+  const subs = [['principios', 'Principios'], ['objetivos', 'Objetivos'], ['categorias', 'Categorías'], ['huecos', 'Huecos'], ['foco', 'Foco']];
   const hu = prHuecos(_prVista(), d.principios, S.habitTrackers);
   const nHuecos = hu.objetivosSinPrincipio.length + hu.principiosSinVinculo.length;
   let h = '<div class="pr-subs">' + subs.map(s => '<button type="button" class="pr-sub' + (_prV.sub === s[0] ? ' on' : '') + '" onclick="Principios.sub(\'' + s[0] + '\')">' + s[1] + (s[0] === 'huecos' && nHuecos ? ' <b>' + nHuecos + '</b>' : '') + '</button>').join('') + '</div>';
   if (_prV.sub === 'principios') h += _prVistaPrincipios(d);
   else if (_prV.sub === 'objetivos') h += _prVistaObjetivos(d);
   else if (_prV.sub === 'categorias') h += _prVistaCategorias(d);
+  else if (_prV.sub === 'foco') h += (window.Foco ? window.Foco.html() : '');
   else h += _prVistaHuecos(d, hu);
   root.innerHTML = h;
 }

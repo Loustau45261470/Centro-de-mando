@@ -41,6 +41,12 @@ Se construye por etapas, en este orden: **A (base) → B (reportes) → C (recor
 - [ ] **KPIs de Salud** (confirmados): solo hábitos en esta versión.
 - [ ] **KPIs de Vida:** calendarios de hábitos (estilo definido arriba) y objetivos por categoría.
 
+### Must-Have — Importar principios desde Libros (pedido por Tobías, 2026-11-12)
+- [ ] Desde la pestaña Principios, botón "Importar desde Libros": lista los libros del overlay de Libros (`libros.js`, `S.libros.items`) y, al elegir uno, muestra sus notas (ideas, filosofía/lecciones, resumen), frases y "para aplicar".
+- [ ] Tobías **marca cuáles** convertir en principio; nada se importa solo. Cada elemento marcado crea un principio en borrador editable con: enunciado = texto de la nota/frase, fuente = "Título — Autor", sección sugerida a partir de la categoría del libro (editable).
+- [ ] No se duplica: un elemento ya importado aparece marcado "ya importado" (se guarda el origen `libroId + tipo + id` en el principio) y no se vuelve a crear.
+- [ ] Los libros y sus notas no se modifican ni se borran por importar.
+
 ### Must-Have — Seguimiento de Foco (tiempo, atención, energía)
 Se construye **en este orden, uno por vez**; Tobías decide cuándo pasar al siguiente. Mientras no estén, atención y energía los carga Tobías a mano en el reporte.
 - [ ] **1. Cierre nocturno (Etapa B):** pantalla de ~60 segundos al final del día con atención del día (1 a 5), energía del día (1 a 5) y una línea de texto "¿dónde se me fue el tiempo?". Un registro por día, editable ese día.
@@ -91,7 +97,9 @@ Se construye **en este orden, uno por vez**; Tobías decide cuándo pasar al sig
 - Casillas siempre chicas y a la derecha, nunca a la izquierda (convención del Centro).
 - Métricas honestas: un número que no se puede atribuir al período no se muestra; lo estacional no se compara mes a mes sin avisar; sin vocabulario interno en pantalla.
 - IA externa: Gemini gratuito por defecto, con interruptor a API paga. La clave de la API no se guarda en el repo público (rama `main` es pública).
-- Antes de construir B, verificar si ya existe un reporte semanal en el Centro y **reutilizarlo** en vez de duplicarlo.
+- Reporte semanal existente (verificado): `revision-semanal.js` es un ritual de 4 pasos por semana ISO (lunes-domingo, `S.revisionSemanal[weekKey]`) cuyo paso "números de la semana" está **vacío** a la espera de los informes nuevos. La Etapa B lo **reutiliza**: el reporte semanal alimenta ese paso y se comparte la clave de semana; no se crea un segundo ritual semanal.
+- Avisos push (verificado): el cron corre en GitHub Actions cada 5 minutos (puede atrasarse), así que los avisos no salen al minuto exacto. Un tipo nuevo de aviso se agrega como un `kind` nuevo en `deadlines.js` (`collect()`), sin tocar `push-reminders.js`. El payload no tiene botones ni URL, y `notificationclick` en `sw.js` hoy ignora `data.url`: hay que hacerlo abrir la pestaña/sub-pestaña concreta (deep-link) para que tocar el aviso lleve al chequeo o al principio.
+- IA (verificado): no hay proxy ni clave en el repo. El consejero usa el mismo mecanismo que JARVIS: clave de Gemini guardada en el navegador de Tobías (`localStorage`, `jarvis_gemini_key`), llamada directa desde el cliente; se carga una vez por dispositivo. Sin Worker nuevo.
 
 ## Edge Cases
 - **Período anterior sin datos o con 0:** el porcentaje no se calcula; se muestra solo el número absoluto, sin "+∞%".
@@ -156,4 +164,3 @@ Se construye **en este orden, uno por vez**; Tobías decide cuándo pasar al sig
 - **Contenido a cargar:** principios (textos, fotos, archivos, autores) y objetivos de largo plazo, pendientes de entrega por Tobías; no bloquean el inicio de la Etapa A.
 - **Profundidad por período:** qué secciones se muestran en el reporte semanal frente al anual (se asume el mismo molde; a confirmar).
 - **Lista final de principios por horario** y sus horas exactas.
-- **Reporte semanal existente:** verificar en el código si ya hay uno antes de construir la Etapa B.
