@@ -11,6 +11,8 @@
 //     objetivos: [{ id, texto, horizonte, seccion, categoriaId, estado, fecha, padreKey, principiosIds, habitosIds }],
 //     extras:    { 'q:<periodo>:<idObjetivo>': { seccion, categoriaId, padreKey, principiosIds, habitosIds } }
 //   }
+// `origen` (opcional, solo en principios importados desde Libros): { libroId, tipo:'nota'|'frase'|'aplicar', itemId } — evita reimportar
+// el mismo elemento. S.libros solo se lee, nunca se escribe.
 // Objetivos trimestrales: NO se duplican. Siguen viviendo en S.quarterlyObjectives (objetivos.js); acá solo se guarda en
 // `extras` lo que ese modelo no tiene (sección, categoría, vínculos), con la clave 'q:<periodo>:<id>'.
 // Hábitos: tampoco se copian; se referencian por 'seccion|idHabito' (S.habitTrackers, habitos.js).
@@ -142,6 +144,48 @@ function prFiltrarPrincipios(lista, q, seccion, tipo) {
     && (!t || [p.enunciado, p.porque, p.haz, p.noHagas, p.fuente].some(s => String(s || '').toLowerCase().includes(t))));
 }
 
+// ── Importar desde Libros (solo lectura de S.libros; ver `origen` en el modelo de arriba) ──
+const PR_LIBRO_CAT_A_SECCION = { finanzas: 'Economía', negocios: 'Economía', fe: 'Vida', filosofia: 'Vida', deporte: 'Salud' };
+function prSeccionDeLibro(cat) { return PR_LIBRO_CAT_A_SECCION[prSlug(cat || '')] || 'Conocimiento'; }
+
+function prRecortarEnunciado(s, max) {   // recorta en límite de palabra con "…"; devuelve {texto, recortado}
+  max = max || 200; s = String(s || '').trim();
+  if (s.length <= max) return { texto: s, recortado: false };
+  let c = s.slice(0, max); const sp = c.lastIndexOf(' ');
+  if (sp > max * 0.5) c = c.slice(0, sp);
+  return { texto: c.replace(/[\s.,;:\-–—]+$/, '') + '…', recortado: true };
+}
+
+// Arma el principio (sin id) a partir de un elemento de un libro. tipo: 'nota'|'frase'|'aplicar'.
+function prPrincipioDeLibro(libro, tipo, item) {
+  libro = libro || {}; item = item || {};
+  const titulo = tipo === 'nota' ? String(item.titulo || '').trim() : '';
+  const limpio = x => x.replace(/\*\*|`/g, '').replace(/^\s*(#{1,3}|[-*]|\d+\.|\[x?\]|>{1,2})\s+/gm, '');
+  const texto = limpio(String(item.texto || '')).trim();
+  const base = titulo || texto.split('\n').map(x => x.trim()).find(Boolean) || '', r = prRecortarEnunciado(base, 200);
+  const porque = (titulo || r.recortado || texto !== r.texto) ? texto : '';
+  const fuente = [libro.titulo, libro.autor].map(x => String(x || '').trim()).filter(Boolean).join(' — ');
+  return { tipo: 'principio', enunciado: r.texto, porque, seccion: prSeccionDeLibro(libro.cat), haz: '', noHagas: '', fuente, habitosIds: [],
+    origen: { libroId: libro.id, tipo, itemId: item.id } };
+}
+
+// Lista por libro: [{libroId, titulo, autor, items:[{tipo, itemId, grupo, titulo, texto, yaImportado}], total, pendientes}]
+function prImportCandidatos(libros, principios) {
+  const usados = new Set((Array.isArray(principios) ? principios : []).filter(p => p && p.origen).map(p => p.origen.libroId + '|' + p.origen.tipo + '|' + p.origen.itemId));
+  const arr = x => Array.isArray(x) ? x : [];
+  return arr(libros).filter(l => l && l.id != null).map(l => {
+    const items = [];
+    const push = (tipo, grupo, it) => {
+      if (!it || it.id == null || !(String(it.texto || '').trim() || String(it.titulo || '').trim())) return;
+      items.push({ tipo, itemId: it.id, grupo, titulo: String(it.titulo || '').trim(), texto: String(it.texto || '').trim(), yaImportado: usados.has(l.id + '|' + tipo + '|' + it.id) });
+    };
+    ['ideas', 'filo', 'resumen'].forEach(g => arr(l.notas).filter(n => n && n.cat === g).forEach(n => push('nota', g, n)));
+    arr(l.frases).forEach(f => push('frase', 'frases', f));
+    arr(l.aplicar).forEach(a => push('aplicar', 'aplicar', a));
+    return { libroId: l.id, titulo: l.titulo || 'Sin título', autor: l.autor || '', items, total: items.length, pendientes: items.filter(i => !i.yaImportado).length };
+  });
+}
+
 // ── Datos ──────────────────────────────────────────────────────────────────
 function _prData() {
   if (typeof S === 'undefined') return { principios: [], categorias: [], objetivos: [], extras: {}, sembrado: true };
@@ -172,7 +216,7 @@ function _prHabLabel(ref) { const h = _prHabitos().find(x => x.ref === ref); ret
 
 // ── UI ─────────────────────────────────────────────────────────────────────
 const _prEsc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-let _prV = { sub: 'principios', q: '', fSec: '', fTipo: '', fHor: '', edit: null, delCat: null, renCat: null };
+let _prV = { sub: 'principios', q: '', fSec: '', fTipo: '', fHor: '', imp: null, edit: null, delCat: null, renCat: null };
 let _prDraft = null;   // borrador del formulario abierto
 
 function _prRoot() { return document.getElementById('principios-root'); }
@@ -204,13 +248,15 @@ function prRender() {
 // ── Principios ─────────────────────────────────────────────────────────────
 function _prVistaPrincipios(d) {
   if (_prV.edit && _prV.edit.kind === 'principio') return _prFormPrincipio(d);
+  if (_prV.imp) return _prVistaImportar(d);
   const lista = prFiltrarPrincipios(d.principios, _prV.q, _prV.fSec, _prV.fTipo);
   const secOpts = [['', 'Todas las secciones']].concat(PR_SECCIONES.map(s => [s, s]));
   const tipoOpts = [['', 'Principios y a evitar'], ['principio', 'Solo principios'], ['anti', 'Solo a evitar']];
   let h = '<div class="pr-bar"><input id="pr-q" class="pr-in" type="search" placeholder="Buscar…" value="' + _prEsc(_prV.q) + '" oninput="Principios.buscar(this.value,this.selectionStart)">'
     + _prSelect('pr-fsec', secOpts, _prV.fSec, 'onchange="Principios.filtro(\'fSec\',this.value)"')
     + _prSelect('pr-ftipo', tipoOpts, _prV.fTipo, 'onchange="Principios.filtro(\'fTipo\',this.value)"')
-    + '<button type="button" class="pr-btn pr-btn-p" onclick="Principios.nuevoPrincipio()">+ Principio</button></div>';
+    + '<button type="button" class="pr-btn pr-btn-p" onclick="Principios.nuevoPrincipio()">+ Principio</button>'
+    + '<button type="button" class="pr-btn" onclick="Principios.abrirImportar()">Importar desde Libros</button></div>';
   if (!d.principios.length) return h + '<div class="pr-vacio">Todavía no hay principios. Creá el primero con el botón de arriba.</div>';
   if (!lista.length) return h + '<div class="pr-vacio">Ningún principio coincide con el filtro.</div>';
   const vista = _prVista();
@@ -244,6 +290,33 @@ function _prFormPrincipio(d) {
     + '<label class="pr-l">Fuente (autor, libro, "propio")</label><input id="prf-fuente" class="pr-in" value="' + _prEsc(p.fuente) + '">'
     + '<label class="pr-l">Hábitos que lo practican</label>' + _prChecks('hab', habs, p.habitosIds)
     + '<div class="pr-form-f"><button type="button" class="pr-btn" onclick="Principios.cancelar()">Cancelar</button><button type="button" class="pr-btn pr-btn-p" onclick="Principios.guardarPrincipio()">Guardar</button></div></div>';
+}
+
+// ── Importar desde Libros ──────────────────────────────────────────────────
+const _PR_GRUPOS = { ideas: 'Ideas prácticas', filo: 'Filosofía y lecciones', resumen: 'Resumen y opinión', frases: 'Frases', aplicar: 'Para aplicar' };
+function _prLibros() { return (typeof S !== 'undefined' && S.libros && Array.isArray(S.libros.items)) ? S.libros.items : []; }
+function _prVistaImportar(d) {
+  const cands = prImportCandidatos(_prLibros(), d.principios);
+  const volver = '<button type="button" class="pr-btn" onclick="Principios.cerrarImportar()">' + (_prV.imp.libroId == null ? 'Volver' : '← Libros') + '</button>';
+  if (_prV.imp.libroId == null) {
+    let h = '<div class="pr-bar"><div class="pr-form-t" style="flex:1;margin:0;align-self:center">Importar desde Libros</div>' + volver + '</div>';
+    if (!cands.length) return h + '<div class="pr-vacio">Todavía no cargaste libros. Agregalos en Conocimiento → Libros y volvé acá.</div>';
+    return h + cands.map(c => '<button type="button" class="pr-card pr-libro" data-libro="' + _prEsc(c.libroId) + '" onclick="Principios.elegirLibro(this.dataset.libro)">'
+      + '<div class="pr-enun">' + _prEsc(c.titulo) + (c.autor ? ' — ' + _prEsc(c.autor) : '') + '</div>'
+      + '<div class="pr-meta">' + (c.total ? c.total + ' elemento' + (c.total === 1 ? '' : 's') + ' para importar' + (c.total - c.pendientes ? ' · ' + (c.total - c.pendientes) + ' ya importado(s)' : '') : 'Sin notas, frases ni cosas para aplicar') + '</div></button>').join('');
+  }
+  const c = cands.find(x => String(x.libroId) === String(_prV.imp.libroId));
+  if (!c) return '<div class="pr-bar">' + volver + '</div><div class="pr-vacio">No encontramos ese libro.</div>';
+  let h = '<div class="pr-bar"><div class="pr-form-t" style="flex:1;margin:0;align-self:center">' + _prEsc(c.titulo) + (c.autor ? ' — ' + _prEsc(c.autor) : '') + '</div>' + volver + '</div>';
+  if (!c.total) return h + '<div class="pr-vacio">Este libro todavía no tiene notas, frases ni cosas para aplicar.</div>';
+  Object.keys(_PR_GRUPOS).forEach(g => {
+    const its = c.items.filter(i => i.grupo === g); if (!its.length) return;
+    h += '<div class="pr-l">' + _PR_GRUPOS[g] + '</div><div class="pr-checks">' + its.map(i => {
+      const txt = i.titulo ? '<b>' + _prEsc(i.titulo) + '</b>' + (i.texto ? '<br>' + _prEsc(i.texto.length > 160 ? i.texto.slice(0, 160) + '…' : i.texto) : '') : _prEsc(i.texto.length > 200 ? i.texto.slice(0, 200) + '…' : i.texto);
+      return '<label class="pr-chk"><span>' + txt + (i.yaImportado ? ' <em class="pr-ya">ya importado</em>' : '') + '</span><input type="checkbox" data-pr="imp" value="' + _prEsc(i.tipo + '|' + i.itemId) + '"' + (i.yaImportado ? ' disabled' : '') + '></label>';
+    }).join('') + '</div>';
+  });
+  return h + '<div class="pr-form-f"><button type="button" class="pr-btn pr-btn-p" onclick="Principios.importarMarcados()">Importar seleccionados</button></div>';
 }
 
 // ── Objetivos ──────────────────────────────────────────────────────────────
@@ -345,9 +418,27 @@ function _prLeerBorradorObjetivo() {   // conserva lo tipeado al cambiar horizon
 
 const Principios = {
   render: prRender,
-  sub(s) { _prV.sub = s; _prV.edit = null; _prV.delCat = null; _prV.renCat = null; prRender(); },
+  sub(s) { _prV.sub = s; _prV.imp = null; _prV.edit = null; _prV.delCat = null; _prV.renCat = null; prRender(); },
   filtro(k, v) { _prV[k] = v; prRender(); },
   buscar(v, pos) { _prV.q = v; prRender(); const e = document.getElementById('pr-q'); if (e) { const p = pos == null ? v.length : pos; e.focus(); e.setSelectionRange(p, p); } },
+  abrirImportar() { _prV.imp = { libroId: null }; prRender(); },
+  elegirLibro(id) { _prV.imp = { libroId: id }; prRender(); },
+  cerrarImportar() { if (_prV.imp && _prV.imp.libroId != null) _prV.imp.libroId = null; else _prV.imp = null; prRender(); },
+  importarMarcados() {
+    const d = _prData(), libro = _prLibros().find(l => String(l.id) === String(_prV.imp.libroId));
+    const marcados = _prVals('imp'); if (!libro) return;
+    if (!marcados.length) { _prToast('Marcá al menos uno'); return; }
+    const cand = prImportCandidatos([libro], d.principios)[0]; let n = 0;
+    marcados.forEach(v => {
+      const i = cand.items.find(x => x.tipo + '|' + x.itemId === v);
+      if (!i || i.yaImportado) return;
+      const src = i.tipo === 'nota' ? libro.notas : i.tipo === 'frase' ? libro.frases : libro.aplicar;
+      const it = (src || []).find(x => x && String(x.id) === String(i.itemId)); if (!it) return;
+      const p = prPrincipioDeLibro(libro, i.tipo, it); p.id = _prUid(); d.principios.push(p); n++;
+    });
+    if (n) _prSave();
+    _prV.imp = null; prRender(); _prToast(n ? n + ' principio' + (n === 1 ? '' : 's') + ' importado' + (n === 1 ? '' : 's') + '. Podés editarlos.' : 'Nada para importar');
+  },
   cancelar() { _prV.edit = null; _prV.delCat = null; _prV.renCat = null; _prDraft = null; prRender(); },
 
   nuevoPrincipio() { _prDraft = { tipo: 'principio', enunciado: '', porque: '', seccion: _prV.fSec || 'Vida', haz: '', noHagas: '', fuente: '', habitosIds: [] }; _prV.edit = { kind: 'principio', id: null }; prRender(); },
@@ -363,6 +454,7 @@ const Principios = {
       id: _prV.edit.id || _prUid(), tipo: _prVal('prf-tipo') === 'anti' ? 'anti' : 'principio', enunciado: enun, porque: _prVal('prf-porque').trim(),
       seccion: _prVal('prf-sec'), haz: _prVal('prf-haz').trim(), noHagas: _prVal('prf-nohagas').trim(), fuente: _prVal('prf-fuente').trim(), habitosIds: _prVals('hab'),
     };
+    if (p && p.origen) nuevo.origen = p.origen;
     const i = d.principios.findIndex(x => x.id === nuevo.id);
     if (i >= 0) d.principios[i] = nuevo; else d.principios.push(nuevo);
     _prV.edit = null; _prDraft = null; _prSave(); prRender(); _prToast('Guardado');
@@ -435,5 +527,5 @@ if (typeof window !== 'undefined') window.Principios = Principios;
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { prSembrarCategorias, prVistaObjetivos, prContarHijos, prCadena, prHuecos, prVinculosDePrincipio, prContarObjetivosDeCategoria,
-    prEliminarCategoria, prEliminarPrincipio, prEliminarObjetivo, prFiltrarPrincipios, prKeyTrimestral };
+    prEliminarCategoria, prEliminarPrincipio, prEliminarObjetivo, prFiltrarPrincipios, prKeyTrimestral, prImportCandidatos, prPrincipioDeLibro, prSeccionDeLibro, prRecortarEnunciado };
 }

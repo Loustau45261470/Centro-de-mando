@@ -6842,7 +6842,9 @@ input:focus, select:focus, textarea:focus {
 /* ── Pestaña Principios (principios.js) ── */
 .nav-btn[data-tab="principios"].active, .nav-btn[data-tab="principios"].active svg { color: var(--indigo); stroke: var(--indigo); }
 #principios-root { padding-bottom: 12px; }
-.pr-subs { display: flex; gap: 6px; margin-bottom: 12px; overflow-x: auto; }
+.pr-subs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.pr-libro { display: block; width: 100%; text-align: left; cursor: pointer; color: inherit; font-family: inherit; }
+.pr-ya { color: var(--ok); font-style: normal; font-size: var(--fs-12); }
 .pr-sub { flex: 1 0 auto; padding: 10px 12px; min-height: 44px; border-radius: 10px; border: 1px solid var(--border); background: none; color: var(--ts); font: 600 var(--fs-13) var(--sans); cursor: pointer; }
 .pr-sub.on { color: var(--hud-bright); border-color: var(--hud-dim); background: var(--hud-glow); }
 .pr-sub b { margin-left: 4px; color: var(--warn); }
@@ -6864,7 +6866,7 @@ textarea.pr-in { resize: vertical; min-height: 60px; }
 .pr-est-cumplido .pr-chip-e { color: var(--ok); border-color: var(--ok); }
 .pr-est-no_cumplido .pr-chip-e { color: var(--danger); border-color: var(--danger); }
 .pr-enun { font: 600 var(--fs-15) var(--sans); color: var(--tp); margin-bottom: 6px; overflow-wrap: anywhere; }
-.pr-txt { font-size: var(--fs-13-5); color: var(--ts); margin-bottom: 4px; overflow-wrap: anywhere; }
+.pr-txt { font-size: var(--fs-13-5); color: var(--ts); margin-bottom: 4px; overflow-wrap: anywhere; white-space: pre-line; }
 .pr-haz b { color: var(--ok); } .pr-nohagas b { color: var(--danger); }
 .pr-fuente, .pr-meta, .pr-cadena, .pr-nota, .pr-vacio { font-size: var(--fs-12-5); color: var(--tt); }
 .pr-cadena { margin-bottom: 4px; overflow-wrap: anywhere; }
@@ -6878,6 +6880,7 @@ textarea.pr-in { resize: vertical; min-height: 60px; }
 .pr-chk { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; min-height: 44px; color: var(--ts); font-size: var(--fs-13-5); border-bottom: 1px solid var(--border); }
 .pr-chk:last-child { border-bottom: none; }
 .pr-chk input { width: 18px; height: 18px; flex: none; }
+.pr-chk span { min-width: 0; overflow-wrap: anywhere; }
 .pr-cat { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 0; border-top: 1px solid var(--border); color: var(--tp); font-size: var(--fs-14); overflow-wrap: anywhere; }
 .pr-cat .pr-in { flex: 1 1 140px; }
 .pr-cat-del { flex-direction: column; align-items: stretch; }
