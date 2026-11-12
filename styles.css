@@ -6811,10 +6811,14 @@ input:focus, select:focus, textarea:focus {
 .goal-rep:hover { color: var(--tp); background: rgba(255,255,255,.06); opacity: 1; }
 .goal-rep.on { color: var(--accent); opacity: 1; }
 
-/* Cartera: frase de cabecera (Munger) */
-.cov-quote { margin: 4px 0 14px; padding: 8px 12px; border-left: 2px solid var(--cm-accent, #22C55E); }
-.cov-quote blockquote { margin: 0; font-style: italic; font-size: var(--fs-13); line-height: 1.45; color: var(--ts); }
-.cov-quote figcaption { margin-top: 4px; font-size: var(--fs-12-5); color: var(--tt); }
+/* Cartera: frases rotativas de cabecera. Todas apilan en la misma celda del grid: la altura es la de la más larga y no salta al cambiar. */
+.cov-quote { display: grid; margin: 4px 0 14px; padding: 8px 12px; border-left: 2px solid var(--cm-accent, #22C55E); cursor: pointer; }
+.cov-quote:focus-visible { outline: 2px solid var(--cm-accent, #22C55E); outline-offset: 2px; }
+.cov-q { grid-area: 1 / 1; margin: 0; opacity: 0; visibility: hidden; transition: opacity .6s ease, visibility 0s linear .6s; }
+.cov-q.on { opacity: 1; visibility: visible; transition: opacity .6s ease, visibility 0s; }
+.cov-q blockquote { margin: 0; font-style: italic; font-size: var(--fs-13); line-height: 1.45; color: var(--ts); }
+.cov-q figcaption { margin-top: 4px; font-size: var(--fs-12-5); color: var(--tt); }
+@media (prefers-reduced-motion: reduce) { .cov-q, .cov-q.on { transition: none; } }
 
 /* ── Pendientes: tareas no hechas de días anteriores (app.js · renderPendientes). Botones rectangulares, chicos y a la derecha ── */
 .pend-block[hidden] { display: none; }

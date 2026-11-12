@@ -15,14 +15,60 @@ const CarteraOverlay = (() => {
   let _rendimientoCargado = false;
   let _radarCargado = false;
 
+  // Frases de la cabecera. Para agregar una: sumar una línea { t: 'texto', a: 'Autor' } al array (se rotan en este orden).
+  const FRASES = [
+    { t: "If you're not willing to react with equanimity to a market price decline of 50%, you're not fit to be a common shareholder.", a: 'Charlie Munger' },
+    { t: 'I did not succeed in life by intelligence. I succeeded because I have a long attention span.', a: 'Charlie Munger' },
+    { t: "We don't have to be smarter than the rest. We have to be more disciplined than the rest.", a: 'Warren Buffett' },
+  ];
+  const FRASE_MS = 45000; // cuánto se ve cada frase
+  let _fraseIdx = 0, _fraseTimer = null, _fraseBox = null, _fraseCleanup = null;
+  const _esc = x => String(x).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  function _fraseMostrar(i) {
+    if (!_fraseBox) return;
+    _fraseIdx = (i + FRASES.length) % FRASES.length;
+    _fraseBox.querySelectorAll('.cov-q').forEach((f, k) => {
+      const on = k === _fraseIdx;
+      f.classList.toggle('on', on);
+      f.setAttribute('aria-hidden', String(!on));
+    });
+  }
+  function _frasePausa() { clearTimeout(_fraseTimer); _fraseTimer = null; }
+  function _fraseReanuda() {
+    _frasePausa();
+    if (!_fraseBox || document.hidden) return;
+    _fraseTimer = setTimeout(() => { _fraseMostrar(_fraseIdx + 1); _fraseReanuda(); }, FRASE_MS);
+  }
+  function _fraseDetener() {
+    _frasePausa();
+    if (_fraseCleanup) { _fraseCleanup(); _fraseCleanup = null; }
+    _fraseBox = null;
+  }
+  function _fraseIniciar(box) {
+    _fraseDetener();
+    _fraseBox = box;
+    _fraseMostrar(Math.floor(Math.random() * FRASES.length));
+    const sig = () => { _fraseMostrar(_fraseIdx + 1); _fraseReanuda(); };
+    const onKey = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); sig(); } };
+    const onVis = () => { if (document.hidden) _frasePausa(); else if (!box.matches(':hover')) _fraseReanuda(); };
+    box.addEventListener('click', sig);
+    box.addEventListener('keydown', onKey);
+    box.addEventListener('mouseenter', _frasePausa);
+    box.addEventListener('mouseleave', _fraseReanuda);
+    document.addEventListener('visibilitychange', onVis);
+    _fraseCleanup = () => document.removeEventListener('visibilitychange', onVis);
+    _fraseReanuda();
+  }
+
   function open() {
     if (typeof CMOverlay === 'undefined') return;
-    const { overlay, body } = CMOverlay.build({ id: 'ov-cartera', accent: '#22C55E' });
+    const { overlay, body } = CMOverlay.build({ id: 'ov-cartera', accent: '#22C55E', onClose: _fraseDetener });
     _rendimientoCargado = false;
     _radarCargado = false;
     body.innerHTML = `
       <div class="cm-ov-head"><div class="cm-ov-eyebrow">FINANZAS · CARTERA</div><div class="cm-ov-title">Cartera</div></div>
-      <figure class="cov-quote"><blockquote>“If you're not willing to react with equanimity to a market price decline of 50%, you're not fit to be a common shareholder.”</blockquote><figcaption>— Charlie Munger</figcaption></figure>
+      <div class="cov-quote" role="button" tabindex="0" aria-label="Siguiente frase" aria-live="polite">${FRASES.map(f => `<figure class="cov-q"><blockquote>“${_esc(f.t)}”</blockquote><figcaption>— ${_esc(f.a)}</figcaption></figure>`).join('')}</div>
       <div class="plov-tabs" data-on="tenencias" role="tablist">
         <button class="plov-tab on" data-t="tenencias" role="tab" aria-selected="true" onclick="CarteraOverlay._tab('tenencias')">Mis tenencias</button>
         <button class="plov-tab" data-t="historial" role="tab" aria-selected="false" onclick="CarteraOverlay._tab('historial')">Historial</button>
@@ -35,6 +81,7 @@ const CarteraOverlay = (() => {
       <div class="plov-pane ci-body" id="cov-pane-rendimiento" role="tabpanel" hidden></div>
       <div class="plov-pane ci-body" id="cov-pane-radar" role="tabpanel" hidden></div>`;
     CMOverlay.open(overlay);
+    _fraseIniciar(body.querySelector('.cov-quote'));
     if (window.Tenencias) Tenencias.renderInto(body.querySelector('#cov-pane-tenencias'));
   }
 
