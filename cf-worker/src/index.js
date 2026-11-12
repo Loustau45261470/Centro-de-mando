@@ -34,6 +34,7 @@ export class TimerAlarm {
 
   async fetch(request) {
     const url = new URL(request.url);
+    console.log('DIAG-DO', url.pathname, Date.now()); // diagnóstico temporal: orden cancel/schedule dentro del DO
     if (request.method === 'POST' && url.pathname === '/schedule') {
       const body = await request.json();
       const { delaySeconds, subscription, title, body: notifBody, tag } = body;
@@ -55,6 +56,7 @@ export class TimerAlarm {
   async alarm() {
     const payload = await this.state.storage.get('payload');
     await this.state.storage.delete('payload');
+    console.log('DIAG-DO alarm', !!payload, Date.now()); // diagnóstico temporal
     if (!payload) return;
     const { subscription, title, notifBody, tag } = payload;
     const vapid = {
