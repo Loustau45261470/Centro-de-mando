@@ -666,6 +666,7 @@ function saveEditQObj() {
 function deleteQObj(periodId, objId) {
   const period = S.quarterlyObjectives.periods.find(p=>p.id===periodId);
   period.objectives = period.objectives.filter(o=>o.id!==objId);
+  if (S.principios && S.principios.extras) delete S.principios.extras['q:'+periodId+':'+objId];
   saveState(); renderQuarterlyObjectives();
 }
 
