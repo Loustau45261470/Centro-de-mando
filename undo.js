@@ -16,7 +16,7 @@
       font-size:var(--fs-13);color:var(--tp);backdrop-filter:blur(20px);opacity:0;transition:all .3s;
       pointer-events:none;z-index:201;max-width:calc(100vw - 32px)}
     #cmundo-toast.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
-    #cmundo-toast .cmundo-msg{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    #cmundo-toast .cmundo-msg{overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-height:1.3}
     #cmundo-toast button{flex-shrink:0;background:transparent;border:1px solid var(--hud);color:var(--hud-bright);
       font-family:var(--mono);font-size:var(--fs-13);font-weight:600;padding:5px 12px;border-radius:8px;cursor:pointer}
     #cmundo-toast button:hover,#cmundo-toast button:focus-visible{background:var(--hud);color:#000;outline:none}

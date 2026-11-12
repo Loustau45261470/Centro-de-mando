@@ -74,6 +74,12 @@ test('2) lo que pasaría de la medianoche sale del plan de hoy y el toast lo inf
   await cmPage.click(`${barra} .pat-chip:has-text("+1 h")`);
   await expect(cmPage.locator(TOAST)).toHaveText('Corriste el día 1 h · 2 actividades quedaron fuera (pasaban la medianoche)');
   await expect(cmPage.locator('#cmundo-toast')).toHaveClass(/show/);
+  // El texto completo se lee (hasta 2 líneas, sin cortar con "…"), también a 390 px.
+  expect(await cmPage.locator(TOAST).evaluate((el) => el.scrollWidth <= el.clientWidth + 1 && el.scrollHeight <= el.clientHeight + 1)).toBe(true);
+  // La fila de cantidad libre: el selector de unidad no ocupa todo el ancho y el campo muestra "otra" entero.
+  const anchos = await cmPage.evaluate((b) => { const u = document.querySelector(b + ' .pat-unit'), n = document.querySelector(b + ' .pat-num'); return [u.getBoundingClientRect().width, n.getBoundingClientRect().width]; }, barra);
+  expect(anchos[0]).toBeLessThan(90);
+  expect(anchos[1]).toBeGreaterThanOrEqual(60);
   // Las 2 que pasaban salieron: la puntual se borró y la recurrente quedó "eliminada solo hoy" (no se movió a mañana).
   expect(await cmPage.evaluate((h) => S.dayPlan[h].tasks.map((t) => t.id), HOY)).toEqual(['p1']);
   expect(await cmPage.evaluate((h) => S.planRecurring[1].exceptions[h], HOY)).toEqual({ deleted: true });

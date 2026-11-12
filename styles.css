@@ -1117,8 +1117,8 @@ textarea { resize: vertical; min-height: 60px; }
 .pat-go { color: var(--accent); }
 .pat-clear { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 35%, transparent); }
 .pat-clear:hover:not(:disabled) { background: color-mix(in srgb, var(--danger) 14%, transparent); border-color: color-mix(in srgb, var(--danger) 55%, transparent); }
-.pat-num { width: 56px; text-align: center; }
-.pat-unit { padding-right: 4px; }
+.planner-atajos .pat-num { width: 64px; flex: none; text-align: center; padding: 3px 6px; }
+.planner-atajos .pat-unit { width: auto; flex: none; padding-right: 4px; }   /* el select global trae width:100% */
 .planner-atajos :disabled { opacity: .4; cursor: default; }
 
 /* ════════ Planificación — tareas con prioridad/postergabilidad (estética HUD) ════════ */
