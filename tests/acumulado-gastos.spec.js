@@ -40,7 +40,7 @@ test('sin categoría se agrupa y se lista; el selector Mes/Año solo ofrece mese
   await page.evaluate(() => openBudgetOverlay('historial'));
   const filas = await page.evaluate(() => [...document.querySelectorAll('#gaccTable tbody tr td:first-child')].map((c) => c.textContent.trim()));
   expect(filas.filter((f) => f.includes('Sin categoría')).length).toBe(1);
-  await expect(page.locator('#gaccSinCat summary')).toContainText('3 sin categoría');
+  await expect(page.locator('#gaccSinCat summary')).toContainText('Sin categoría');
   // Selector: años = con registro (2024) + actual + hasta +12 meses; meses del año elegido solo si hay registro / ventana
   const info = await page.evaluate(() => {
     const ov = document.getElementById('ov-budget');

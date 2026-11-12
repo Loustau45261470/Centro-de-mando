@@ -398,30 +398,8 @@ test('6) Deuda queda con sus dos ratios sin aclaraciones; Flujo del mes está en
   await expect(cmPage.locator('#dfDebtIncome')).toContainText('promedio de 3 meses cerrados');
   await expect(cmPage.locator('#dfNetDebt')).toContainText('Tu patrimonio equivale a');
 
-  // Flujo del mes: dentro de Movimientos, justo debajo de Ingresos / Gastos / Balance, cerrado por defecto.
-  const flujo = cmPage.locator('#activity-card #txnFlow');
-  await expect(flujo).toHaveCount(1);
-  expect(await cmPage.evaluate(() => document.getElementById('txnSummaryRow').nextElementSibling.id)).toBe('txnFlow');
-  await expect(flujo.locator('summary')).toHaveText('Flujo del mes');
-  expect(await flujo.evaluate((e) => e.open)).toBe(false);
-  await expect(cmPage.locator('#dfFlowTable')).toBeHidden();
-  await flujo.locator('summary').click();
-  expect(await flujo.evaluate((e) => e.open)).toBe(true);
-  await expect(cmPage.locator('#dfFlowTable')).toBeVisible();
-  const celdas = (i) => cmPage.locator('#dfFlowTable tbody tr').nth(i).locator('th, td');
-  await expect(celdas(0)).toHaveText(['Cantidad de registros', '2', '4']);
-  await expect(celdas(1)).toHaveText(['Promedio por día', '$15.000', '$10.000']);
-  await expect(celdas(2)).toHaveText(['Promedio por registro', '$75.000', '$25.000']);
-  await expect(celdas(3)).toHaveText(['Total', '$150.000', '$100.000']);
-  await expect(cmPage.locator('#dfFlowNet')).toHaveText('Flujo de efectivo+$50.000');
-  await expect(flujo).toContainText('Del 1 al 10 de octubre (10 días)');
-  // Plegar de nuevo lo oculta.
-  await flujo.locator('summary').click();
-  await expect(cmPage.locator('#dfFlowTable')).toBeHidden();
-
-  // Sin movimientos en el mes: mensaje claro.
-  await cmPage.evaluate(() => { S.transactions = []; S.cardCharges = []; renderFinanzasTab(); });
-  await expect(cmPage.locator('#dfFlow')).toContainText('Sin movimientos este mes');
+  // Flujo del mes: se sacó de Movimientos (por ahora no vive en ninguna pantalla).
+  await expect(cmPage.locator('#txnFlow')).toHaveCount(0);
   expect(consoleErrors).toEqual([]);
 });
 

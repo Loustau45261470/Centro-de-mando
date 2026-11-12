@@ -3729,9 +3729,21 @@ function _txnMonthPickerHtml(months) {
   const [ay, am] = txnActiveMonth.split('-');
   const years = [...new Set(months.map(m => m.slice(0, 4)))].sort().reverse();
   const inYear = months.filter(m => m.startsWith(ay)).sort();
+  const idx = months.indexOf(txnActiveMonth);   // months viene del más nuevo al más viejo
   const opt = (v, l, on) => `<option value="${v}"${on ? ' selected' : ''}>${l}</option>`;
-  return `<select class="txn-hist-cat-filter txn-pick" aria-label="Mes" onchange="setTxnMonthPart('m',this.value)">${inYear.map(m => opt(m.slice(5), CAL_MONTHS[+m.slice(5) - 1], m.slice(5) === am)).join('')}</select>` +
-    `<select class="txn-hist-cat-filter txn-pick" aria-label="Año" onchange="setTxnMonthPart('y',this.value)">${years.map(y => opt(y, y, y === ay)).join('')}</select>`;
+  const step = (d, label, ch, off) => `<button type="button" class="mp-step" aria-label="${label}" onclick="stepTxnMonth(${d})"${off ? ' disabled' : ''}>${ch}</button>`;
+  return `<div class="mp" role="group" aria-label="Mes de los movimientos">` +
+    step(1, 'Mes anterior', '‹', idx < 0 || idx >= months.length - 1) +
+    `<label class="mp-sel"><select aria-label="Mes" onchange="setTxnMonthPart('m',this.value)">${inYear.map(m => opt(m.slice(5), CAL_MONTHS[+m.slice(5) - 1], m.slice(5) === am)).join('')}</select></label>` +
+    '<span class="mp-sep" aria-hidden="true"></span>' +
+    `<label class="mp-sel"><select aria-label="Año" onchange="setTxnMonthPart('y',this.value)">${years.map(y => opt(y, y, y === ay)).join('')}</select></label>` +
+    step(-1, 'Mes siguiente', '›', idx <= 0) + '</div>';
+}
+// Flechas ‹ ›: saltan al mes anterior/siguiente que tenga registro o esté dentro del año vista.
+function stepTxnMonth(d) {
+  const months = getAvailableMonths();
+  const i = months.indexOf(txnActiveMonth) + d;
+  if (i >= 0 && i < months.length) setTxnMonth(months[i]);
 }
 function setTxnMonthPart(part, v) {
   let [y, m] = txnActiveMonth.split('-');
@@ -4106,8 +4118,10 @@ function renderGastoAcumulado() {
   const sc = document.getElementById('gaccSinCat');
   sinCat.sort((a, b) => b.date.localeCompare(a.date));
   sc.hidden = !sinCat.length;
-  sc.innerHTML = sinCat.length ? `<summary>${sinCat.length} sin categoría — tocá uno para categorizarlo</summary>` +
-    sinCat.map(t => `<button type="button" class="gacc-sc-row" onclick="openEditTxn('${t.id}')"><span>${fmtDate(t.date)}</span><span class="gacc-sc-name">${escHtml(t.name)}</span><span>${fmtMoney(t.amount, 'ARS')}</span></button>`).join('') : '';
+  sc.innerHTML = sinCat.length
+    ? `<summary><span>Sin categoría</span><span class="gacc-sc-count">${sinCat.length}</span></summary><div class="gacc-sc-hint">Tocá un movimiento para asignarle categoría.</div><div class="gacc-sc-list">` +
+      sinCat.map(t => `<button type="button" class="gacc-sc-row" onclick="openEditTxn('${t.id}')"><span class="gacc-sc-date">${fmtDate(t.date)}</span><span class="gacc-sc-name">${escHtml(t.name)}</span><span class="gacc-sc-amt">${fmtMoney(t.amount, 'ARS')}</span></button>`).join('') + '</div>'
+    : '';
 }
 
 function renderMonthBalanceList() {
