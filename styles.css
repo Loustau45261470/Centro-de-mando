@@ -5803,6 +5803,12 @@ input:focus, select:focus, textarea:focus {
 .gacc-table .sel { background: rgba(34,197,94,.12); }
 .gacc-sum td { font-weight: 800; border-bottom: 0; }
 .gacc-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+.gacc-sincat { margin-top: 12px; font-size: var(--fs-12-5, 12.5px); }
+.gacc-sincat summary { cursor: pointer; font-weight: 700; padding: 6px 0; }
+.gacc-sc-row { display: flex; gap: 10px; width: 100%; align-items: center; background: none; border: 0; border-bottom: 1px solid rgba(255,255,255,.07); color: inherit; padding: 8px 2px; text-align: left; cursor: pointer; font: inherit; }
+.gacc-sc-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.txn-month-filter { gap: 8px; align-items: center; }
+.txn-month-filter .txn-pick { margin-bottom: 0; font-size: var(--fs-13, 13px); padding: 8px 12px; }
 .gacc-empty, .gacc-note { color: var(--ts, #aaa); font-size: var(--fs-12-5, 12.5px); margin-top: 10px; }
 
 /* Movimientos: los tres botones van en una sola fila, un 10% más chicos que el resto; si no entran, el grupo baja de renglón en vez de cortarse en el borde de la card */

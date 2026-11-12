@@ -96,6 +96,7 @@ function _sfEnsureBudget() {
             <div class="gacc-table-wrap"><table class="gacc-table" id="gaccTable"></table></div>
           </div>
           <div class="gacc-empty" id="gaccEmpty" hidden>Sin gastos en este período.</div>
+          <details class="gacc-sincat" id="gaccSinCat" hidden></details>
           <div class="gacc-note">Solo gastos en ARS · incluye el mes en curso · sin programados pendientes.</div>
         </div>
         <div class="txn-hist-filters">

@@ -3718,10 +3718,31 @@ function getAvailableMonths() {
   // programados (specs/gastos-programados.md) — sin esto no hay forma de entrar a esa pestaña.
   const next = new Date(now.getFullYear(), now.getMonth()+1, 1);
   months.add(`${next.getFullYear()}-${String(next.getMonth()+1).padStart(2,'0')}`);
+  // Hasta un año vista, para poder mirar/cargar gastos programados más adelante (más allá de eso no tiene sentido).
+  for (let i = 2; i <= 12; i++) { const f = new Date(now.getFullYear(), now.getMonth() + i, 1); months.add(`${f.getFullYear()}-${String(f.getMonth()+1).padStart(2,'0')}`); }
   return [...months].sort().reverse();
 }
 
 function setTxnMonth(m) { txnActiveMonth = m; renderActivity(); }
+// Selector Mes + Año (en vez de una fila de botones que se corta): solo ofrece meses con registro o hasta un año vista.
+function _txnMonthPickerHtml(months) {
+  const [ay, am] = txnActiveMonth.split('-');
+  const years = [...new Set(months.map(m => m.slice(0, 4)))].sort().reverse();
+  const inYear = months.filter(m => m.startsWith(ay)).sort();
+  const opt = (v, l, on) => `<option value="${v}"${on ? ' selected' : ''}>${l}</option>`;
+  return `<select class="txn-hist-cat-filter txn-pick" aria-label="Mes" onchange="setTxnMonthPart('m',this.value)">${inYear.map(m => opt(m.slice(5), CAL_MONTHS[+m.slice(5) - 1], m.slice(5) === am)).join('')}</select>` +
+    `<select class="txn-hist-cat-filter txn-pick" aria-label="Año" onchange="setTxnMonthPart('y',this.value)">${years.map(y => opt(y, y, y === ay)).join('')}</select>`;
+}
+function setTxnMonthPart(part, v) {
+  let [y, m] = txnActiveMonth.split('-');
+  if (part === 'm') m = v;
+  else {
+    y = v;
+    const inY = getAvailableMonths().filter(x => x.startsWith(y)).sort();
+    if (inY.length && !inY.includes(`${y}-${m}`)) m = inY.reduce((b, x) => Math.abs(+x.slice(5) - +m) < Math.abs(+b.slice(5) - +m) ? x : b).slice(5);
+  }
+  setTxnMonth(`${y}-${m}`);
+}
 
 // Mes destino del modal "Nuevo movimiento" / edición: mes actual + próximos N meses futuros
 // (a diferencia de getAvailableMonths(), que solo mira meses con transacciones ya cargadas).
@@ -3804,11 +3825,7 @@ function renderActivity() {
   if (!txnActiveMonth || !months.includes(txnActiveMonth)) txnActiveMonth = curMK;
 
   // Month filter tabs (sección + espejo en el overlay de historial)
-  const chipsHtml = months.map(m => {
-    const [y,mo] = m.split('-');
-    const lbl = CAL_MONTHS[+mo-1].slice(0,3)+' '+y.slice(2);
-    return `<button class="txn-month-btn${m===txnActiveMonth?' active':''}" onclick="setTxnMonth('${m}')">${lbl}</button>`;
-  }).join('');
+  const chipsHtml = _txnMonthPickerHtml(months);
   const filterEl = document.getElementById('txnMonthFilter');
   if (months.length > 1) { filterEl.style.display = ''; filterEl.innerHTML = chipsHtml; }
   else { filterEl.style.display = 'none'; }
@@ -4021,9 +4038,11 @@ function renderGastoAcumulado() {
   const host = document.getElementById('gacc-card');
   if (!host || host.offsetParent === null || typeof Chart === 'undefined' || !Array.isArray(S.transactions)) return;
   const byMonthCat = {};   // 'YYYY-MM' → { cat: monto }
+  const sinCat = [];       // gastos cuya categoría no existe (borrada o vacía): se agrupan en "Sin categoría"
   S.transactions.forEach(t => {
     if (t.type !== 'expense' || t.pending || !t.date || (t.currency || 'ARS') !== 'ARS') return;
-    const mk = t.date.slice(0, 7), k = t.category || 'other';
+    const mk = t.date.slice(0, 7), k = TXN_CATEGORIES[t.category] ? t.category : '__none';
+    if (k === '__none') sinCat.push(t);
     (byMonthCat[mk] = byMonthCat[mk] || {})[k] = ((byMonthCat[mk] || {})[k] || 0) + (+t.amount || 0);
   });
   const sumCats = keys => { const o = {}; keys.forEach(mk => Object.entries(byMonthCat[mk] || {}).forEach(([k, v]) => { o[k] = (o[k] || 0) + v; })); return o; };
@@ -4041,7 +4060,7 @@ function renderGastoAcumulado() {
   if (!total) return;
 
   const catInfo = k => TXN_CATEGORIES[k] || null;
-  const catLabel = k => { const c = catInfo(k); return c ? c.icon + ' ' + c.label : k; };
+  const catLabel = k => { const c = catInfo(k); return c ? c.icon + ' ' + c.label : 'Sin categoría'; };
   const catColor = k => catInfo(k)?.chartColor || 'rgba(255,255,255,.4)';
   const tick = 'rgba(255,255,255,.65)', fs = typeof _cfs === 'function' ? _cfs(12) : 12;
 
@@ -4082,6 +4101,13 @@ function renderGastoAcumulado() {
     `<thead><tr><th>Categoría</th>${GACC_PERIODS.map(([p, l]) => `<th${sel(p)}>${l}</th>`).join('')}</tr></thead><tbody>` +
     catKeys.map(k => `<tr><td><span class="gacc-dot" style="background:${catColor(k)}"></span>${escHtml(catLabel(k))}</td>${per.map(([p, o]) => `<td${sel(p)}>${o[k] ? fmtMoney(o[k], 'ARS') : '—'}</td>`).join('')}</tr>`).join('') +
     `<tr class="gacc-sum"><td>Total</td>${per.map(([p, o]) => `<td${sel(p)}>${fmtMoney(sum(o), 'ARS')}</td>`).join('')}</tr></tbody>`;
+
+  // Para categorizarlos: lista de los movimientos sin categoría (tocás uno y se abre su edición)
+  const sc = document.getElementById('gaccSinCat');
+  sinCat.sort((a, b) => b.date.localeCompare(a.date));
+  sc.hidden = !sinCat.length;
+  sc.innerHTML = sinCat.length ? `<summary>${sinCat.length} sin categoría — tocá uno para categorizarlo</summary>` +
+    sinCat.map(t => `<button type="button" class="gacc-sc-row" onclick="openEditTxn('${t.id}')"><span>${fmtDate(t.date)}</span><span class="gacc-sc-name">${escHtml(t.name)}</span><span>${fmtMoney(t.amount, 'ARS')}</span></button>`).join('') : '';
 }
 
 function renderMonthBalanceList() {
