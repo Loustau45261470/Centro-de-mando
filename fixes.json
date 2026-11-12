@@ -400,6 +400,13 @@
       "desc": "#tab-principios excluida del reparto en columnas de .tab-panel.active (2/3 columnas en pantallas anchas): como todo vive en un solo contenedor, el navegador partia las tarjetas por la mitad.",
       "file": "styles.css",
       "marker": "#tab-principios.tab-panel.active"
+    },
+    {
+      "id": "push-worker-sin-secreto-en-repo",
+      "fecha": "2026-11-12",
+      "desc": "app.js ya no lleva el secreto fijo del Worker de push (repo publico): _schedulePushAlarm/_cancelPushAlarm mandan el ID token de Firebase del usuario (_pushWorkerToken). No volver a hardcodear un secreto en el cliente.",
+      "file": "app.js",
+      "marker": "async function _pushWorkerToken"
     }
   ]
 }
