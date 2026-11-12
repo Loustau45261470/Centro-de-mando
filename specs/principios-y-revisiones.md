@@ -41,6 +41,14 @@ Se construye por etapas, en este orden: **A (base) → B (reportes) → C (recor
 - [ ] **KPIs de Salud** (confirmados): solo hábitos en esta versión.
 - [ ] **KPIs de Vida:** calendarios de hábitos (estilo definido arriba) y objetivos por categoría.
 
+### Must-Have — Seguimiento de Foco (tiempo, atención, energía)
+Se construye **en este orden, uno por vez**; Tobías decide cuándo pasar al siguiente. Mientras no estén, atención y energía los carga Tobías a mano en el reporte.
+- [ ] **1. Cierre nocturno (Etapa B):** pantalla de ~60 segundos al final del día con atención del día (1 a 5), energía del día (1 a 5) y una línea de texto "¿dónde se me fue el tiempo?". Un registro por día, editable ese día.
+- [ ] **2. Chequeos durante el día (Etapa C):** 3 avisos push al iPhone por día ("¿qué hiciste en las últimas horas?"). Se responde con un toque en una categoría (estudio, gym, trabajo, pantalla/distracción, social, descanso, otro) más energía de 1 a 5. Horarios configurables. Es muestreo, no cronómetro.
+- [ ] **3. Tiempo de pantalla semanal:** Tobías anota una vez por semana el total del reporte de pantalla del iPhone (carga manual; no hay integración automática).
+- [ ] **4. Cruce con otros datos (Etapa B):** el reporte de Foco cruza energía y atención contra sueño, entrenamiento y comida, y muestra a qué horas la energía suele ser alta. Si hay pocos días registrados para sacar una conclusión, lo dice en vez de mostrar un patrón.
+- [ ] El reporte de Foco combina estos registros con el tiempo y el dinero que ya salen de los datos del Centro.
+
 ### Must-Have — Etapa C: Recordatorios
 - [ ] Cada principio puede tener un disparo: **por datos** (principal), **por horario**, **diario**, o ninguno (solo consulta).
 - [ ] Por datos: reglas sobre datos reales del Centro (ej: "N días sin entrenar", "el patrimonio bajó este mes", "gasto mayor a $X").
@@ -124,6 +132,12 @@ Se construye por etapas, en este orden: **A (base) → B (reportes) → C (recor
 - [ ] Given el veredicto de IA, when aprieto conformidad, then queda registrado con fecha y período; when no coincido, then puedo escribir el mío y se guardan ambos.
 - [ ] Given los KPIs de Economía y Conocimiento listados arriba, when abro esas secciones, then cada uno aparece con su valor y comparación, o con "sin datos" si no hay.
 
+**Seguimiento de Foco**
+- [ ] Given el cierre nocturno, when cargo atención 4, energía 3 y una línea, then queda un solo registro para ese día y lo veo en el reporte; when lo vuelvo a abrir el mismo día, then edita el existente sin duplicar.
+- [ ] Given un chequeo del día, when toco una categoría y una energía, then queda registrado con la hora y suma al reparto de tiempo del reporte.
+- [ ] Given menos días registrados que el mínimo definido, when abro el cruce con sueño/entrenamiento/comida, then dice que faltan datos y no muestra un patrón.
+- [ ] Given el tiempo de pantalla semanal cargado, when abro el reporte semanal, then aparece junto a la energía y atención de esa semana.
+
 **Etapa C**
 - [ ] Given un principio por horario (ej: 23:00), when llega la hora, then recibo push en el iPhone con el principio y su motivo.
 - [ ] Given un principio por datos con "3 días sin entrenar", when se cumple la condición, then aparece la tarjeta en el Centro con el dato que la disparó.
@@ -137,7 +151,7 @@ Se construye por etapas, en este orden: **A (base) → B (reportes) → C (recor
 - [ ] Given la clave de la IA, when reviso el repo y el sitio publicado, then no aparece en ningún archivo público.
 
 ## Open Questions
-- **Foco (sección 1 del reporte) — IMPORTANTE, Tobías pidió que se lo recuerde antes de la Etapa B:** tiempo y dinero salen de los datos; **energía y atención** no se miden solos. Falta decidir cómo se miden (ej: puntuación de 1 a 5 por día) o si se omiten.
+- **Foco (sección 1 del reporte):** decidido el rumbo (ver "Seguimiento de Foco", 4 puntos en orden). Queda por definir con Tobías antes de la Etapa B: cuántos días mínimos de registro hacen falta para mostrar un cruce, y la lista de categorías de los chequeos del día.
 - **KPIs de Vida más allá de hábitos y objetivos:** a confirmar si hay otros.
 - **Contenido a cargar:** principios (textos, fotos, archivos, autores) y objetivos de largo plazo, pendientes de entrega por Tobías; no bloquean el inicio de la Etapa A.
 - **Profundidad por período:** qué secciones se muestran en el reporte semanal frente al anual (se asume el mismo molde; a confirmar).
