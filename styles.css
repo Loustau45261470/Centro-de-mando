@@ -6900,3 +6900,21 @@ textarea.pr-in { resize: vertical; min-height: 60px; }
 /* Aviso nocturno del cierre del día (foco.js): mismo aviso que la Revisión semanal (.rs-nudge); si ambos coinciden, se apila arriba. */
 #fo-nudge .btn, #fo-nudge .icon-btn { min-height: 44px; min-width: 44px; }
 body:has(#rs-nudge) #fo-nudge { bottom: calc(max(12px, env(safe-area-inset-bottom, 0px)) + 76px); }
+/* Celular (barra #nav abajo): los avisos van por encima de la barra y del botón flotante .cm-sd, mismo escalón que .pr-avisos */
+@media (max-width: 979px) {
+  #rs-nudge, #fo-nudge { bottom: calc(var(--nav) + var(--safe-b) + 76px); }
+  body:has(#rs-nudge) #fo-nudge { bottom: calc(var(--nav) + var(--safe-b) + 152px); }
+}
+
+/* Avisos de principios dentro del Centro (principios.js): diarios y por datos. Un panel que se apila sobre el cierre del día (#fo-nudge) y la revisión semanal (#rs-nudge) sin taparlos. */
+.pr-avisos { position: fixed; left: 12px; right: 12px; bottom: calc(var(--nav) + var(--safe-b) + 76px); z-index: 500; margin: 0 auto; max-width: 440px; max-height: 40vh; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }   /* +76px: por encima de la barra #nav y del botón flotante .cm-sd (no los tapa) */
+body:has(#rs-nudge) .pr-avisos, body:has(#fo-nudge) .pr-avisos { bottom: calc(var(--nav) + var(--safe-b) + 76px + 76px); }
+body:has(#rs-nudge):has(#fo-nudge) .pr-avisos { bottom: calc(var(--nav) + var(--safe-b) + 76px + 152px); }
+.pr-av { background: rgba(10,16,30,.94); border: 1px solid var(--border); border-radius: 14px; padding: 11px 12px; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 8px 28px rgba(0,0,0,.35); }
+.pr-av { flex: 0 0 auto; padding: 8px 10px; }
+.pr-av-t { font-size: var(--fs-12-5); font-weight: 700; color: var(--hud-bright); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+.pr-av-dato { font-size: var(--fs-12-5); font-weight: 600; color: var(--ts); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pr-av-link { display: block; width: 100%; min-height: 32px; padding: 0; text-align: left; background: none; border: 0; color: var(--tp); font: 600 var(--fs-14) var(--sans); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pr-av-acts { display: flex; gap: 6px; margin-top: 4px; }
+.pr-av-acts .pr-btn { min-height: 44px; flex: 1 1 0; min-width: 0; padding: 8px 6px; }
+.pr-av-mas { position: sticky; bottom: 0; flex: 0 0 auto; text-align: center; padding: 6px 8px; border-radius: 10px; font-size: var(--fs-12-5); font-weight: 700; color: var(--hud-bright); background: rgba(10,16,30,.96); border: 1px solid var(--hud-dim); }

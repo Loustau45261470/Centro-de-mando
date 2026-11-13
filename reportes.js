@@ -339,7 +339,8 @@ function _repPresupuesto(datos, r) {
   const bud = datos.budgets || {};
   let presup = 0; const porCatP = {};
   for (const mk of repMeses(r)) {
-    const b = bud[mk];
+    const fondos = +((datos.fondosMes || {})[mk]) || 0;
+    const b = bud[mk] || (fondos > 0 ? {} : null);   // los fondos del mes cuentan como presupuesto aunque no haya S.budgets[mk] (igual que _budgetMonthTotal)
     if (!b) return _repNulo('Falta el presupuesto de ' + mk);
     // Mismas partes que _budgetMonthTotal (finanzas.js:3290): fijos (v1×v2×v3), reservados, estacionales y fondos del mes.
     (b.fixed || []).forEach(it => { const m = (+it.v1 || 0) * (+it.v2 || 0) * (+it.v3 || 0); presup += m; if (it.category) porCatP[it.category] = (porCatP[it.category] || 0) + m; });
@@ -598,6 +599,6 @@ function repConvertirFila(data, item, fila, tipo, fuente, nuevoId) {
   return { creado: true, tipo, id };
 }
 
-const CMReportes = { repFecha, repParse, repSumarDias, repDiasEntre, repRango, repClaveDe, repAnterior, repMeses, repParcial, repRangoComparable, repComparar, repHabitos, repHabitosComparados, repObjetivosPorCategoria, repMetasMensuales, repExamenesPorMes, repKpiEconomia, repKpiConocimiento, repFoco, REP_SECCIONES, repItemKey, repItemNuevo, repItemCompletar, repItemTieneContenido, repResumenItem, repHistorial, repHayConflicto, repHorizonteDe, repPrincipioDeFila, repObjetivoDeFila, repBuscarConversion, repConvertirFila };
+const CMReportes = { repFecha, repParse, repSumarDias, repDiasEntre, repRango, repClaveDe, repAnterior, repMeses, repParcial, repRangoComparable, repComparar, repHabitos, repHabitosComparados, repObjetivosPorCategoria, repMetasMensuales, repExamenesPorMes, repKpiEconomia, repGastos: _repGastos, repPresupuesto: _repPresupuesto, repKpiConocimiento, repFoco, REP_SECCIONES, repItemKey, repItemNuevo, repItemCompletar, repItemTieneContenido, repResumenItem, repHistorial, repHayConflicto, repHorizonteDe, repPrincipioDeFila, repObjetivoDeFila, repBuscarConversion, repConvertirFila };
 if (typeof window !== 'undefined') window.CMReportes = CMReportes;
 if (typeof module !== 'undefined' && module.exports) module.exports = CMReportes;

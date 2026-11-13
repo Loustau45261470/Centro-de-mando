@@ -66,8 +66,8 @@ const CMDeadlines = (() => {
     // sin lead = aviso "es ahora", que tarde ya no sirve.
     const push = (suffix, at, title, lead) => { if (!isNaN(at)) out.push({ key: it.id + suffix, at, title, body: it.notifBody, lead: !!lead }); };
 
-    if (it.kind === 'foco') {
-      // Chequeo de Foco: un solo aviso "es ahora" (tarde ya no sirve), con destino dentro de la app.
+    if (it.kind === 'foco' || it.kind === 'principio') {
+      // Chequeo de Foco y principio por horario: un solo aviso "es ahora" (tarde ya no sirve), con destino dentro de la app.
       // winMs propio (60 min): si el cron de Actions se atrasa más que la ventana corta, el chequeo no se pierde.
       out.push({ key: it.id, at: it.at, title: it.title, body: it.cuerpo, lead: false, url: it.url, winMs: FOCO_WIN_MS });
     } else if (it.allDay) {
@@ -270,6 +270,23 @@ const CMDeadlines = (() => {
         if (focoRespondido(chequeos, date, hora, horas[k + 1])) return;
         add({ id: 'foco_' + date + '_' + hora, kind: 'foco', kindLabel: 'Chequeo', icon: '🧭', date, time: hora, allDay: false,
               title: '¿En qué estuviste?', cuerpo: 'Tocá para anotar las últimas horas.', url: FOCO_URL, priority: 'low' });
+      });
+    }
+
+    // 12) Principios con recordatorio por horario (principio.disparo = {tipo:'horario', hora}): un aviso por día a esa hora, con la url del principio.
+    //     Sin `tab` → solo genera el aviso. Un principio silenciado/pospuesto (silenciadoHasta posterior a ese día) no avisa: el cron lee este mismo estado.
+    const prins = (S.principios && Array.isArray(S.principios.principios)) ? S.principios.principios : [];
+    for (let i = -1; i <= 0; i++) {   // ayer también: un aviso de las 23:xx puede salir pasada la medianoche
+      const date = addDays(today, i);
+      prins.forEach(p => {
+        const d = p && p.disparo;
+        if (!d || d.tipo !== 'horario' || !p.id || !p.enunciado || !/^([01]\d|2[0-3]):[0-5]\d$/.test(d.hora || '')) return;
+        if (isDate(p.silenciadoHasta) && p.silenciadoHasta > date) return;
+        const corta = (t, n) => { t = String(t || '').replace(/\s+/g, ' ').trim(); return t.length > n ? t.slice(0, n - 1).replace(/[\s.,;:]+$/, '') + '…' : t; };
+        add({ id: 'prin_' + date + '_' + p.id, kind: 'principio', kindLabel: 'Principio', icon: '🧭', date, time: d.hora, allDay: false,
+              title: p.tipo === 'anti' ? '⛔ A evitar' : '🧭 Tu principio',
+              cuerpo: corta(p.enunciado, 120) + (p.porque ? '\nPor qué: ' + corta(p.porque, 140) : ''),
+              url: '#principio-' + encodeURIComponent(p.id), priority: 'low' });
       });
     }
 

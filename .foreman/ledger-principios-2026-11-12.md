@@ -10,6 +10,9 @@
   - Hechos y en producción (2026-11-12/13): Foco 1/3/4 (69f8e78), secreto del Worker eliminado (786bd94, 741158e, 8ead179), Libros (2192b55), Etapa B T1 (4190798), chequeos push (074730e), Principios como ventana + cierre automático (695d6a8), avisos multi-dispositivo (5a27237), KPIs T2a (9d7e943).
   - EN CURSO (00:xx del 13/11): T2b pantalla de Reportes — fix del FAIL de verificación (test con carrera de scroll, anual 390px, leyenda, nombres de categorías) lanzado; falta: verificación ciega → commit.
 
+  - Etapa B COMPLETA (13/11 madrugada): T2b fb0ab2d, T3 da083f8 (+fixes 6d5d6eb), T4 025f52a (2ª falla del verificador sobre foco → LEAD tomó el control, fix de 1 línea + test de reproducción, 127/127).
+  - Siguiente: Etapa C.
+
 ## Estado y plan restante (para retomar sin el usuario)
 Tobías se fue a dormir (2026-11-13 ~00:30) y pidió seguir SIN preguntas; si se corta por cuota, retomar a las 2:01. Orden:
 1. T2b Reportes: terminar (verificación ciega completa con --retries=0 → commit/push/deploy).

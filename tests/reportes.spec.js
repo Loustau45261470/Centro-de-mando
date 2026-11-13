@@ -214,6 +214,13 @@ test.describe('reportes.js KPIs (puro, Node)', () => {
     expect(sem.valor).toBeNull(); expect(sem.motivo).toMatch(/mensual/);
   });
 
+  test('economía: fondos del mes sin presupuesto cargado → valor no null (cuentan como presupuesto)', () => {
+    const d = Object.assign(eco(), { budgets: {}, fondosMes: { '2026-11': 2000 } });
+    const k = R.repKpiEconomia(d, NOV, OCT).presupuesto;
+    expect(k.valor).not.toBeNull(); expect(k.presupuestado).toBe(2000);
+    expect(R.repPresupuesto(eco(), R.repRango('mensual', '2026-10')).valor).toBeNull();   // sin presupuesto ni fondos: sigue null
+  });
+
   test('economía: semanal separa las cuotas de tarjeta del día 1 con aviso', () => {
     const k = R.repKpiEconomia(Object.assign(eco(), { transactions: eco().transactions.concat([tx({ type: 'expense', amount: 500, category: 'food', date: '2026-10-28' })]) }), R.repRango('semanal', '2026-W44'), null).gastos;
     expect(k.valor).toBe(500); expect(k.cuotasTarjetaDia1.valor).toBe(2000); expect(k.aviso).toMatch(/día 1/);

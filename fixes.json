@@ -329,7 +329,7 @@
       "fecha": "2026-11-04",
       "desc": "push-reminders.js marcaba el aviso como enviado ANTES de enviar y tragaba el error, asi que un fallo del servicio push perdia el aviso para siempre y una suscripcion muerta (404/410) fallaba en silencio. Ahora send() devuelve true o el statusCode, solo se marca lo que salio bien, y ante 404/410 se escribe pushDead {at,code} en el documento (una vez; esa corrida sale con exit 1 para que llegue UN mail de Actions) y la app muestra un aviso para reactivar. Errores fatales de main salen con exit 1. NO volver a marcar newNotif antes del envio ni a taparlo con exit(0).",
       "file": "push-reminders.js",
-      "marker": "if (r === true) { okCount++; newNotif[sends[i].key] = true; }"
+      "marker": "if (r.ok) { okCount++; newNotif[sends[i].key] = true; }"
     },
     {
       "id": "onsnapshot-error-visible",
@@ -442,6 +442,13 @@
       "desc": "Al ocultar la app o cerrar la pestaña, el reporte vuelca lo pendiente y fuerza la subida a la nube con _fbFlush (sin esto se perdia lo escrito en los ultimos 450 ms al cambiar de app en iPhone)",
       "file": "reportes-vista.js",
       "marker": "_fbFlush"
+    },
+    {
+      "id": "principios-recordatorios-por-datos",
+      "fecha": "2026-11-13",
+      "desc": "Los recordatorios de principios por datos se evalúan con una función pura (prEvaluarRegla) sobre las fuentes reales del Centro; sin dato suficiente la regla queda inactiva y un principio silenciado/pospuesto no avisa ni por tarjeta ni por push",
+      "file": "principios.js",
+      "marker": "function prEvaluarRegla(regla, datos, hoy)"
     }
   ]
 }
