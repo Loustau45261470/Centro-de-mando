@@ -438,3 +438,50 @@ test.describe('fechas de cumplimiento (app)', () => {
     expect(r.b).toBeUndefined();
   });
 });
+
+test.describe('reportes.js textos, conversión e historial (puro, Node)', () => {
+  const item = (o) => Object.assign(R.repItemNuevo('mensual', '2026-11'), o);
+  test('repItemNuevo / repItemCompletar: defaults seguros y documento viejo no rompe', () => {
+    const n = R.repItemNuevo('mensual', '2026-11');
+    expect(n.desde).toBe('2026-11-01'); expect(n.hasta).toBe('2026-11-30');
+    expect(Object.keys(n.estancamientos)).toEqual(['Vida', 'Salud', 'Conocimiento', 'Economía', 'IA']);
+    expect(n.veredicto.ia).toEqual({ estado: 'pendiente', texto: '', el: null });
+    const viejo = { periodo: 'mensual', clave: '2026-11', estancamientos: { Vida: 'x' }, veredicto: null };
+    R.repItemCompletar(viejo);
+    expect(viejo.estancamientos.Vida).toBe('x'); expect(viejo.estancamientos.IA).toBe(''); expect(viejo.aprendizajes).toEqual([]); expect(viejo.veredicto.manual).toBeNull();
+    expect(R.repItemKey('semanal', '2026-W46')).toBe('semanal:2026-W46');
+  });
+  test('contenido, resumen e historial (solo con algo escrito, más reciente primero)', () => {
+    expect(R.repItemTieneContenido(R.repItemNuevo('mensual', '2026-11'))).toBe(false);
+    const a = item({ editadoEn: '2026-11-10T10:00:00Z' }); a.estancamientos.Vida = 'algo';
+    const b = R.repItemNuevo('mensual', '2026-10'); b.editadoEn = '2026-11-12T10:00:00Z'; b.aprendizajes.push({ id: 'x' }, { id: 'y' }); b.veredicto.manual = { texto: 'bien', el: 'z' };
+    const vacio = R.repItemNuevo('mensual', '2026-09'); vacio.editadoEn = '2026-11-13T10:00:00Z';
+    expect(R.repResumenItem(b)).toEqual(['aprendizajes 2', 'veredicto']); expect(R.repResumenItem(a)).toEqual(['textos']);
+    expect(R.repHistorial({ 'mensual:2026-11': a, 'mensual:2026-10': b, 'mensual:2026-09': vacio }).map(i => i.clave)).toEqual(['2026-10', '2026-11']);
+    const roto = { periodo: 'mensual', clave: 'basura', editadoEn: '2026-11-14T10:00:00Z', agradecimientos: 'x' };   // clave sin rango: no se lista
+    expect(R.repHistorial({ 'mensual:basura': roto, 'mensual:2026-11': a }).map(i => i.clave)).toEqual(['2026-11']);
+  });
+  test('conflicto de edición: compara lo guardado contra lo que había al abrir', () => {
+    expect(R.repHayConflicto(null, undefined)).toBe(false);
+    expect(R.repHayConflicto(null, { editadoEn: 'A' })).toBe(true);
+    expect(R.repHayConflicto('A', { editadoEn: 'A' })).toBe(false);
+    expect(R.repHayConflicto('A', { editadoEn: 'B' })).toBe(true);
+  });
+  test('horizonte por período y conversión idempotente (principio y objetivo)', () => {
+    expect(['semanal', 'mensual', 'trimestral', 'semestral', 'anual'].map(R.repHorizonteDe)).toEqual(['mensual', 'mensual', 'trimestral', 'anual', 'anual']);
+    const it = item(); const fila = { id: 'f1', seccion: 'Salud', error: 'e', aprendizaje: 'porque', propuesta: 'hacer X', convertidoA: null };
+    const data = { principios: [], objetivos: [] }; let n = 0; const id = () => 'id' + (++n);
+    const r1 = R.repConvertirFila(data, it, fila, 'principio', 'Reporte Noviembre 2026', id);
+    expect(r1).toEqual({ creado: true, tipo: 'principio', id: 'id1' });
+    expect(data.principios[0]).toMatchObject({ enunciado: 'hacer X', porque: 'porque', fuente: 'Reporte Noviembre 2026', seccion: 'Salud', origen: { reporte: 'mensual:2026-11', filaId: 'f1' } });
+    // otra vez, y desde "otro dispositivo" (fila sin convertidoA): no duplica
+    fila.convertidoA = null;
+    expect(R.repConvertirFila(data, it, fila, 'principio', 'x', id).creado).toBe(false);
+    expect(R.repConvertirFila(data, it, fila, 'objetivo', 'x', id)).toMatchObject({ creado: false, tipo: 'principio' });
+    expect(data.principios).toHaveLength(1); expect(data.objetivos).toHaveLength(0);
+    const f2 = { id: 'f2', seccion: 'IA', propuesta: 'obj', aprendizaje: '', error: '', convertidoA: null };
+    expect(R.repConvertirFila(data, item({ periodo: 'semestral', clave: '2026-S2' }), f2, 'objetivo', 'x', id).creado).toBe(true);
+    expect(data.objetivos[0]).toMatchObject({ texto: 'obj', horizonte: 'anual', seccion: 'IA', estado: 'pendiente', origen: { filaId: 'f2' } });
+    expect(R.repConvertirFila(data, it, { id: 'f3', propuesta: '  ' }, 'principio', 'x', id).error).toBeTruthy();
+  });
+});

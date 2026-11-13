@@ -517,6 +517,74 @@ function repFoco(datos, rango, deps) {
   };
 }
 
-const CMReportes = { repFecha, repParse, repSumarDias, repDiasEntre, repRango, repClaveDe, repAnterior, repMeses, repParcial, repRangoComparable, repComparar, repHabitos, repHabitosComparados, repObjetivosPorCategoria, repMetasMensuales, repExamenesPorMes, repKpiEconomia, repKpiConocimiento, repFoco };
+// ── Textos del reporte, veredicto e historial (Etapa B, T3) ──
+// S.reportes.items['<periodo>:<clave>'] se crea SOLO cuando el usuario escribe algo (ver reportes-vista.js). Todo lo de acá es puro.
+const REP_SECCIONES = ['Vida', 'Salud', 'Conocimiento', 'Economía', 'IA'];
+const repItemKey = (periodo, clave) => periodo + ':' + clave;
+const _repSecs = () => { const o = {}; REP_SECCIONES.forEach(s => { o[s] = ''; }); return o; };
+function repItemNuevo(periodo, clave) {
+  const r = repRango(periodo, clave) || {};
+  return { periodo, clave, desde: r.desde || '', hasta: r.hasta || '', editadoEn: null, estancamientos: _repSecs(), deterioro: _repSecs(), agradecimientos: '', aprendizajes: [],
+    veredicto: { ia: { estado: 'pendiente', texto: '', el: null }, conformidad: null, manual: null } };
+}
+// Completa en el lugar lo que falte (documento viejo o parcial): nunca rompe, nunca borra lo que ya hay.
+function repItemCompletar(item, periodo, clave) {
+  const base = repItemNuevo(periodo || item.periodo, clave || item.clave);
+  Object.keys(base).forEach(k => { if (item[k] == null) item[k] = base[k]; });
+  ['estancamientos', 'deterioro'].forEach(k => { if (typeof item[k] !== 'object' || Array.isArray(item[k])) item[k] = _repSecs(); REP_SECCIONES.forEach(s => { if (typeof item[k][s] !== 'string') item[k][s] = ''; }); });
+  if (!Array.isArray(item.aprendizajes)) item.aprendizajes = [];
+  if (typeof item.agradecimientos !== 'string') item.agradecimientos = '';
+  const v = item.veredicto = (item.veredicto && typeof item.veredicto === 'object') ? item.veredicto : base.veredicto;
+  if (!v.ia || typeof v.ia !== 'object') v.ia = base.veredicto.ia;
+  if (v.conformidad === undefined) v.conformidad = null;
+  if (v.manual === undefined) v.manual = null;
+  return item;
+}
+const _repTxt = s => typeof s === 'string' && s.trim() !== '';
+function _repTextos(it) { return REP_SECCIONES.some(s => _repTxt(it.estancamientos && it.estancamientos[s]) || _repTxt(it.deterioro && it.deterioro[s])) || _repTxt(it.agradecimientos); }
+function _repVeredicto(it) { const v = it.veredicto || {}; return !!(v.conformidad || (v.manual && _repTxt(v.manual.texto)) || (v.ia && _repTxt(v.ia.texto))); }
+function repItemTieneContenido(it) { return !!it && typeof it === 'object' && (_repTextos(it) || (Array.isArray(it.aprendizajes) && it.aprendizajes.length > 0) || _repVeredicto(it)); }
+function repResumenItem(it) {   // ['textos', 'aprendizajes 3', 'veredicto'] según lo que tenga escrito
+  const r = [];
+  if (_repTextos(it)) r.push('textos');
+  if (Array.isArray(it.aprendizajes) && it.aprendizajes.length) r.push('aprendizajes ' + it.aprendizajes.length);
+  if (_repVeredicto(it)) r.push('veredicto');
+  return r;
+}
+// Lista del historial: solo reportes con algo escrito, el más reciente primero (por última edición; sin fecha, por fin del período).
+function repHistorial(items) {
+  return Object.keys(items || {}).map(k => items[k]).filter(repItemTieneContenido).filter(i => repRango(i.periodo, i.clave))
+    .sort((a, b) => String(b.editadoEn || '').localeCompare(String(a.editadoEn || '')) || String(b.hasta || '').localeCompare(String(a.hasta || '')));
+}
+// Dos dispositivos: si lo guardado ya no es lo que había al abrir el reporte, otra versión llegó por sync → no pisar.
+const repHayConflicto = (editadoEnAlAbrir, itemActual) => (editadoEnAlAbrir || null) !== ((itemActual && itemActual.editadoEn) || null);
+const repHorizonteDe = periodo => periodo === 'trimestral' ? 'trimestral' : (periodo === 'semestral' || periodo === 'anual') ? 'anual' : 'mensual';
+function repPrincipioDeFila(fila, itemKey, fuente) {
+  return { tipo: 'principio', enunciado: String(fila.propuesta || '').trim(), porque: String(fila.aprendizaje || '').trim(), seccion: fila.seccion, haz: '', noHagas: '', fuente, habitosIds: [], origen: { reporte: itemKey, filaId: fila.id } };
+}
+function repObjetivoDeFila(fila, periodo, itemKey) {
+  return { texto: String(fila.propuesta || '').trim(), horizonte: repHorizonteDe(periodo), seccion: fila.seccion, categoriaId: '', estado: 'pendiente', fecha: '', padreKey: '', principiosIds: [], habitosIds: [], origen: { reporte: itemKey, filaId: fila.id } };
+}
+// ¿Ya existe un principio u objetivo creado desde esta fila (aunque sea desde otro dispositivo)? Se mira `origen` ANTES de crear.
+function repBuscarConversion(data, itemKey, filaId) {
+  const ok = x => x && x.origen && typeof x.origen === 'object' && x.origen.reporte === itemKey && x.origen.filaId === filaId;
+  const p = (data.principios || []).find(ok); if (p) return { tipo: 'principio', id: p.id };
+  const o = (data.objetivos || []).find(ok); if (o) return { tipo: 'objetivo', id: o.id };
+  return null;
+}
+// Convierte una fila en principio u objetivo dentro de `data` (= S.principios). Devuelve {creado, tipo, id} o {error}. Idempotente.
+function repConvertirFila(data, item, fila, tipo, fuente, nuevoId) {
+  if (!fila || !_repTxt(fila.propuesta)) return { error: 'Escribí primero la propuesta para cambiarlo' };
+  const key = repItemKey(item.periodo, item.clave);
+  const ya = repBuscarConversion(data, key, fila.id);
+  if (ya) { fila.convertidoA = ya; return { creado: false, tipo: ya.tipo, id: ya.id }; }
+  const id = nuevoId();
+  if (tipo === 'principio') { const p = repPrincipioDeFila(fila, key, fuente); p.id = id; (data.principios = data.principios || []).push(p); }
+  else { const o = repObjetivoDeFila(fila, item.periodo, key); o.id = id; (data.objetivos = data.objetivos || []).push(o); }
+  fila.convertidoA = { tipo, id };
+  return { creado: true, tipo, id };
+}
+
+const CMReportes = { repFecha, repParse, repSumarDias, repDiasEntre, repRango, repClaveDe, repAnterior, repMeses, repParcial, repRangoComparable, repComparar, repHabitos, repHabitosComparados, repObjetivosPorCategoria, repMetasMensuales, repExamenesPorMes, repKpiEconomia, repKpiConocimiento, repFoco, REP_SECCIONES, repItemKey, repItemNuevo, repItemCompletar, repItemTieneContenido, repResumenItem, repHistorial, repHayConflicto, repHorizonteDe, repPrincipioDeFila, repObjetivoDeFila, repBuscarConversion, repConvertirFila };
 if (typeof window !== 'undefined') window.CMReportes = CMReportes;
 if (typeof module !== 'undefined' && module.exports) module.exports = CMReportes;

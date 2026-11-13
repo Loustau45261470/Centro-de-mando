@@ -498,6 +498,7 @@ const Principios = {
       const reg = { id: o.key || _prUid(), texto: o.texto.trim(), horizonte: o.horizonte, seccion: o.seccion, categoriaId: o.categoriaId, estado: o.estado, fecha: o.fecha, padreKey: o.padreKey, principiosIds: o.principiosIds, habitosIds: o.habitosIds };
       const i = d.objetivos.findIndex(x => x.id === reg.id);
       if (reg.estado === 'cumplido') { const prev = i >= 0 ? d.objetivos[i] : null; if (prev && prev.estado === 'cumplido') { if (prev.cumplidoEl) reg.cumplidoEl = prev.cumplidoEl; } else reg.cumplidoEl = _prHoyLocal(); }
+      if (i >= 0 && d.objetivos[i].origen) reg.origen = d.objetivos[i].origen;   // creado desde un Reporte: conserva de dónde vino (no se duplica la conversión)
       if (i >= 0) d.objetivos[i] = reg; else d.objetivos.push(reg);
     } else {
       d.extras[o.key] = { seccion: o.seccion, categoriaId: o.categoriaId, padreKey: o.padreKey, principiosIds: o.principiosIds, habitosIds: o.habitosIds };

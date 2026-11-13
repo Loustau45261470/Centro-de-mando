@@ -221,9 +221,107 @@ function _rvKpisFoco(fo, eco) {
   return h;
 }
 
+// ── Textos escritos a mano, aprendizajes y veredicto (T3) ──
+// S.reportes.items[key] se crea SOLO al escribir (abrir no crea nada). _rvEd guarda qué reporte está abierto y su editadoEn al abrir:
+// si al guardar ya es otro, llegó otra versión por sync → no se pisa (sin tocar la lógica de sync).
+let _rvEd = null, _rvPend = {}, _rvTimer = 0;
+const _rvItems = () => (S.reportes && typeof S.reportes.items === 'object' && S.reportes.items) || {};
+const _rvItemActual = () => { const it = _rvEd && _rvItems()[_rvEd.key]; return it ? CMReportes.repItemCompletar(JSON.parse(JSON.stringify(it)), _rvEd.periodo, _rvEd.clave) : CMReportes.repItemNuevo(_rvEd.periodo, _rvEd.clave); };
+function _rvAvisoConflicto() {   // lo tipeado queda en pantalla (solo lectura, seleccionable) para que se pueda copiar; no se descarta _rvPend
+  const e = document.getElementById('rv-conf'); if (!e || !e.hidden) return;
+  e.hidden = false;
+  document.querySelectorAll('#ov-reporte [data-rvf]').forEach(x => { x.readOnly = true; if (x.tagName === 'SELECT') x.disabled = true; });
+  if (_rvEd && typeof _syncEv === 'function') { const act = _rvItems()[_rvEd.key]; _syncEv('reporte-conflicto', { item: _rvEd.periodo + ':' + _rvEd.clave, base: _rvEd.base, actual: (act && act.editadoEn) || null }); }
+}
+// mut(item) → false aborta sin marcar edición. Devuelve true si guardó.
+function _rvEscribir(mut) {
+  const ed = _rvEd; if (!ed) return false;
+  if (CMReportes.repHayConflicto(ed.base, _rvItems()[ed.key])) { _rvAvisoConflicto(); return false; }
+  if (!S.reportes || typeof S.reportes !== 'object') S.reportes = {};
+  if (!S.reportes.items || typeof S.reportes.items !== 'object') S.reportes.items = {};
+  const nuevo = !S.reportes.items[ed.key];
+  const it = nuevo ? CMReportes.repItemNuevo(ed.periodo, ed.clave) : CMReportes.repItemCompletar(S.reportes.items[ed.key], ed.periodo, ed.clave);
+  if (mut(it) === false) return false;
+  const t = new Date(Math.max(Date.now(), Date.parse(it.editadoEn || 0) + 1)).toISOString();
+  it.editadoEn = t; S.reportes.items[ed.key] = it; ed.base = t;
+  if (typeof saveState === 'function') saveState();
+  return true;
+}
+function _rvFlush() {
+  clearTimeout(_rvTimer); _rvTimer = 0;
+  const pend = Object.keys(_rvPend).map(k => _rvPend[k]);
+  if (!pend.length || !_rvEd) { _rvPend = {}; return; }
+  if (CMReportes.repHayConflicto(_rvEd.base, _rvItems()[_rvEd.key])) { _rvAvisoConflicto(); return; }   // conflicto: lo pendiente NO se vacía
+  _rvPend = {};
+  if (!_rvItems()[_rvEd.key] && pend.every(p => p.v === '')) return;   // borrar lo que nunca se guardó no crea nada
+  _rvEscribir(it => { pend.forEach(p => p.fn(it)); });
+}
+function _rvEncolar(k, v, fn) { _rvPend[k] = { v, fn }; clearTimeout(_rvTimer); _rvTimer = setTimeout(_rvFlush, 450); }
+function _rvCampoLeido(el) {   // textarea/select con data-rvf → [clave de cola, valor, función que lo aplica al item]
+  const f = el.dataset.rvf, v = el.value, sec = el.dataset.sec, id = el.dataset.id, k = el.dataset.k;
+  if (f === 'est' || f === 'det') return [f + sec, v, it => { it[f === 'est' ? 'estancamientos' : 'deterioro'][sec] = v; }];
+  if (f === 'agr') return ['agr', v, it => { it.agradecimientos = v; }];
+  if (f === 'man') return ['man', v, it => { it.veredicto.manual = v.trim() ? { texto: v, el: new Date().toISOString() } : null; }];
+  if (f === 'apr') return ['apr' + id + k, v, it => { const fi = it.aprendizajes.find(x => x.id === id); if (fi) fi[k] = v; }];
+  return null;
+}
+const _rvTa = (f, etiqueta, valor, o) => { o = o || {};
+  return '<label class="rv-lab">' + _rvEsc(etiqueta) + '<textarea class="rv-ta" rows="' + (o.rows || 4) + '" data-rvf="' + f + '"' + (o.sec ? ' data-sec="' + _rvEsc(o.sec) + '"' : '') + (o.id ? ' data-id="' + _rvEsc(o.id) + '"' : '') + (o.k ? ' data-k="' + o.k + '"' : '')
+    + (o.ph ? ' placeholder="' + _rvEsc(o.ph) + '"' : '') + '>' + _rvEsc(valor) + '</textarea></label>'; };
+function _rvCamposSec(it, sec, conTitulo) {
+  return _rvCard(conTitulo ? sec : 'Tu lectura de ' + sec, _rvTa('est', 'Estancamientos', it.estancamientos[sec], { sec, ph: 'Qué se estancó, qué no avanzó' }) + _rvTa('det', 'Deterioro', it.deterioro[sec], { sec, ph: 'Qué empeoró respecto del período anterior' }));
+}
+function _rvAprHtml(it) {
+  const filas = it.aprendizajes.map(f => {
+    const conv = f.convertidoA;
+    return '<div class="rv-fila" data-id="' + _rvEsc(f.id) + '"><label class="rv-lab">Sección<select class="rv-in" data-rvf="apr" data-k="seccion" data-id="' + _rvEsc(f.id) + '">' + CMReportes.REP_SECCIONES.map(s => '<option' + (s === f.seccion ? ' selected' : '') + '>' + _rvEsc(s) + '</option>').join('') + '</select></label>'
+      + _rvTa('apr', 'Error', f.error, { id: f.id, k: 'error', rows: 3, ph: 'Qué salió mal' }) + _rvTa('apr', 'Aprendizaje', f.aprendizaje, { id: f.id, k: 'aprendizaje', rows: 3, ph: 'Qué aprendí de eso' }) + _rvTa('apr', 'Propuesta para cambiarlo', f.propuesta, { id: f.id, k: 'propuesta', rows: 3, ph: 'Qué voy a hacer distinto' })
+      + '<div class="rv-acts">' + (conv && CMReportes.repBuscarConversion(_prData(), CMReportes.repItemKey(_rvEd.periodo, _rvEd.clave), f.id) ? '<span class="rv-ya">Ya convertido en ' + (conv.tipo === 'objetivo' ? 'objetivo' : 'principio') + '</span>'
+        : '<button type="button" class="rv-btn" data-rvact="conv" data-tipo="principio" data-id="' + _rvEsc(f.id) + '">Convertir en principio</button><button type="button" class="rv-btn" data-rvact="conv" data-tipo="objetivo" data-id="' + _rvEsc(f.id) + '">Convertir en objetivo</button>')
+      + '<button type="button" class="rv-btn rv-btn-d" data-rvact="del" data-id="' + _rvEsc(f.id) + '">Borrar</button></div></div>';
+  }).join('');
+  return '<div id="rv-apr">' + (filas || '<div class="rv-card"><div class="rv-vacio">Todavía no cargaste ningún aprendizaje. Cada fila es: error, aprendizaje y propuesta para cambiarlo.</div></div>') + '<button type="button" class="rv-btn rv-btn-p" data-rvact="add">Agregar aprendizaje</button></div>';
+}
+const _rvFechaHora = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' }); };
+function _rvVeredictoIaHtml(it) {
+  const ia = it.veredicto.ia, hay = ia.estado === 'listo' && typeof ia.texto === 'string' && ia.texto.trim() !== '', conf = it.veredicto.conformidad;
+  return '<div id="rv-ia" class="rv-card"><div class="rv-ct">Veredicto de Claude</div>'
+    + (hay ? '<div class="rv-vtxt">' + _rvEsc(ia.texto) + '</div>' : '<div class="rv-fm">Pendiente (se genera cuando esté el consejero con IA)</div>')
+    + (conf ? '<div class="rv-ya">Estás de acuerdo · ' + _rvEsc(_rvFechaHora(conf.el)) + '</div>' : '')
+    + '<div class="rv-acts"><button type="button" class="rv-btn rv-btn-p" data-rvact="acuerdo"' + (hay && !conf ? '' : ' disabled') + '>' + (conf ? 'Ya estás de acuerdo' : 'Estoy de acuerdo') + '</button></div></div>';
+}
+function _rvVeredictoHtml(it) {
+  return _rvVeredictoIaHtml(it) + _rvCard('Mi veredicto', _rvTa('man', 'Tu propio veredicto del período', (it.veredicto.manual && it.veredicto.manual.texto) || '', { rows: 5, ph: 'Cómo te fue en este período, en tus palabras' }));
+}
+function _rvTextosGlobalesHtml(it) { return _rvCard('Agradecimientos', _rvTa('agr', 'De qué estás agradecido en este período', it.agradecimientos, { rows: 5 })); }
+function _rvAccion(act, b) {
+  _rvFlush();
+  if (!_rvEd) return;
+  const apr = () => { const c = document.getElementById('rv-apr'); if (c) c.outerHTML = _rvAprHtml(_rvItemActual()); };
+  if (act === 'add') { if (_rvEscribir(it => { it.aprendizajes.push({ id: _prUid(), seccion: CMReportes.REP_SECCIONES[0], error: '', aprendizaje: '', propuesta: '', convertidoA: null }); })) apr(); return; }
+  if (act === 'del') {
+    const f = _rvItemActual().aprendizajes.find(x => x.id === b.dataset.id);
+    if (f && (f.error || f.aprendizaje || f.propuesta) && !confirm('¿Borrar esta fila?')) return;
+    if (_rvEscribir(it => { it.aprendizajes = it.aprendizajes.filter(x => x.id !== b.dataset.id); })) apr(); return;
+  }
+  if (act === 'conv') {
+    let r = null;
+    const ok = _rvEscribir(it => {
+      const fi = it.aprendizajes.find(x => x.id === b.dataset.id);
+      r = CMReportes.repConvertirFila(_prData(), it, fi, b.dataset.tipo, 'Reporte ' + _rvEtiqueta(_rvEd.periodo, _rvEd.clave), _prUid);
+      if (r.error) return false;
+    });
+    if (r && r.error && typeof showToast === 'function') showToast(r.error);
+    if (ok) { apr(); if (typeof showToast === 'function') showToast(r.creado ? (r.tipo === 'principio' ? 'Principio creado' : 'Objetivo creado') : 'Ya estaba convertido'); }
+    return;
+  }
+  if (act === 'acuerdo') {
+    if (_rvEscribir(it => { const ia = it.veredicto.ia; if (ia.estado !== 'listo' || !String(ia.texto || '').trim() || it.veredicto.conformidad) return false; it.veredicto.conformidad = { el: new Date().toISOString(), periodo: it.periodo, clave: it.clave }; })) { const c = document.getElementById('rv-ia'); if (c) c.outerHTML = _rvVeredictoIaHtml(_rvItemActual()); }
+  }
+}
+
 // ── Armado del reporte ──
 function _rvPagina(titulo, cuerpo) { return { titulo, html: '<h3 class="rv-pt">' + _rvEsc(titulo) + '</h3>' + cuerpo }; }
-function _rvPlaceholder(t) { return _rvPagina(t, '<div class="rv-card"><div class="rv-vacio">Se completa en la próxima versión.</div></div>'); }
 
 function _rvConstruir(periodo, clave) {
   const R = CMReportes, hoy = _rvHoy();
@@ -240,17 +338,18 @@ function _rvConstruir(periodo, clave) {
   };
   const foco = R.repFoco(datos, rango, { foArmarCruces: typeof foArmarCruces === 'function' ? foArmarCruces : null });
   const eco = R.repKpiEconomia(datos, rango, comp);
+  const it = _rvItemActual();
   const paginas = [_rvPagina('Foco', _rvKpisFoco(foco, eco))];
   if (periodo === 'semanal') {
     paginas.push(_rvPagina('Hábitos', _rvLeyenda() + RV_SECCIONES.map(s => { const h = _rvHabitosDe(s[0], ctx, true); return h ? '<div class="rv-sec">' + _rvEsc(s[1]) + '</div>' + h : ''; }).join('')));
     paginas.push(_rvPagina('Gastos', _rvKpisEconomia(eco, true)));
-    paginas.push(_rvPlaceholder('Textos de la semana'));
+    paginas.push(_rvPagina('Textos de la semana', R.REP_SECCIONES.map(s => _rvCamposSec(it, s, true)).join('') + '<div class="rv-sec">Aprendizajes</div>' + _rvAprHtml(it) + _rvTextosGlobalesHtml(it) + _rvVeredictoHtml(it)));
   } else {
     const kpis = { conocimiento: () => _rvKpisConocimiento(R.repKpiConocimiento(datos, rango, comp)), finanzas: () => _rvKpisEconomia(eco, false) };
     RV_SECCIONES.forEach(s => {
-      paginas.push(_rvPagina(s[1], (ctx.habitos.some(h => h.seccion === s[0]) ? _rvLeyenda() : '') + _rvHabitosDe(s[0], ctx, false) + _rvObjetivos(s[0], s[2], ctx) + (kpis[s[0]] ? kpis[s[0]]() : '')));
+      paginas.push(_rvPagina(s[1], (ctx.habitos.some(h => h.seccion === s[0]) ? _rvLeyenda() : '') + _rvHabitosDe(s[0], ctx, false) + _rvObjetivos(s[0], s[2], ctx) + (kpis[s[0]] ? kpis[s[0]]() : '') + _rvCamposSec(it, s[2], false)));
     });
-    paginas.push(_rvPlaceholder('Aprendizajes'), _rvPlaceholder('Agradecimientos'));
+    paginas.push(_rvPagina('Aprendizajes', _rvAprHtml(it)), _rvPagina('Agradecimientos', _rvTextosGlobalesHtml(it) + _rvVeredictoHtml(it)));
   }
   return { periodo, clave, rango, comp, parcial: R.repParcial(rango, hoy), paginas, antClave: R.repAnterior(periodo, clave) };
 }
@@ -270,12 +369,12 @@ function _rvTip(el, ev) {
 function _rvBind(body) {
   const sc = body.querySelector('.rv-pages'); if (!sc) return;
   const dots = body.querySelectorAll('.rv-dot'), lab = body.querySelector('.rv-plabel');
-  const ir = i => sc.scrollTo({ left: i * sc.clientWidth, behavior: 'smooth' });
+  const ir = i => sc.scrollTo({ left: i * sc.clientWidth, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
   let raf = 0;
   sc.addEventListener('scroll', () => {
     if (raf) return;
     raf = requestAnimationFrame(() => {
-      raf = 0;
+      raf = 0; if (!sc.isConnected) return;
       const i = Math.min(dots.length - 1, Math.max(0, Math.round(sc.scrollLeft / sc.clientWidth)));
       body._rvI = i;
       dots.forEach((d, j) => { d.classList.toggle('on', j === i); d.setAttribute('aria-current', j === i ? 'true' : 'false'); });
@@ -288,11 +387,14 @@ function _rvBind(body) {
 
 function _rvVer(periodo, clave) {
   if (typeof CMOverlay === 'undefined' || typeof CMReportes === 'undefined') return;
+  _rvFlush();
+  _rvEd = { periodo, clave, key: CMReportes.repItemKey(periodo, clave), base: (_rvItems()[CMReportes.repItemKey(periodo, clave)] || {}).editadoEn || null };
   const rep = _rvConstruir(periodo, clave);
   const { overlay, body } = CMOverlay.build({ id: 'ov-reporte', accent: '#6B8EFF' });
   body.innerHTML = '<div class="cm-ov-head rv-head"><div class="cm-ov-eyebrow">REVISIONES · REPORTE</div><div class="cm-ov-title">' + _rvEsc(RV_PERIODOS.find(p => p[0] === periodo)[1] + ' · ' + _rvEtiqueta(periodo, clave)) + '</div>'
     + '<div class="rv-sub">' + _rvEsc(_rvFechaCorta(rep.rango.desde) + ' – ' + _rvFechaCorta(rep.rango.hasta) + ' ' + rep.rango.hasta.slice(0, 4) + ' · se compara con ' + _rvEtiqueta(periodo, rep.antClave)) + '</div>'
-    + (rep.parcial ? '<div class="rv-banner">Período en curso: se compara contra los mismos días del anterior</div>' : '') + '</div>'
+    + (rep.parcial ? '<div class="rv-banner">Período en curso: se compara contra los mismos días del anterior</div>' : '')
+    + '<div class="rv-conflicto" id="rv-conf" role="alert" hidden>Este reporte se editó en otro dispositivo. Copiá lo que escribiste y volvé a abrir el reporte.</div></div>'
     + '<div class="rv-pages">' + rep.paginas.map(p => '<section class="rv-page" aria-label="' + _rvEsc(p.titulo) + '">' + p.html + '</section>').join('') + '</div>'
     + '<div class="rv-nav"><div class="rv-dots">' + rep.paginas.map((p, i) => '<button type="button" class="rv-dot' + (i ? '' : ' on') + '"' + (i ? '' : ' aria-current="true"') + ' aria-label="' + _rvEsc(p.titulo) + '"><i></i></button>').join('') + '</div>'
     + '<div class="rv-plabel">' + _rvEsc(rep.paginas[0].titulo) + ' · 1 de ' + rep.paginas.length + '</div></div>';
@@ -310,6 +412,13 @@ function _rvVer(periodo, clave) {
       const sc = overlay.querySelector('.rv-pages');
       if (sc && overlay.classList.contains('show')) sc.scrollTo({ left: (body._rvI || 0) * sc.clientWidth, behavior: 'instant' });
     });
+    body.addEventListener('input', e => { const el = e.target.closest && e.target.closest('[data-rvf]'); const r = el && _rvCampoLeido(el); if (r) _rvEncolar(r[0], r[1], r[2]); });
+    body.addEventListener('change', e => { const el = e.target.closest && e.target.closest('select[data-rvf]'); const r = el && _rvCampoLeido(el); if (r) { _rvEncolar(r[0], r[1], r[2]); _rvFlush(); } });
+    body.addEventListener('focusout', e => { if (e.target.closest && e.target.closest('[data-rvf]')) _rvFlush(); });
+    body.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-rvact]'); if (b && !b.disabled) _rvAccion(b.dataset.rvact, b); });
+    overlay._cmOnClose = () => _rvFlush();   // cerrar con lo tipeado a medias: se guarda antes de soltar el reporte
+    document.addEventListener('visibilitychange', () => { if (document.hidden) { _rvFlush(); if (typeof _fbFlush === 'function') _fbFlush(); } });
+    window.addEventListener('pagehide', () => { _rvFlush(); if (typeof _fbFlush === 'function') _fbFlush(); });
     overlay._rvBuilt = true;
   }
   _rvBind(body);
@@ -334,6 +443,13 @@ function _rvCuentasLiquidasUI() {
     + (ctas.length ? '<div class="pr-checks">' + ctas.map(a => '<label class="pr-chk"><span>' + _rvEsc(((a.icon || '') + ' ' + (a.name || 'Cuenta')).trim()) + '</span><input type="checkbox" value="' + _rvEsc(a.id) + '"' + (marcadas.includes(a.id) ? ' checked' : '') + ' onchange="ReportesVista.liquida(this.value,this.checked)"></label>').join('') + '</div>'
       : '<div class="pr-vacio">No tenés cuentas en pesos de otro tipo (inversión, otras).</div>') + '</div>';
 }
+function _rvHistorialHtml() {
+  const lista = CMReportes.repHistorial(_rvItems());
+  return '<div class="pr-card"><div class="pr-card-h"><span class="pr-chip pr-chip-h">Reportes con textos</span></div>'
+    + (lista.length ? lista.map(i => '<div class="rv-hist"><div class="rv-hist-t"><b>' + _rvEsc((RV_PERIODOS.find(p => p[0] === i.periodo) || [0, i.periodo])[1] + ' · ' + _rvEtiqueta(i.periodo, i.clave)) + '</b><span>' + _rvEsc(CMReportes.repResumenItem(i).join(' · ')) + '</span></div>'
+      + '<button type="button" class="pr-btn" data-rvhist data-p="' + _rvEsc(i.periodo) + '" data-c="' + _rvEsc(i.clave) + '">Abrir</button></div>').join('')
+      : '<div class="pr-vacio">Todavía no escribiste nada en ningún reporte.</div>') + '</div>';
+}
 function rvHtmlSub() {
   if (typeof CMReportes === 'undefined') return '';
   const clave = _rvClaveActual(), prev = _rvVecina(clave, -1), next = _rvVecina(clave, 1);
@@ -344,7 +460,7 @@ function rvHtmlSub() {
     + '<div class="rv-clave" id="rv-clave">' + _rvEsc(_rvEtiqueta(_rvV.periodo, clave)) + '</div>'
     + '<button type="button" class="pr-btn" aria-label="Período siguiente" onclick="ReportesVista.mover(1)"' + (next ? '' : ' disabled') + '>›</button></div>'
     + '<button type="button" class="pr-btn pr-btn-p rv-ver" onclick="ReportesVista.ver()">Ver reporte</button></div>'
-    + _rvCuentasLiquidasUI();
+    + _rvHistorialHtml() + _rvCuentasLiquidasUI();
 }
 
 const ReportesVista = {
@@ -363,3 +479,5 @@ const ReportesVista = {
   abrir(periodo, clave) { if (window.Principios) Principios.abrir('revisiones'); if (periodo) { _rvV.periodo = periodo; _rvV.clave = clave || null; Principios.render(); } },
 };
 window.ReportesVista = ReportesVista;
+
+document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-rvhist]'); if (b) ReportesVista.ver(b.dataset.p, b.dataset.c); });   // historial: Abrir

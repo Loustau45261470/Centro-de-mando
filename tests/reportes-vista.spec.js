@@ -103,9 +103,9 @@ test.describe('Reportes: pantalla', () => {
     fichas.filter((f) => !f.nulo).forEach((f) => expect(f.v, f.t).not.toMatch(/NaN|undefined|null/));
     // ningún motivo muestra claves técnicas de mes
     expect(await cmPage.locator('#ov-reporte').innerText()).not.toMatch(/\b20\d\d-\d\d\b/);
-    // Aprendizajes y Agradecimientos: placeholder
+    // Aprendizajes (tabla de filas) y Agradecimientos (campo + veredicto)
     await irA(cmPage, 6);
-    await expect(cmPage.locator('.rv-page').nth(6)).toContainText('Se completa en la próxima versión');
+    await expect(cmPage.locator('.rv-page').nth(6)).toContainText('Agregar aprendizaje');
     // chips con signo y número
     const chips = await cmPage.locator('.rv-chip').allInnerTexts();
     chips.forEach((c) => expect(c).toMatch(/^([+−] ?.*\d|= .*\d)/));
@@ -191,7 +191,7 @@ test.describe('Reportes: pantalla', () => {
     await expect(cmPage.locator('.rv-page').nth(2)).toContainText('Gastos');
     await shot(cmPage, testInfo, 'semanal-gastos');
     await irA(cmPage, 3);
-    await expect(cmPage.locator('.rv-page').nth(3)).toContainText('Se completa en la próxima versión');
+    await expect(cmPage.locator('.rv-page').nth(3)).toContainText('Veredicto de Claude');
   });
 
   test('cuentas líquidas: marcar una cambia el KPI de activos líquidos y se guarda en S.reportes.config', async ({ cmPage }) => {
@@ -248,5 +248,176 @@ test.describe('Reportes: pantalla', () => {
     await expect(card).toBeVisible();
     const n = await card.locator('.rv-row').count();
     expect(n).toBeGreaterThan(0); expect(n).toBeLessThanOrEqual(5);
+  });
+});
+
+test.describe('Reportes: textos, aprendizajes, veredicto e historial (T3)', () => {
+  const items = (page) => page.evaluate(() => (S.reportes && S.reportes.items) || {});
+  const cerrar = (page) => page.evaluate(() => CMOverlay.close('ov-reporte'));
+  const abrirMensual = async (page, clave) => { await elegir(page, 'mensual', clave || '2026-11'); };
+  const llenarFila = async (page, i, e, a, p) => {
+    const f = page.locator('.rv-fila').nth(i);
+    await f.locator('[data-k="error"]').fill(e); await f.locator('[data-k="aprendizaje"]').fill(a); await f.locator('[data-k="propuesta"]').fill(p);
+    await f.locator('[data-k="propuesta"]').blur();
+  };
+
+  test('abrir sin escribir no crea nada; Estancamientos tipeado sobrevive a deslizar y a cerrar/reabrir', async ({ cmPage, consoleErrors }, testInfo) => {
+    await cmPage.emulateMedia({ reducedMotion: 'reduce' });
+    await sembrar(cmPage);
+    await abrirMensual(cmPage);
+    expect(Object.keys(await items(cmPage))).toHaveLength(0);
+    await irA(cmPage, 1);   // Vida
+    const ta = cmPage.locator('.rv-page').nth(1).locator('[data-rvf="est"]');
+    await ta.fill('Me estanqué con la lectura');
+    await irA(cmPage, 2); await irA(cmPage, 1);
+    await expect(ta).toHaveValue('Me estanqué con la lectura');
+    await ta.fill('Me estanqué con la lectura y el inglés');
+    await cerrar(cmPage);   // justo después del fill, sin blur ni esperar el debounce: cerrar guarda
+    const it = (await items(cmPage))['mensual:2026-11'];
+    expect(it.estancamientos.Vida).toBe('Me estanqué con la lectura y el inglés');
+    expect(it).toMatchObject({ periodo: 'mensual', clave: '2026-11', desde: '2026-11-01', hasta: '2026-11-30' }); expect(it.editadoEn).toBeTruthy();
+    await abrirMensual(cmPage); await irA(cmPage, 1);
+    await expect(cmPage.locator('.rv-page').nth(1).locator('[data-rvf="est"]')).toHaveValue('Me estanqué con la lectura y el inglés');
+    expect(await sinScrollH(cmPage)).toBe(true);
+    await shot(cmPage, testInfo, 'textos-vida');
+    expect(consoleErrors).toEqual([]);
+  });
+
+  test('aprendizajes: convertir en principio y en objetivo, sin duplicar', async ({ cmPage }, testInfo) => {
+    await sembrar(cmPage);
+    await abrirMensual(cmPage); await irA(cmPage, 6);
+    await cmPage.locator('[data-rvact="add"]').click();
+    await llenarFila(cmPage, 0, 'Procrastiné', 'Empezar temprano', 'Bloque fijo a las 8');
+    await cmPage.locator('.rv-fila').nth(0).locator('[data-rvf="apr"][data-k="seccion"]').selectOption('Salud');
+    await cmPage.locator('[data-rvact="add"]').click();
+    await llenarFila(cmPage, 1, 'Gasté de más', 'Planificar', 'Tope semanal');
+    await shot(cmPage, testInfo, 'aprendizajes');
+    await cmPage.locator('.rv-fila').nth(0).locator('[data-tipo="principio"]').click();
+    await cmPage.locator('.rv-fila').nth(1).locator('[data-tipo="objetivo"]').click();
+    await expect(cmPage.locator('.rv-ya')).toHaveCount(2);
+    await expect(cmPage.locator('.rv-fila').nth(0).locator('.rv-ya')).toContainText('principio');
+    const st = await cmPage.evaluate(() => ({ p: S.principios.principios.filter((x) => x.origen && x.origen.reporte), o: S.principios.objetivos.filter((x) => x.origen && x.origen.reporte), it: S.reportes.items['mensual:2026-11'] }));
+    expect(st.p).toHaveLength(1); expect(st.o).toHaveLength(1);
+    expect(st.p[0]).toMatchObject({ enunciado: 'Bloque fijo a las 8', porque: 'Empezar temprano', seccion: 'Salud', fuente: 'Reporte Noviembre 2026' });
+    expect(st.o[0]).toMatchObject({ texto: 'Tope semanal', horizonte: 'mensual', seccion: 'Vida' });
+    expect(st.it.aprendizajes[0].convertidoA).toEqual({ tipo: 'principio', id: st.p[0].id });
+    // reabrir y forzar un segundo intento (como desde otro dispositivo: fila sin convertidoA) -> no duplica
+    await cerrar(cmPage);
+    await cmPage.evaluate(() => { S.reportes.items['mensual:2026-11'].aprendizajes[0].convertidoA = null; });
+    await abrirMensual(cmPage); await irA(cmPage, 6);
+    await cmPage.locator('.rv-fila').nth(0).locator('[data-tipo="principio"]').click();
+    await expect(cmPage.locator('.rv-ya')).toHaveCount(2);
+    expect(await cmPage.evaluate(() => [S.principios.principios.filter((x) => x.origen && x.origen.reporte).length, S.principios.objetivos.filter((x) => x.origen && x.origen.reporte).length])).toEqual([1, 1]);
+    // editar el objetivo desde Principios conserva el origen
+    await cmPage.evaluate(() => { const o = S.principios.objetivos.find((x) => x.origen); Principios.editarObjetivo(o.id); });
+    await cmPage.evaluate(() => Principios.guardarObjetivo());
+    expect(await cmPage.evaluate(() => S.principios.objetivos.filter((x) => x.origen && x.origen.reporte).length)).toBe(1);
+  });
+
+  test('horizonte del objetivo segun periodo: trimestral y anual', async ({ cmPage }) => {
+    await sembrar(cmPage);
+    for (const [per, clave, hor] of [['trimestral', '2026-T3', 'trimestral'], ['anual', '2025', 'anual']]) {
+      await elegir(cmPage, per, clave); await irA(cmPage, 6);
+      await cmPage.locator('[data-rvact="add"]').click();
+      await llenarFila(cmPage, 0, 'e', 'a', 'Objetivo ' + per);
+      await cmPage.locator('.rv-fila').nth(0).locator('[data-tipo="objetivo"]').click();
+      await expect(cmPage.locator('.rv-ya')).toHaveCount(1);
+      expect(await cmPage.evaluate((t) => S.principios.objetivos.find((x) => x.texto === t).horizonte, 'Objetivo ' + per)).toBe(hor);
+      await cerrar(cmPage);
+    }
+  });
+
+  test('veredicto: conformidad deshabilitada con IA pendiente; con texto de IA guarda fecha y periodo; el manual se guarda', async ({ cmPage }, testInfo) => {
+    await sembrar(cmPage);
+    await abrirMensual(cmPage); await irA(cmPage, 7);
+    const pg = cmPage.locator('.rv-page').nth(7);
+    await expect(pg).toContainText('Pendiente (se genera cuando esté el consejero con IA)');
+    await expect(pg.locator('[data-rvact="acuerdo"]')).toBeDisabled();
+    await pg.locator('[data-rvf="man"]').fill('Mes parejo, bien en salud');
+    await pg.locator('[data-rvf="agr"]').fill('Por mi familia');
+    await cerrar(cmPage);
+    let it = (await items(cmPage))['mensual:2026-11'];
+    expect(it.veredicto.manual.texto).toBe('Mes parejo, bien en salud'); expect(it.agradecimientos).toBe('Por mi familia'); expect(it.veredicto.conformidad).toBeNull();
+    // inyecta un texto de IA de prueba (la IA real es la Etapa D) y reabre
+    await cmPage.evaluate(() => { const i = S.reportes.items['mensual:2026-11']; i.veredicto.ia = { estado: 'listo', texto: 'Buen mes en general.', el: new Date().toISOString() }; });
+    await abrirMensual(cmPage); await irA(cmPage, 7);
+    await expect(cmPage.locator('.rv-page').nth(7)).toContainText('Buen mes en general.');
+    await expect(cmPage.locator('[data-rvact="acuerdo"]')).toBeEnabled();
+    await shot(cmPage, testInfo, 'veredicto');
+    await cmPage.locator('[data-rvact="acuerdo"]').click();
+    await expect(cmPage.locator('[data-rvact="acuerdo"]')).toBeDisabled();
+    it = (await items(cmPage))['mensual:2026-11'];
+    expect(it.veredicto.conformidad).toMatchObject({ periodo: 'mensual', clave: '2026-11' }); expect(it.veredicto.conformidad.el).toBeTruthy();
+    expect(it.veredicto.manual.texto).toBe('Mes parejo, bien en salud');   // ambos se conservan
+  });
+
+  test('historial: lista reportes con algo escrito (reciente primero) y Abrir muestra sus textos', async ({ cmPage }, testInfo) => {
+    await sembrar(cmPage);
+    await abrirRev(cmPage);
+    await expect(cmPage.locator('.rv-hist')).toHaveCount(0);
+    await cmPage.clock.setFixedTime(new Date(2026, 10, 12, 12, 0));
+    await abrirMensual(cmPage, '2026-11'); await irA(cmPage, 7);
+    await cmPage.locator('[data-rvf="man"]').fill('Mi veredicto');
+    await cerrar(cmPage);
+    await cmPage.clock.setFixedTime(new Date(2026, 10, 12, 12, 1));   // +1 minuto: octubre se edita DESPUÉS
+    await abrirMensual(cmPage, '2026-10'); await irA(cmPage, 5);
+    await cmPage.locator('.rv-page').nth(5).locator('[data-rvf="est"]').fill('IA estancada');
+    await cerrar(cmPage);
+    await cmPage.evaluate(() => { Principios.render(); });
+    const hist = cmPage.locator('.rv-hist');
+    await expect(hist).toHaveCount(2);
+    await expect(hist.nth(0)).toContainText('Octubre 2026'); await expect(hist.nth(0)).toContainText('textos');   // editado último → primero
+    await expect(hist.nth(1)).toContainText('Noviembre 2026'); await expect(hist.nth(1)).toContainText('veredicto');
+    await shot(cmPage, testInfo, 'historial');
+    await hist.nth(0).locator('button').click();
+    await expect(cmPage.locator('#ov-reporte.show')).toBeVisible();
+    await irA(cmPage, 5);
+    await expect(cmPage.locator('.rv-page').nth(5).locator('[data-rvf="est"]')).toHaveValue('IA estancada');
+  });
+
+  test('dos dispositivos: si editadoEn cambio desde que se abrio, avisa y no pisa; lo tipeado queda en pantalla', async ({ cmPage }, testInfo) => {
+    await sembrar(cmPage);
+    await abrirMensual(cmPage); await irA(cmPage, 1);
+    await cmPage.locator('.rv-page').nth(1).locator('[data-rvf="est"]').fill('primera');
+    await cmPage.locator('.rv-page').nth(1).locator('[data-rvf="det"]').fill('x');
+    await cmPage.locator('.rv-page').nth(1).locator('[data-rvf="det"]').blur();
+    await expect(cmPage.locator('#rv-conf')).toBeHidden();
+    // "llega otra version por sync"
+    await cmPage.evaluate(() => { const i = S.reportes.items['mensual:2026-11']; i.estancamientos.Vida = 'versión del otro dispositivo'; i.editadoEn = '2030-01-01T00:00:00.000Z'; });
+    const ta = cmPage.locator('.rv-page').nth(1).locator('[data-rvf="est"]');
+    await ta.fill('mi cambio tarde'); await ta.blur();
+    await expect(cmPage.locator('#rv-conf')).toBeVisible();
+    await expect(cmPage.locator('#rv-conf')).toContainText('Este reporte se editó en otro dispositivo. Copiá lo que escribiste y volvé a abrir el reporte.');
+    await expect(ta).toHaveValue('mi cambio tarde');
+    // lo tipeado queda visible y seleccionable (solo lectura), no se descartó de lo pendiente, y quedó registrado para diagnóstico
+    await expect(ta).toHaveJSProperty('readOnly', true);
+    await expect(cmPage.locator('#ov-reporte [data-rvf]:not([readonly]):not([disabled])')).toHaveCount(0);
+    expect(await cmPage.evaluate(() => Object.keys(_rvPend))).toContain('estVida');
+    await cmPage.evaluate(() => _rvFlush());
+    expect(await cmPage.evaluate(() => Object.keys(_rvPend))).toContain('estVida');   // flush repetido tampoco lo pierde
+    const ev = await cmPage.evaluate(() => JSON.parse(localStorage.getItem('_syncEvents') || '[]').find((e) => e.tipo === 'reporte-conflicto'));
+    expect(ev).toMatchObject({ item: 'mensual:2026-11', actual: '2030-01-01T00:00:00.000Z' });
+    const it = (await items(cmPage))['mensual:2026-11'];
+    expect(it.estancamientos.Vida).toBe('versión del otro dispositivo'); expect(it.editadoEn).toBe('2030-01-01T00:00:00.000Z');
+    await shot(cmPage, testInfo, 'conflicto');
+    // un reporte que no existia al abrir y aparecio despues tambien es conflicto
+    await cerrar(cmPage);
+    await abrirMensual(cmPage, '2026-10'); await irA(cmPage, 1);
+    await cmPage.evaluate(() => { S.reportes.items['mensual:2026-10'] = { periodo: 'mensual', clave: '2026-10', editadoEn: '2031-01-01T00:00:00.000Z', agradecimientos: 'otro' }; });
+    const ta2 = cmPage.locator('.rv-page').nth(1).locator('[data-rvf="est"]'); await ta2.fill('no debería guardarse'); await ta2.blur();
+    await expect(cmPage.locator('#rv-conf')).toBeVisible();
+    await expect(ta2).toHaveValue('no debería guardarse');
+    expect((await items(cmPage))['mensual:2026-10'].agradecimientos).toBe('otro');
+  });
+
+  test('semanal: la pagina de textos trae las 5 secciones, aprendizajes y veredicto; sin scroll horizontal', async ({ cmPage }) => {
+    await sembrar(cmPage);
+    await elegir(cmPage, 'semanal', '2026-W45'); await irA(cmPage, 3);
+    const pg = cmPage.locator('.rv-page').nth(3);
+    await expect(pg.locator('[data-rvf="est"]')).toHaveCount(5); await expect(pg.locator('[data-rvf="det"]')).toHaveCount(5);
+    await expect(pg).toContainText('Veredicto de Claude');
+    await pg.locator('[data-rvf="est"][data-sec="Salud"]').fill('semana floja'); await cerrar(cmPage);
+    expect((await items(cmPage))['semanal:2026-W45'].estancamientos.Salud).toBe('semana floja');
+    expect(await sinScrollH(cmPage)).toBe(true);
   });
 });
