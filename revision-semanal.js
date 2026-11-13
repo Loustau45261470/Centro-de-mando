@@ -195,9 +195,16 @@
     const host = document.getElementById('rs-pane-1');
     if (!host) return;
     const rango = `${fmtDate(_rsInfo.closeDates[0])} – ${fmtDate(_rsInfo.closeDates[6])}`;
+    // Resumen compacto de reportes-vista.js; si no está cargado (o falla) queda el texto de antes.
+    let resumen = '';
+    try {
+      if (typeof CMReportes !== 'undefined' && typeof ReportesVista !== 'undefined' && ReportesVista.resumenSemanalHtml) {
+        resumen = ReportesVista.resumenSemanalHtml(CMReportes.repClaveDe('semanal', _rsInfo.closeDates[0]));
+      }
+    } catch (e) { resumen = ''; }
     host.innerHTML = `
       <div class="rs-sub">Cómo fue la semana · ${escHtml(rango)}</div>
-      <div class="rs-empty">Por ahora no hay números de la semana: vuelven con los informes nuevos.</div>`;
+      ${resumen || '<div class="rs-empty">Por ahora no hay números de la semana.</div>'}`;
   }
 
   function _rsRenderStep2() {
@@ -302,6 +309,7 @@
     if (e.key !== 'Tab') return;
     const ov = document.getElementById('ov-revision-semanal');
     if (!ov || !ov.classList.contains('show')) return;
+    if (document.querySelector('#ov-reporte.show')) return;   // reporte abierto encima: el foco lo maneja él
     const focusables = Array.from(ov.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'))
       .filter(el => el.offsetParent !== null);
     if (!focusables.length) return;

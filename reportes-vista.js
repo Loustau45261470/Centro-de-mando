@@ -336,7 +336,7 @@ function _rvConstruir(periodo, clave) {
     periodo, rango, comp, habitos: R.repHabitosComparados(trackers, rango, comp), obj: R.repObjetivosPorCategoria(vista, rango), objAnt: R.repObjetivosPorCategoria(vista, comp),
     metas, metasAnt, parcial: R.repParcial(rango, hoy), objFecha: R.repObjetivosPorCategoria(vista.filter(o => o.cumplidoEl), rango), categorias: (typeof _prData === 'function' ? _prData().categorias : []),
   };
-  const foco = R.repFoco(datos, rango, { foArmarCruces: typeof foArmarCruces === 'function' ? foArmarCruces : null });
+  const foco = R.repFoco(datos, rango, comp, { foArmarCruces: typeof foArmarCruces === 'function' ? foArmarCruces : null });
   const eco = R.repKpiEconomia(datos, rango, comp);
   const it = _rvItemActual();
   const paginas = [_rvPagina('Foco', _rvKpisFoco(foco, eco))];
@@ -385,9 +385,21 @@ function _rvBind(body) {
   body._rvIr = ir; body._rvN = dots.length; body._rvI = 0;
 }
 
+function _rvDevolverFoco(el) {
+  const visible = x => x && x.isConnected && !x.disabled && !!(x.offsetWidth || x.offsetHeight || x.getClientRects().length) && !x.closest('[hidden]');
+  setTimeout(() => {   // después de que CMOverlay.close oculte el reporte
+    // body/html no cuentan como foco a devolver (un toque en iPhone no enfoca el botón): seguir al fallback
+    if (el && el !== document.body && el !== document.documentElement && visible(el) && !el.closest('#ov-reporte')) { el.focus(); return; }
+    const ovs = Array.from(document.querySelectorAll('.cm-overlay.show')).filter(o => o.id !== 'ov-reporte');
+    const top = ovs[ovs.length - 1];
+    const f = top && Array.from(top.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')).find(visible);
+    if (f) f.focus(); else if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  }, 0);
+}
 function _rvVer(periodo, clave) {
   if (typeof CMOverlay === 'undefined' || typeof CMReportes === 'undefined') return;
   _rvFlush();
+  const _rvFoco = document.activeElement;   // a donde vuelve el foco al cerrar (CMOverlay.close no lo devuelve)
   _rvEd = { periodo, clave, key: CMReportes.repItemKey(periodo, clave), base: (_rvItems()[CMReportes.repItemKey(periodo, clave)] || {}).editadoEn || null };
   const rep = _rvConstruir(periodo, clave);
   const { overlay, body } = CMOverlay.build({ id: 'ov-reporte', accent: '#6B8EFF' });
@@ -416,14 +428,40 @@ function _rvVer(periodo, clave) {
     body.addEventListener('change', e => { const el = e.target.closest && e.target.closest('select[data-rvf]'); const r = el && _rvCampoLeido(el); if (r) { _rvEncolar(r[0], r[1], r[2]); _rvFlush(); } });
     body.addEventListener('focusout', e => { if (e.target.closest && e.target.closest('[data-rvf]')) _rvFlush(); });
     body.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-rvact]'); if (b && !b.disabled) _rvAccion(b.dataset.rvact, b); });
-    overlay._cmOnClose = () => _rvFlush();   // cerrar con lo tipeado a medias: se guarda antes de soltar el reporte
+    overlay._cmOnClose = () => { _rvFlush(); _rvDevolverFoco(overlay._rvFoco); };   // cerrar con lo tipeado a medias: se guarda antes de soltar el reporte
     document.addEventListener('visibilitychange', () => { if (document.hidden) { _rvFlush(); if (typeof _fbFlush === 'function') _fbFlush(); } });
     window.addEventListener('pagehide', () => { _rvFlush(); if (typeof _fbFlush === 'function') _fbFlush(); });
     overlay._rvBuilt = true;
   }
+  overlay._rvFoco = _rvFoco;
   _rvBind(body);
   document.body.appendChild(overlay);   // siempre encima de la ventana de Principios
   CMOverlay.open(overlay);
+  const cierre = overlay.querySelector('.cm-ov-close'); if (cierre) cierre.focus();
+}
+
+// ── Resumen compacto de una semana (lo usa el paso 1 de la Revisión semanal): mismos cálculos que el reporte semanal; las fichas son un subconjunto ──
+function _rvResumenSemanal(clave) {
+  const R = CMReportes, hoy = _rvHoy();
+  const rango = R.repRango('semanal', clave); if (!rango) return '';
+  const ant = R.repRango('semanal', R.repAnterior('semanal', clave)), comp = R.repRangoComparable(rango, ant, hoy);
+  const trackers = S.habitTrackers && !Array.isArray(S.habitTrackers) ? S.habitTrackers : {};
+  const datos = _rvDatos(rango, comp, hoy);
+  const hab = R.repHabitosComparados(trackers, rango, comp);
+  const tot = hab.reduce((a, h) => a + h.puntos, 0), totAnt = hab.reduce((a, h) => a + h.anterior, 0);
+  const kHab = hab.length ? { valor: tot, anterior: totAnt, comparacion: R.repComparar(tot, totAnt) } : { valor: null, motivo: 'No hay hábitos cargados' };
+  const eco = R.repKpiEconomia(datos, rango, comp);
+  const fo = R.repFoco(datos, rango, comp, { foArmarCruces: typeof foArmarCruces === 'function' ? foArmarCruces : null });
+  const con = R.repKpiConocimiento(datos, rango, comp);
+  const f = _rvFicha, m = _rvMoney, deCinco = v => _rvN(v, 1) + ' / 5';
+  return '<div class="rv-rs">' + _rvFichas([
+    f('Hábitos (suma de puntos)', kHab, v => _rvN(v, 1), { unidad: 'pts', subs: ['Suma de ' + hab.length + ' hábitos activos'], fmtAbs: _rvPts, conPct: false }),
+    f('Gastos', eco.gastos, m, { opts: { menosEsMejor: true } }),
+    f('Tasa de ahorro', eco.tasaAhorro, _rvPct, { conPct: false, fmtAbs: _rvPts }),
+    f('Atención promedio', fo.atencion, deCinco),
+    f('Energía promedio', fo.energia, deCinco),
+    f('Horas de estudio', con.horasEstudio, v => _rvN(v, 1), { unidad: 'h cronometradas', fmtAbs: _rvHoras, motivo: false }),
+  ]) + '<button type="button" class="btn btn-ghost rv-rs-ver" onclick="ReportesVista.verSemana(\'' + _rvEsc(clave) + '\')">Ver reporte completo</button></div>';
 }
 
 // ── Sub-pestaña "Revisiones" (dentro de la ventana de Principios) ──
@@ -465,9 +503,11 @@ function rvHtmlSub() {
 
 const ReportesVista = {
   htmlSub: rvHtmlSub,
+  resumenSemanalHtml: _rvResumenSemanal,
   periodo(p) { _rvV.periodo = p; _rvV.clave = null; Principios.render(); },
   mover(dir) { const c = _rvVecina(_rvClaveActual(), dir); if (c) { _rvV.clave = c; Principios.render(); } },
   ver(periodo, clave) { if (periodo) { _rvV.periodo = periodo; _rvV.clave = clave || null; } _rvVer(_rvV.periodo, _rvClaveActual()); },
+  verSemana(clave) { _rvVer('semanal', clave); },   // no toca _rvV: la sub-pestaña Revisiones conserva su período
   liquida(id, on) {
     if (!S.reportes || typeof S.reportes !== 'object') S.reportes = {};
     if (!S.reportes.config || typeof S.reportes.config !== 'object') S.reportes.config = {};

@@ -1,7 +1,8 @@
 /* ── Reportes de revisión (reportes-vista.js) ──
    Colores de celdas/chips validados con el validador de paleta de dataviz (dark, superficie #0a1019):
    lightness, chroma, separación CVD y contraste OK. Cada estado además tiene forma distinta (lleno / medio / contorno / punto). */
-#ov-reporte { --rv-ok: #1FA971; --rv-warn: #C08410; --rv-bad: #E04668; --rv-eq: #3B9CE0; --rv-rest: #8BA5C0; --rv-grid: rgba(120,160,255,.10); }
+.rv-rs-ver { min-height: 44px; width: 100%; margin-top: 2px; }
+#ov-reporte, .rv-rs { --rv-ok: #1FA971; --rv-warn: #C08410; --rv-bad: #E04668; --rv-eq: #3B9CE0; --rv-rest: #8BA5C0; --rv-grid: rgba(120,160,255,.10); }
 #ov-reporte .cm-panel { max-width: 960px; }
 #ov-reporte .cm-ov-body { display: flex; flex-direction: column; overflow: hidden; padding: 0; }
 .rv-head { margin: 6px 52px 8px 4px; flex: none; }

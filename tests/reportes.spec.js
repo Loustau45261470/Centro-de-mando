@@ -387,6 +387,15 @@ test.describe('reportes.js KPIs (puro, Node)', () => {
     expect(k.cruces.every(c => c.estado === 'faltan')).toBe(true);   // 2 días < mínimo de 10
     expect(R.repFoco({ foco: {} }, NOV, {}).atencion.valor).toBeNull();
     expect(R.repFoco({ foco: { chequeos: datos.foco.chequeos.slice(0, 2) } }, NOV).chequeos.valor).toBeNull();
+    // Con período anterior (octubre: solo el 30 con 1/1): atención 3 vs 1 = +2 (+200%); energía 4 vs 1 = +3 (+300%). Cálculo a mano.
+    const OCT = R.repRango('mensual', '2026-10'), conAnt = R.repFoco(datos, NOV, OCT, { foArmarCruces: F.foArmarCruces });
+    expect(conAnt.atencion).toMatchObject({ valor: 3, dias: 2, anterior: 1, diasAnterior: 1, comparacion: { abs: 2, pct: 200, tono: 'verde' } });
+    expect(conAnt.energia).toMatchObject({ valor: 4, dias: 2, anterior: 1, diasAnterior: 1, comparacion: { abs: 3, pct: 300, tono: 'verde' } });
+    expect(conAnt.pantalla).toMatchObject({ valor: 25, semanas: 2 });
+    // Sin días en el anterior (septiembre vacío): sin comparación, con motivo y sin inventar 0.
+    const sinAnt = R.repFoco(datos, NOV, R.repRango('mensual', '2026-09'));
+    expect(sinAnt.atencion).toEqual({ valor: 3, dias: 2, motivo: 'Sin registros en el período anterior' });
+    expect(sinAnt.atencion.comparacion).toBeUndefined(); expect(sinAnt.energia.anterior).toBeUndefined();
   });
 });
 

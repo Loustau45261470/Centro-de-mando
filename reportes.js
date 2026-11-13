@@ -487,18 +487,31 @@ const _repCatsFoco = ['estudio', 'gym', 'trabajo', 'pantalla', 'social', 'descan
 const _repMinChequeos = 5;   // FO_MIN_CHEQUEOS (foco.js:25)
 
 // datos = { foco: S.foco, sleepLog, workoutLog, dietaLog, dietaMet }; deps = { foArmarCruces } (foco.js:113; opcional, no se lee global).
-function repFoco(datos, rango, deps) {
+// rangoAnt (opcional) = rango comparable del período anterior; sin él atención/energía salen sin comparación (compatible con la llamada vieja repFoco(datos, rango, deps)).
+function repFoco(datos, rango, rangoAnt, deps) {
+  if (rangoAnt && !rangoAnt.desde) { deps = rangoAnt; rangoAnt = null; }
   datos = datos || {}; deps = deps || {};
   const foco = datos.foco || {};
-  const dias = {}; let a = 0, e = 0, n = 0;
-  Object.keys(foco.dias || {}).forEach(f => {
-    if (!_repEn(f, rango)) return;
-    const d = foco.dias[f], at = _repNum15(d && d.atencion), en = _repNum15(d && d.energia);
-    if (at == null || en == null) return;
-    dias[f] = d; a += at; e += en; n++;
-  });
+  const sumar = rg => {
+    const o = { dias: {}, a: 0, e: 0, n: 0 };
+    Object.keys(foco.dias || {}).forEach(f => {
+      if (!_repEn(f, rg)) return;
+      const d = foco.dias[f], at = _repNum15(d && d.atencion), en = _repNum15(d && d.energia);
+      if (at == null || en == null) return;
+      o.dias[f] = d; o.a += at; o.e += en; o.n++;
+    });
+    return o;
+  };
+  const cur = sumar(rango), dias = cur.dias, a = cur.a, e = cur.e, n = cur.n;
+  const ant = rangoAnt ? sumar(rangoAnt) : null;
   const sinDias = _repNulo('No hay cierres del día en este período');
-  const prom = v => ({ valor: _repRedondeo(v / n, 1), dias: n });
+  const prom = (v, k) => {
+    const r = { valor: _repRedondeo(v / n, 1), dias: n };
+    if (!ant) return r;
+    if (!ant.n) { r.motivo = 'Sin registros en el período anterior'; return r; }
+    r.anterior = _repRedondeo(ant[k] / ant.n, 1); r.diasAnterior = ant.n; r.comparacion = repComparar(r.valor, r.anterior);
+    return r;
+  };
   // Pantalla: la clave es el lunes de cada semana; solo cuentan las semanas completas dentro del período.
   let ph = 0, ps = 0;
   Object.keys(foco.pantalla || {}).forEach(l => { if (l >= rango.desde && repSumarDias(l, 6) <= rango.hasta) { ph += +foco.pantalla[l] || 0; ps++; } });
@@ -511,7 +524,7 @@ function repFoco(datos, rango, deps) {
   let cruces = null;   // foArmarCruces ya respeta su mínimo de 10 días con registro
   if (typeof deps.foArmarCruces === 'function') cruces = deps.foArmarCruces({ dias }, { sleepLog: datos.sleepLog || {}, workoutLog: datos.workoutLog || {}, dietaLog: datos.dietaLog || {}, dietaMet: datos.dietaMet || null });
   return {
-    atencion: n ? prom(a) : sinDias, energia: n ? prom(e) : sinDias,
+    atencion: n ? prom(a, 'a') : sinDias, energia: n ? prom(e, 'e') : sinDias,
     pantalla: ps ? { valor: _repRedondeo(ph / ps, 1), semanas: ps, total: _repRedondeo(ph, 1), motivo: 'Promedio de horas por semana completa' } : _repNulo('No hay semanas completas con tiempo de pantalla cargado'),
     chequeos, cruces,
   };
