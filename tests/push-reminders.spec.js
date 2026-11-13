@@ -71,6 +71,9 @@ test.describe('push-reminders.js', () => {
     expect(r1.doc.state).toBe(estado);   // el campo state no se toca
 
     // Segunda corrida, mismo 410: ya estaba marcado → no reescribe `at` y sale con 0 (un solo mail).
+    // (El cron ya borró la suscripción legada muerta; se repone para simular que el dispositivo la reescribió y sigue muerta.)
+    expect(r1.doc.pushSubscription).toBeUndefined();
+    r1.doc.pushSubscription = base.pushSubscription;
     const r2 = correr(r1.doc, '410');
     expect(r2.code).toBe(0);
     expect(r2.out).toContain('::error::');
@@ -78,6 +81,7 @@ test.describe('push-reminders.js', () => {
     expect(r2.doc.notifiedReminders).toEqual({});
 
     // Tras reactivar en la app (suscripción nueva), un envío exitoso borra pushDead y marca el aviso.
+    r2.doc.pushSubscription = base.pushSubscription;
     const r3 = correr(r2.doc, 'ok');
     expect(r3.code).toBe(0);
     expect(r3.doc.pushDead).toBeUndefined();

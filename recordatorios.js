@@ -319,8 +319,8 @@ function initNotifications() {
   if (!('Notification' in window)) { showToast('Este navegador no soporta notificaciones'); return; }
   if (Notification.permission === 'denied') { showToast('🔕 Notificaciones bloqueadas — habilítalas en Ajustes del navegador'); return; }
   if (Notification.permission === 'granted') {
-    showToast('🔔 Notificaciones ya activas');
-    _getOrCreateVapidKeys().then(k => k && _subscribePush(k.pubKey));
+    // El toast de éxito sale solo si se escribió; si falla, _subscribePush ya mostró el de error.
+    _getOrCreateVapidKeys().then(k => k ? _subscribePush(k.pubKey) : false).then(ok => { if (ok) showToast('🔔 Notificaciones ya activas'); });
     return;
   }
   Notification.requestPermission().then(async perm => {

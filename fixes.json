@@ -421,6 +421,13 @@
       "desc": "Los avisos llevan url de destino (sw.js notificationclick la respeta, también el aviso local de recordatorios.js) y los chequeos de Foco tienen ventana propia de 60 min (winMs) para no perderse si el cron se atrasa",
       "file": "deadlines.js",
       "marker": "a.winMs || (a.lead ? winLead : winTimed)"
+    },
+    {
+      "id": "push-todos-los-dispositivos",
+      "fecha": "2026-11-12",
+      "desc": "Los avisos push llegan a TODOS los dispositivos: cada uno guarda su suscripcion en pushSubscriptions.<deviceId> (campo puntual, no pisa a los otros), el cron manda a todas (dedupe por endpoint, borra la entrada 404/410) y los timers del Worker (Pomodoro/gym) van por dispositivo con subscriptions[]",
+      "file": "push-reminders.js",
+      "marker": "sendTodas(targets, a.title"
     }
   ]
 }

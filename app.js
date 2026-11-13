@@ -369,13 +369,39 @@ async function _subscribePush(pubKey, nueva) {
       userVisibleOnly: true,
       applicationServerKey: _b64uToUint8(pubKey),
     });
-    const upd = { pushSubscription: JSON.parse(JSON.stringify(sub)) };
+    const subJson = JSON.parse(JSON.stringify(sub));
+    // pushSubscription = legado (último dispositivo); pushSubscriptions.<id> = una entrada por dispositivo (campo puntual: no pisa a los demás).
+    const upd = { pushSubscription: subJson, ['pushSubscriptions.' + _pushDeviceId()]: { sub: subJson, ua: _pushDeviceUa(), updatedAt: Date.now() } };
+    _pushSubsCache = null;
     if (nueva) upd.pushDead = firebase.firestore.FieldValue.delete();   // ya se resuscribió: baja el aviso
     await _DOC().update(upd);
     if (nueva && typeof pushDeadAviso === 'function') pushDeadAviso(null);
     console.log('[PWA] Push subscription stored');
     return true;
-  } catch (e) { console.warn('[PWA] Push subscribe error:', e); return false; }
+  } catch (e) {
+    console.warn('[PWA] Push subscribe error:', e);
+    if (typeof showToast === 'function') showToast('No pude registrar este dispositivo para avisos', 5000);
+    return false;
+  }
+}
+
+// Al arrancar (post-login): si el permiso ya está concedido y este dispositivo no figura en el mapa
+// con su suscripción actual (dispositivo previo al mapa, o suscripción borrada por el cron tras un 410),
+// se registra. Una lectura puntual; no toca la lógica de sync.
+async function _asegurarPushDispositivo() {
+  try {
+    if (!('Notification' in window) || Notification.permission !== 'granted' || !('serviceWorker' in navigator)) return;
+    if (!_auth.currentUser) return;
+    if (!_swReg) _swReg = await Promise.race([navigator.serviceWorker.ready, new Promise(r => setTimeout(() => r(null), 5000))]);
+    if (!_swReg) return;
+    const actual = await _swReg.pushManager.getSubscription();
+    const snap = await _DOC().get();
+    const d = (snap && snap.data && snap.data()) || {};
+    const mia = d.pushSubscriptions && d.pushSubscriptions[_pushDeviceId()];
+    if (actual && mia && mia.sub && mia.sub.endpoint === actual.endpoint) return;
+    const keys = await _getOrCreateVapidKeys();
+    if (keys) await _subscribePush(keys.pubKey);
+  } catch (e) { console.warn('[PWA] asegurar push:', e); }
 }
 
 // ── Worker de push preciso (Pomodoro / descanso gym) ──
@@ -390,17 +416,60 @@ async function _pushWorkerToken() {
   return await _auth.currentUser.getIdToken();
 }
 
+// Id estable de ESTE dispositivo (sin puntos ni guiones: sirve de clave de campo y de sufijo de timer).
+function _pushDeviceId() {
+  let id = null;
+  try { id = localStorage.getItem('cm_device_id'); } catch (e) {}
+  if (!id || !/^[a-z0-9]+$/i.test(id)) {
+    id = 'd' + Array.from(crypto.getRandomValues(new Uint8Array(6)), b => b.toString(16).padStart(2, '0')).join('');
+    try { localStorage.setItem('cm_device_id', id); } catch (e) {}
+  }
+  return id;
+}
+function _pushDeviceUa() {
+  const u = navigator.userAgent || '';
+  return /iPhone|iPad/.test(u) ? 'iPhone' : /Android/.test(u) ? 'Android' : /Windows/.test(u) ? 'Windows' : /Mac/.test(u) ? 'Mac' : /Linux/.test(u) ? 'Linux' : 'otro';
+}
+// El timer del Worker es por dispositivo: 'pomo' -> 'pomo-<dev>', 'rtn-<ex>' -> 'rtn-<dev>-<ex>' (dos dispositivos no se pisan).
+function _pushTimerId(id) {
+  const dev = _pushDeviceId(), i = id.indexOf('-');
+  return i < 0 ? id + '-' + dev : id.slice(0, i) + '-' + dev + id.slice(i);
+}
+// Suscripciones de TODOS los dispositivos (propia primero, sin repetir endpoint, máx. 10).
+// Lectura puntual del documento al agendar (cacheada 10 min); si falla, solo la propia.
+let _pushSubsCache = null;
+async function _pushSubsTodas(propia) {
+  const lista = [propia];
+  try {
+    if (!_pushSubsCache || Date.now() - _pushSubsCache.at > 600000) {
+      const snap = await Promise.race([_DOC().get(), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 3000))]);
+      const d = (snap && snap.data && snap.data()) || {};
+      _pushSubsCache = { at: Date.now(), subs: [...Object.values(d.pushSubscriptions || {}).map(e => e && e.sub), d.pushSubscription] };
+    }
+    lista.push(..._pushSubsCache.subs);
+  } catch (e) {
+    // Lectura vencida/fallida: no cachear "nada" 10 min; solo la propia, y se reintenta a los 60 s.
+    _pushSubsCache = { at: Date.now() - 540000, subs: [propia] };
+  }
+  const vistos = new Set();
+  return lista.filter(s => s && s.endpoint && !vistos.has(s.endpoint) && vistos.add(s.endpoint)).slice(0, 10);
+}
+
 async function _schedulePushAlarm(id, delaySeconds, title, body, tag) {
   try {
     if (!_swReg || !delaySeconds || delaySeconds < 1) return;
+    const t0 = Date.now();
     const sub = await _swReg.pushManager.getSubscription();
     if (!sub) return;
     const token = await _pushWorkerToken();
     if (!token) return;
-    fetch(`${_PUSH_WORKER_URL}/schedule/${id}`, {
+    const propia = JSON.parse(JSON.stringify(sub));
+    const subscriptions = await _pushSubsTodas(propia);
+    const restante = Math.max(1, delaySeconds - (Date.now() - t0) / 1000);   // descuenta lo que tardaron token + lectura
+    fetch(`${_PUSH_WORKER_URL}/schedule/${_pushTimerId(id)}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-      body: JSON.stringify({ delaySeconds: Math.ceil(delaySeconds), subscription: JSON.parse(JSON.stringify(sub)), title, body, tag }),
+      body: JSON.stringify({ delaySeconds: Math.ceil(restante), subscription: propia, subscriptions, title, body, tag }),
       keepalive: true,
     }).catch(() => {});
   } catch (e) {}
@@ -409,7 +478,7 @@ async function _cancelPushAlarm(id) {
   try {
     const token = await _pushWorkerToken();
     if (!token) return;
-    fetch(`${_PUSH_WORKER_URL}/cancel/${id}`, {
+    fetch(`${_PUSH_WORKER_URL}/cancel/${_pushTimerId(id)}`, {
       method: 'POST',
       headers: { authorization: `Bearer ${token}` },
       keepalive: true,
@@ -4658,6 +4727,7 @@ setInterval(() => {
 }, 60000);
 setInterval(() => { checkReminderNotifications(); refreshRemindersView(); }, 60000);
 setInterval(() => { if (!Object.keys(_rtnTimers).length) _msHub.showReminders(); }, 60000);
+setTimeout(_asegurarPushDispositivo, 4000);   // avisos push: registra este dispositivo si falta en el mapa
 // Visibilidad del sync (solo registra): cuánto estuvo oculta la app y en qué orden pasa todo al volver.
 // Se registra ANTES que el listener de abajo, así "visible" queda antes del inicio de _syncOnFocus.
 let _dgHiddenAt = null;

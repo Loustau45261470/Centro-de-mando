@@ -15,6 +15,7 @@ guarda todo el estado de `/cartera` (ver abajo).
 ## Rutas
 
 - `POST /schedule/:id` y `POST /cancel/:id` — requieren `Authorization: Bearer <ID token de Firebase Auth del dueño>` (`uid === OWNER_UID`, mismo gate `autorizarDueno` que `/cartera`; 401 sin token/inválido, 403 si el uid no es el del dueño). El secreto fijo `WORKER_SECRET` que se usaba antes se eliminó (2026-11-12): estaba en texto plano en el repo público. No volver a poner un secreto en el cliente.
+  Body de `/schedule`: `{ delaySeconds, subscriptions: [...] (todas las suscripciones push del dueño, máx. 10; cada una con `https://` en el endpoint y `keys`), subscription (la del dispositivo que agenda; formato viejo, sigue aceptándose sola), title, body, tag }`, máx. 32 KB. El timer es **por dispositivo** (`:id` = `pomo-<deviceId>` / `rtn-<deviceId>-<exId>`, el cliente lo arma en `_pushTimerId`) y al sonar la alarma el aviso sale a TODAS las suscripciones (cada envío aislado: uno que falla no frena a los demás).
 - `GET /cartera` — requiere `Authorization: Bearer <ID token de Firebase Auth>` (ver abajo).
 - `GET /datos/<archivo>.json` — mismo gate que `/cartera`; archivos privados de la cartera (ver abajo).
 - `GET /rendimiento/operaciones`, `/rendimiento/cierres`, `/rendimiento/mercado` — mismo gate que `/cartera`; datos de la pestaña "Rendimiento" (ver abajo).

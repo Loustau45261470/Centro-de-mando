@@ -5,7 +5,7 @@
 // timestamp exacto de fin — no hay polling ni cron de por medio.
 //
 // Rutas:
-//   POST /schedule/:id  { delaySeconds, subscription, title, body, tag }  — Bearer <ID token del dueño>
+//   POST /schedule/:id  { delaySeconds, subscriptions[≤10] (o subscription sola, formato viejo), title, body, tag }  — Bearer <ID token del dueño>
 //   POST /cancel/:id                                                      — Bearer <ID token del dueño>
 //   GET  /cartera  — cartera IOL en vivo — Bearer <ID token de Firebase Auth>, ver más abajo
 //                    (el estado — caché, token de IOL, frenos — vive en el Durable Object CarteraGate)
@@ -21,8 +21,10 @@
 //                    repo privado (Contents API, GH_DATA_TOKEN) — mismo gate; 20 por día
 //                    Radar de empresas; ver handleRadar() más abajo. Los datos NO se calculan acá: se leen con GET /datos/<archivo>.json
 //
-// :id identifica el timer — 'pomo' para el Pomodoro (uno a la vez), 'rtn-<exId>'
-// para cada descanso de gimnasio (puede haber varios en simultáneo).
+// :id identifica el timer — por dispositivo: 'pomo-<deviceId>' para el Pomodoro,
+// 'rtn-<deviceId>-<exId>' para cada descanso de gimnasio (puede haber varios en
+// simultáneo). (Apps viejas en caché siguen mandando 'pomo' / 'rtn-<exId>': anda igual.)
+// El aviso sale a TODAS las suscripciones recibidas (todos los dispositivos).
 
 import { buildPushPayload } from '@block65/webcrypto-web-push';
 
@@ -35,12 +37,16 @@ export class TimerAlarm {
   async fetch(request) {
     const url = new URL(request.url);
     if (request.method === 'POST' && url.pathname === '/schedule') {
-      const body = await request.json();
-      const { delaySeconds, subscription, title, body: notifBody, tag } = body;
-      if (!delaySeconds || delaySeconds < 1 || delaySeconds > 3600 || !subscription || !subscription.endpoint) {
+      let body;
+      try { body = await request.json(); } catch (e) { return new Response('bad request', { status: 400 }); }
+      const { delaySeconds, subscription, subscriptions, title, body: notifBody, tag } = body || {};
+      // `subscriptions` (todos los dispositivos, máx. 10); body viejo: `subscription` sola.
+      const lista = Array.isArray(subscriptions) ? subscriptions : (subscription ? [subscription] : []);
+      const validas = lista.slice(0, 10).filter(s => s && typeof s.endpoint === 'string' && s.endpoint.startsWith('https://') && s.endpoint.length <= 2048 && s.keys && typeof s.keys === 'object');
+      if (!delaySeconds || delaySeconds < 1 || delaySeconds > 3600 || !validas.length) {
         return new Response('bad request', { status: 400 });
       }
-      await this.state.storage.put('payload', { subscription, title, notifBody, tag });
+      await this.state.storage.put('payload', { subscriptions: validas, title, notifBody, tag });
       await this.state.storage.setAlarm(Date.now() + delaySeconds * 1000);
       return new Response('scheduled', { status: 200 });
     }
@@ -56,7 +62,8 @@ export class TimerAlarm {
     const payload = await this.state.storage.get('payload');
     await this.state.storage.delete('payload');
     if (!payload) return;
-    const { subscription, title, notifBody, tag } = payload;
+    const { title, notifBody, tag } = payload;
+    const subs = payload.subscriptions || (payload.subscription ? [payload.subscription] : []);   // payload viejo ya guardado: una sola
     const vapid = {
       subject: 'mailto:tobiloustau@gmail.com',
       publicKey: this.env.VAPID_PUBLIC_KEY,
@@ -67,13 +74,16 @@ export class TimerAlarm {
       data: JSON.stringify({ title, body: notifBody, tag }),
       options: { ttl: 300 }, // si no se entrega en 5 min ya no sirve, no encolar más
     };
-    try {
-      const req = await buildPushPayload(message, subscription, vapid);
-      const res = await fetch(subscription.endpoint, req);
-      if (!res.ok) console.error('push send failed', res.status, await res.text());
-    } catch (e) {
-      console.error('push send error', e);
-    }
+    // A todos los dispositivos; cada envío con su try/catch (uno que falla no frena al resto). No se loguean endpoints.
+    await Promise.all(subs.map(async (subscription) => {
+      try {
+        const req = await buildPushPayload(message, subscription, vapid);
+        const res = await fetch(subscription.endpoint, req);
+        if (!res.ok) console.error('push send failed', res.status, await res.text());
+      } catch (e) {
+        console.error('push send error', e && e.message);
+      }
+    }));
   }
 }
 
@@ -1177,6 +1187,7 @@ export default {
     const [, action, id] = m;
 
     const bodyText = action === 'schedule' ? await request.text() : '';
+    if (bodyText.length > 32768) return withCors(new Response('payload too large', { status: 413 }));
     const doId = env.TIMER.idFromName(id);
     const stub = env.TIMER.get(doId);
     const res = await stub.fetch(`https://do/${action}`, {
