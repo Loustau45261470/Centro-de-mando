@@ -397,9 +397,9 @@
     {
       "id": "principios-sin-columnas-masonry",
       "fecha": "2026-11-12",
-      "desc": "#tab-principios excluida del reparto en columnas de .tab-panel.active (2/3 columnas en pantallas anchas): como todo vive en un solo contenedor, el navegador partia las tarjetas por la mitad.",
-      "file": "styles.css",
-      "marker": "#tab-principios.tab-panel.active"
+      "desc": "Las tarjetas de Principios no se parten en columnas: antes #tab-principios estaba excluida del reparto en columnas de .tab-panel.active; desde 2026-11-12 Principios vive en una ventana (CMOverlay 'ov-principios'), que no es .tab-panel y no tiene columnas. Si vuelve a ser un .tab-panel hay que volver a excluirlo.",
+      "file": "principios.js",
+      "marker": "CMOverlay.build({ id: 'ov-principios'"
     },
     {
       "id": "push-worker-sin-secreto-en-repo",

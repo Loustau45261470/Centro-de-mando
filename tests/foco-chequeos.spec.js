@@ -174,12 +174,12 @@ test.describe('sw.js: data.url y notificationclick (handlers reales en vm)', () 
 // ── UI (navegador) ─────────────────────────────────────────────────────────
 const sinScrollH = (page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
 const irAFoco = async (page) => {
-  await page.evaluate(() => { document.querySelector('.nav-btn[data-tab="principios"]').click(); Principios.sub('foco'); });
+  await page.evaluate(() => { Principios.abrir('foco'); });
   await expect(page.locator('#fo-horas')).toBeVisible();
 };
 
 test.describe('Foco: chequeos en la app', () => {
-  test('destino #foco-chequeo (app cerrada): abre Principios > Foco con el chequeo; categoría + energía se guardan', async ({ cmPage, consoleErrors }) => {
+  test('destino #foco-chequeo (app cerrada): abre la ventana de Principios > Foco con el chequeo; categoría + energía se guardan', async ({ cmPage, consoleErrors }) => {
     await cmPage.goto('/?t=1#foco-chequeo');
     await waitForBoot(cmPage);
     await completeLoginOverlay(cmPage);

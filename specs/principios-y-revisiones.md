@@ -82,6 +82,14 @@ Se construye **en este orden, uno por vez**; Tobías decide cuándo pasar al sig
 - App aparte: todo vive dentro del Centro de Mando.
 - Operar o decidir por Tobías: el sistema aconseja y recuerda, no ejecuta acciones.
 
+### Decisiones de Tobías (2026-11-12, tarde)
+- **Principios NO es una sección del menú principal** (no va junto a las secciones de siempre): pasa a ser una ventana (overlay) que se abre desde el abanico de Vida y desde la paleta de comandos. Supuesto del LEAD, editable por Tobías.
+- **El cierre del día no vive en Principios:** aparece solo a la noche con el mismo mecanismo con el que aparece la Revisión semanal.
+- **Avisos en todos los dispositivos:** guardar la suscripción de avisos de cada dispositivo y mandar a todos (hoy hay una sola y la pisa el último dispositivo que activa notificaciones; el Pomodoro usa una sola alarma compartida).
+- **Reportes:** bonos cuentan como activos líquidos; hábito "parcial" = medio punto; presupuesto = total gastado / total presupuestado (+ categorías excedidas); metas mensuales como "sin categoría" de su sección; reporte semanal en versión reducida; chequeos de Foco activados por defecto.
+- **Estacionalidad = meses con mesa de examen**, calculados solos a partir de los finales cargados (Tobías los carga con 1 mes de anticipación: si al iniciar el mes no hay finales, ese mes no hay examen). Las comparaciones tienen en cuenta la cantidad de exámenes de cada mes. No se cargan vacaciones.
+- **Cuentas en dólares:** quedan FUERA del reporte (todo en pesos). Ningún KPI suma saldos en USD.
+
 ## Inputs & Outputs
 **Entradas:** principios y objetivos cargados por Tobías (o por Claude en la carga inicial); hábitos, finanzas, planner y estudio que ya están en el Centro; texto manual de las revisiones (estancamientos, deterioro, aprendizajes, agradecimientos); consultas al consejero.
 

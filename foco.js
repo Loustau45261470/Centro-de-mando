@@ -1,6 +1,6 @@
 'use strict';
 // ════════════════════════════════════════════════════════════════════════
-// FOCO — sub-pestaña "Foco" dentro de Principios (puntos 1, 3 y 4 del "Seguimiento de Foco" de specs/principios-y-revisiones.md).
+// FOCO — sub-pestaña "Foco" dentro de la ventana de Principios (puntos 1, 3 y 4 del "Seguimiento de Foco" de specs/principios-y-revisiones.md).
 //   1. Cierre nocturno: atención (1-5), energía (1-5) y una línea de "dónde se fue el tiempo". Un registro por día.
 //   3. Tiempo de pantalla semanal: horas totales de la semana, una por semana (clave = lunes en fecha local).
 //   4. Cruce: energía/atención contra sueño, entrenamiento y comida; solo con datos suficientes.
@@ -220,11 +220,51 @@ function _foEscala(campo, val) {
 }
 function _foFechaCorta(ds) { const d = foParse(ds); return d.getDate() + '/' + (d.getMonth() + 1); }
 
-function foHtml() {
+// ── Cierre del día: formulario en ventana + aviso nocturno (mismo mecanismo que la Revisión semanal: revision-semanal.js) ──
+function foCierreHtml() {
   const d = _foData(), hoy = _foHoy(), dr = _foDraftHoy(), reg = d.dias[hoy];
-  const hr = new Date().getHours(), tarde = hr >= 20 || hr < 4;
+  return '<div class="pr-nota">' + (reg ? 'Ya registraste hoy. Podés corregirlo y guardar de nuevo.' : 'Tres datos, menos de un minuto.') + '</div>'
+    + '<label class="pr-l">Atención de hoy (1 = dispersa, 5 = enfocada)</label>' + _foEscala('atencion', dr.atencion)
+    + '<label class="pr-l">Energía de hoy (1 = agotado, 5 = con pila)</label>' + _foEscala('energia', dr.energia)
+    + '<label class="pr-l">¿Dónde se me fue el tiempo?</label><input id="fo-nota" class="pr-in" maxlength="300" placeholder="Una línea" value="' + _foEsc(dr.notaTmp != null ? dr.notaTmp : (reg ? reg.nota : '')) + '" oninput="Foco.nota(this.value)">'
+    + '<div class="pr-form-f"><button type="button" class="pr-btn pr-btn-p fo-btn" onclick="Foco.guardarDia()">' + (reg ? 'Actualizar' : 'Guardar') + '</button></div>';
+}
+function _foCierreVuelca() {   // lo tipeado pasa al borrador antes de redibujar o cerrar: nunca se pierde
+  const n = document.getElementById('fo-nota'); if (n) _foDraftHoy().notaTmp = n.value;
+}
+function _foCierreRender() { const h = document.getElementById('fo-cierre-host'); if (h) h.innerHTML = foCierreHtml(); }
+function foAbrirCierre() {
+  if (typeof CMOverlay === 'undefined') return;
+  const { overlay, body } = CMOverlay.build({ id: 'ov-foco-cierre', accent: '#6B8EFF', onClose: _foCierreVuelca });
+  if (!overlay._foBuilt) {
+    body.innerHTML = '<div class="cm-ov-head"><div class="cm-ov-eyebrow">VIDA · FOCO</div><div class="cm-ov-title">Cierre del día</div></div><div id="fo-cierre-host"></div>';
+    overlay._foBuilt = true;
+  }
+  document.body.appendChild(overlay);   // queda por encima de otra ventana abierta (Principios)
+  _foCierreRender(); CMOverlay.open(overlay);
+}
+function _foNudgeToca() {   // de 20:00 a 04:00, sin registro de ese día y sin haberlo descartado
+  const hr = new Date().getHours(); if (!(hr >= 20 || hr < 4)) return false;
+  const hoy = _foHoy(); if (_foData().dias[hoy]) return false;
+  try { if (localStorage.getItem('cm_fo_dismiss_' + hoy) === '1') return false; } catch (e) {}
+  return true;
+}
+function _foHideNudge() { const el = document.getElementById('fo-nudge'); if (el) el.remove(); }
+function _foDismissNudge() { try { localStorage.setItem('cm_fo_dismiss_' + _foHoy(), '1'); } catch (e) {} _foHideNudge(); }
+function foCheckNudge() {
+  if (!_foNudgeToca()) { _foHideNudge(); return; }
+  if (document.getElementById('fo-nudge')) return;
+  const el = document.createElement('div');
+  el.id = 'fo-nudge'; el.className = 'rs-nudge'; el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite');
+  el.innerHTML = '<div class="rs-nudge-txt"><div class="rs-nudge-title">Cerrá el día</div><div class="rs-nudge-sub">Todavía no hiciste el cierre de hoy</div></div>'
+    + '<button class="btn btn-primary btn-sm" onclick="Foco.abrirCierre()">Cerrar</button>'
+    + '<button class="icon-btn" aria-label="Descartar aviso" onclick="Foco.descartarAviso()">✕</button>';
+  document.body.appendChild(el);
+}
+
+function foHtml() {
+  const d = _foData(), hoy = _foHoy(), reg = d.dias[hoy];
   let h = '';
-  if (tarde && !reg) h += '<div class="fo-aviso">Todavía no hiciste el cierre de hoy. Te lleva un minuto.</div>';
 
   // 2. Chequeo del momento
   h += '<div class="pr-card" id="fo-chequeo"><div class="pr-form-t">¿En qué estuviste?</div>';
@@ -238,13 +278,10 @@ function foHtml() {
   }
   h += '</div>';
 
-  // 1. Cierre nocturno
+  // 1. Cierre nocturno: el formulario vive en su propia ventana (foCierreHtml); acá solo el acceso.
   h += '<div class="pr-card"><div class="pr-form-t">Cierre del día</div>'
-    + '<div class="pr-nota">' + (reg ? 'Ya registraste hoy. Podés corregirlo y guardar de nuevo.' : 'Tres datos, menos de un minuto.') + '</div>'
-    + '<label class="pr-l">Atención de hoy (1 = dispersa, 5 = enfocada)</label>' + _foEscala('atencion', dr.atencion)
-    + '<label class="pr-l">Energía de hoy (1 = agotado, 5 = con pila)</label>' + _foEscala('energia', dr.energia)
-    + '<label class="pr-l">¿Dónde se me fue el tiempo?</label><input id="fo-nota" class="pr-in" maxlength="300" placeholder="Una línea" value="' + _foEsc(dr.notaTmp != null ? dr.notaTmp : (reg ? reg.nota : '')) + '" oninput="Foco.nota(this.value)">'
-    + '<div class="pr-form-f"><button type="button" class="pr-btn pr-btn-p" onclick="Foco.guardarDia()">' + (reg ? 'Actualizar' : 'Guardar') + '</button></div></div>';
+    + '<div class="pr-nota">' + (reg ? 'Ya registraste hoy. Podés corregirlo.' : 'Todavía no hiciste el de hoy. Aparece solo a la noche; si querés, hacelo ahora.') + '</div>'
+    + '<div class="pr-form-f"><button type="button" class="pr-btn pr-btn-p fo-btn" onclick="Foco.abrirCierre()">Hacer el cierre de hoy</button></div></div>';
 
   // 3. Tiempo de pantalla semanal
   const lunes = foLunes(hoy);
@@ -290,18 +327,18 @@ function foHtml() {
 
 const Foco = {
   html: foHtml,
-  set(campo, v) {
-    const nota = document.getElementById('fo-nota'), dr = _foDraftHoy();
-    dr[campo] = v;
-    if (nota) dr.notaTmp = nota.value;
-    if (typeof prRender === 'function') prRender();
-    const n2 = document.getElementById('fo-nota'); if (n2 && dr.notaTmp != null) n2.value = dr.notaTmp;
-  },
+  abrirCierre: foAbrirCierre,
+  descartarAviso: _foDismissNudge,
+  chequearAviso: foCheckNudge,
+  set(campo, v) { _foCierreVuelca(); _foDraftHoy()[campo] = v; _foCierreRender(); },
   guardarDia() {
+    _foCierreVuelca();
     const dr = _foDraftHoy(), nota = document.getElementById('fo-nota');
     if (dr.atencion == null || dr.energia == null) { _foToast('Elegí atención y energía'); return; }
     foGuardarDia(_foData(), dr.ds, dr.atencion, dr.energia, nota ? nota.value : '');
-    dr.notaTmp = null; _foSave(); if (typeof prRender === 'function') prRender(); _foToast('Cierre guardado');
+    dr.notaTmp = null; _foSave(); _foHideNudge();
+    if (typeof CMOverlay !== 'undefined') CMOverlay.close('ov-foco-cierre');
+    if (typeof prRender === 'function') prRender(); _foToast('Cierre guardado');
   },
   nota(v) { _foDraftHoy().notaTmp = v; },
   abrirChequeo() { _foChOpen = true; _foCh = { categoria: null }; if (typeof prRender === 'function') prRender(); },
@@ -327,12 +364,10 @@ const Foco = {
     if (hs.includes(v)) { _foToast('Esa hora ya está'); return; }
     Foco._guardarHoras(hs.concat(v));
   },
-  // Destino del aviso: Principios > Foco con el chequeo abierto.
+  // Destino del aviso: ventana de Principios > Foco con el chequeo abierto.
   abrirDestino() {
     _foChOpen = true; _foCh = { categoria: null };
-    const btn = document.querySelector('.nav-btn[data-tab="principios"]');
-    if (btn) btn.click(); else if (typeof switchTab === 'function') switchTab('principios');
-    if (window.Principios) window.Principios.sub('foco');
+    if (window.Principios) window.Principios.abrir('foco');
   },
   guardarPantalla(k, v, badInput) {
     if (badInput) { _foToast('Número de horas inválido'); if (typeof prRender === 'function') prRender(); return; }   // no se borra lo ya cargado
@@ -343,6 +378,20 @@ const Foco = {
   },
 };
 if (typeof window !== 'undefined') window.Foco = Foco;
+
+// Aviso nocturno: mismo enganche que la Revisión semanal (renderGoals corre en cada arranque post-login) + un repaso cada 5 min
+// por si la app queda abierta y cruza las 20:00.
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+  const hook = () => {
+    if (typeof window.renderGoals !== 'function' || window._foBootHooked) return false;
+    window._foBootHooked = true;
+    const orig = window.renderGoals;
+    window.renderGoals = function () { const r = orig.apply(this, arguments); try { foCheckNudge(); } catch (e) {} return r; };
+    return true;
+  };
+  if (!hook()) document.addEventListener('DOMContentLoaded', hook);
+  setInterval(() => { try { if (typeof _appBooted !== 'undefined' && _appBooted) foCheckNudge(); } catch (e) {} }, 300000);
+}
 
 // Deep-link del aviso push: '#foco-chequeo' en la URL (app cerrada → openWindow) o mensaje del SW (app abierta).
 // Se aplica cuando la app ya arrancó: engancha aplicarAccionPendiente(), que app.js llama al final de _initApp().

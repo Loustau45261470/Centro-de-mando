@@ -4217,7 +4217,6 @@ body:has(#login-screen) #hud-frame { opacity: 0; }
   #tab-finanzas.tab-panel.active,
   #tab-vida.tab-panel.active,
   #tab-conocimiento.tab-panel.active,
-  #tab-principios.tab-panel.active,
   #tab-salud.tab-panel.active { column-count: auto; }
   #tab-finanzas .fin-cols,
   #tab-vida .fin-cols,
@@ -6840,7 +6839,6 @@ input:focus, select:focus, textarea:focus {
 .pend-acceso { margin-left: auto; }
 
 /* ── Pestaña Principios (principios.js) ── */
-.nav-btn[data-tab="principios"].active, .nav-btn[data-tab="principios"].active svg { color: var(--indigo); stroke: var(--indigo); }
 #principios-root { padding-bottom: 12px; }
 .pr-subs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
 .pr-libro { display: block; width: 100%; text-align: left; cursor: pointer; color: inherit; font-family: inherit; }
@@ -6885,7 +6883,6 @@ textarea.pr-in { resize: vertical; min-height: 60px; }
 .pr-cat .pr-in { flex: 1 1 140px; }
 .pr-cat-del { flex-direction: column; align-items: stretch; }
 /* Foco (foco.js) */
-.fo-aviso { margin-bottom: 10px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--warn); color: var(--warn); font: 600 var(--fs-13) var(--sans); }
 .fo-escala { display: flex; gap: 6px; }
 .fo-n { flex: 1; min-height: 44px; border-radius: 10px; border: 1px solid var(--border); background: none; color: var(--ts); font: 700 var(--fs-15) var(--sans); cursor: pointer; }
 .fo-n.on { color: var(--hud-bright); border-color: var(--hud-dim); background: var(--hud-glow); }
@@ -6899,3 +6896,7 @@ textarea.pr-in { resize: vertical; min-height: 60px; }
 .fo-btn { min-height: 44px; }
 .fo-rep { flex-wrap: nowrap; }
 .pr-in.fo-hora { width: 120px; }
+
+/* Aviso nocturno del cierre del día (foco.js): mismo aviso que la Revisión semanal (.rs-nudge); si ambos coinciden, se apila arriba. */
+#fo-nudge .btn, #fo-nudge .icon-btn { min-height: 44px; min-width: 44px; }
+body:has(#rs-nudge) #fo-nudge { bottom: calc(max(12px, env(safe-area-inset-bottom, 0px)) + 76px); }

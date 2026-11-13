@@ -418,9 +418,21 @@ function _prLeerBorradorObjetivo() {   // conserva lo tipeado al cambiar horizon
   o.principiosIds = _prVals('prin'); o.habitosIds = _prVals('hab');
 }
 
+function _prVuelca() {   // lo tipeado en el formulario abierto pasa al borrador antes de cerrar/cambiar de sub-pestaña: nunca se pierde
+  const e = _prV.edit; if (!e || !_prDraft) return;
+  if (e.kind === 'principio') {
+    if (!document.getElementById('prf-enun')) return;   // el formulario no está en pantalla (otra sub-pestaña)
+    const p = _prDraft;
+    p.tipo = _prVal('prf-tipo') === 'anti' ? 'anti' : 'principio'; p.enunciado = _prVal('prf-enun'); p.porque = _prVal('prf-porque');
+    p.seccion = _prVal('prf-sec'); p.haz = _prVal('prf-haz'); p.noHagas = _prVal('prf-nohagas'); p.fuente = _prVal('prf-fuente'); p.habitosIds = _prVals('hab');
+  } else if (e.kind === 'objetivo') {
+    if (document.getElementById('pro-sec')) _prLeerBorradorObjetivo();
+  }
+}
+
 const Principios = {
   render: prRender,
-  sub(s) { _prV.sub = s; _prV.imp = null; _prV.edit = null; _prV.delCat = null; _prV.renCat = null; prRender(); },
+  sub(s) { _prVuelca(); _prV.sub = s; _prV.imp = null; _prV.delCat = null; _prV.renCat = null; prRender(); },
   filtro(k, v) { _prV[k] = v; prRender(); },
   buscar(v, pos) { _prV.q = v; prRender(); const e = document.getElementById('pr-q'); if (e) { const p = pos == null ? v.length : pos; e.focus(); e.setSelectionRange(p, p); } },
   abrirImportar() { _prV.imp = { libroId: null }; prRender(); },
@@ -521,12 +533,20 @@ const Principios = {
 };
 if (typeof window !== 'undefined') window.Principios = Principios;
 
-// Al entrar a la pestaña se dibuja (mismo patrón de enganche que telemetry.js / sgc.js).
-(function () {
-  if (typeof window === 'undefined' || typeof window.switchTab !== 'function') return;
-  const orig = window.switchTab;
-  window.switchTab = function (tab, btn) { orig(tab, btn); if (tab === 'principios') { try { prRender(); } catch (e) { console.error('principios', e); } } };
-})();
+// Principios ya no es una pestaña del menú: vive en una ventana (CMOverlay) que se abre desde el abanico de Vida,
+// la paleta de comandos y el deep-link de los chequeos de Foco. `sub` (opcional) abre directo en esa sub-pestaña.
+function prAbrir(sub) {
+  if (typeof CMOverlay === 'undefined') return;
+  const { overlay, body } = CMOverlay.build({ id: 'ov-principios', accent: '#6B8EFF', onClose: _prVuelca });
+  if (!overlay._prBuilt) {
+    body.innerHTML = '<div class="cm-ov-head"><div class="cm-ov-eyebrow">VIDA · PRINCIPIOS</div><div class="cm-ov-title">Principios</div></div><div id="principios-root"></div>';
+    overlay._prBuilt = true;
+  }
+  if (sub) Principios.sub(sub); else prRender();
+  document.body.appendChild(overlay);
+  CMOverlay.open(overlay);
+}
+if (typeof window !== 'undefined') { Principios.abrir = prAbrir; window.openPrincipiosOverlay = prAbrir; }
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { prSembrarCategorias, prVistaObjetivos, prContarHijos, prCadena, prHuecos, prVinculosDePrincipio, prContarObjetivosDeCategoria,

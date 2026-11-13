@@ -84,10 +84,10 @@ const test = base.test.extend({
     }
 
     await page.addInitScript({ content: buildInitScript(ESTADO_BASE) });
-    // El aviso de revisión semanal (domingo y lunes) tapa la barra de navegación: los tests no dependen de él.
+    // El aviso de revisión semanal (domingo y lunes) y el del cierre del día (de noche) tapan la barra de navegación: los tests no dependen de él.
     await page.addInitScript(() => document.addEventListener('DOMContentLoaded', () => {
       const st = document.createElement('style');
-      st.textContent = '#rs-nudge{display:none!important}';
+      st.textContent = '#rs-nudge,#fo-nudge{display:none!important}';
       document.head.appendChild(st);
     }));
 
