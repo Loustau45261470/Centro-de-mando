@@ -446,7 +446,7 @@ function _repRachaMax(days, r) {
   return max;
 }
 
-// datos = { lawProgress: S.lawProgress (app.js:53), finales: S.sgc.finales, pomodoroHistory, studyDays: S.studyCalendar.days }
+// datos = { lawProgress: S.lawProgress (app.js:53), finales: S.sgc.finales, pomodoroHistory, studyDays: días de estudio — hábito `habit-estudio` de S.habitTrackers.conocimiento (days), con respaldo a S.studyCalendar.days }
 function repKpiConocimiento(datos, rango, rangoAnt) {
   datos = datos || {};
   const materias = ((datos.lawProgress && datos.lawProgress.years) || []).reduce((a, y) => a.concat(y.subjects || []), []);

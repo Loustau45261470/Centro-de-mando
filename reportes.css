@@ -1,0 +1,102 @@
+/* ── Reportes de revisión (reportes-vista.js) ──
+   Colores de celdas/chips validados con el validador de paleta de dataviz (dark, superficie #0a1019):
+   lightness, chroma, separación CVD y contraste OK. Cada estado además tiene forma distinta (lleno / medio / contorno / punto). */
+#ov-reporte { --rv-ok: #1FA971; --rv-warn: #C08410; --rv-bad: #E04668; --rv-eq: #3B9CE0; --rv-rest: #8BA5C0; --rv-grid: rgba(120,160,255,.10); }
+#ov-reporte .cm-panel { max-width: 960px; }
+#ov-reporte .cm-ov-body { display: flex; flex-direction: column; overflow: hidden; padding: 0; }
+.rv-head { margin: 6px 52px 8px 4px; flex: none; }
+.rv-head .cm-ov-title { font-size: 22px; line-height: 1.2; }
+.rv-sub { font-size: var(--fs-12-5); color: var(--ts); margin-top: 4px; }
+.rv-banner { margin-top: 8px; padding: 8px 10px; border: 1px solid var(--rv-eq); border-radius: 9px; background: color-mix(in oklab, var(--rv-eq) 12%, transparent); color: var(--tp); font-size: var(--fs-13); }
+
+.rv-pages { flex: 1; min-height: 0; display: flex; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; }
+.rv-pages::-webkit-scrollbar { display: none; }
+.rv-page { flex: 0 0 100%; min-width: 0; box-sizing: border-box; scroll-snap-align: start; scroll-snap-stop: always; overflow-y: auto; padding: 4px 6px 16px; }
+.rv-pt { margin: 4px 0 10px; font: 700 var(--fs-18, 18px) var(--sans); color: var(--tp); }
+.rv-sec { margin: 14px 0 6px; font: 700 var(--fs-13) var(--sans); letter-spacing: 2px; text-transform: uppercase; color: var(--hud-bright); }
+
+.rv-nav { flex: none; padding: 4px 0 2px; text-align: center; }
+.rv-dots { display: flex; justify-content: center; }
+.rv-dot { width: 44px; height: 44px; flex: 0 1 44px; min-width: 0; padding: 0; border: 0; background: none; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.rv-dot i { display: block; width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--ts); background: transparent; transition: transform .15s, background .15s; }
+.rv-dot.on i { background: var(--hud-bright); border-color: var(--hud-bright); transform: scale(1.3); }
+.rv-plabel { font-size: var(--fs-12-5); color: var(--ts); margin-top: -2px; padding-bottom: 4px; }
+
+.rv-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--r); padding: 12px; margin-bottom: 10px; }
+.rv-ct { font: 700 var(--fs-13) var(--sans); color: var(--tp); margin-bottom: 8px; }
+.rv-vacio { font-size: var(--fs-13); color: var(--ts); }
+
+/* Fichas de número: valor grande, comparación debajo */
+.rv-fichas { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-bottom: 10px; }
+.rv-ficha { background: var(--card); border: 1px solid var(--border); border-radius: var(--r); padding: 11px 12px; min-width: 0; }
+.rv-fl { font-size: var(--fs-12-5); color: var(--ts); }
+.rv-fv { font: 700 var(--fs-22, 22px) var(--sans); color: var(--tp); margin: 2px 0 4px; overflow-wrap: anywhere; }
+.rv-fv small { font-size: var(--fs-12-5); font-weight: 500; color: var(--ts); }
+.rv-fv.rv-nulo { color: var(--ts); }
+.rv-fc { margin-bottom: 4px; }
+.rv-fs, .rv-fm { font-size: var(--fs-12-5); color: var(--ts); overflow-wrap: anywhere; }
+.rv-fm { margin-top: 3px; }
+.rv-fa { margin-top: 5px; font-size: var(--fs-12-5); color: var(--tp); border-left: 2px solid var(--rv-warn); padding-left: 6px; }
+.rv-aparte { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); }
+.rv-cruce { padding: 6px 0; border-bottom: 1px solid var(--border); }
+.rv-cruce:last-child { border-bottom: 0; }
+.rv-cruce b { font-size: var(--fs-13); color: var(--tp); }
+
+/* Comparación: signo y número en texto claro; el color (verde / azul / rojo) acompaña, nunca es la única señal */
+.rv-chip { display: inline-block; padding: 2px 8px; border-radius: 7px; border: 1px solid var(--rv-eq); background: color-mix(in oklab, var(--rv-eq) 14%, transparent); color: var(--tp); font: 600 var(--fs-12-5) var(--sans); white-space: nowrap; }
+.rv-chip.rv-ok { border-color: var(--rv-ok); background: color-mix(in oklab, var(--rv-ok) 16%, transparent); }
+.rv-chip.rv-bad { border-color: var(--rv-bad); background: color-mix(in oklab, var(--rv-bad) 16%, transparent); }
+.rv-chip.rv-eq { border-color: var(--rv-eq); }
+
+.rv-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: var(--fs-13-5); color: var(--ts); }
+.rv-row:last-of-type { border-bottom: 0; }
+.rv-row > span:first-child { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.rv-rn { color: var(--tp); font-weight: 600; }
+.rv-rn small { color: var(--ts); font-weight: 400; }
+
+/* Hábitos y calendarios */
+.rv-hab { background: var(--card); border: 1px solid var(--border); border-radius: var(--r); padding: 12px; margin-bottom: 10px; }
+.rv-hh { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-bottom: 8px; }
+.rv-hn { flex: 1 1 140px; min-width: 0; font: 600 var(--fs-14) var(--sans); color: var(--tp); overflow-wrap: anywhere; }
+.rv-hp { font-size: var(--fs-13); color: var(--ts); }
+.rv-hp b { color: var(--tp); font-size: var(--fs-15, 15px); }
+.rv-mms { display: grid; grid-template-columns: repeat(var(--n, 3), minmax(0, 1fr)); gap: 10px 8px; }
+.rv-mms-12 { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px 8px; }   /* celular: 3 columnas x 4 filas; escritorio: lo que entre */
+.rv-mm { min-width: 0; }
+.rv-mm-solo { max-width: 260px; }
+.rv-mml { font-size: var(--fs-12-5); color: var(--ts); margin-bottom: 4px; }
+.rv-mm-c .rv-mml { font-size: 10px; text-align: center; margin-bottom: 2px; }
+.rv-mg { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+.rv-mm-c .rv-mg { gap: 2px; }
+.rv-mgh span { font-size: 10px; color: var(--tt); text-align: center; }
+.rv-c0 { aspect-ratio: 1; }
+.rv-c { display: block; aspect-ratio: 1; border-radius: 3px; position: relative; box-sizing: border-box; cursor: pointer; }
+.rv-mm-c .rv-c { border-radius: 1px; }
+.rv-d { background: var(--rv-ok); }                                                                  /* lleno */
+.rv-p { border: 1px solid var(--rv-warn); background: linear-gradient(90deg, var(--rv-warn) 50%, transparent 50%); }   /* medio lleno */
+.rv-m { border: 1.5px solid var(--rv-bad); background: transparent; }                                /* contorno */
+.rv-mm-c .rv-m { border-width: 1px; }
+.rv-r::after { content: ''; position: absolute; inset: 33%; border-radius: 50%; background: var(--rv-rest); }   /* punto */
+.rv-n { background: rgba(255,255,255,.05); }                                                         /* sin dato: tenue */
+.rv-sem { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; max-width: 420px; }
+.rv-sd { text-align: center; }
+.rv-sd span { display: block; font-size: var(--fs-12-5); color: var(--ts); margin-bottom: 3px; }
+.rv-ley { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0 0 10px; font-size: var(--fs-12-5); color: var(--ts); }
+.rv-ley span { display: inline-flex; align-items: center; gap: 5px; }
+.rv-ley .rv-c { width: 14px; aspect-ratio: 1; cursor: default; }
+
+.rv-tip { position: fixed; z-index: 2000; pointer-events: none; opacity: 0; padding: 5px 9px; border-radius: 7px; background: #0e1626; border: 1px solid var(--border-h); color: var(--tp); font-size: var(--fs-12-5); white-space: nowrap; transition: opacity .1s; }
+.rv-tip.on { opacity: 1; }
+
+/* Sub-pestaña Revisiones */
+.rv-sel .pr-l { display: block; margin: 6px 0 4px; color: var(--ts); font-size: var(--fs-12-5); }
+.rv-claves { display: flex; align-items: center; gap: 8px; margin: 10px 0; }
+.rv-claves .pr-btn { min-width: 44px; min-height: 44px; font-size: var(--fs-18, 18px); }
+.rv-claves .pr-btn[disabled] { opacity: .35; cursor: default; }
+.rv-clave { flex: 1; text-align: center; color: var(--tp); font: 600 var(--fs-14) var(--sans); }
+.rv-ver { width: 100%; min-height: 44px; }
+
+@media (max-width: 480px) {
+  #ov-reporte .cm-panel { padding-left: 10px; padding-right: 10px; }
+  .rv-fichas { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

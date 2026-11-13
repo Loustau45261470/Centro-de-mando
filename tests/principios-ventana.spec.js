@@ -20,7 +20,7 @@ test.describe('Principios en ventana', () => {
     await cmPage.locator('#sd-vida .cm-sd-main').click();
     await cmPage.locator('#sd-vida .cm-sd-item[aria-label="Principios"]').click();
     await expect(cmPage.locator('#ov-principios.show')).toBeVisible();
-    await expect(cmPage.locator('#ov-principios .pr-sub')).toHaveCount(5);
+    await expect(cmPage.locator('#ov-principios .pr-sub')).toHaveCount(6);
     expect(await sinScrollH(cmPage)).toBe(true);
     await cmPage.screenshot({ path: testInfo.outputPath('ventana-principios.png') });
     // principio
@@ -48,7 +48,7 @@ test.describe('Principios en ventana', () => {
     await cmPage.fill('#cmdk-input', 'principios');
     await cmPage.locator('.cmdk-item').filter({ has: cmPage.locator('.ci-lbl', { hasText: /^Principios$/ }) }).click();
     await expect(cmPage.locator('#ov-principios.show')).toBeVisible();
-    await expect(cmPage.locator('#ov-principios .pr-sub')).toHaveCount(5);
+    await expect(cmPage.locator('#ov-principios .pr-sub')).toHaveCount(6);
   });
 
   test('paleta de comandos: "cierre" abre el cierre del día', async ({ cmPage }) => {
