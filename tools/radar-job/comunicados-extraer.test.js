@@ -211,6 +211,19 @@ test('crearGemini: cupo DIARIO del modelo principal → pasa al de respaldo sin 
   await assert.rejects(g2.pedirObjeto('s', 'u'), e => e.cuota === true);
 });
 
+test('crearGemini: 503 «high demand» persistente → espera 20/40/60 s y pasa al modelo de respaldo; sin respaldo, error', async () => {
+  const e503 = { ok: false, status: 503, headers: new Headers(), text: async () => JSON.stringify({ error: { code: 503, message: 'This model is currently experiencing high demand.' } }) };
+  const f = mockFetch([e503, e503, e503, e503, gem({ ok: 3 })]);
+  const esperas = [];
+  const g = X.crearGemini({ clave: CLAVE, fetch: f, dormir: async ms => esperas.push(ms), modelo: 'm1', respaldo: 'm2', rpm: 0 });
+  assert.deepStrictEqual(await g.pedirObjeto('s', 'u'), { ok: 3 });
+  assert.deepStrictEqual(esperas, [20000, 40000, 60000]);
+  assert.match(f.calls[4].url, /m2:generateContent/);
+  assert.deepStrictEqual(g.cambios, [{ de: 'm1', a: 'm2' }]);
+  const g2 = X.crearGemini({ clave: CLAVE, fetch: mockFetch([e503]), dormir: async () => {}, modelo: 'm1', rpm: 0 });
+  await assert.rejects(g2.pedirObjeto('s', 'u'), /HTTP 503/);
+});
+
 test('crearGemini: pausa entre pedidos según el RPM', async () => {
   let ahora = 1000;
   const esperas = [];

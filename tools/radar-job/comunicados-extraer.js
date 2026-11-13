@@ -39,7 +39,8 @@ const MAX_PARES_DEFECTO = 6;
 const MAX_CITA = 200;
 const MAX_TOKENS_SALIDA = 32768;
 const REINTENTOS_429 = 3;
-const REINTENTOS_RED = 2;
+const REINTENTOS_RED = 3;
+const ESPERA_RED_MS = 20000; // 503 «high demand» es pasajero: 20 s, 40 s, 60 s antes de rendirse o pasar al respaldo
 const ESPERA_MAX_MS = 120000; // un retryDelay más largo que esto se trata como cupo agotado
 const ESPERA_429_DEFECTO_MS = 60000;
 const TIMEOUT_MS = 300000;
@@ -338,6 +339,12 @@ function crearGemini({ clave, fetch: f = globalThis.fetch, dormir = dormirReal, 
 
   async function pedirTexto(system, user) {
     let n429 = 0, nRed = 0;
+    // 503 «high demand» / cortes por tiempo que siguen tras los reintentos: probar una vez el modelo de respaldo (suele tener otra carga).
+    const pasarARespaldo = motivo => {
+      if (!respaldo || cli.modelo === respaldo) return false;
+      log(`${motivo}: sigo con ${respaldo}`);
+      cli.cambios.push({ de: cli.modelo, a: respaldo }); cli.modelo = respaldo; nRed = 0; return true;
+    };
     for (;;) {
       if (ultimo !== null && rpmMs) { const falta = rpmMs - (ahoraMs() - ultimo); if (falta > 0) await dormir(falta); }
       const body = {
@@ -355,7 +362,8 @@ function crearGemini({ clave, fetch: f = globalThis.fetch, dormir = dormirReal, 
         cuerpo = await res.text();
       } catch (e) {
         ultimo = ahoraMs();
-        if (nRed++ < REINTENTOS_RED) { await dormir(5000 * nRed); continue; }
+        if (nRed++ < REINTENTOS_RED) { await dormir(ESPERA_RED_MS * nRed); continue; }
+        if (pasarARespaldo(`error de red/tiempo en ${cli.modelo}`)) continue;
         throw new ErrorGemini('error de red hablando con Gemini: ' + e.message);
       }
       ultimo = ahoraMs();
@@ -383,7 +391,8 @@ function crearGemini({ clave, fetch: f = globalThis.fetch, dormir = dormirReal, 
         cli.cambios.push({ de: cli.modelo, a: respaldo }); cli.modelo = respaldo; continue;
       }
       if (res.status === 401 || res.status === 403 || res.status === 404) throw new ErrorGemini(`Gemini rechazó el pedido (HTTP ${res.status}): ${msg}`, { fatal: true });
-      if (res.status >= 500 && nRed++ < REINTENTOS_RED) { await dormir(5000 * nRed); continue; }
+      if (res.status >= 500 && nRed++ < REINTENTOS_RED) { log(`HTTP ${res.status} en ${cli.modelo}: espero ${ESPERA_RED_MS * nRed / 1000} s (reintento ${nRed}/${REINTENTOS_RED})`); await dormir(ESPERA_RED_MS * nRed); continue; }
+      if (res.status >= 500 && pasarARespaldo(`HTTP ${res.status} persistente en ${cli.modelo}`)) continue;
       throw new ErrorGemini(`Gemini HTTP ${res.status}: ${msg}`);
     }
   }
