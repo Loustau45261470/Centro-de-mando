@@ -11,7 +11,8 @@
   - EN CURSO (00:xx del 13/11): T2b pantalla de Reportes — fix del FAIL de verificación (test con carrera de scroll, anual 390px, leyenda, nombres de categorías) lanzado; falta: verificación ciega → commit.
 
   - Etapa B COMPLETA (13/11 madrugada): T2b fb0ab2d, T3 da083f8 (+fixes 6d5d6eb), T4 025f52a (2ª falla del verificador sobre foco → LEAD tomó el control, fix de 1 línea + test de reproducción, 127/127).
-  - Siguiente: Etapa C.
+  - Etapa C 4aa6581 (verificación: FAIL por avisos apilados → fix → PASS; marker de push-fallo desactualizado por 5a27237 → comportamiento intacto, marker actualizado). Etapa D 8921f34 (PASS 11/11 casos; LEAD ajustó título "Veredicto de la IA" y casillas .pr-chk a 16px+accent).
+  - TODO EL PLAN TERMINADO 2026-11-13 ~06:40 ART. Pendientes para Tobías: (1) decisión sobre merge por ítem en sync (ver spec); (2) en escritorio, #fo-nudge apilado sobre #rs-nudge tapa botones de JARVIS (aviso agregado en 695d6a8); (3) workflow "Tests" de GitHub se cuelga desde antes de la sesión; (4) probar en iPhone real.
 
 ## Estado y plan restante (para retomar sin el usuario)
 Tobías se fue a dormir (2026-11-13 ~00:30) y pidió seguir SIN preguntas; si se corta por cuota, retomar a las 2:01. Orden:
