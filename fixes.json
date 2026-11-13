@@ -428,6 +428,20 @@
       "desc": "Los avisos push llegan a TODOS los dispositivos: cada uno guarda su suscripcion en pushSubscriptions.<deviceId> (campo puntual, no pisa a los otros), el cron manda a todas (dedupe por endpoint, borra la entrada 404/410) y los timers del Worker (Pomodoro/gym) van por dispositivo con subscriptions[]",
       "file": "push-reminders.js",
       "marker": "sendTodas(targets, a.title"
+    },
+    {
+      "id": "reportes-textos-sin-duplicar-conversion",
+      "fecha": "2026-11-13",
+      "desc": "Convertir una fila de Aprendizajes del reporte en principio u objetivo es idempotente: repConvertirFila busca primero un elemento con el mismo origen (reporte + fila) y no crea otro aunque se toque dos veces o desde otro dispositivo",
+      "file": "reportes.js",
+      "marker": "const ya = repBuscarConversion(data, key, fila.id);"
+    },
+    {
+      "id": "reportes-flush-al-ocultar",
+      "fecha": "2026-11-13",
+      "desc": "Al ocultar la app o cerrar la pestaña, el reporte vuelca lo pendiente y fuerza la subida a la nube con _fbFlush (sin esto se perdia lo escrito en los ultimos 450 ms al cambiar de app en iPhone)",
+      "file": "reportes-vista.js",
+      "marker": "_fbFlush"
     }
   ]
 }
