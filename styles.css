@@ -6877,7 +6877,7 @@ textarea.pr-in { resize: vertical; min-height: 60px; }
 .pr-checks { display: flex; flex-direction: column; max-height: 220px; overflow-y: auto; border: 1px solid var(--border); border-radius: 10px; }
 .pr-chk { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; min-height: 44px; color: var(--ts); font-size: var(--fs-13-5); border-bottom: 1px solid var(--border); }
 .pr-chk:last-child { border-bottom: none; }
-.pr-chk input { width: 18px; height: 18px; flex: none; }
+.pr-chk input { width: 16px; height: 16px; flex: none; margin: 0; accent-color: var(--accent); cursor: pointer; }   /* casilla chica a la derecha, como el resto del Centro */
 .pr-chk span { min-width: 0; overflow-wrap: anywhere; }
 .pr-cat { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 0; border-top: 1px solid var(--border); color: var(--tp); font-size: var(--fs-14); overflow-wrap: anywhere; }
 .pr-cat .pr-in { flex: 1 1 140px; }

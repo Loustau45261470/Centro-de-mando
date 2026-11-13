@@ -50,6 +50,8 @@
       run:()=>{ if (typeof abrirRevisionSemanal==='function') abrirRevisionSemanal(); else showToast('La revisión semanal no está disponible'); }},
     {ic:'★', lbl:'Principios', cat:'Vida', kw:'principios objetivos categorias huecos foco chequeo',
       run:()=>{ if (window.Principios) Principios.abrir(); else showToast('Principios no está disponible'); }},
+    {ic:'✦', lbl:'Consejero', cat:'Vida', kw:'consejero consejo ia gemini situacion pregunta principios aconsejar',
+      run:()=>{ if (window.Principios) Principios.abrir('consejero'); else showToast('El consejero no está disponible'); }},
     {ic:'▤', lbl:'Reportes', cat:'Vida', kw:'reportes revision revisiones semanal mensual trimestral semestral anual informe balance',
       run:()=>{ if (window.ReportesVista) ReportesVista.abrir(); else showToast('Los reportes no están disponibles'); }},
     {ic:'◉', lbl:'Cierre del día', cat:'Vida', kw:'cierre dia atencion energia nota noche foco',

@@ -121,3 +121,12 @@
 .rv-hist-t { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: var(--fs-13); }
 .rv-hist-t span { color: var(--ts); font-size: var(--fs-12-5); }
 .rv-hist .pr-btn { min-height: 44px; }
+
+/* ── Consejero con IA (consejero.js) y botón de veredicto ── */
+.cn-txt { min-height: 120px; resize: vertical; }
+.cn-btn { min-height: 44px; }
+.cn-fila { display: flex; gap: 8px; align-items: stretch; }
+.cn-fila .pr-in { flex: 1; min-width: 0; }
+.cn-resp { white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--fs-14); line-height: 1.55; color: var(--tp); }
+.cn-err { color: var(--danger); border-color: rgba(255,107,107,.3); font-size: var(--fs-13-5); overflow-wrap: anywhere; }
+.rv-iaerr { margin-top: 8px; color: var(--danger); font-size: var(--fs-13); overflow-wrap: anywhere; }

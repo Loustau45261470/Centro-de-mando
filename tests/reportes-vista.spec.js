@@ -191,7 +191,7 @@ test.describe('Reportes: pantalla', () => {
     await expect(cmPage.locator('.rv-page').nth(2)).toContainText('Gastos');
     await shot(cmPage, testInfo, 'semanal-gastos');
     await irA(cmPage, 3);
-    await expect(cmPage.locator('.rv-page').nth(3)).toContainText('Veredicto de Claude');
+    await expect(cmPage.locator('.rv-page').nth(3)).toContainText('Veredicto de la IA');
   });
 
   test('cuentas líquidas: marcar una cambia el KPI de activos líquidos y se guarda en S.reportes.config', async ({ cmPage }) => {
@@ -331,7 +331,7 @@ test.describe('Reportes: textos, aprendizajes, veredicto e historial (T3)', () =
     await sembrar(cmPage);
     await abrirMensual(cmPage); await irA(cmPage, 7);
     const pg = cmPage.locator('.rv-page').nth(7);
-    await expect(pg).toContainText('Pendiente (se genera cuando esté el consejero con IA)');
+    await expect(pg).toContainText('Todavía no se generó');
     await expect(pg.locator('[data-rvact="acuerdo"]')).toBeDisabled();
     await pg.locator('[data-rvf="man"]').fill('Mes parejo, bien en salud');
     await pg.locator('[data-rvf="agr"]').fill('Por mi familia');
@@ -415,7 +415,7 @@ test.describe('Reportes: textos, aprendizajes, veredicto e historial (T3)', () =
     await elegir(cmPage, 'semanal', '2026-W45'); await irA(cmPage, 3);
     const pg = cmPage.locator('.rv-page').nth(3);
     await expect(pg.locator('[data-rvf="est"]')).toHaveCount(5); await expect(pg.locator('[data-rvf="det"]')).toHaveCount(5);
-    await expect(pg).toContainText('Veredicto de Claude');
+    await expect(pg).toContainText('Veredicto de la IA');
     await pg.locator('[data-rvf="est"][data-sec="Salud"]').fill('semana floja'); await cerrar(cmPage);
     expect((await items(cmPage))['semanal:2026-W45'].estancamientos.Salud).toBe('semana floja');
     expect(await sinScrollH(cmPage)).toBe(true);

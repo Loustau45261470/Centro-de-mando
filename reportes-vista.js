@@ -285,10 +285,11 @@ function _rvAprHtml(it) {
 const _rvFechaHora = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' }); };
 function _rvVeredictoIaHtml(it) {
   const ia = it.veredicto.ia, hay = ia.estado === 'listo' && typeof ia.texto === 'string' && ia.texto.trim() !== '', conf = it.veredicto.conformidad;
-  return '<div id="rv-ia" class="rv-card"><div class="rv-ct">Veredicto de Claude</div>'
-    + (hay ? '<div class="rv-vtxt">' + _rvEsc(ia.texto) + '</div>' : '<div class="rv-fm">Pendiente (se genera cuando esté el consejero con IA)</div>')
+  return '<div id="rv-ia" class="rv-card"><div class="rv-ct">Veredicto de la IA</div>'
+    + (hay ? '<div class="rv-vtxt">' + _rvEsc(ia.texto) + '</div>' : '<div class="rv-fm">Todavía no se generó</div>')
     + (conf ? '<div class="rv-ya">Estás de acuerdo · ' + _rvEsc(_rvFechaHora(conf.el)) + '</div>' : '')
-    + '<div class="rv-acts"><button type="button" class="rv-btn rv-btn-p" data-rvact="acuerdo"' + (hay && !conf ? '' : ' disabled') + '>' + (conf ? 'Ya estás de acuerdo' : 'Estoy de acuerdo') + '</button></div></div>';
+    + (_rvIaErr ? '<div class="rv-iaerr" role="alert">' + _rvEsc(_rvIaErr) + '</div>' : '')
+    + '<div class="rv-acts"><button type="button" class="rv-btn" data-rvact="veredicto"' + (_rvIaBusy || conf ? ' disabled' : '') + '>' + (_rvIaBusy ? 'Generando…' : hay ? 'Regenerar veredicto' : 'Generar veredicto') + '</button><button type="button" class="rv-btn rv-btn-p" data-rvact="acuerdo"' + (hay && !conf ? '' : ' disabled') + '>' + (conf ? 'Ya estás de acuerdo' : 'Estoy de acuerdo') + '</button></div></div>';
 }
 function _rvVeredictoHtml(it) {
   return _rvVeredictoIaHtml(it) + _rvCard('Mi veredicto', _rvTa('man', 'Tu propio veredicto del período', (it.veredicto.manual && it.veredicto.manual.texto) || '', { rows: 5, ph: 'Cómo te fue en este período, en tus palabras' }));
@@ -315,6 +316,7 @@ function _rvAccion(act, b) {
     if (ok) { apr(); if (typeof showToast === 'function') showToast(r.creado ? (r.tipo === 'principio' ? 'Principio creado' : 'Objetivo creado') : 'Ya estaba convertido'); }
     return;
   }
+  if (act === 'veredicto') { _rvGenerarVeredicto(); return; }
   if (act === 'acuerdo') {
     if (_rvEscribir(it => { const ia = it.veredicto.ia; if (ia.estado !== 'listo' || !String(ia.texto || '').trim() || it.veredicto.conformidad) return false; it.veredicto.conformidad = { el: new Date().toISOString(), periodo: it.periodo, clave: it.clave }; })) { const c = document.getElementById('rv-ia'); if (c) c.outerHTML = _rvVeredictoIaHtml(_rvItemActual()); }
   }
@@ -398,7 +400,7 @@ function _rvDevolverFoco(el) {
 }
 function _rvVer(periodo, clave) {
   if (typeof CMOverlay === 'undefined' || typeof CMReportes === 'undefined') return;
-  _rvFlush();
+  _rvFlush(); _rvIaErr = '';
   const _rvFoco = document.activeElement;   // a donde vuelve el foco al cerrar (CMOverlay.close no lo devuelve)
   _rvEd = { periodo, clave, key: CMReportes.repItemKey(periodo, clave), base: (_rvItems()[CMReportes.repItemKey(periodo, clave)] || {}).editadoEn || null };
   const rep = _rvConstruir(periodo, clave);
@@ -464,6 +466,59 @@ function _rvResumenSemanal(clave) {
   ]) + '<button type="button" class="btn btn-ghost rv-rs-ver" onclick="ReportesVista.verSemana(\'' + _rvEsc(clave) + '\')">Ver reporte completo</button></div>';
 }
 
+// ── Resumen del período para la IA (consejero.js: consulta del mes en curso y veredicto del reporte) ──
+// Mismos cálculos que el reporte (CMReportes sobre _rvDatos), ya formateados como texto. Sin cuentas en dólares ni dumps de S.
+function _rvResumenIA(periodo, clave) {
+  const R = CMReportes, hoy = _rvHoy(), rango = R.repRango(periodo, clave); if (!rango) return null;
+  const antClave = R.repAnterior(periodo, clave), comp = R.repRangoComparable(rango, R.repRango(periodo, antClave), hoy);
+  const trackers = S.habitTrackers && !Array.isArray(S.habitTrackers) ? S.habitTrackers : {};
+  const datos = _rvDatos(rango, comp, hoy);
+  const eco = R.repKpiEconomia(datos, rango, comp), con = R.repKpiConocimiento(datos, rango, comp);
+  const fo = R.repFoco(datos, rango, comp, { foArmarCruces: typeof foArmarCruces === 'function' ? foArmarCruces : null });
+  const kpis = [], add = (seccion, nombre, k, fmt) => { if (k && k.valor != null) kpis.push({ seccion, nombre, valor: fmt(k.valor), anterior: k.anterior != null ? fmt(k.anterior) : null }); };
+  const m = _rvMoney, p1 = v => _rvN(v, 1), de5 = v => _rvN(v, 1) + ' / 5';
+  add('Economía', 'Patrimonio (variación)', eco.patrimonio, m); add('Economía', 'Ganancia de inversiones vendidas', eco.inversiones, m); add('Economía', 'Gastos', eco.gastos, m);
+  add('Economía', 'Presupuesto usado', eco.presupuesto, _rvPct); add('Economía', 'Gasto inútil (del clasificado)', eco.utilidad, _rvPct); add('Economía', 'Activos líquidos', eco.activosLiquidos, m);
+  add('Economía', 'Deudas de tarjeta menos líquidos', eco.pasivoMenosLiquidos, m); add('Economía', 'Tasa de ahorro', eco.tasaAhorro, _rvPct); add('Economía', 'Meses de cobertura', eco.cobertura, _rvMeses);
+  add('Conocimiento', 'Exámenes del período', { valor: con.examenes.valor }, _rvCant); add('Conocimiento', 'Materias finalizadas', con.materiasFinalizadas, _rvCant); add('Conocimiento', 'Horas de estudio cronometradas', con.horasEstudio, _rvHoras);
+  add('Conocimiento', 'Sesiones Pomodoro', con.sesionesPomodoro, _rvCant); add('Conocimiento', 'Finales aprobados', con.finalesAprobados, _rvCant); add('Conocimiento', 'Promedio de notas del período', con.promedioPeriodo, _rvDec);
+  add('Conocimiento', 'Racha máxima de estudio (días)', con.rachaEstudio, _rvCant); add('Conocimiento', 'Avance de la carrera', con.avanceCarrera, _rvPct);
+  add('Foco', 'Atención promedio', fo.atencion, de5); add('Foco', 'Energía promedio', fo.energia, de5); add('Foco', 'Tiempo de pantalla por semana', fo.pantalla, _rvHoras);
+  return {
+    periodo, etiqueta: _rvEtiqueta(periodo, clave), desde: rango.desde, hasta: rango.hasta, parcial: R.repParcial(rango, hoy), comparadoCon: _rvEtiqueta(periodo, antClave),
+    habitos: R.repHabitosComparados(trackers, rango, comp).map(h => ({ seccion: (RV_SECCIONES.find(s => s[0] === h.seccion) || [0, h.seccion])[1], nombre: h.nombre, puntos: p1(h.puntos), anterior: p1(h.anterior) })),
+    kpis, gastosPorCategoria: (eco.gastos.porCategoria || []).slice(0, 8).map(c => ({ categoria: (typeof TXN_CATEGORIES !== 'undefined' && TXN_CATEGORIES[c.categoria]) ? TXN_CATEGORIES[c.categoria].label : _rvCap(c.categoria === 'other' ? 'otros' : c.categoria), valor: m(c.valor) })),
+  };
+}
+
+// ── Veredicto con IA (consejero.js): arma el prompt con los KPIs del reporte abierto + los textos del usuario y guarda veredicto.ia ──
+let _rvIaBusy = false, _rvIaErr = '';
+function _rvTextosParaIA(it) {
+  const t = [];
+  CMReportes.REP_SECCIONES.forEach(s => { t.push({ titulo: 'Estancamientos de ' + s, texto: it.estancamientos[s] }, { titulo: 'Deterioro de ' + s, texto: it.deterioro[s] }); });
+  t.push({ titulo: 'Agradecimientos', texto: it.agradecimientos });
+  it.aprendizajes.forEach(f => t.push({ titulo: 'Aprendizaje (' + f.seccion + ')', texto: [f.error && 'Error: ' + f.error, f.aprendizaje && 'Aprendizaje: ' + f.aprendizaje, f.propuesta && 'Propuesta: ' + f.propuesta].filter(Boolean).join('. ') }));
+  if (it.veredicto.manual && it.veredicto.manual.texto) t.unshift({ titulo: 'Su propio veredicto', texto: it.veredicto.manual.texto });
+  return t;
+}
+function _rvRefrescarIa() { const c = document.getElementById('rv-ia'); if (c && _rvEd) c.outerHTML = _rvVeredictoIaHtml(_rvItemActual()); }
+async function _rvGenerarVeredicto() {
+  if (_rvIaBusy || !_rvEd || !window.Consejero) return;
+  const ed = _rvEd, it0 = _rvItemActual(), ia0 = it0.veredicto.ia;
+  if (it0.veredicto.conformidad) return;
+  if (ia0.estado === 'listo' && String(ia0.texto || '').trim() && !confirm('Ya hay un veredicto. ¿Reemplazarlo por uno nuevo?')) return;
+  _rvIaBusy = true; _rvIaErr = ''; _rvRefrescarIa();
+  let r;
+  try { r = await Consejero.generarVeredicto({ resumen: _rvResumenIA(ed.periodo, ed.clave), textos: _rvTextosParaIA(it0) }); } catch (e) { r = { ok: false, error: 'No se pudo generar el veredicto. Probá de nuevo.' }; }
+  _rvIaBusy = false;
+  if (!_rvEd || _rvEd.key !== ed.key) { _rvRefrescarIa(); return; }   // mientras tanto se cerró o se abrió otro reporte: no se escribe en el equivocado
+  if (r.ok) {
+    const ok = _rvEscribir(it => { if (it.veredicto.conformidad) return false; it.veredicto.ia = { estado: 'listo', texto: r.texto, el: new Date().toISOString() }; });
+    if (!ok) _rvIaErr = 'No se guardó: el reporte se editó en otro dispositivo o ya tiene conformidad registrada.';
+  } else _rvIaErr = r.error;
+  _rvRefrescarIa();
+}
+
 // ── Sub-pestaña "Revisiones" (dentro de la ventana de Principios) ──
 let _rvV = { periodo: 'mensual', clave: null };
 const _rvClaveActual = () => _rvV.clave || CMReportes.repClaveDe(_rvV.periodo, _rvHoy());
@@ -504,6 +559,7 @@ function rvHtmlSub() {
 const ReportesVista = {
   htmlSub: rvHtmlSub,
   resumenSemanalHtml: _rvResumenSemanal,
+  resumenIA: _rvResumenIA,
   periodo(p) { _rvV.periodo = p; _rvV.clave = null; Principios.render(); },
   mover(dir) { const c = _rvVecina(_rvClaveActual(), dir); if (c) { _rvV.clave = c; Principios.render(); } },
   ver(periodo, clave) { if (periodo) { _rvV.periodo = periodo; _rvV.clave = clave || null; } _rvVer(_rvV.periodo, _rvClaveActual()); },

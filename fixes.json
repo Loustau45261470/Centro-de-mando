@@ -449,6 +449,13 @@
       "desc": "Los recordatorios de principios por datos se evalúan con una función pura (prEvaluarRegla) sobre las fuentes reales del Centro; sin dato suficiente la regla queda inactiva y un principio silenciado/pospuesto no avisa ni por tarjeta ni por push",
       "file": "principios.js",
       "marker": "function prEvaluarRegla(regla, datos, hoy)"
+    },
+    {
+      "id": "consejero-clave-fuera-del-repo",
+      "fecha": "2026-11-13",
+      "desc": "La clave de Gemini del Consejero vive solo en localStorage del dispositivo (jarvis_gemini_key o cm_consejero_key_paga) y viaja unicamente en el header x-goog-api-key (nunca en la URL, el repo, logs ni mensajes de error). NO poner claves en el codigo ni en la URL.",
+      "file": "consejero.js",
+      "marker": "'x-goog-api-key': cfg.clave"
     }
   ]
 }
