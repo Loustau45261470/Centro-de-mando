@@ -14,8 +14,6 @@ const _MONTH_SHORT = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct
 // categoría de objetivo → tab/sección (inverso de QOBJ_TAB_CATS)
 const QOBJ_CAT_TO_TAB = {};
 Object.entries(QOBJ_TAB_CATS).forEach(([tab, cats]) => cats.forEach(c => QOBJ_CAT_TO_TAB[c] = tab));
-// tabs con hábito enlazable (conocimiento usa materias de abogacía; finanzas usa su propio picker)
-const QOBJ_TAB_HABIT_SECTION = { vida: 'vida', salud: 'salud', ia: 'ia' };
 
 // Categorías de transacciones disponibles para enlazar (gasto/presupuesto)
 function _qobjTxnCats() {
@@ -32,13 +30,77 @@ function _qobjCatLabel(id) {
 // o.link = null
 //   | {type:'habit', section, habitId}
 //   | {type:'law', subjects:[{yearId,subId}]}
-//   | {type:'finance', metric:'patrimonio'|'cuenta'|'gasto'|'ingreso'|'presupuesto', accountId?, category?, target?}
+//   | {type:'finance', metric:'patrimonio'|'cuenta'|'gasto'|'ingreso'|'presupuesto'|'gasto_total'|'superavit', accountId?, category?, target?, modo?:'total'|'promedio'}
+//   | {type:'sleep', metric:'wake_in', desde:'HH:MM', hasta:'HH:MM', target:%} | {type:'sleep', metric:'bed_before', hora:'HH:MM', target:%} | {type:'sleep', metric:'hours_min', horas:n, target:%}
+//   | {type:'gym', metric:'sesiones', target:n} | {type:'estudio', metric:'horas', target:n} | {type:'dieta', metric:'dias', target:n}
+// Se calcula sobre un período: id de trimestre ('t4-2026'), de mes ('2026-11') o personalizado ('p-…', sin fechas → últimos 90 días).
 function _periodDateRange(periodId) {
   const months = _periodMonths(periodId);
   if (!months.length) return null;
   const [lyr, lmn] = months[months.length - 1].split('-');
   const lastDay = new Date(parseInt(lyr), parseInt(lmn), 0).getDate();
   return [months[0] + '-01', `${months[months.length - 1]}-${String(lastDay).padStart(2, '0')}`];
+}
+
+// Rango {desde,hasta,fin} de un período; `fin` = hasta recortado a hoy. Período sin fechas (p-…) → últimos 90 días.
+function _qobjRange(periodId) {
+  const today = getActiveDate();
+  let r = _periodDateRange(periodId);
+  if (!r) { const d = new Date(today + 'T00:00:00'); d.setDate(d.getDate() - 89); r = [d.toISOString().slice(0, 10), today]; }
+  return { desde: r[0], hasta: r[1], fin: r[1] < today ? r[1] : today };
+}
+function _qobjDays(rg) {
+  const out = [];
+  for (let d = new Date(rg.desde + 'T00:00:00'); d.toISOString().slice(0, 10) <= rg.fin; d.setDate(d.getDate() + 1)) out.push(d.toISOString().slice(0, 10));
+  return out;
+}
+function _qobjCountPct(value, target) { return target ? Math.min(100, Math.max(0, Math.round(value / target * 100))) : 0; }
+
+function _sleepLinkProgress(link, periodId) {
+  const C = window.CMSueno;
+  if (!C) return null;
+  const rg = _qobjRange(periodId), rango = { desde: rg.desde, hasta: rg.fin };
+  const D = _qobjDays(rg).length;
+  const log = S.sleepLog || {};
+  const ns = C.noches(log, rango);
+  const target = +link.target || 0;
+  let pctReg, reg, que;
+  if (link.metric === 'wake_in') {
+    reg = ns.filter(n => n.wake != null).length; pctReg = C.pctDiasLevantarEnFranja(log, rango, link.desde, link.hasta);
+    que = `😴 Levantarte ${link.desde}–${link.hasta}`;
+  } else if (link.metric === 'bed_before') {
+    reg = ns.filter(n => n.bed != null).length; pctReg = C.pctNochesAcostarseAntes(log, rango, link.hora);
+    que = `😴 Acostarte antes de las ${link.hora}`;
+  } else if (link.metric === 'hours_min') {
+    reg = ns.filter(n => n.horas != null).length; pctReg = C.pctNochesHorasMin(log, rango, link.horas);
+    que = `😴 Dormir ${link.horas} h o más`;
+  } else return null;
+  const ok = pctReg == null ? 0 : Math.round(pctReg * reg / 100);   // días que cumplen; un día sin registro cuenta como no cumplido
+  const val = D ? Math.round(ok / D * 100) : 0;
+  return { label: `${que} · ${val}% de los días (meta ${target}%) · ${reg} de ${D} días registrados`, pct: _qobjCountPct(val, target) };
+}
+
+function _gymLinkProgress(link, periodId) {
+  const rg = _qobjRange(periodId);
+  let n = 0;
+  Object.values(S.routineLog || {}).forEach(arr => (Array.isArray(arr) ? arr : []).forEach(e => { if (e && e.date >= rg.desde && e.date <= rg.fin) n++; }));
+  const target = +link.target || 0;
+  return { label: `🏋 Entrenamientos · ${n}/${target} sesiones`, pct: _qobjCountPct(n, target) };
+}
+
+function _estudioLinkProgress(link, periodId) {
+  const rg = _qobjRange(periodId);
+  const min = (S.pomodoroHistory || []).reduce((a, e) => (e && e.date >= rg.desde && e.date <= rg.fin) ? a + (+e.minutes || 0) : a, 0);
+  const h = Math.round(min / 6) / 10, target = +link.target || 0;
+  return { label: `📚 Estudio · ${h}/${target} h`, pct: _qobjCountPct(h, target) };
+}
+
+function _dietaLinkProgress(link, periodId) {
+  if (typeof dietaDayMet !== 'function') return null;
+  let n = 0;
+  _qobjDays(_qobjRange(periodId)).forEach(ds => { try { if (dietaDayMet(ds)) n++; } catch (e) {} });
+  const target = +link.target || 0;
+  return { label: `🥗 Dieta · ${n}/${target} días cumplidos`, pct: _qobjCountPct(n, target) };
 }
 
 function _habitLinkProgress(link) {
@@ -94,6 +156,19 @@ function _financeLinkProgress(link, periodId) {
     const pct = target ? Math.round(spent / target * 100) : 0;
     return { label: `${_qobjCatLabel(link.category)} · ${fmtMoney(spent,'ARS')}/${fmtMoney(target,'ARS')} tope`, pct: Math.min(100, pct), exceeded: pct > 100 };
   }
+  if (link.metric === 'gasto_total' || link.metric === 'superavit') {
+    const sum = type => (S.transactions || []).filter(t => t.type === type && t.currency === 'ARS' && inRange(t)).reduce((s, t) => s + (+t.amount || 0), 0);
+    const target = +link.target || 0;
+    if (link.metric === 'gasto_total') {
+      const spent = sum('expense'), pct = target ? Math.round(spent / target * 100) : 0;
+      return { label: `🔴 Gasto total · ${fmtMoney(spent,'ARS')}/${fmtMoney(target,'ARS')} tope`, pct: Math.min(100, pct), exceeded: pct > 100 };
+    }
+    const neto = sum('income') - sum('expense');
+    const meses = _periodMonths(periodId).filter(m => m + '-01' <= getActiveDate()).length || 1;
+    const prom = link.modo === 'promedio' && meses > 1;
+    const val = prom ? Math.round(neto / meses) : neto;
+    return { label: `📈 Superávit${prom ? ' promedio por mes' : ''} · ${fmtMoney(val,'ARS')}/${fmtMoney(target,'ARS')}`, pct: target > 0 ? Math.min(100, Math.max(0, Math.round(val / target * 100))) : 0 };
+  }
   if (link.metric === 'ingreso') {
     const total = (S.transactions || [])
       .filter(t => t.type === 'income' && t.currency === 'ARS' && inRange(t))
@@ -127,6 +202,10 @@ function qobjLinkProgress(periodId, link) {
   if (link.type === 'habit')   return _habitLinkProgress({ ...link, periodId });
   if (link.type === 'law')     return _lawLinkProgress(link);
   if (link.type === 'finance') return _financeLinkProgress(link, periodId);
+  if (link.type === 'sleep')   return _sleepLinkProgress(link, periodId);
+  if (link.type === 'gym')     return _gymLinkProgress(link, periodId);
+  if (link.type === 'estudio') return _estudioLinkProgress(link, periodId);
+  if (link.type === 'dieta')   return _dietaLinkProgress(link, periodId);
   return null;
 }
 
@@ -139,12 +218,26 @@ function qobjLinkHTML(periodId, link) {
   </div>`;
 }
 
-// Select de hábitos de una sección (usado por vida/salud/ia y por finanzas → hábito)
+// ── Selector de enlace (un solo selector "Enlazar a" para todas las pestañas y para metas mensuales) ──
+// El prefijo 'mgoal…' identifica al modal de metas mensuales (período = mes).
+const QOBJ_KIND_LABEL = { habit: 'Hábito', law: 'Materias', sleep: 'Sueño', gym: 'Entrenamiento', estudio: 'Estudio', dieta: 'Dieta', finance: 'Finanzas' };
+// Todos los tipos están en todas las pestañas; el orden pone primero los más naturales de cada una.
+const QOBJ_KIND_ORDER = {
+  vida:         ['habit', 'sleep', 'dieta', 'gym', 'estudio', 'finance', 'law'],
+  salud:        ['habit', 'gym', 'sleep', 'dieta', 'estudio', 'finance', 'law'],
+  finanzas:     ['finance', 'habit', 'sleep', 'gym', 'estudio', 'dieta', 'law'],
+  conocimiento: ['law', 'habit', 'estudio', 'sleep', 'gym', 'dieta', 'finance'],
+  ia:           ['habit', 'estudio', 'sleep', 'gym', 'dieta', 'finance', 'law']
+};
+const _qobjPer = idPrefix => idPrefix.indexOf('mgoal') === 0 ? 'mes' : 'trimestre';
+
+// Select de hábitos de una sección
 function _qobjHabitSelectHTML(idPrefix, section, link) {
-  const habits = _getHabits(section);
+  const sec = (link && link.type === 'habit' && link.section) || section;
+  const habits = _getHabits(sec);
   const curId = (link && link.type === 'habit') ? link.habitId : '';
-  return `<select class="inp" id="${idPrefix}-habit" style="width:100%">
-    <option value="">Sin enlace</option>
+  return `<select class="inp" id="${idPrefix}-habit" data-section="${sec}" style="width:100%">
+    <option value="">Elegí un hábito</option>
     ${habits.map(h => `<option value="${h.id}" ${h.id===curId?'selected':''}>${h.emoji||'📌'} ${h.name}</option>`).join('')}
   </select>`;
 }
@@ -156,6 +249,7 @@ function qobjFinanceSubFieldsHTML(idPrefix, metric, link) {
   const curAccount = (link && link.accountId) || '';
   const curCat = (link && link.category) || '';
   const curTarget = (link && link.target != null) ? link.target : '';
+  const per = _qobjPer(idPrefix);
   if (metric === 'cuenta') {
     return `<select class="inp" id="${idPrefix}-fin-acc" style="width:100%;margin-bottom:8px">
       ${accounts.map(a => `<option value="${a.id}" ${a.id===curAccount?'selected':''}>${a.icon||'🏦'} ${a.name}</option>`).join('')}
@@ -166,12 +260,23 @@ function qobjFinanceSubFieldsHTML(idPrefix, metric, link) {
     return `<select class="inp" id="${idPrefix}-fin-cat" style="width:100%;margin-bottom:8px">
       ${cats.map(([id,c]) => `<option value="${id}" ${id===curCat?'selected':''}>${c.icon||''} ${c.label}</option>`).join('')}
     </select>
-    <input class="inp" type="number" id="${idPrefix}-fin-target" placeholder="Monto tope del trimestre" value="${curTarget}" style="width:100%">`;
+    <input class="inp" type="number" id="${idPrefix}-fin-target" placeholder="Monto tope del ${per}" value="${curTarget}" style="width:100%">`;
   }
   if (metric === 'presupuesto') {
     return `<select class="inp" id="${idPrefix}-fin-cat" style="width:100%">
       ${cats.map(([id,c]) => `<option value="${id}" ${id===curCat?'selected':''}>${c.icon||''} ${c.label}</option>`).join('')}
     </select>`;
+  }
+  if (metric === 'gasto_total') {
+    return `<input class="inp" type="number" id="${idPrefix}-fin-target" placeholder="Tope de gasto total del ${per}" value="${curTarget}" style="width:100%">`;
+  }
+  if (metric === 'superavit') {
+    const modo = (link && link.modo) || 'total';
+    const sel = per === 'mes' ? '' : `<select class="inp" id="${idPrefix}-fin-modo" style="width:100%;margin-bottom:8px">
+      <option value="total" ${modo==='total'?'selected':''}>Total del trimestre</option>
+      <option value="promedio" ${modo==='promedio'?'selected':''}>Promedio por mes</option>
+    </select>`;
+    return `${sel}<input class="inp" type="number" id="${idPrefix}-fin-target" placeholder="Superávit meta" value="${curTarget}" style="width:100%">`;
   }
   if (metric === 'patrimonio' || metric === 'ingreso') {
     return `<input class="inp" type="number" id="${idPrefix}-fin-target" placeholder="Monto meta" value="${curTarget}" style="width:100%">`;
@@ -187,107 +292,132 @@ function _qobjFinMetricChange(idPrefix) {
 // Select de métrica + sus sub-campos (usado dentro del picker de finanzas)
 function qobjFinanceMetricHTML(idPrefix, link) {
   const metric = (link && link.type === 'finance') ? link.metric : '';
+  const per = _qobjPer(idPrefix);
   const opt = (v, lbl) => `<option value="${v}" ${metric===v?'selected':''}>${lbl}</option>`;
   return `<select class="inp" id="${idPrefix}-fin-metric" style="width:100%;margin-bottom:8px" onchange="_qobjFinMetricChange('${idPrefix}')">
     <option value="">Elegí una métrica</option>
     ${opt('patrimonio','💰 Patrimonio total')}
     ${opt('cuenta','🏦 Una cuenta')}
+    ${opt('gasto_total','🔴 Gasto total (tope, todas las categorías)')}
+    ${opt('superavit','📈 Superávit (ingresos − gastos)')}
     ${opt('gasto','🔴 Gasto por categoría (tope)')}
-    ${opt('ingreso','💚 Ingresos del trimestre')}
+    ${opt('ingreso','💚 Ingresos del ' + per)}
     ${opt('presupuesto','📋 Presupuesto de una categoría')}
   </select>
   <div id="${idPrefix}-fin-sub">${qobjFinanceSubFieldsHTML(idPrefix, metric, link)}</div>`;
 }
 
-// tab finanzas: primero elegís si enlazás a un hábito contable o a una métrica financiera
-function qobjFinanzasKindSubHTML(idPrefix, kind, link) {
-  if (kind === 'habit')   return _qobjHabitSelectHTML(idPrefix, 'finanzas', link);
-  if (kind === 'finance') return qobjFinanceMetricHTML(idPrefix, link);
-  return '';
+// Sueño: tres métricas, cada una con su % de días meta
+function qobjSleepFieldsHTML(p, metric, l) {
+  const v = (k, d) => (l && l.metric === metric && l[k] != null) ? l[k] : d;
+  let f = '';
+  if (metric === 'wake_in') f = `<div class="qobj-link-row"><span>Entre</span><input class="inp" type="time" id="${p}-sl-desde" value="${v('desde','07:00')}"><span>y</span><input class="inp" type="time" id="${p}-sl-hasta" value="${v('hasta','07:30')}"></div>`;
+  else if (metric === 'bed_before') f = `<div class="qobj-link-row"><span>Antes de las</span><input class="inp" type="time" id="${p}-sl-hora" value="${v('hora','23:30')}"></div>`;
+  else f = `<div class="qobj-link-row"><span>Al menos</span><input class="inp" type="number" min="1" max="14" step="0.5" id="${p}-sl-horas" value="${v('horas',8)}"><span>horas</span></div>`;
+  return f + `<div class="qobj-link-row"><span>En el</span><input class="inp" type="number" min="1" max="100" id="${p}-sl-target" value="${(l && l.target) || 80}"><span>% de los días</span></div>`;
+}
+function qobjSleepSubHTML(p, link) {
+  const l = (link && link.type === 'sleep') ? link : null;
+  const m = l ? l.metric : 'wake_in';
+  const opt = (v, t) => `<option value="${v}" ${m===v?'selected':''}>${t}</option>`;
+  return `<select class="inp" id="${p}-sl-metric" style="width:100%;margin-bottom:8px" onchange="_qobjSleepMetricChange('${p}')">
+    ${opt('wake_in','Levantarme en una franja horaria')}${opt('bed_before','Acostarme antes de una hora')}${opt('hours_min','Dormir un mínimo de horas')}
+  </select>
+  <div id="${p}-sl-sub">${qobjSleepFieldsHTML(p, m, l)}</div>`;
+}
+function _qobjSleepMetricChange(p) {
+  document.getElementById(`${p}-sl-sub`).innerHTML = qobjSleepFieldsHTML(p, document.getElementById(`${p}-sl-metric`).value, null);
 }
 
-function _qobjLinkKindChange(idPrefix) {
-  const kind = document.getElementById(`${idPrefix}-kind`).value;
-  document.getElementById(`${idPrefix}-kind-sub`).innerHTML = qobjFinanzasKindSubHTML(idPrefix, kind, null);
-}
-
-// HTML del selector de enlace dentro de los modales de agregar/editar
-function qobjLinkPickerHTML(idPrefix, tabName, link) {
-  if (tabName === 'conocimiento') {
+// Sub-HTML según el tipo de enlace elegido
+function qobjKindSubHTML(p, tab, kind, link) {
+  const l = (link && link.type === kind) ? link : null;
+  if (kind === 'habit') return _qobjHabitSelectHTML(p, tab, l);
+  if (kind === 'finance') return qobjFinanceMetricHTML(p, l);
+  if (kind === 'sleep') return qobjSleepSubHTML(p, l);
+  if (kind === 'law') {
     const years = S.lawProgress?.years || [];
-    const checked = (yId, sId) => (link && link.type === 'law' && link.subjects.some(s => s.yearId === yId && s.subId === sId)) ? 'checked' : '';
+    const checked = (yId, sId) => (l && l.subjects.some(s => s.yearId === yId && s.subId === sId)) ? 'checked' : '';
     const rows = years.map(y => `
       <div class="qobj-link-year-label">${y.label}</div>
       ${y.subjects.map(sub => `
         <label class="qobj-link-subj-row">
-          <input type="checkbox" id="${idPrefix}-subj-${y.id}-${sub.id}" data-year="${y.id}" data-sub="${sub.id}" ${checked(y.id, sub.id)}>
+          <input type="checkbox" id="${p}-subj-${y.id}-${sub.id}" data-year="${y.id}" data-sub="${sub.id}" ${checked(y.id, sub.id)}>
           <span>${sub.name}${sub.done ? ' ✓' : ''}</span>
         </label>`).join('')}`).join('');
-    return `<div class="qobj-link-picker">
-      <div class="qobj-link-picker-title">Enlazar a finales de este trimestre</div>
-      <div class="qobj-link-subj-list">${rows || '<div class="empty-state" style="padding:8px 0">Sin materias cargadas</div>'}</div>
-    </div>`;
+    return `<div class="qobj-link-subj-list">${rows || '<div class="empty-state" style="padding:8px 0">Sin materias cargadas</div>'}</div>`;
   }
-  if (tabName === 'finanzas') {
-    const kind = link ? (link.type === 'finance' ? 'finance' : 'habit') : '';
-    return `<div class="qobj-link-picker">
-      <div class="qobj-link-picker-title">Enlazar a</div>
-      <select class="inp" id="${idPrefix}-kind" style="width:100%;margin-bottom:8px" onchange="_qobjLinkKindChange('${idPrefix}')">
-        <option value="">Sin enlace</option>
-        <option value="habit" ${kind==='habit'?'selected':''}>Hábito contable</option>
-        <option value="finance" ${kind==='finance'?'selected':''}>Métrica financiera</option>
-      </select>
-      <div id="${idPrefix}-kind-sub">${qobjFinanzasKindSubHTML(idPrefix, kind, link)}</div>
-    </div>`;
-  }
-  const section = QOBJ_TAB_HABIT_SECTION[tabName];
-  if (!section) return '';
+  const cnt = { gym: 'Sesiones de entrenamiento meta', estudio: 'Horas de estudio meta', dieta: 'Días con dieta cumplida meta' }[kind];
+  if (cnt) return `<input class="inp" type="number" min="1" id="${p}-cnt-target" placeholder="${cnt}" value="${l && l.target != null ? l.target : ''}" style="width:100%">`;
+  return '';
+}
+
+function _qobjLinkKindChange(idPrefix) {
+  const sel = document.getElementById(`${idPrefix}-kind`);
+  document.getElementById(`${idPrefix}-kind-sub`).innerHTML = qobjKindSubHTML(idPrefix, sel.dataset.tab, sel.value, null);
+}
+
+// HTML del selector de enlace dentro de los modales de agregar/editar (trimestrales y mensuales)
+function qobjLinkPickerHTML(idPrefix, tabName, link) {
+  const order = QOBJ_KIND_ORDER[tabName] || QOBJ_KIND_ORDER.vida;
+  const cur = (link && QOBJ_KIND_LABEL[link.type]) ? link.type : '';
   return `<div class="qobj-link-picker">
-    <div class="qobj-link-picker-title">Enlazar a un hábito</div>
-    ${_qobjHabitSelectHTML(idPrefix, section, link)}
+    <div class="qobj-link-picker-title">Enlazar a</div>
+    <select class="inp" id="${idPrefix}-kind" data-tab="${tabName}" style="width:100%;margin-bottom:8px" onchange="_qobjLinkKindChange('${idPrefix}')">
+      <option value="">Sin enlace</option>
+      ${order.map(k => `<option value="${k}" ${cur===k?'selected':''}>${QOBJ_KIND_LABEL[k]}</option>`).join('')}
+    </select>
+    <div id="${idPrefix}-kind-sub">${qobjKindSubHTML(idPrefix, tabName, cur, link)}</div>
   </div>`;
 }
 
 function qobjReadLinkFromPicker(idPrefix, tabName) {
-  if (tabName === 'conocimiento') {
+  const kind = document.getElementById(`${idPrefix}-kind`)?.value;
+  const el = id => document.getElementById(`${idPrefix}-${id}`);
+  if (kind === 'habit') {
+    const sel = el('habit');
+    return (sel && sel.value) ? { type: 'habit', section: sel.dataset.section || tabName, habitId: sel.value } : null;
+  }
+  if (kind === 'law') {
     const subjects = [...document.querySelectorAll(`[id^="${idPrefix}-subj-"]:checked`)]
-      .map(el => ({ yearId: el.dataset.year, subId: el.dataset.sub }));
+      .map(e => ({ yearId: e.dataset.year, subId: e.dataset.sub }));
     return subjects.length ? { type: 'law', subjects } : null;
   }
-  if (tabName === 'finanzas') {
-    const kindEl = document.getElementById(`${idPrefix}-kind`);
-    const kind = kindEl && kindEl.value;
-    if (kind === 'habit') {
-      const sel = document.getElementById(`${idPrefix}-habit`);
-      const habitId = sel && sel.value;
-      return habitId ? { type: 'habit', section: 'finanzas', habitId } : null;
-    }
-    if (kind === 'finance') {
-      const metric = document.getElementById(`${idPrefix}-fin-metric`)?.value;
-      if (!metric) return null;
-      const targetEl = document.getElementById(`${idPrefix}-fin-target`);
-      const target = targetEl ? (+targetEl.value || 0) : null;
-      if (metric === 'cuenta') {
-        const accountId = document.getElementById(`${idPrefix}-fin-acc`)?.value;
-        return accountId ? { type: 'finance', metric, accountId, target } : null;
-      }
-      if (metric === 'gasto' || metric === 'presupuesto') {
-        const category = document.getElementById(`${idPrefix}-fin-cat`)?.value;
-        if (!category) return null;
-        return metric === 'presupuesto' ? { type: 'finance', metric, category } : { type: 'finance', metric, category, target };
-      }
-      return { type: 'finance', metric, target };
-    }
+  if (kind === 'sleep') {
+    const metric = el('sl-metric')?.value;
+    const target = Math.min(100, Math.max(1, Math.round(+el('sl-target')?.value || 80)));
+    if (metric === 'wake_in') { const desde = el('sl-desde')?.value, hasta = el('sl-hasta')?.value; return (desde && hasta) ? { type: 'sleep', metric, desde, hasta, target } : null; }
+    if (metric === 'bed_before') { const hora = el('sl-hora')?.value; return hora ? { type: 'sleep', metric, hora, target } : null; }
+    if (metric === 'hours_min') { const horas = +el('sl-horas')?.value; return horas > 0 ? { type: 'sleep', metric, horas, target } : null; }
     return null;
   }
-  const section = QOBJ_TAB_HABIT_SECTION[tabName];
-  if (!section) return null;
-  const sel = document.getElementById(`${idPrefix}-habit`);
-  const habitId = sel && sel.value;
-  return habitId ? { type: 'habit', section, habitId } : null;
+  if (kind === 'gym' || kind === 'estudio' || kind === 'dieta') {
+    const target = +el('cnt-target')?.value || 0;
+    if (target <= 0) return null;
+    return { type: kind, metric: { gym: 'sesiones', estudio: 'horas', dieta: 'dias' }[kind], target };
+  }
+  if (kind === 'finance') {
+    const metric = el('fin-metric')?.value;
+    if (!metric) return null;
+    const targetEl = el('fin-target');
+    const target = targetEl ? (+targetEl.value || 0) : null;
+    if (metric === 'cuenta') {
+      const accountId = el('fin-acc')?.value;
+      return accountId ? { type: 'finance', metric, accountId, target } : null;
+    }
+    if (metric === 'gasto' || metric === 'presupuesto') {
+      const category = el('fin-cat')?.value;
+      if (!category) return null;
+      return metric === 'presupuesto' ? { type: 'finance', metric, category } : { type: 'finance', metric, category, target };
+    }
+    if (metric === 'superavit') return { type: 'finance', metric, modo: el('fin-modo')?.value || 'total', target };
+    return { type: 'finance', metric, target };
+  }
+  return null;
 }
 
 function _periodMonths(periodId) {
+  if (/^\d{4}-\d{2}$/.test(periodId)) return [periodId];
   const m = periodId.match(/^t([1-4])-(\d{4})$/);
   if (!m) return [];
   const q = parseInt(m[1]), yr = m[2];
@@ -380,27 +510,39 @@ function navQPeriod(dir) {
   saveState(); renderQuarterlyObjectives();
 }
 
-let _mgoalAddTab = null, _mgoalAddMonth = null;
+let _mgoalAddTab = null, _mgoalAddMonth = null, _mgoalEditIdx = null;
 
-function openAddMonthlyGoal(tabName, monthKey) {
+function _openMonthlyGoalModal(tabName, monthKey, idx) {
   _mgoalAddTab = tabName;
   _mgoalAddMonth = monthKey;
+  _mgoalEditIdx = idx;
+  const g = idx == null ? null : getMonthlyGoals(tabName, monthKey)[idx];
   const [yr, mn] = monthKey.split('-');
   const secLbl = (QOBJ_TAB_CATS[tabName] || []).join(' & ') || tabName;
   document.getElementById('mgoal-modal-title').textContent =
-    `Meta de ${secLbl} — ${_MONTH_SHORT[parseInt(mn) - 1]} ${yr}`;
-  document.getElementById('mgoal-input-text').value = '';
+    `${g ? 'Editar meta' : 'Meta'} de ${secLbl} — ${_MONTH_SHORT[parseInt(mn) - 1]} ${yr}`;
+  document.getElementById('mgoal-input-text').value = g ? g.text : '';
+  document.getElementById('mgoal-save-btn').textContent = g ? 'Guardar' : 'Agregar';
+  document.getElementById('mgoal-link-wrap').innerHTML = qobjLinkPickerHTML('mgoal-link', tabName, g ? g.link : null);
   openModal('modal-add-mgoal');
 }
+function openAddMonthlyGoal(tabName, monthKey) { _openMonthlyGoalModal(tabName, monthKey, null); }
+function openEditMonthlyGoal(tabName, monthKey, idx) { if (getMonthlyGoals(tabName, monthKey)[idx]) _openMonthlyGoalModal(tabName, monthKey, idx); }
 
 function saveNewMonthlyGoal() {
   const text = document.getElementById('mgoal-input-text').value.trim();
   if (!text || !_mgoalAddMonth || !_mgoalAddTab) return;
+  const link = qobjReadLinkFromPicker('mgoal-link', _mgoalAddTab);
   const m = _mgSection(_mgoalAddTab);
   if (!m[_mgoalAddMonth]) m[_mgoalAddMonth] = [];
   const goals = m[_mgoalAddMonth];
-  const nextId = goals.length ? Math.max(...goals.map(g => g.id)) + 1 : 1;
-  goals.push({ id: nextId, text, done: false });
+  if (_mgoalEditIdx != null && goals[_mgoalEditIdx]) {
+    goals[_mgoalEditIdx].text = text;
+    if (link) goals[_mgoalEditIdx].link = link; else delete goals[_mgoalEditIdx].link;
+  } else {
+    const nextId = goals.length ? Math.max(...goals.map(g => g.id)) + 1 : 1;
+    goals.push(link ? { id: nextId, text, done: false, link } : { id: nextId, text, done: false });
+  }
   saveState();
   closeModal('modal-add-mgoal');
   _refreshMonthly(_mgoalAddTab);
@@ -511,7 +653,8 @@ function renderQObjForTab(tabName) {
 
     const goalsHTML = goals.length
       ? goals.map((g, i) => `<div class="monthly-goal-item${g.done?' done':''}">
-          <span class="mg-text">${g.text}</span>
+          <div class="mg-body"><span class="mg-text">${g.text}</span>${qobjLinkHTML(monthKey, g.link)}</div>
+          <button class="mg-del" onclick="openEditMonthlyGoal('${tabName}','${monthKey}',${i})" title="Editar">✎</button>
           <button class="mg-del" onclick="deleteMonthlyGoal('${tabName}','${monthKey}',${i})">✕</button>
           <input type="checkbox" ${g.done?'checked':''} onchange="toggleMonthlyGoal('${tabName}','${monthKey}',${i})" aria-label="Marcar meta mensual">
         </div>`).join('')
