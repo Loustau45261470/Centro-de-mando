@@ -753,10 +753,64 @@ function _eq(a, b) {
   try { return JSON.stringify(a) === JSON.stringify(b); } catch (e) { return a === b; }
 }
 
-// Merge 3-vías a nivel de clave top-level del estado.
-// base = último estado sincronizado (ancestro común). Si solo un lado cambió una
-// clave respecto del ancestro, gana ese lado; si ambos la cambiaron, gana cloud
-// (más reciente) y los ítems nuevos solo-local se re-agregan luego con _rescueLocal.
+// Merge 3-vías de un valor cualquiera, en profundidad. base = ancestro común.
+// - Solo un lado cambió → gana ese lado. Ambos iguales → ese valor.
+// - Objetos → clave por clave. Listas de objetos con id único → ítem por ítem: altas de cualquiera de los dos,
+//   bajas de cualquiera de los dos (salvo que el otro lo haya editado: la edición gana al borrado) y edición
+//   campo por campo. Otras listas → como conjunto (altas y bajas de cada lado).
+// - Mismo dato primitivo cambiado distinto en los dos lados → gana la nube (más reciente).
+// Sondeo 22/11/2026 (merge a nivel de clave top-level): en edición offline del iPhone + PC se perdían altas y
+// ediciones locales y volvían cosas borradas. Cubierto por tests/sync-merge-profundo.spec.js.
+const _esObj = v => v !== null && typeof v === 'object' && !Array.isArray(v);
+const _idsUnicos = a => Array.isArray(a) && a.length > 0 && a.every(x => _esObj(x) && x.id != null) && new Set(a.map(x => String(x.id))).size === a.length;
+function _merge3(base, local, cloud) {
+  if (_eq(local, cloud)) return cloud;
+  if (_eq(local, base)) return cloud;
+  if (_eq(cloud, base)) return local;
+  if (_esObj(local) && _esObj(cloud)) {
+    const b = _esObj(base) ? base : {};
+    const out = {};
+    const keys = new Set([...Object.keys(cloud), ...Object.keys(local)]);
+    keys.forEach(k => {
+      const v = _merge3(b[k], local[k], cloud[k]);
+      if (v !== undefined) out[k] = v;
+    });
+    return out;
+  }
+  if (Array.isArray(local) && Array.isArray(cloud)) {
+    const b = Array.isArray(base) ? base : [];
+    const conId = (_idsUnicos(local) || !local.length) && (_idsUnicos(cloud) || !cloud.length) && (_idsUnicos(b) || !b.length) && (local.length || cloud.length);
+    if (conId) {
+      const mB = new Map(b.map(x => [String(x.id), x])), mL = new Map(local.map(x => [String(x.id), x])), mC = new Map(cloud.map(x => [String(x.id), x]));
+      const res = [];
+      cloud.forEach(c => {
+        const id = String(c.id);
+        if (mL.has(id)) res.push(_merge3(mB.get(id), mL.get(id), c));
+        else if (!mB.has(id)) res.push(c);                       // alta de la nube
+        else if (!_eq(c, mB.get(id))) res.push(c);               // local lo borró pero la nube lo editó: queda
+        // si no: local lo borró y la nube no lo tocó → se va
+      });
+      local.forEach((l, i) => {
+        const id = String(l.id);
+        if (mC.has(id)) return;
+        if (mB.has(id) && _eq(l, mB.get(id))) return;            // la nube lo borró y local no lo tocó → se va
+        // alta local (o editado local y borrado en la nube: la edición gana) → junto a su vecino anterior en local
+        let pos = 0;
+        for (let j = i - 1; j >= 0; j--) { const k = res.findIndex(x => String(x.id) === String(local[j].id)); if (k >= 0) { pos = k + 1; break; } }
+        res.splice(pos, 0, l);
+      });
+      return res;
+    }
+    const s = x => JSON.stringify(x);
+    const sB = new Set(b.map(s)), sL = new Set(local.map(s)), sC = new Set(cloud.map(s));
+    const res = cloud.filter(c => !(sB.has(s(c)) && !sL.has(s(c))));   // sin lo que local borró
+    local.forEach(l => { if (!sB.has(s(l)) && !sC.has(s(l))) res.push(l); });   // + altas locales
+    return res;
+  }
+  return cloud;
+}
+
+// Merge 3-vías del estado: por clave top-level; si ambos lados cambiaron la misma clave, en profundidad (_merge3).
 function _mergeStates(base, local, cloud) {
   base = base || {};
   const out = { ...(cloud || {}) };
@@ -766,6 +820,7 @@ function _mergeStates(base, local, cloud) {
     const localChanged = !_eq(local?.[k], base[k]);
     const cloudChanged = !_eq(cloud?.[k], base[k]);
     if (localChanged && !cloudChanged) out[k] = local[k];
+    else if (localChanged && cloudChanged) { const v = _merge3(base[k], local?.[k], cloud?.[k]); if (v === undefined) delete out[k]; else out[k] = v; }
   });
   return out;
 }
@@ -775,7 +830,6 @@ const _fbDoSave = async (opts = {}) => {
     _fbSaveInProgress = true;
     const _isFlush = !!opts.flush;
     let _reintento = null;   // lectura vieja detectada por la transacción → se recalcula con el doc del servidor
-    const localObj = JSON.parse(JSON.stringify(S));
     const sessionConfirmed = _lastSyncedSavedAt !== null;
     let _dgRes = 'abortado'; const _dgT0 = Date.now();   // visibilidad: resultado del intento (solo registro)
     _syncEv('guardar-inicio', { flush: _isFlush, conf: sessionConfirmed, forzado: _forceSaveOnce });
@@ -795,6 +849,9 @@ const _fbDoSave = async (opts = {}) => {
       // Versión de la nube sobre la que se calcula este guardado. La escritura (transacción) solo procede si el
       // servidor sigue en esta versión: el iPhone llegó a leer como "del servidor" copias de su caché de días atrás.
       const _baseSavedAt = cloudData ? (cloudData._savedAt ?? null) : null;
+      // Foto de lo local DESPUÉS de leer la nube: lo que se editó mientras se leía (segundos en el iPhone) entra en
+      // este guardado; antes, el merge hacía S = toSave con la foto previa y esas ediciones se perdían (sondeo H5).
+      const localObj = JSON.parse(JSON.stringify(S));
 
       // Sin lectura FRESCA de la nube no se escribe: un set() encolado offline evaluó la
       // divergencia contra datos viejos y al reconectar pisaría el documento entero sin
@@ -839,7 +896,9 @@ const _fbDoSave = async (opts = {}) => {
       if (cloudRaw && _cloudDiverged && !_forceSaveOnce) {
         try {
           const cloudObj = JSON.parse(cloudRaw);
-          toSave = _rescueLocal(_mergeStates(_lastSyncedState, localObj, cloudObj), localObj);
+          // Merge profundo con ancestro real: ya incluye las altas locales. _rescueLocal acá re-agregaba lo que el otro
+          // dispositivo había borrado (sondeo 22/11/2026).
+          toSave = _mergeStates(_lastSyncedState, localObj, cloudObj);
           _writeBranch = 'merge3way';
           S = toSave;
           localStorage.setItem('lifedash_v2', JSON.stringify(S));
@@ -864,6 +923,16 @@ const _fbDoSave = async (opts = {}) => {
             showToast('⚠️ Estado local muy pequeño — recargá. Si es intencional: forzarGuardado()', 14000);
             _dgRes = 'bloqueado-estado-chico';
             return;
+          } else {
+            // Arranque sin nube (offline) y después se guarda: antes se subía lo local entero y pisaba lo que el otro
+            // dispositivo hizo. Ahora merge 3 vías con el último estado sincronizado de este dispositivo (o rescate).
+            let base = null; try { base = JSON.parse(localStorage.getItem('_lastSyncedStateStr') || 'null'); } catch (e) {}
+            toSave = base ? _mergeStates(base, localObj, cloudObj) : _rescueLocal(cloudObj, localObj);
+            _writeBranch = 'merge-sin-confirmar';
+            S = toSave;
+            localStorage.setItem('lifedash_v2', JSON.stringify(S));
+            _lastSyncedSavedAt = cloudData._savedAt ?? 0; _lastSyncedState = cloudObj;
+            _reRenderAll();
           }
         } catch (e) {}
       }
@@ -873,7 +942,7 @@ const _fbDoSave = async (opts = {}) => {
       // si esa lectura venía vieja (iPhone 22/11 03:54: leyó la de 01:38), pisaba los cambios de otro dispositivo.
       // "Nada propio" = cada clave igual a la nube (una clave vacía que la nube no tiene, p. ej. txnCategories {}, no cuenta).
       const _vacio = v => v == null || (typeof v === 'object' && Object.keys(v).length === 0);
-      if (_writeBranch === 'rescue-unconfirmed' && (() => { try { const c = JSON.parse(cloudRaw); return Object.keys(toSave).every(k => _eq(toSave[k], c[k]) || (c[k] === undefined && _vacio(toSave[k]))); } catch (e) { return false; } })()) {
+      if ((_writeBranch === 'rescue-unconfirmed' || _writeBranch === 'merge-sin-confirmar') && (() => { try { const c = JSON.parse(cloudRaw); return Object.keys(toSave).every(k => _eq(toSave[k], c[k]) || (c[k] === undefined && _vacio(toSave[k]))); } catch (e) { return false; } })()) {
         _lastSyncedState = JSON.parse(cloudRaw);
         try { localStorage.setItem('_lastSyncedStateStr', cloudRaw); } catch (e) {}
         if (!_fbSaveOtraVez) localStorage.removeItem('_pendingCloudSave');
@@ -882,7 +951,7 @@ const _fbDoSave = async (opts = {}) => {
         return;
       }
 
-      if (cloudRaw) await _maybeBackup(cloudRaw);
+      if (cloudRaw) _maybeBackup(cloudRaw);   // sin await: un backup colgado (red caída) dejaba el guardado trabado para siempre
 
       // ── Diag de cada write (entender por qué un device pisa al otro). diagSave() en consola.
       try {
@@ -936,7 +1005,7 @@ const _fbDoSave = async (opts = {}) => {
         _lastSyncedSavedAt = savedAt;
         _lastSyncedState = JSON.parse(_stateStr);
         try { localStorage.setItem('_lastSyncedStateStr', _stateStr); } catch (e) {}
-        if (!_fbSaveOtraVez) localStorage.removeItem('_pendingCloudSave');   // con otro guardado en espera, sigue pendiente
+        if (!_fbSaveOtraVez && !_fbSaveTid && JSON.stringify(S) === _stateStr) localStorage.removeItem('_pendingCloudSave');   // con otro cambio en espera, sigue pendiente
         _saveSnap(_stateStr, savedAt);
       };
       // Pendiente ANTES de escribir: si iOS congela la app a mitad, el próximo arranque mergea lo local (loadState).
@@ -1211,6 +1280,8 @@ function _startFirestoreSync() {
     if (_fbSaveTid || _fbSaveInProgress) { window._snapDrops = (window._snapDrops || 0) + 1; _dgSnapDrop(snap); return; }  // save en vuelo — descarta update remoto
     if (!snap.exists || !snap.data()?.state) return;
     if (snap.data()._wid && snap.data()._wid === _lastWriteId) return;  // eco propio
+    // Hay cambios propios sin subir: no se aplica lo remoto encima (los pisaba). Se guarda y el merge 3 vías junta ambos.
+    if (localStorage.getItem('_pendingCloudSave')) { _syncEv('snapshot-con-pendiente', { savedAt: snap.data()._savedAt }); _fbSave(); return; }
     // Versión más vieja que la que ya tenemos (la caché del iPhone entrega primero copias de horas/días atrás):
     // no se aplica. En el peor caso (relojes desfasados) solo demora la vista; al guardar, la transacción mergea.
     const _snapSa = snap.data()._savedAt;
@@ -1243,6 +1314,11 @@ async function _syncOnFocus() {
     const _dgInfo = { dev: snap.exists ? (snap.data()._dev || null) : null, cloudSavedAt: snap.exists ? (snap.data()._savedAt || null) : null, lastSynced: _lastSyncedSavedAt, cache: !!(snap.metadata && snap.metadata.fromCache), ms: Date.now() - _dgT0 };
     if (!snap.exists || !snap.data()?.state) { _syncEv('sync-fin', Object.assign({ res: 'sin-documento' }, _dgInfo)); return; }
     if (snap.data()._wid && snap.data()._wid === _lastWriteId) { _syncEv('sync-fin', Object.assign({ res: 'sin-cambios-eco-propio' }, _dgInfo)); return; }  // ya tenemos este estado
+    // Cambios propios sin subir → no pisarlos: guardar y que el merge 3 vías junte ambos.
+    if (localStorage.getItem('_pendingCloudSave')) { _syncEv('sync-fin', Object.assign({ res: 'pendiente-propio-guardo' }, _dgInfo)); _fbSave(); return; }
+    // Versión más vieja que la conocida (la lectura cayó a la caché del iPhone): no se aplica.
+    const _sa = snap.data()._savedAt;
+    if (_lastSyncedSavedAt != null && _sa != null && _sa < _lastSyncedSavedAt) { _syncEv('sync-fin', Object.assign({ res: 'version-vieja-ignorada' }, _dgInfo)); return; }
     window._applySrc = 'syncOnFocus';   // visibilidad: quién pidió el apply (solo registro)
     _applyRemoteState(snap.data().state, snap.data()._savedAt);
     _syncEv('sync-fin', Object.assign({ res: 'aplicado' }, _dgInfo));
@@ -1296,7 +1372,7 @@ async function loadState() {
       if (localObj && JSON.stringify(localObj) !== JSON.stringify(S)) {
         let base = null;
         try { base = JSON.parse(localStorage.getItem('_lastSyncedStateStr') || 'null'); } catch (e) {}
-        S = _rescueLocal(_mergeStates(base, localObj, S), localObj);
+        S = base ? _mergeStates(base, localObj, S) : _rescueLocal(_mergeStates(base, localObj, S), localObj);   // sin ancestro: rescate (no se sabe qué se borró)
         console.warn('[load] merge de cambios offline pendientes');
         setTimeout(() => showToast('🔀 Recuperando cambios hechos sin conexión…', 6000), 1500);
         setTimeout(() => saveState(), 2500);   // subir el merge a la nube (limpia el pendiente al confirmar)
@@ -1401,8 +1477,12 @@ function _migrateQToT() {
 }
 function saveState() {
   _syncEvSave();   // visibilidad: quién llamó y cuándo (solo registro)
-  localStorage.setItem('lifedash_v2', JSON.stringify(S));
-  _fbSave();
+  // Pendiente en el acto: si iOS congela/mata la app antes de que el guardado llegue a la nube, el próximo arranque
+  // lo mergea (loadState) y mientras tanto no se aplica encima una versión remota (onSnapshot/_syncOnFocus).
+  try { localStorage.setItem('_pendingCloudSave', '1'); } catch (e) {}
+  try { localStorage.setItem('lifedash_v2', JSON.stringify(S)); }
+  catch (e) { console.warn('[saveState] localStorage:', e && e.name); showToast('⚠️ La memoria del dispositivo está llena: el cambio se sube a la nube igual, pero no queda copia local', 8000); }
+  _fbSave();   // siempre, aunque localStorage falle (QuotaExceeded)
 }
 
 // ── Historical financial data ─────────────────────────────

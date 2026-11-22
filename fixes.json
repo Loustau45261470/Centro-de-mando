@@ -491,6 +491,48 @@
       "desc": "Un guardado que llegaba con otro en vuelo se descartaba y _onWriteOk limpiaba _pendingCloudSave: el cambio quedaba solo en local y, si se cerraba la app, el proximo arranque no lo mergeaba. Ahora se marca _fbSaveOtraVez, el pendiente no se limpia y se repite el guardado al terminar. Cubierto por tests/sync-lectura-vieja.spec.js.",
       "file": "app.js",
       "marker": "_fbSaveOtraVez = true"
+    },
+    {
+      "id": "sync-merge-profundo-por-item",
+      "fecha": "2026-11-22",
+      "desc": "Merge por clave top-level: si ambos dispositivos tocaban la misma clave ganaba la nube y _rescueLocal re-agregaba lo borrado. Fuzz de 120 casos: altas y ediciones locales perdidas y borrados resucitados. _merge3 mergea en profundidad (objetos por clave, listas con id item por item, campo por campo) y con ancestro real ya no se llama _rescueLocal. Cubierto por tests/sync-merge-profundo.spec.js.",
+      "file": "app.js",
+      "marker": "function _merge3("
+    },
+    {
+      "id": "sync-pendiente-en-saveState",
+      "fecha": "2026-11-22",
+      "desc": "saveState marca _pendingCloudSave en el acto y llama _fbSave aunque localStorage tire QuotaExceeded; _onWriteOk solo lo limpia si no hay otro cambio esperando y S es lo que se subio. Cubierto por tests/sync-merge-profundo.spec.js.",
+      "file": "app.js",
+      "marker": "try { localStorage.setItem('_pendingCloudSave', '1'); } catch (e) {}"
+    },
+    {
+      "id": "sync-no-aplicar-remoto-con-pendiente",
+      "fecha": "2026-11-22",
+      "desc": "onSnapshot y _syncOnFocus aplicaban la version remota encima de cambios propios sin subir (offline, timeout, iOS congelado) y los perdian. Con pendiente: no aplican, guardan y el merge 3 vias junta ambos. _syncOnFocus tambien ignora versiones mas viejas. Cubierto por tests/sync-merge-profundo.spec.js.",
+      "file": "app.js",
+      "marker": "snapshot-con-pendiente"
+    },
+    {
+      "id": "sync-foto-local-despues-de-leer",
+      "fecha": "2026-11-22",
+      "desc": "_fbDoSave copiaba S antes de leer la nube; lo editado durante la lectura se perdia cuando el merge hacia S = toSave. La copia se toma despues de leer. Cubierto por tests/sync-merge-profundo.spec.js.",
+      "file": "app.js",
+      "marker": "Foto de lo local DESPUÉS de leer la nube"
+    },
+    {
+      "id": "sync-merge-sin-confirmar",
+      "fecha": "2026-11-22",
+      "desc": "Arranque sin nube (offline) y guardado despues: la rama overwrite subia lo local entero pisando al otro dispositivo. Ahora merge 3 vias con _lastSyncedStateStr (o rescate si no hay). Cubierto por tests/sync-merge-profundo.spec.js.",
+      "file": "app.js",
+      "marker": "merge-sin-confirmar"
+    },
+    {
+      "id": "sync-backup-sin-await",
+      "fecha": "2026-11-22",
+      "desc": "await _maybeBackup sin timeout: con la red caida el guardado quedaba trabado para siempre. Ahora no se espera. Cubierto por tests/sync-merge-profundo.spec.js.",
+      "file": "app.js",
+      "marker": "_maybeBackup(cloudRaw);   // sin await"
     }
   ]
 }
