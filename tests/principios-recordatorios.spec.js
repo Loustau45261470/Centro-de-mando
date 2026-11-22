@@ -106,6 +106,21 @@ test.describe('prEvaluarRegla: cada plantilla, activa e inactiva', () => {
     expect(P.prAvisosDePrincipios(ps, datos, '2026-11-19').datos).toHaveLength(1);     // a los 7 días vuelve la regla
     expect(P.prSumarDias('2026-11-30', 1)).toBe('2026-12-01');
   });
+
+  test('posponer corto: prSilenciado respeta silenciadoHastaTs (ms) además de la fecha; vence solo; ts inválido no silencia', () => {
+    const T = new Date(2026, 10, 12, 9, 0).getTime(), p = prin({ disparo: { tipo: 'diario' } }), con = (o) => Object.assign({}, p, o);
+    expect(P.prSilenciado(con({ silenciadoHastaTs: T + 15 * 60000 }), HOY, T)).toBe(true);
+    expect(P.prSilenciado(con({ silenciadoHastaTs: T + 15 * 60000 }), HOY, T + 15 * 60000 - 1)).toBe(true);
+    expect(P.prSilenciado(con({ silenciadoHastaTs: T + 15 * 60000 }), HOY, T + 15 * 60000)).toBe(false);   // vence justo al llegar
+    expect(P.prSilenciado(con({ silenciadoHastaTs: T - 1 }), HOY, T)).toBe(false);
+    expect(P.prSilenciado(con({ silenciadoHastaTs: 'x' }), HOY, T)).toBe(false);
+    expect(P.prSilenciado(con({ silenciadoHasta: '2026-11-13', silenciadoHastaTs: T - 1 }), HOY, T)).toBe(true);   // la fecha sola alcanza
+    expect(P.prSilenciado(con({ silenciadoHasta: '2026-11-12', silenciadoHastaTs: T + 1 }), HOY, T)).toBe(true);   // y el ts solo también
+    expect(P.prSilenciado(p, HOY, T)).toBe(false); expect(P.prSilenciado(null, HOY, T)).toBe(false);
+    const ps = [con({ silenciadoHastaTs: T + 60000 }), prin({ id: 'q', disparo: { tipo: 'diario' } })];
+    expect(P.prAvisosDePrincipios(ps, {}, HOY, T).diarios.map((x) => x.id)).toEqual(['q']);
+    expect(P.prAvisosDePrincipios(ps, {}, HOY, T + 60000).diarios.map((x) => x.id)).toEqual(['p1', 'q']);
+  });
 });
 
 // ── deadlines.js: aviso por horario ────────────────────────────────────────
@@ -247,95 +262,255 @@ test.describe('Recordatorios de principios en el Centro', () => {
     expect(consoleErrors).toEqual([]);
   });
 
-  test('diario: sale una vez por día con el motivo; "Visto" lo oculta hasta mañana', async ({ cmPage, consoleErrors }, testInfo) => {
-    await poner(cmPage, [prin({ disparo: { tipo: 'diario' } }), prin({ id: 'p2', enunciado: 'Hacer aunque sea un poco', porque: '', disparo: { tipo: 'diario' } }), prin({ id: 'p3', enunciado: 'Sin aviso' })]);
+  const bell = (page) => page.locator('#pr-avisos .pr-bell');
+  const nBell = (page) => page.locator('#pr-avisos .pr-bell-n');
+  const card = (page) => page.locator('#pr-avisos .pr-av-card');
+  const panel = (page) => page.locator('#pr-avisos #pr-av-panel');
+  const item = (page, txt) => page.locator('#pr-avisos .pr-av-item', { hasText: txt });
+  const DD = { tipo: 'datos', regla: { plantilla: 'sueno_menos', horas: 7 } };
+
+  test('campanita con contador: sin avisos no hay número; con avisos muestra la cantidad y no se pisa con el botón de Game Mode', async ({ cmPage, consoleErrors }) => {
+    await poner(cmPage, [prin({ id: 'n' })]);
     await a(cmPage, 9);
     await cmPage.evaluate(() => Principios.chequearAvisos());
-    const av = cmPage.locator('#pr-avisos .pr-av-diario');
-    await expect(av).toBeVisible();
-    await expect(av.locator('.pr-av-row')).toHaveCount(0);                          // varios principios: una sola tarjeta resumen
-    await expect(av).toContainText('Principios de hoy (2)');
-    await expect(av).not.toContainText('Sin aviso');
-    await expect(av.locator('.pr-btn', { hasText: 'Ver' })).toBeVisible();
+    await expect(bell(cmPage)).toBeVisible();
+    await expect(nBell(cmPage)).toHaveCount(0);                                     // 0 avisos: contador oculto
+    await expect(card(cmPage)).toHaveCount(0);
+    await poner(cmPage, [prin({ disparo: { tipo: 'diario' } }), prin({ id: 'p2', enunciado: 'Otro', disparo: DD })], { sleepLog: { '2026-11-12': { hours: 5 } } });
+    await cmPage.evaluate(() => Principios.chequearAvisos());
+    await expect(nBell(cmPage)).toHaveText('2');
+    await expect(bell(cmPage)).toHaveAttribute('aria-expanded', 'false');
+    await expect(bell(cmPage)).toHaveAttribute('aria-label', /2 pendientes/);
+    const r = await cmPage.evaluate(() => { const b = (s) => document.querySelector(s).getBoundingClientRect(), x = b('#pr-avisos .pr-bell'), t = b('#trophy-btn');
+      return { sol: x.left < t.right && x.right > t.left && x.top < t.bottom && x.bottom > t.top, ok: document.elementFromPoint(x.left + x.width / 2, x.top + x.height / 2).closest('.pr-bell') !== null, top: x.top }; });
+    expect(r.sol).toBe(false); expect(r.ok).toBe(true); expect(r.top).toBeGreaterThanOrEqual(0);
     expect(await sinScrollH(cmPage)).toBe(true);
-    await cmPage.screenshot({ path: testInfo.outputPath('aviso-diario.png') });
-    const btn = av.locator('.pr-btn', { hasText: 'Visto' });
-    expect((await btn.boundingBox()).height).toBeGreaterThanOrEqual(44);
-    await btn.click();
-    await expect(cmPage.locator('#pr-avisos')).toHaveCount(0);
-    await cmPage.evaluate(() => Principios.chequearAvisos());
-    await expect(cmPage.locator('#pr-avisos')).toHaveCount(0);                      // no reaparece el mismo día
-    expect((await hasta(cmPage)).every((x) => x.hasta === undefined)).toBe(true);   // "Visto" no toca los principios
-    await a(cmPage, 9, 0, 13);
-    await cmPage.evaluate(() => Principios.chequearAvisos());
-    await expect(cmPage.locator('#pr-avisos .pr-av-diario')).toBeVisible();         // mañana vuelve
     expect(consoleErrors).toEqual([]);
   });
 
-  test('por datos: "3 días sin entrenar" activa muestra la tarjeta con el dato; si entrenás, se va', async ({ cmPage, consoleErrors }, testInfo) => {
+  test('aviso nuevo: tarjeta grande con el texto completo (sin recortar) que se pliega a los 8 s y no vuelve; la pausa con el mouse encima la retiene', async ({ cmPage, consoleErrors }, testInfo) => {
+    const enun = 'Antes de gastar en algo que no es de primera necesidad espero 48 horas y me pregunto si lo compraría igual mañana, sin que nadie me lo haya mostrado';
+    const porque = 'Casi todo lo que quiero comprar en el momento deja de importarme en dos días, y lo que sigue importando después de esperar suele valer la plata de verdad, así que esperar es gratis';
+    await cmPage.clock.install({ time: new Date(2026, 10, 12, 9, 0) });
+    await poner(cmPage, [prin({ enunciado: enun, porque, disparo: { tipo: 'diario' } })]);
+    await cmPage.evaluate(() => Principios.chequearAvisos());
+    await expect(card(cmPage)).toBeVisible();
+    await expect(card(cmPage)).toContainText(enun);
+    await expect(card(cmPage)).toContainText(porque);
+    await expect(card(cmPage)).toContainText('Principio de hoy');
+    await expect(card(cmPage)).not.toContainText(' más');                           // una sola: sin «y N más»
+    const m = await cmPage.evaluate(() => {
+      const l = document.querySelector('#pr-avisos .pr-av-card .pr-av-link'), c = document.querySelector('#pr-avisos .pr-av-card'), cs = getComputedStyle(l), w = window.innerWidth;
+      const b = c.getBoundingClientRect(); return { ell: cs.textOverflow, ws: cs.whiteSpace, corta: l.scrollHeight > l.clientHeight + 1, ancho: b.width, w, der: b.right, izq: b.left };
+    });
+    expect(m.ell).not.toBe('ellipsis'); expect(m.ws).not.toBe('nowrap'); expect(m.corta).toBe(false);
+    expect(m.izq).toBeGreaterThanOrEqual(0); expect(m.der).toBeLessThanOrEqual(m.w);
+    expect(m.ancho).toBeGreaterThanOrEqual(Math.min(360, m.w - 24)); expect(m.ancho).toBeLessThanOrEqual(420);
+    await cmPage.screenshot({ path: testInfo.outputPath('tarjeta.png') });
+    // pausa: con el mouse encima no se pliega
+    const bb = await card(cmPage).boundingBox();
+    await cmPage.mouse.move(bb.x + bb.width / 2, bb.y + 20);
+    await cmPage.clock.fastForward(20000);
+    await expect(card(cmPage)).toBeVisible();
+    await cmPage.mouse.move(5, 300);
+    await cmPage.clock.fastForward(7000);
+    await expect(card(cmPage)).toBeVisible();                                       // todavía no pasaron los 8 s
+    await cmPage.clock.fastForward(1500);
+    await expect(card(cmPage)).toHaveCount(0);                                      // se pliega al panel
+    await expect(nBell(cmPage)).toHaveText('1');                                    // el aviso sigue activo en la campanita
+    await cmPage.evaluate(() => Principios.chequearAvisos());
+    await expect(card(cmPage)).toHaveCount(0);                                      // el mismo aviso no se vuelve a desplegar
+    // «Cerrar» también la pliega
+    await cmPage.evaluate(() => { localStorage.clear(); S.principios.principios.push({ id: 'z', tipo: 'principio', enunciado: 'Nuevo', porque: '', disparo: { tipo: 'diario' } }); Principios.chequearAvisos(); });
+    await expect(card(cmPage)).toContainText('Nuevo');
+    await card(cmPage).locator('.pr-btn', { hasText: 'Cerrar' }).click();
+    await expect(card(cmPage)).toHaveCount(0);
+    expect(consoleErrors).toEqual([]);
+  });
+
+  test('varios avisos a la vez: una sola tarjeta con «y N más» que abre el panel con todos', async ({ cmPage, consoleErrors }, testInfo) => {
+    await poner(cmPage, [prin({ disparo: { tipo: 'diario' } }), prin({ id: 'p2', enunciado: 'Hacer aunque sea un poco', porque: '', disparo: { tipo: 'diario' } }),
+      prin({ id: 'p3', enunciado: 'Dormir temprano', disparo: DD }), prin({ id: 'p4', enunciado: 'Sin aviso' })], { sleepLog: { '2026-11-12': { hours: 5 } } });
+    await a(cmPage, 9);
+    await cmPage.evaluate(() => Principios.chequearAvisos());
+    await expect(card(cmPage)).toHaveCount(1);
+    await expect(card(cmPage)).toContainText('y 2 más');
+    await expect(card(cmPage).locator('.pr-av-link')).toHaveCount(1);              // nunca se apilan tarjetas
+    await expect(panel(cmPage)).toHaveCount(0);
+    await expect(nBell(cmPage)).toHaveText('3');
+    await card(cmPage).locator('.pr-btn', { hasText: 'y 2 más' }).click();
+    await expect(panel(cmPage)).toBeVisible();
+    await expect(card(cmPage)).toHaveCount(0);
+    await expect(cmPage.locator('#pr-avisos .pr-av-item')).toHaveCount(3);
+    await expect(panel(cmPage)).not.toContainText('Sin aviso');
+    await expect(bell(cmPage)).toHaveAttribute('aria-expanded', 'true');
+    await cmPage.screenshot({ path: testInfo.outputPath('panel.png') });
+    expect(await sinScrollH(cmPage)).toBe(true);
+    expect(consoleErrors).toEqual([]);
+  });
+
+  test('panel: abre y cierra con la campanita, con Esc y tocando afuera; los botones son tocables (44 px) y no los tapa nada', async ({ cmPage, consoleErrors }) => {
+    await poner(cmPage, [1, 2, 3, 4, 5, 6].map((i) => prin({ id: 'd' + i, enunciado: 'Principio ' + i + ' con un enunciado un poco más largo para que ocupe', disparo: DD })), { sleepLog: { '2026-11-12': { hours: 5 } } });
+    await a(cmPage, 9);
+    await cmPage.evaluate(() => Principios.chequearAvisos());
+    await bell(cmPage).click();
+    await expect(panel(cmPage)).toBeVisible();
+    await expect(panel(cmPage)).toBeFocused();
+    const r = await cmPage.evaluate(() => {
+      const p = document.getElementById('pr-av-panel'), pb = p.getBoundingClientRect(), nav = document.getElementById('nav').getBoundingClientRect();
+      const bots = [...p.querySelectorAll('.pr-av-pos .pr-btn, .pr-av-fin .pr-btn')].slice(0, 6).map((b) => { b.scrollIntoView({ block: 'nearest' }); const q = b.getBoundingClientRect();
+        return { txt: b.textContent, h: q.height, ok: document.elementFromPoint(q.left + q.width / 2, q.top + q.height / 2) === b }; });
+      return { scroll: p.scrollHeight > p.clientHeight, izq: pb.left, der: pb.right, abajo: pb.bottom, navTop: nav.top, h: window.innerHeight, w: window.innerWidth, bots };
+    });
+    expect(r.scroll).toBe(true);                                                    // muchos avisos: el panel desliza, no se sale de la pantalla
+    expect(r.izq).toBeGreaterThanOrEqual(0); expect(r.der).toBeLessThanOrEqual(r.w); expect(r.abajo).toBeLessThanOrEqual(r.h);
+    if (r.navTop > r.h / 2) expect(r.abajo).toBeLessThanOrEqual(r.navTop + 1);
+    r.bots.forEach((b) => { expect(b.ok, b.txt).toBe(true); expect(b.h, b.txt).toBeGreaterThanOrEqual(44); });
+    await cmPage.keyboard.press('Escape');
+    await expect(panel(cmPage)).toHaveCount(0);
+    await expect(bell(cmPage)).toBeFocused();
+    await bell(cmPage).click(); await expect(panel(cmPage)).toBeVisible();
+    await bell(cmPage).click(); await expect(panel(cmPage)).toHaveCount(0);        // la campanita alterna
+    await bell(cmPage).click(); await expect(panel(cmPage)).toBeVisible();
+    await cmPage.mouse.click(5, 10);                                                 // afuera (arriba a la izquierda: en el celular el panel ocupa casi todo el ancho)
+    await expect(panel(cmPage)).toHaveCount(0);
+    // posponer desde el panel no lo cierra mientras quedan avisos
+    await bell(cmPage).click();
+    await item(cmPage, 'Principio 1 ').locator('.pr-btn', { hasText: '1 h' }).click();
+    await expect(panel(cmPage)).toBeVisible();
+    await expect(cmPage.locator('#pr-avisos .pr-av-item')).toHaveCount(5);
+    await expect(nBell(cmPage)).toHaveText('5');
+    expect(consoleErrors).toEqual([]);
+  });
+
+  test('diario: «Visto» saca solo ese principio hasta mañana y no toca los principios', async ({ cmPage, consoleErrors }) => {
+    await poner(cmPage, [prin({ disparo: { tipo: 'diario' } }), prin({ id: 'p2', enunciado: 'Hacer aunque sea un poco', porque: '', disparo: { tipo: 'diario' } }), prin({ id: 'p3', enunciado: 'Sin aviso' })]);
+    await a(cmPage, 9);
+    await cmPage.evaluate(() => Principios.chequearAvisos());
+    await bell(cmPage).click();
+    await expect(cmPage.locator('#pr-avisos .pr-av-item')).toHaveCount(2);
+    await item(cmPage, 'Lo más difícil').locator('.pr-btn', { hasText: 'Visto' }).click();
+    await expect(cmPage.locator('#pr-avisos .pr-av-item')).toHaveCount(1);
+    await expect(item(cmPage, 'Hacer aunque sea un poco')).toHaveCount(1);
+    await expect(nBell(cmPage)).toHaveText('1');
+    await item(cmPage, 'Hacer aunque sea un poco').locator('.pr-btn', { hasText: 'Visto' }).click();
+    await expect(nBell(cmPage)).toHaveCount(0);
+    await cmPage.evaluate(() => Principios.chequearAvisos());
+    await expect(nBell(cmPage)).toHaveCount(0);                                     // no reaparece el mismo día
+    expect((await hasta(cmPage)).every((x) => x.hasta === undefined)).toBe(true);
+    expect(await cmPage.evaluate(() => S.principios.principios.every((p) => p.silenciadoHastaTs === undefined))).toBe(true);
+    await a(cmPage, 9, 0, 13);
+    await cmPage.evaluate(() => Principios.chequearAvisos());
+    await expect(nBell(cmPage)).toHaveText('2');                                    // mañana vuelve
+    expect(consoleErrors).toEqual([]);
+  });
+
+  test('por datos: la tarjeta trae el dato; «Ocultar» lo saca sin escribir nada; vuelve si cambia el estado; si entrenás, se va', async ({ cmPage, consoleErrors }) => {
     // Último entreno 11-09, hoy 11-12: días completos sin entrenar = 10 y 11 = 2 (hoy no cuenta).
     await poner(cmPage, [prin({ disparo: { tipo: 'datos', regla: { plantilla: 'sin_entrenar', dias: 2 } } })],
       { workoutLog: { '2026-11-09': { Press: [{ reps: '8', weight: '50' }] } } });
     await a(cmPage, 10);
     await cmPage.evaluate(() => Principios.chequearAvisos());
-    const t = cmPage.locator('#pr-avisos .pr-av-datos');
+    await expect(card(cmPage)).toContainText('Llevás 2 días sin entrenar');
+    await expect(card(cmPage)).toContainText('Lo más difícil primero');
+    await expect(card(cmPage)).toContainText('La energía es más alta temprano');
+    await bell(cmPage).click();
+    const t = item(cmPage, 'Llevás 2 días sin entrenar');
     await expect(t).toBeVisible();
-    await expect(t).toContainText('Llevás 2 días sin entrenar');
-    await expect(t).toContainText('Lo más difícil primero');
-    expect(await sinScrollH(cmPage)).toBe(true);
-    await cmPage.screenshot({ path: testInfo.outputPath('aviso-datos.png') });
-    // "Ocultar": se va sin escribir nada en el principio, y no vuelve en la misma evaluación
+    await expect(t.locator('.pr-btn', { hasText: 'Visto' })).toHaveCount(0);       // «Visto» es solo de los diarios
     await t.locator('.pr-btn', { hasText: 'Ocultar' }).click();
-    await expect(cmPage.locator('#pr-avisos')).toHaveCount(0);
+    await expect(nBell(cmPage)).toHaveCount(0);
     await cmPage.evaluate(() => Principios.chequearAvisos());
-    await expect(cmPage.locator('#pr-avisos')).toHaveCount(0);
+    await expect(nBell(cmPage)).toHaveCount(0);
     expect((await hasta(cmPage)).every((x) => x.hasta === undefined)).toBe(true);
-    // un día antes (1 día completo) no activa
-    await a(cmPage, 10, 0, 11);
+    await a(cmPage, 10, 0, 11);                                                     // un día antes no activa
     await cmPage.evaluate(() => Principios.chequearAvisos());
-    await expect(cmPage.locator('#pr-avisos')).toHaveCount(0);
-    // vuelve a cambiar el estado (activa de nuevo): reaparece aunque se haya ocultado
-    await a(cmPage, 10);
+    await expect(nBell(cmPage)).toHaveCount(0);
+    await a(cmPage, 10);                                                            // cambió el estado: reaparece aunque se haya ocultado
     await cmPage.evaluate(() => Principios.chequearAvisos());
-    await expect(cmPage.locator('#pr-avisos .pr-av-datos')).toBeVisible();
-    // entrenás hoy: se va
-    await a(cmPage, 10);
+    await expect(nBell(cmPage)).toHaveText('1');
     await cmPage.evaluate(() => { S.workoutLog['2026-11-12'] = { Press: [{ reps: '5', weight: '' }] }; Principios.chequearAvisos(); });
-    await expect(cmPage.locator('#pr-avisos')).toHaveCount(0);
+    await expect(nBell(cmPage)).toHaveCount(0);
     expect(consoleErrors).toEqual([]);
   });
 
-  test('posponer hasta mañana y silenciar 7 días (el principio no se borra); Reactivar lo devuelve', async ({ cmPage, consoleErrors }) => {
-    const dd = { tipo: 'datos', regla: { plantilla: 'sueno_menos', horas: 7 } };
-    await poner(cmPage, [prin({ disparo: dd }), prin({ id: 'p2', enunciado: 'Otro', disparo: dd })], { sleepLog: { '2026-11-12': { hours: 5 }, '2026-11-13': { hours: 5 } } });
+  test('posponer corto: 15 min lo saca, reaparece pasado el tiempo; el principio no se borra; se guarda en silenciadoHastaTs', async ({ cmPage, consoleErrors }) => {
+    await poner(cmPage, [prin({ disparo: DD }), prin({ id: 'p2', enunciado: 'Otro', disparo: DD })], { sleepLog: { '2026-11-12': { hours: 5 } } });
     await a(cmPage, 9);
     await cmPage.evaluate(() => Principios.chequearAvisos());
-    const fila = (txt) => cmPage.locator('#pr-avisos .pr-av-row', { hasText: txt });
-    expect((await fila('Lo más difícil').locator('.pr-btn').first().boundingBox()).height).toBeGreaterThanOrEqual(44);
-    await expect(fila('Lo más difícil').locator('.pr-btn[aria-label="Posponer hasta mañana"]')).toHaveCount(1);
-    await fila('Lo más difícil').locator('.pr-btn', { hasText: 'Mañana' }).click();
-    expect(await hasta(cmPage)).toEqual([{ id: 'p1', hasta: '2026-11-13' }, { id: 'p2', hasta: undefined }]);
-    await expect(fila('Lo más difícil')).toHaveCount(0);
-    await expect(fila('Otro')).toHaveCount(1);
-    await fila('Otro').locator('.pr-btn', { hasText: '7 días' }).click();
-    expect(await hasta(cmPage)).toEqual([{ id: 'p1', hasta: '2026-11-13' }, { id: 'p2', hasta: '2026-11-19' }]);
-    await expect(cmPage.locator('#pr-avisos')).toHaveCount(0);
-    expect(await cmPage.evaluate(() => S.principios.principios.length)).toBe(2);   // no se borran
+    await bell(cmPage).click();
+    const ini = new Date(2026, 10, 12, 9, 0).getTime();
+    expect((await item(cmPage, 'Lo más difícil').locator('.pr-btn', { hasText: '15 min' }).boundingBox()).height).toBeGreaterThanOrEqual(44);
+    await item(cmPage, 'Lo más difícil').locator('.pr-btn', { hasText: '15 min' }).click();
+    expect(await cmPage.evaluate(() => S.principios.principios.map((p) => [p.id, p.silenciadoHastaTs, p.silenciadoHasta]))).toEqual([['p1', ini + 15 * 60000, undefined], ['p2', undefined, undefined]]);
+    await expect(item(cmPage, 'Lo más difícil')).toHaveCount(0);
+    await expect(nBell(cmPage)).toHaveText('1');
+    await a(cmPage, 9, 14); await cmPage.evaluate(() => Principios.chequearAvisos());
+    await expect(item(cmPage, 'Lo más difícil')).toHaveCount(0);                    // a los 14 min todavía no
+    await a(cmPage, 9, 16); await cmPage.evaluate(() => Principios.chequearAvisos());
+    await expect(item(cmPage, 'Lo más difícil')).toHaveCount(1);                    // a los 16 min vuelve
+    await expect(nBell(cmPage)).toHaveText('2');
+    await item(cmPage, 'Otro').locator('.pr-btn', { hasText: '3 h' }).click();
+    expect(await cmPage.evaluate(() => S.principios.principios[1].silenciadoHastaTs)).toBe(new Date(2026, 10, 12, 9, 16).getTime() + 180 * 60000);
+    await a(cmPage, 12, 20); await cmPage.evaluate(() => Principios.chequearAvisos());
+    await expect(item(cmPage, 'Otro')).toHaveCount(1);
+    expect(await cmPage.evaluate(() => S.principios.principios.length)).toBe(2);
+    expect(consoleErrors).toEqual([]);
+  });
+
+  test('posponer corto: reaparece solo al vencer (sin esperar el chequeo de 5 min)', async ({ cmPage, consoleErrors }) => {
+    await cmPage.clock.install({ time: new Date(2026, 10, 12, 9, 0) });
+    await poner(cmPage, [prin({ disparo: { tipo: 'diario' } })]);
+    await cmPage.evaluate(() => Principios.chequearAvisos());
+    await bell(cmPage).click();
+    await item(cmPage, 'Lo más difícil').locator('.pr-btn', { hasText: '1 h' }).click();
+    await expect(nBell(cmPage)).toHaveCount(0);
+    await cmPage.keyboard.press('Escape');                                          // con el panel abierto no se despliega tarjeta: lo ve ahí
+    await cmPage.clock.fastForward(59 * 60000);
+    await expect(nBell(cmPage)).toHaveCount(0);
+    await cmPage.clock.fastForward(2 * 60000);
+    await expect(nBell(cmPage)).toHaveText('1');
+    await expect(card(cmPage)).toBeVisible();                                       // al volver es un aviso nuevo: se despliega
+    expect(consoleErrors).toEqual([]);
+  });
+
+  test('posponer hasta mañana y silenciar 7 días (el principio no se borra); Reactivar lo devuelve y borra también el posponer corto', async ({ cmPage, consoleErrors }) => {
+    await poner(cmPage, [prin({ disparo: DD }), prin({ id: 'p2', enunciado: 'Otro', disparo: DD }), prin({ id: 'p3', enunciado: 'Tercero', disparo: DD })],
+      { sleepLog: { '2026-11-12': { hours: 5 }, '2026-11-13': { hours: 5 } } });
+    await a(cmPage, 9);
+    await cmPage.evaluate(() => Principios.chequearAvisos());
+    await bell(cmPage).click();
+    await expect(item(cmPage, 'Lo más difícil').locator('.pr-btn[aria-label="Posponer hasta mañana"]')).toHaveCount(1);
+    await item(cmPage, 'Lo más difícil').locator('.pr-btn', { hasText: 'Mañana' }).click();
+    expect(await hasta(cmPage)).toEqual([{ id: 'p1', hasta: '2026-11-13' }, { id: 'p2', hasta: undefined }, { id: 'p3', hasta: undefined }]);
+    await expect(item(cmPage, 'Lo más difícil')).toHaveCount(0);
+    await item(cmPage, 'Otro').locator('.pr-btn', { hasText: '7 días' }).click();
+    expect(await hasta(cmPage)).toEqual([{ id: 'p1', hasta: '2026-11-13' }, { id: 'p2', hasta: '2026-11-19' }, { id: 'p3', hasta: undefined }]);
+    await item(cmPage, 'Tercero').locator('.pr-btn', { hasText: '15 min' }).click();
+    await expect(nBell(cmPage)).toHaveCount(0);
+    expect(await cmPage.evaluate(() => S.principios.principios.length)).toBe(3);   // no se borran
     // mañana vuelve el pospuesto, no el silenciado
     await a(cmPage, 9, 0, 13);
     await cmPage.evaluate(() => Principios.chequearAvisos());
-    await expect(fila('Lo más difícil')).toHaveCount(1); await expect(fila('Otro')).toHaveCount(0);
-    // el principio silenciado se ve marcado en la ventana y se puede reactivar
+    await expect(item(cmPage, 'Lo más difícil')).toHaveCount(1); await expect(item(cmPage, 'Otro')).toHaveCount(0);
+    // el silenciado se ve marcado en la ventana y se puede reactivar
     await cmPage.evaluate(() => Principios.abrir());
-    const card = cmPage.locator('#ov-principios .pr-card', { hasText: 'Otro' });
-    await expect(card).toContainText('silenciado hasta el 19/11');
-    await card.locator('.pr-btn', { hasText: 'Reactivar' }).click();
-    expect(await hasta(cmPage)).toEqual([{ id: 'p1', hasta: '2026-11-13' }, { id: 'p2', hasta: undefined }]);
-    await expect(fila('Otro')).toHaveCount(1);
+    const c2 = cmPage.locator('#ov-principios .pr-card', { hasText: 'Otro' });
+    await expect(c2).toContainText('silenciado hasta el 19/11');
+    await c2.locator('.pr-btn', { hasText: 'Reactivar' }).click();
+    expect(await hasta(cmPage)).toEqual([{ id: 'p1', hasta: '2026-11-13' }, { id: 'p2', hasta: undefined }, { id: 'p3', hasta: undefined }]);
+    await expect(item(cmPage, 'Otro')).toHaveCount(1);
+    // el pospuesto corto muestra la hora; Reactivar borra el ts
+    await cmPage.evaluate(() => { S.principios.principios[2].silenciadoHastaTs = Date.now() + 3600000; Principios.chequearAvisos(); Principios.abrir(); });
+    const c3 = cmPage.locator('#ov-principios .pr-card', { hasText: 'Tercero' });
+    await expect(c3).toContainText(/silenciado hasta las \d\d:\d\d/);
+    await c3.locator('.pr-btn', { hasText: 'Reactivar' }).click();
+    expect(await cmPage.evaluate(() => S.principios.principios[2].silenciadoHastaTs)).toBeUndefined();
+    await expect(item(cmPage, 'Tercero')).toHaveCount(1);
     expect(consoleErrors).toEqual([]);
   });
 
-  test('al tocar un aviso se abre la ventana de Principios en ese principio (mensaje del SW y link del aviso); #foco-chequeo sigue andando', async ({ cmPage, consoleErrors }, testInfo) => {
+  test('al tocar un aviso se abre la ventana de Principios en ese principio (mensaje del SW, tarjeta y panel); #foco-chequeo sigue andando', async ({ cmPage, consoleErrors }) => {
     await poner(cmPage, [prin({ id: 'p1', enunciado: 'Primero' }), prin({ id: 'p2', enunciado: 'Segundo', disparo: { tipo: 'diario' } })]);
     await a(cmPage, 9);
     const msg = (url) => cmPage.evaluate((u) => navigator.serviceWorker.dispatchEvent(new MessageEvent('message', { data: { tipo: 'abrir-destino', url: u } })), url);
@@ -344,12 +519,16 @@ test.describe('Recordatorios de principios en el Centro', () => {
     await expect(ov).toBeVisible();
     await expect(ov.locator('.pr-card')).toHaveCount(1);
     await expect(ov).toContainText('Segundo'); await expect(ov).not.toContainText('Primero');
-    await cmPage.screenshot({ path: testInfo.outputPath('destino-principio.png') });
     await ov.locator('.pr-btn', { hasText: 'Ver todos' }).click();
     await expect(ov.locator('.pr-card')).toHaveCount(2);
-    // desde el aviso del Centro
+    // desde la tarjeta del aviso
     await cmPage.evaluate(() => { CMOverlay.close('ov-principios'); Principios.chequearAvisos(); });
-    await cmPage.locator('#pr-avisos .pr-av-link').click();
+    await cmPage.locator('#pr-avisos .pr-av-card .pr-av-link').click();
+    await expect(cmPage.locator('#ov-principios.show .pr-card')).toHaveCount(1);
+    // desde el panel
+    await cmPage.evaluate(() => CMOverlay.close('ov-principios'));
+    await bell(cmPage).click();
+    await cmPage.locator('#pr-avisos .pr-av-item .pr-av-link').click();
     await expect(cmPage.locator('#ov-principios.show .pr-card')).toHaveCount(1);
     // principio borrado: avisa y abre la lista completa
     await cmPage.evaluate(() => CMOverlay.close('ov-principios'));
@@ -362,72 +541,20 @@ test.describe('Recordatorios de principios en el Centro', () => {
     expect(consoleErrors).toEqual([]);
   });
 
-  test('apilado: cierre del día + revisión semanal + principios se ven a la vez, sin taparse (domingo 21:00)', async ({ cmPage, consoleErrors }, testInfo) => {
-    await poner(cmPage, [prin({ disparo: { tipo: 'diario' } }), prin({ id: 'p2', enunciado: 'Sin entrenar', disparo: { tipo: 'datos', regla: { plantilla: 'sueno_menos', horas: 7 } } })],
-      { sleepLog: { '2026-11-15': { hours: 5 } } });
-    await mostrarAvisos(cmPage);
-    await a(cmPage, 21, 0, 15);   // domingo 15/11
-    await cmPage.evaluate(() => { window.renderGoals(); });
-    await expect(cmPage.locator('#rs-nudge')).toBeVisible();
-    await expect(cmPage.locator('#fo-nudge')).toBeVisible();
-    await expect(cmPage.locator('#pr-avisos')).toBeVisible();
-    await cmPage.screenshot({ path: testInfo.outputPath('apilado.png') });
-    const r = await cmPage.evaluate(() => {
-      const b = (s) => document.querySelector(s).getBoundingClientRect();
-      return { rs: b('#rs-nudge'), fo: b('#fo-nudge'), pr: b('#pr-avisos'), nav: b('#nav'), w: window.innerWidth, h: window.innerHeight };
-    });
-    if (r.nav.top > r.h / 2) expect(r.pr.bottom).toBeLessThanOrEqual(r.nav.top + 1);   // barra inferior (móvil): el panel no la tapa
-    expect(r.fo.bottom).toBeLessThanOrEqual(r.rs.top + 1);   // el cierre queda arriba de la semanal
-    expect(r.pr.bottom).toBeLessThanOrEqual(r.fo.top + 1);   // los principios, arriba del cierre
-    expect(r.pr.top).toBeGreaterThanOrEqual(0);
-    expect(await sinScrollH(cmPage)).toBe(true);
-    // los botones de los tres avisos siguen siendo tocables (no los tapa otro)
-    await cmPage.locator('#pr-avisos .pr-av-diario .pr-btn', { hasText: 'Visto' }).click();
-    await expect(cmPage.locator('#pr-avisos .pr-av-diario')).toHaveCount(0);
-    await expect(cmPage.locator('#pr-avisos .pr-av-datos')).toBeVisible();
-    expect(consoleErrors).toEqual([]);
-  });
-
-  test('apilado completo (dato + diario de 3 + cierre + semanal): todos los botones visibles y tocables, sin tapar nada', async ({ cmPage, consoleErrors }, testInfo) => {
-    const dd = { tipo: 'datos', regla: { plantilla: 'sueno_menos', horas: 7 } };
-    await poner(cmPage, [prin({ id: 'd1', enunciado: 'Un principio con un enunciado bastante largo que no entra en una sola línea del aviso', disparo: dd }),
-      prin({ id: 'a', disparo: { tipo: 'diario' } }), prin({ id: 'b', enunciado: 'Segundo', disparo: { tipo: 'diario' } }), prin({ id: 'c', enunciado: 'Tercero', disparo: { tipo: 'diario' } })],
-      { sleepLog: { '2026-11-15': { hours: 5 } } });
+  test('con el cierre del día y la revisión semanal visibles, la campanita sigue a la vista y el panel no se sale de la pantalla (domingo 21:00)', async ({ cmPage, consoleErrors }) => {
+    await poner(cmPage, [prin({ disparo: { tipo: 'diario' } }), prin({ id: 'p2', enunciado: 'Dormir', disparo: DD })], { sleepLog: { '2026-11-15': { hours: 5 } } });
     await mostrarAvisos(cmPage);
     await a(cmPage, 21, 0, 15);
     await cmPage.evaluate(() => { window.renderGoals(); });
     await expect(cmPage.locator('#rs-nudge')).toBeVisible();
     await expect(cmPage.locator('#fo-nudge')).toBeVisible();
-    await expect(cmPage.locator('#pr-avisos .pr-av-diario')).toContainText('Principios de hoy (3)');
-    await cmPage.screenshot({ path: testInfo.outputPath('apilado-completo.png') });
-    const r = await cmPage.evaluate(() => {
-      const p = document.getElementById('pr-avisos'), box = (e) => { const b = e.getBoundingClientRect(); return { l: b.left, r: b.right, t: b.top, b: b.bottom }; };
-      const bots = [...p.querySelectorAll('button')].map((b) => { const q = b.getBoundingClientRect(), x = q.left + q.width / 2, y = q.top + q.height / 2;
-        return { txt: b.textContent, h: q.height, ok: document.elementFromPoint(x, y) === b, dentro: q.top >= p.getBoundingClientRect().top - 0.5 && q.bottom <= p.getBoundingClientRect().bottom + 0.5 }; });
-      return { bots, scroll: p.scrollHeight - p.clientHeight, mas: !!p.querySelector('.pr-av-mas'), pr: box(p), fo: box(document.getElementById('fo-nudge')), rs: box(document.getElementById('rs-nudge')), nav: box(document.getElementById('nav')), h: window.innerHeight };
-    });
-    expect(r.bots.map((b) => b.txt)).toEqual(['Un principio con un enunciado bastante largo que no entra en una sola línea del aviso', 'Mañana', '7 días', 'Ocultar', 'Ver', 'Visto']);
-    r.bots.forEach((b) => { expect(b.ok, b.txt).toBe(true); expect(b.dentro, b.txt).toBe(true); if (b.txt.length < 12) expect(b.h, b.txt).toBeGreaterThanOrEqual(44); });
-    expect(r.scroll).toBeLessThanOrEqual(1); expect(r.mas).toBe(false);
-    const sol = (x, y) => x.l < y.r && x.r > y.l && x.t < y.b && x.b > y.t;
-    [r.fo, r.rs].forEach((o) => expect(sol(r.pr, o)).toBe(false));
-    if (r.nav.t > r.h / 2) expect(sol(r.pr, r.nav)).toBe(false);
-    const sd = await cmPage.evaluate(() => { const e = document.querySelector('.cm-sd'); if (!e) return null; const b = e.getBoundingClientRect(), p = document.getElementById('pr-avisos').getBoundingClientRect(); return b.left < p.right && b.right > p.left && b.top < p.bottom && b.bottom > p.top; });
-    if (sd !== null) expect(sd).toBe(false);
-    expect(consoleErrors).toEqual([]);
-  });
-
-  test('con muchos avisos por datos aparece el cartel "Deslizá para ver N más"', async ({ cmPage, consoleErrors }, testInfo) => {
-    const dd = { tipo: 'datos', regla: { plantilla: 'sueno_menos', horas: 7 } };
-    await poner(cmPage, [1, 2, 3, 4, 5, 6].map((i) => prin({ id: 'd' + i, enunciado: 'Principio ' + i, disparo: dd })), { sleepLog: { '2026-11-12': { hours: 5 } } });
-    await a(cmPage, 9);
-    await cmPage.evaluate(() => Principios.chequearAvisos());
-    const mas = cmPage.locator('#pr-avisos .pr-av-mas');
-    await expect(mas).toBeVisible();
-    await expect(mas).toHaveText(/Deslizá para ver [0-9]+ más/);
-    await cmPage.screenshot({ path: testInfo.outputPath('muchos-avisos.png') });
-    await cmPage.evaluate(() => { const p = document.getElementById('pr-avisos'); p.scrollTop = p.scrollHeight; });
-    await expect(mas).toBeHidden();
+    await expect(bell(cmPage)).toBeVisible();
+    const sol = await cmPage.evaluate(() => { const b = document.querySelector('#pr-avisos .pr-bell').getBoundingClientRect();
+      return ['#rs-nudge', '#fo-nudge'].map((s) => { const o = document.querySelector(s).getBoundingClientRect(); return b.left < o.right && b.right > o.left && b.top < o.bottom && b.bottom > o.top; }); });
+    expect(sol).toEqual([false, false]);
+    await bell(cmPage).click();
+    await expect(panel(cmPage)).toBeVisible();
+    expect(await sinScrollH(cmPage)).toBe(true);
     expect(consoleErrors).toEqual([]);
   });
 });

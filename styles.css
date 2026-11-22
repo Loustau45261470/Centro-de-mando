@@ -130,6 +130,8 @@ body::after {
   display: flex; align-items: center;
   overflow: hidden; z-index: 100;
 }
+/* El indicador SYNC/tamaño (telemetry.js) termina antes de la campanita (.pr-avisos) y el botón de Game Mode, que flotan sobre el borde derecho. */
+#ticker #ticker-right { padding-right: 78px; }
 #ticker-inner {
   display: flex; align-items: center; gap: 48px;
   white-space: nowrap;
@@ -6916,24 +6918,35 @@ textarea.pr-in { resize: vertical; min-height: 60px; }
 /* Aviso nocturno del cierre del día (foco.js): mismo aviso que la Revisión semanal (.rs-nudge); si ambos coinciden, se apila arriba. */
 #fo-nudge .btn, #fo-nudge .icon-btn { min-height: 44px; min-width: 44px; }
 body:has(#rs-nudge) #fo-nudge { bottom: calc(max(12px, env(safe-area-inset-bottom, 0px)) + 76px); }
-/* Celular (barra #nav abajo): los avisos van por encima de la barra y del botón flotante .cm-sd, mismo escalón que .pr-avisos */
+/* Celular (barra #nav abajo): los avisos van por encima de la barra y del botón flotante .cm-sd */
 @media (max-width: 979px) {
   #rs-nudge, #fo-nudge { bottom: calc(var(--nav) + var(--safe-b) + 76px); }
   body:has(#rs-nudge) #fo-nudge { bottom: calc(var(--nav) + var(--safe-b) + 152px); }
 }
 
-/* Avisos de principios dentro del Centro (principios.js): diarios y por datos. Un panel que se apila sobre el cierre del día (#fo-nudge) y la revisión semanal (#rs-nudge) sin taparlos. */
-.pr-avisos { position: fixed; left: 12px; right: 12px; bottom: calc(var(--nav) + var(--safe-b) + 76px); z-index: 500; margin: 0 auto; max-width: 440px; max-height: 40vh; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }   /* +76px: por encima de la barra #nav y del botón flotante .cm-sd (no los tapa) */
-body:has(#rs-nudge) .pr-avisos, body:has(#fo-nudge) .pr-avisos { bottom: calc(var(--nav) + var(--safe-b) + 76px + 76px); }
-body:has(#rs-nudge):has(#fo-nudge) .pr-avisos { bottom: calc(var(--nav) + var(--safe-b) + 76px + 152px); }
-.pr-av { background: rgba(10,16,30,.94); border: 1px solid var(--border); border-radius: 14px; padding: 11px 12px; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 8px 28px rgba(0,0,0,.35); }
-.pr-av { flex: 0 0 auto; padding: 8px 10px; }
-.pr-av-t { font-size: var(--fs-12-5); font-weight: 700; color: var(--hud-bright); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
-.pr-av-dato { font-size: var(--fs-12-5); font-weight: 600; color: var(--ts); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pr-av-link { display: block; width: 100%; min-height: 32px; padding: 0; text-align: left; background: none; border: 0; color: var(--tp); font: 600 var(--fs-14) var(--sans); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pr-av-acts { display: flex; gap: 6px; margin-top: 4px; }
-.pr-av-acts .pr-btn { min-height: 44px; flex: 1 1 0; min-width: 0; padding: 8px 6px; }
-.pr-av-mas { position: sticky; bottom: 0; flex: 0 0 auto; text-align: center; padding: 6px 8px; border-radius: 10px; font-size: var(--fs-12-5); font-weight: 700; color: var(--hud-bright); background: rgba(10,16,30,.96); border: 1px solid var(--hud-dim); }
+/* Avisos de principios (principios.js): campanita en la franja del ticker, a la izquierda del botón de Game Mode (#trophy-btn); tarjeta grande 8 s al llegar uno nuevo y panel con todos. */
+.pr-avisos { position: fixed; top: calc((var(--ticker) - 26px) / 2); right: 42px; width: 26px; height: 26px; z-index: 120; pointer-events: none; }
+.pr-avisos > * { pointer-events: auto; }
+.pr-bell { position: relative; width: 26px; height: 26px; padding: 0; border-radius: 50%; border: 1px solid var(--border); background: rgba(10,16,30,.6); color: var(--ts); cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(8px); -webkit-tap-highlight-color: transparent; transition: background .2s, color .2s; }
+.pr-bell.tiene { color: var(--hud-bright); border-color: var(--hud-dim); background: var(--hud-glow); }
+.pr-bell:hover { color: var(--hud-bright); }
+.pr-bell:focus-visible { outline: 2px solid var(--hud); outline-offset: 2px; }
+.pr-bell-n { position: absolute; top: -5px; right: -5px; min-width: 15px; height: 15px; padding: 0 3px; box-sizing: border-box; border-radius: 99px; background: var(--danger); color: #fff; font: 700 10px/15px var(--sans); text-align: center; }
+.pr-av-card, .pr-av-panel { position: absolute; top: calc(100% + 8px); right: -32px; width: min(400px, calc(100vw - 20px)); box-sizing: border-box; background: rgba(10,16,30,.96); border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 8px 28px rgba(0,0,0,.35); }
+.pr-av-panel { max-height: min(70vh, calc(100dvh - var(--ticker) - var(--nav) - var(--safe-b) - 24px)); overflow-y: auto; overscroll-behavior: contain; padding: 4px 14px 8px; }
+.pr-av-panel:focus { outline: none; }
+.pr-av-ph { position: sticky; top: 0; z-index: 1; margin: 0 -14px; padding: 10px 14px 6px; background: rgba(10,16,30,.98); font-size: var(--fs-12-5); font-weight: 700; color: var(--hud-bright); text-transform: uppercase; letter-spacing: .04em; }
+.pr-av-item { padding: 10px 0; border-top: 1px solid var(--border); }
+.pr-av-ph + .pr-av-item { border-top: 0; }
+.pr-av-vacio { padding: 12px 0 8px; font-size: var(--fs-13); color: var(--ts); }
+.pr-av-t { font-size: var(--fs-12-5); font-weight: 700; color: var(--hud-bright); margin-bottom: 4px; }
+.pr-av-link { display: block; width: 100%; min-height: 32px; padding: 0; text-align: left; background: none; border: 0; color: var(--tp); font: 600 var(--fs-14) var(--sans); line-height: 1.4; cursor: pointer; overflow-wrap: anywhere; }
+.pr-av-por { margin-top: 4px; font-size: var(--fs-12-5); line-height: 1.45; color: var(--ts); overflow-wrap: anywhere; }
+.pr-av-pos { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+.pr-av-pl { flex: 0 0 100%; font-size: var(--fs-12-5); color: var(--tt); }
+.pr-av-pos .pr-btn { min-height: 44px; flex: 1 1 56px; min-width: 0; padding: 8px 6px; }
+.pr-av-fin { display: flex; gap: 6px; margin-top: 8px; }
+.pr-av-fin .pr-btn { min-height: 44px; flex: 1 1 0; min-width: 0; padding: 8px 6px; }
 
 /* Franja única de frases (frases.js): arriba de cada pestaña principal; alto fijo de 2 líneas, sin empujar el layout al rotar */
 .cm-frase { display: flex; align-items: center; gap: 8px; box-sizing: border-box; height: calc(2.7em + 12px); margin: 0 0 10px; padding: 6px 12px; font-size: var(--fs-12-5); line-height: 1.35; border-left: 2px solid var(--accent, #7C8EE8); background: rgba(124,142,232,.06); border-radius: 6px; cursor: pointer; column-span: all; }

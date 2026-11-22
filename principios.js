@@ -149,7 +149,8 @@ function prFiltrarPrincipios(lista, q, seccion, tipo) {
 // ── Recordatorios (Etapa C de specs/principios-y-revisiones.md) ────────────
 // principio.disparo = { tipo:'ninguno'|'horario'|'diario'|'datos', hora?:'HH:MM', regla?:{ plantilla, ...parámetros } }; sin `disparo` = ninguno.
 // principio.silenciadoHasta = 'YYYY-MM-DD': primer día en que vuelve a avisar (posponer = mañana, silenciar = hoy + 7). No borra nada.
-//   · horario → push (kind 'principio' en deadlines.js, que respeta silenciadoHasta) · diario y datos → aviso dentro del Centro (abajo, en la UI).
+// principio.silenciadoHastaTs = ms: posponer corto (15 min / 1 h / 3 h); solo lo respetan los avisos dentro del Centro (el push por horario mira solo la fecha).
+//   · horario → push (kind 'principio' en deadlines.js, que respeta silenciadoHasta) · diario y datos → aviso dentro del Centro (campanita arriba a la derecha).
 // Plantillas de regla (parámetros) y su fuente de datos real:
 //   habito_sin_cumplir {habito:'seccion|id', dias}  S.habitTrackers[sec][].days[fecha]==='done'
 //   sin_entrenar       {dias}                       S.workoutLog (foEntrenoDelDia de foco.js: serie con reps o peso)
@@ -166,7 +167,13 @@ function prSumarDias(ds, n) { const [y, m, d] = ds.split('-').map(Number), x = n
 const _prNDias = n => n + (n === 1 ? ' día' : ' días');
 const _prNum = n => String(n).replace('.', ',');
 const _prPeso = n => '$' + Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-const prSilenciado = (p, hoy) => !!p && _PR_FECHA.test(p.silenciadoHasta || '') && p.silenciadoHasta > hoy;
+// Pospuesto por fecha (silenciadoHasta, 'YYYY-MM-DD') o por tiempo corto (silenciadoHastaTs, ms: 15 min / 1 h / 3 h). `ahora` (ms) por defecto Date.now().
+const prSilenciado = (p, hoy, ahora) => !!p && ((_PR_FECHA.test(p.silenciadoHasta || '') && p.silenciadoHasta > hoy)
+  || (Number.isFinite(p.silenciadoHastaTs) && p.silenciadoHastaTs > (ahora == null ? Date.now() : ahora)));
+const _prSilenTxt = (p, hoy) => {   // «el 19/11» o «las 09:15»
+  if (_PR_FECHA.test(p.silenciadoHasta || '') && p.silenciadoHasta > hoy) return 'el ' + p.silenciadoHasta.slice(8, 10) + '/' + p.silenciadoHasta.slice(5, 7);
+  const d = new Date(p.silenciadoHastaTs), q = n => String(n).padStart(2, '0'); return 'las ' + q(d.getHours()) + ':' + q(d.getMinutes());
+};
 
 // Valida y limpia los parámetros de una regla. Devuelve la regla normalizada o null si algo no sirve.
 function prNormalizarRegla(r) {
@@ -244,10 +251,10 @@ function prEvaluarRegla(regla, datos, hoy) {
   return en <= r.nivel ? { activa: true, detalle: 'Tu energía del cierre de ' + (f === hoy ? 'hoy' : 'ayer') + ' fue ' + en } : no;
 }
 // Qué avisos hay hoy dentro del Centro: diarios y reglas por datos activas, sin los silenciados/pospuestos. PURA.
-function prAvisosDePrincipios(principios, datos, hoy) {
+function prAvisosDePrincipios(principios, datos, hoy, ahora) {
   const out = { diarios: [], datos: [] };
   (Array.isArray(principios) ? principios : []).forEach(p => {
-    const d = p && p.disparo; if (!d || !p.id || prSilenciado(p, hoy)) return;
+    const d = p && p.disparo; if (!d || !p.id || prSilenciado(p, hoy, ahora)) return;
     if (d.tipo === 'diario') out.diarios.push(p);
     else if (d.tipo === 'datos') { let ev; try { ev = prEvaluarRegla(d.regla, datos, hoy); } catch (e) { ev = null; } if (ev && ev.activa) out.datos.push({ p, detalle: ev.detalle }); }
   });
@@ -385,7 +392,7 @@ function _prVistaPrincipios(d) {
       + (p.haz ? '<div class="pr-txt pr-haz"><b>Qué hacer:</b> ' + _prEsc(p.haz) + '</div>' : '')
       + (p.noHagas ? '<div class="pr-txt pr-nohagas"><b>Qué no hacer:</b> ' + _prEsc(p.noHagas) + '</div>' : '')
       + (p.fuente ? '<div class="pr-fuente">Fuente: ' + _prEsc(p.fuente) + '</div>' : '')
-      + (rec ? '<div class="pr-fuente">Recordatorio: ' + _prEsc(rec) + (silen ? ' · silenciado hasta el ' + _prEsc(p.silenciadoHasta.slice(8, 10) + '/' + p.silenciadoHasta.slice(5, 7)) : '') + '</div>' : '')
+      + (rec ? '<div class="pr-fuente">Recordatorio: ' + _prEsc(rec) + (silen ? ' · silenciado hasta ' + _prEsc(_prSilenTxt(p, hoy)) : '') + '</div>' : '')
       + '<div class="pr-card-f"><span class="pr-meta">' + n + ' objetivo' + (n === 1 ? '' : 's') + ' · ' + (p.habitosIds || []).filter(r => _prHabLabel(r)).length + ' hábito(s)</span>'
       + '<span class="pr-acts">' + (silen ? '<button type="button" class="pr-btn" onclick="Principios.reactivar(\'' + p.id + '\')">Reactivar</button>' : '') + '<button type="button" class="pr-btn" onclick="Principios.editarPrincipio(\'' + p.id + '\')">Editar</button>'
       + '<button type="button" class="pr-btn pr-btn-d" onclick="Principios.borrarPrincipio(\'' + p.id + '\')">Borrar</button></span></div></div>';
@@ -623,6 +630,7 @@ const Principios = {
     };
     if (p && p.origen) nuevo.origen = p.origen;
     if (p && p.silenciadoHasta) nuevo.silenciadoHasta = p.silenciadoHasta;
+    if (p && p.silenciadoHastaTs) nuevo.silenciadoHastaTs = p.silenciadoHastaTs;
     const i = d.principios.findIndex(x => x.id === nuevo.id);
     if (i >= 0) d.principios[i] = nuevo; else d.principios.push(nuevo);
     _prV.edit = null; _prDraft = null; _prSave(); prRender(); _prToast('Guardado');
@@ -703,78 +711,141 @@ function prAbrir(sub) {
 }
 if (typeof window !== 'undefined') { Principios.abrir = prAbrir; window.openPrincipiosOverlay = prAbrir; }
 
-// ── Avisos dentro del Centro (diarios y por datos) + destino del push de horario ───────────────────────
-// Un solo panel (#pr-avisos) abajo, apilado sobre el cierre del día / la revisión semanal (ver styles.css). Se evalúa al abrir la app
-// (enganche a renderGoals, igual que foco.js) y cada 5 minutos (único intervalo). "Visto" del diario es por dispositivo (localStorage, por día).
-let _prAvSig = '';
-let _prOcultoSig = null, _prDatosSig = '[]';   // "Ocultar" de los avisos por datos: por dispositivo, solo en memoria (vuelve al cambiar el estado o al recargar)
+// ── Avisos dentro del Centro (diarios y por datos): campanita + panel + destino del push de horario ───────────────────
+// Campanita fija arriba a la derecha (en la franja del ticker, a la izquierda del botón de Game Mode) con el contador de avisos activos. Un aviso NUEVO
+// (que no se había mostrado en esta sesión) se despliega 8 s como una tarjeta grande con el texto completo y se pliega al panel; si llegan varios juntos,
+// una sola tarjeta con «y N más». El panel lista todos con sus acciones. Se evalúa al abrir la app (enganche a renderGoals, igual que foco.js) y cada 5 minutos
+// (único intervalo; un posponer corto programa además un setTimeout al vencimiento más próximo). «Visto» del diario y «Ocultar» son por dispositivo.
+const PR_AV_CARD_MS = 8000;
+let _prAvSig = '', _prAvItems = [], _prAvAbierto = false, _prAvCard = [];
+let _prAvTimer = null, _prAvTsTimer = null;
+const _prAvMostrados = new Set();   // avisos que ya se desplegaron en esta sesión (se olvidan al desaparecer: si vuelven, son nuevos)
+const _prOcultos = {};              // "Ocultar" de los avisos por datos: id → firma del aviso; en memoria, vuelve al cambiar el estado o al recargar
 function _prVistoKey(hoy) { return 'cm_pr_visto_' + hoy; }
-function _prVistoHoy(hoy) { try { return localStorage.getItem(_prVistoKey(hoy)) === '1'; } catch (e) { return false; } }
+// Valor: '1' (todos los diarios del día) o un JSON con los ids vistos.
+function _prVistosHoy(hoy) { try { const v = localStorage.getItem(_prVistoKey(hoy)); if (v === '1') return '1'; const a = v ? JSON.parse(v) : []; return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+function _prVistoHoy(hoy, id) { const v = _prVistosHoy(hoy); return v === '1' || v.indexOf(id) >= 0; }
 function _prDatosEval(hoy) {
   const fondosMes = {};
   if (typeof _pfBudgetTotal === 'function') { try { const v = _pfBudgetTotal(hoy.slice(0, 7)); if (v) fondosMes[hoy.slice(0, 7)] = v; } catch (e) {} }
   return { habitTrackers: S.habitTrackers, workoutLog: S.workoutLog, sleepLog: S.sleepLog, transactions: S.transactions, cardCharges: S.cardCharges, budgets: S.budgets, fondosMes, foco: S.foco };
 }
-function _prQuitarAvisos() { const el = document.getElementById('pr-avisos'); if (el) el.remove(); _prAvSig = ''; }
+function _prQuitarAvisos() {
+  const el = document.getElementById('pr-avisos'); if (el) el.remove();
+  clearTimeout(_prAvTimer); clearTimeout(_prAvTsTimer);
+  _prAvSig = ''; _prAvItems = []; _prAvAbierto = false; _prAvCard = [];
+}
 function _prAvBtn(txt, label, onclick, id, cls) {
   return '<button type="button" class="pr-btn' + (cls ? ' ' + cls : '') + '" aria-label="' + _prEsc(label) + '"' + (id ? ' data-id="' + _prEsc(id) + '"' : '') + ' onclick="' + onclick + '">' + txt + '</button>';
 }
-// Tarjeta compacta: enunciado en 1 línea (tocable), dato/motivo en 1 línea chica y los botones en una fila. `ultimo` = botón final (Ocultar / Visto).
-function _prAvFila(p, linea, ultimo) {
-  return '<div class="pr-av-row">' + (linea ? '<div class="pr-av-dato">' + _prEsc(linea) + '</div>' : '')
-    + '<button type="button" class="pr-av-link" data-id="' + _prEsc(p.id) + '" onclick="Principios.abrirPrincipio(this.dataset.id)">' + _prEsc(p.enunciado) + '</button>'
-    + '<div class="pr-av-acts">' + _prAvBtn('Mañana', 'Posponer hasta mañana', 'Principios.posponer(this.dataset.id)', p.id)
-    + _prAvBtn('7 días', 'Silenciar 7 días', 'Principios.silenciar(this.dataset.id)', p.id) + ultimo + '</div></div>';
+const _PR_BELL_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>';
+// Texto completo del aviso (sin recortar): título, enunciado (tocable: abre el principio) y «por qué».
+function _prAvTexto(it) {
+  return '<div class="pr-av-t">' + _prEsc(it.diario ? 'Principio de hoy' : it.detalle) + '</div>'
+    + '<button type="button" class="pr-av-link" data-id="' + _prEsc(it.p.id) + '" onclick="Principios.abrirPrincipio(this.dataset.id)">' + _prEsc(it.p.enunciado) + '</button>'
+    + (it.p.porque ? '<div class="pr-av-por"><b>Por qué:</b> ' + _prEsc(it.p.porque) + '</div>' : '');
 }
-// Si el panel no entra y hay que deslizar, un cartel abajo lo avisa (en iPhone las barras de scroll no se ven).
-function _prAvMas(el) {
-  const h = el.querySelector('.pr-av-mas'); if (h) h.remove();
-  if (el.scrollHeight <= el.clientHeight + 1) return;
-  const m = document.createElement('div'); m.className = 'pr-av-mas'; m.setAttribute('aria-hidden', 'true'); el.appendChild(m);
-  const upd = () => {
-    const lim = el.getBoundingClientRect().bottom - m.offsetHeight; let n = 0;
-    el.querySelectorAll('.pr-av').forEach(c => { if (c.getBoundingClientRect().bottom > lim + 2) n++; });
-    m.textContent = n ? 'Deslizá para ver ' + n + ' más ↓' : '';
-    m.style.visibility = n ? 'visible' : 'hidden';
-  };
-  el.onscroll = upd; upd();
+function _prAvItemPanel(it) {
+  const id = it.p.id, pos = (txt, label, fn) => _prAvBtn(txt, label, fn, id);
+  return '<div class="pr-av-item">' + _prAvTexto(it)
+    + '<div class="pr-av-pos" role="group" aria-label="Posponer"><span class="pr-av-pl">Posponer</span>'
+    + pos('15 min', 'Posponer 15 minutos', 'Principios.posponerMin(this.dataset.id,15)') + pos('1 h', 'Posponer 1 hora', 'Principios.posponerMin(this.dataset.id,60)')
+    + pos('3 h', 'Posponer 3 horas', 'Principios.posponerMin(this.dataset.id,180)') + pos('Mañana', 'Posponer hasta mañana', 'Principios.posponer(this.dataset.id)')
+    + pos('7 días', 'Silenciar 7 días', 'Principios.silenciar(this.dataset.id)') + '</div>'
+    + '<div class="pr-av-fin">' + (it.diario ? _prAvBtn('Visto', 'Visto por hoy', 'Principios.visto(this.dataset.id)', id, 'pr-btn-p') : _prAvBtn('Ocultar', 'Ocultar este aviso', 'Principios.ocultar(this.dataset.id)', id)) + '</div></div>';
+}
+function _prAvPintar() {
+  let el = document.getElementById('pr-avisos');
+  if (!el) { el = document.createElement('div'); el.id = 'pr-avisos'; el.className = 'pr-avisos'; document.body.appendChild(el); }
+  const n = _prAvItems.length, ab = _prAvAbierto, enPanel = !!el.querySelector('#pr-av-panel:focus-within, #pr-av-panel:focus');
+  const card = ab ? [] : _prAvCard.map(k => _prAvItems.find(i => i.k === k)).filter(Boolean);
+  let h = '<button type="button" class="pr-bell' + (n ? ' tiene' : '') + '" aria-label="Avisos de principios' + (n ? ': ' + n + (n === 1 ? ' pendiente' : ' pendientes') : ': ninguno') + '" aria-expanded="' + ab + '" aria-controls="pr-av-panel" onclick="Principios.campana()">'
+    + _PR_BELL_SVG + (n ? '<span class="pr-bell-n" aria-hidden="true">' + (n > 9 ? '9+' : n) + '</span>' : '') + '</button>';
+  if (card.length) {
+    h += '<div class="pr-av-card" role="status" aria-live="polite">' + _prAvTexto(card[0])
+      + '<div class="pr-av-fin">' + _prAvBtn(card.length > 1 ? 'y ' + (card.length - 1) + ' más' : 'Posponer…', card.length > 1 ? 'Ver los demás avisos' : 'Ver opciones para posponer', 'Principios.campana()', '', 'pr-btn-p')
+      + _prAvBtn('Cerrar', 'Cerrar la tarjeta', 'Principios.cerrarTarjeta()', '') + '</div></div>';
+  }
+  if (ab) h += '<div class="pr-av-panel" id="pr-av-panel" role="region" aria-label="Avisos de principios" tabindex="-1"><div class="pr-av-ph">Avisos (' + n + ')</div>'
+    + (n ? _prAvItems.map(_prAvItemPanel).join('') : '<div class="pr-av-vacio">No tenés avisos por ahora.</div>') + '</div>';
+  el.innerHTML = h;
+  const c = el.querySelector('.pr-av-card');
+  if (c) {
+    c.onpointerenter = c.onfocusin = () => clearTimeout(_prAvTimer);
+    c.onpointerleave = c.onfocusout = () => _prAvIniciarTimer();
+  }
+  if (ab && enPanel) { const pn = el.querySelector('#pr-av-panel'); if (pn) pn.focus(); }   // el re-render no te saca del panel
+}
+function _prAvIniciarTimer() { clearTimeout(_prAvTimer); if (_prAvCard.length) _prAvTimer = setTimeout(prAvPlegar, PR_AV_CARD_MS); }
+function prAvPlegar() { clearTimeout(_prAvTimer); if (!_prAvCard.length) return; _prAvCard = []; _prAvPintar(); }
+// Vence un posponer corto: reaparece sin esperar a los 5 min.
+function _prAvProgramarTs(lista, ahora) {
+  clearTimeout(_prAvTsTimer);
+  const ts = lista.filter(p => p && p.disparo && Number.isFinite(p.silenciadoHastaTs) && p.silenciadoHastaTs > ahora).map(p => p.silenciadoHastaTs);
+  if (ts.length) _prAvTsTimer = setTimeout(() => { try { prChequearAvisos(); } catch (e) {} }, Math.min(Math.min.apply(null, ts) - ahora + 300, 2147483000));
 }
 function prChequearAvisos() {
   if (typeof S === 'undefined' || !S || !S.principios || !Array.isArray(S.principios.principios)) { _prQuitarAvisos(); return; }   // lectura pura: no crea S.principios
-  const hoy = _prHoyLocal(), av = prAvisosDePrincipios(S.principios.principios, _prDatosEval(hoy), hoy);
-  const diarios = _prVistoHoy(hoy) ? [] : av.diarios;
-  _prDatosSig = JSON.stringify(av.datos.map(x => [x.p.id, x.p.enunciado, x.p.porque, x.detalle]));
-  if (_prOcultoSig !== null && _prOcultoSig !== _prDatosSig) _prOcultoSig = null;   // cambió el estado: vuelve a mostrarse
-  if (_prOcultoSig !== null) av.datos = [];
-  if (!diarios.length && !av.datos.length) { _prQuitarAvisos(); return; }
-  const sig = JSON.stringify([hoy, diarios.map(p => [p.id, p.enunciado, p.porque]), av.datos.map(x => [x.p.id, x.p.enunciado, x.p.porque, x.detalle])]);
+  const lista = S.principios.principios, ahora = Date.now(), hoy = _prHoyLocal(), av = prAvisosDePrincipios(lista, _prDatosEval(hoy), hoy, ahora);
+  _prAvProgramarTs(lista, ahora);
+  const sigD = x => JSON.stringify([x.p.enunciado, x.p.porque, x.detalle]), vivos = {};
+  av.datos.forEach(x => { vivos[x.p.id] = sigD(x); });
+  Object.keys(_prOcultos).forEach(id => { if (vivos[id] !== _prOcultos[id]) delete _prOcultos[id]; });   // cambió el estado: vuelve a mostrarse
+  const items = av.datos.filter(x => !_prOcultos[x.p.id]).map(x => ({ k: 'd:' + x.p.id, p: x.p, detalle: x.detalle, diario: false }))
+    .concat(av.diarios.filter(p => !_prVistoHoy(hoy, p.id)).map(p => ({ k: 'h:' + p.id, p, diario: true })));
+  const clave = i => i.k + (i.diario ? '@' + hoy : '');
+  const sig = JSON.stringify(items.map(i => [clave(i), i.p.enunciado, i.p.porque, i.detalle]));
   if (sig === _prAvSig && document.getElementById('pr-avisos')) return;
-  let el = document.getElementById('pr-avisos');
-  if (!el) { el = document.createElement('div'); el.id = 'pr-avisos'; el.className = 'pr-avisos'; el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite'); document.body.appendChild(el); }
-  const nD = diarios.length, visto = _prAvBtn('Visto', 'Visto', 'Principios.visto()', '', 'pr-btn-p');
-  const diario = !nD ? '' : nD === 1
-    ? '<div class="pr-av pr-av-diario">' + _prAvFila(diarios[0], diarios[0].porque ? 'Por qué: ' + prRecortarEnunciado(diarios[0].porque, 90).texto : '', visto) + '</div>'
-    : '<div class="pr-av pr-av-diario pr-av-resumen"><div class="pr-av-t">Principios de hoy (' + nD + ')</div><div class="pr-av-acts">'
-      + _prAvBtn('Ver', 'Ver los principios de hoy', "Principios.abrir('principios')", '') + visto + '</div></div>';
-  el.innerHTML = av.datos.map(x => '<div class="pr-av pr-av-datos">' + _prAvFila(x.p, x.detalle, _prAvBtn('Ocultar', 'Ocultar', 'Principios.ocultar()', '')) + '</div>').join('') + diario;
-  _prAvMas(el);
-  _prAvSig = sig;
+  const vigentes = new Set(items.map(clave));
+  [..._prAvMostrados].forEach(k => { if (!vigentes.has(k)) _prAvMostrados.delete(k); });
+  const nuevos = items.filter(i => !_prAvMostrados.has(clave(i)));
+  nuevos.forEach(i => _prAvMostrados.add(clave(i)));
+  _prAvItems = items; _prAvSig = sig;
+  _prAvCard = _prAvCard.filter(k => items.some(i => i.k === k));
+  if (nuevos.length && !_prAvAbierto) { _prAvCard = nuevos.map(i => i.k); _prAvIniciarTimer(); }
+  if (!_prAvCard.length) clearTimeout(_prAvTimer);
+  _prAvPintar();
 }
+function _prAvAbrir(abrir, sinFoco) {
+  _prAvAbierto = abrir; _prAvCard = []; clearTimeout(_prAvTimer); _prAvPintar();
+  if (sinFoco) return;
+  const el = document.getElementById('pr-avisos'); if (!el) return;
+  const t = el.querySelector(abrir ? '#pr-av-panel' : '.pr-bell'); if (t) t.focus();
+}
+function _prAvAfuera(e) { if (_prAvAbierto && e.target.isConnected) {   // un botón que re-pinta el panel ya no está en el DOM: no cuenta como clic afuera
+    const el = document.getElementById('pr-avisos'); if (el && !el.contains(e.target)) _prAvAbrir(false, true); } }
+function _prAvTecla(e) { if (e.key === 'Escape' && _prAvAbierto) { e.stopPropagation(); _prAvAbrir(false); } }
 function _prSilenciarDias(id, n) {
   const p = ((S.principios && S.principios.principios) || []).find(x => x.id === id); if (!p) return;
-  p.silenciadoHasta = prSumarDias(_prHoyLocal(), n); _prSave();
+  p.silenciadoHasta = prSumarDias(_prHoyLocal(), n); delete p.silenciadoHastaTs; _prSave();
+  prChequearAvisos(); if (document.getElementById('principios-root')) prRender();
+}
+function _prSilenciarMin(id, min) {
+  const p = ((S.principios && S.principios.principios) || []).find(x => x.id === id); if (!p) return;
+  p.silenciadoHastaTs = Date.now() + min * 60000; delete p.silenciadoHasta; _prSave();
   prChequearAvisos(); if (document.getElementById('principios-root')) prRender();
 }
 Object.assign(Principios, {
   chequearAvisos: prChequearAvisos,
   posponer(id) { _prSilenciarDias(id, 1); _prToast('Listo, mañana te lo vuelvo a mostrar'); },
+  posponerMin(id, min) { _prSilenciarMin(id, min); _prToast('Listo, te lo vuelvo a mostrar en ' + (min < 60 ? min + ' minutos' : min === 60 ? '1 hora' : (min / 60) + ' horas')); },
   silenciar(id) { _prSilenciarDias(id, 7); _prToast('Silenciado por 7 días'); },
   reactivar(id) {
     const p = _prData().principios.find(x => x.id === id); if (!p) return;
-    delete p.silenciadoHasta; _prSave(); prRender(); prChequearAvisos();
+    delete p.silenciadoHasta; delete p.silenciadoHastaTs; _prSave(); prRender(); prChequearAvisos();
   },
-  ocultar() { _prOcultoSig = _prDatosSig; prChequearAvisos(); },
-  visto() { try { localStorage.setItem(_prVistoKey(_prHoyLocal()), '1'); } catch (e) {} prChequearAvisos(); },
+  ocultar(id) {
+    const x = _prAvItems.find(i => !i.diario && i.p.id === id);
+    if (x) _prOcultos[id] = JSON.stringify([x.p.enunciado, x.p.porque, x.detalle]);
+    prChequearAvisos();
+  },
+  visto(id) {
+    const hoy = _prHoyLocal(), v = _prVistosHoy(hoy);
+    try { localStorage.setItem(_prVistoKey(hoy), id ? JSON.stringify(v === '1' ? [] : v.concat(id)) : '1'); } catch (e) {}   // sin id: todos los de hoy
+    prChequearAvisos();
+  },
+  campana() { _prAvAbrir(!_prAvAbierto); },
+  cerrarTarjeta: prAvPlegar,
   // Destino del aviso: la ventana de Principios mostrando solo ese principio.
   abrirPrincipio(id) {
     const existe = ((typeof S !== 'undefined' && S.principios && S.principios.principios) || []).some(x => x.id === id);
@@ -793,6 +864,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   };
   if (!hook()) document.addEventListener('DOMContentLoaded', hook);
   setInterval(() => { try { if (typeof _appBooted !== 'undefined' && _appBooted) prChequearAvisos(); } catch (e) {} }, 300000);
+  document.addEventListener('click', _prAvAfuera); document.addEventListener('keydown', _prAvTecla);
 
   // Deep-link del push '#principio-<id>': URL al abrir la app cerrada, o mensaje del SW con la app abierta (mismo canal que '#foco-chequeo' de foco.js).
   const PRE = '#principio-';
