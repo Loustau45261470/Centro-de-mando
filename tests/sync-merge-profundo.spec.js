@@ -190,3 +190,33 @@ test('guardado temprano al arrancar con S vacío y nube chica: no borra nada de 
   });
   expect(r).toEqual({ notas: 30, tx: 1 });
 });
+
+test('red de seguridad: un dispositivo no puede achicar la nube a menos de la mitad (22/11 08:13)', async ({ cmPage }) => {
+  await idle(cmPage);
+  const r = await cmPage.evaluate(async () => {
+    const grande = JSON.parse(JSON.stringify(S));
+    grande.transactions = [...Array(600)].map((_, i) => ({ id: 'tg' + i, date: '2026-11-20', name: 'movimiento ' + i, type: 'expense', amount: i }));
+    await _DOC().set({ state: JSON.stringify(grande), _savedAt: 5000, _wid: 'pc', _dev: 'PC' });
+    _lastSyncedSavedAt = 5000; _lastSyncedState = JSON.parse(JSON.stringify(grande));
+    S = JSON.parse(JSON.stringify(grande)); S.transactions = [];          // copia vieja/incompleta
+    await _fbDoSave();
+    const d = (await _DOC().get()).data();
+    return { savedAt: d._savedAt, tx: JSON.parse(d.state).transactions.length, pend: localStorage.getItem('_pendingCloudSave'),
+             ev: JSON.parse(localStorage.getItem('_syncEvents') || '[]').some(e => e.tipo === 'bloqueado-achique') };
+  });
+  expect(r).toEqual({ savedAt: 5000, tx: 600, pend: '1', ev: true });
+});
+
+test('red de seguridad: forzarGuardado (borrado grande intencional) sí puede achicar', async ({ cmPage }) => {
+  await idle(cmPage);
+  const tx = await cmPage.evaluate(async () => {
+    const grande = JSON.parse(JSON.stringify(S));
+    grande.transactions = [...Array(600)].map((_, i) => ({ id: 'tg' + i, date: '2026-11-20', name: 'movimiento ' + i, type: 'expense', amount: i }));
+    await _DOC().set({ state: JSON.stringify(grande), _savedAt: 5000, _wid: 'pc', _dev: 'PC' });
+    _lastSyncedSavedAt = 5000; _lastSyncedState = JSON.parse(JSON.stringify(grande));
+    S = JSON.parse(JSON.stringify(grande)); S.transactions = [];
+    _forceSaveOnce = true; await _fbDoSave();
+    return JSON.parse((await _DOC().get()).data().state).transactions.length;
+  });
+  expect(tx).toBe(0);
+});

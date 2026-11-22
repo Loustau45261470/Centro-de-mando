@@ -540,6 +540,13 @@
       "desc": "Rama merge-sin-confirmar: un guardado temprano con S vacio (antes de terminar la carga) se interpretaba como \"borre todo\" respecto del ancestro y vaciaba la nube cuando la metrica de datos era chica. Si lo local pesa menos de la mitad del ancestro, se rescata en vez de mergear bajas. Cubierto por tests/sync-merge-profundo.spec.js.",
       "file": "app.js",
       "marker": "_localChico"
+    },
+    {
+      "id": "sync-red-de-seguridad-achique",
+      "fecha": "2026-11-22",
+      "desc": "22/11 08:13 una ventana de la PC con una copia vieja subio 34 KB encima de 517 KB (se restauro a mano desde snap). Ningun guardado no forzado puede dejar la nube en menos de la mitad de su tamano: no se sube, queda pendiente y avisa. Cubierto por tests/sync-merge-profundo.spec.js.",
+      "file": "app.js",
+      "marker": "bloqueado-achique"
     }
   ]
 }

@@ -1011,6 +1011,19 @@ const _fbDoSave = async (opts = {}) => {
         return;
       }
 
+      // ── Red de seguridad: nunca achicar la nube a menos de la mitad ───────────
+      // 22/11/2026 08:13: una ventana de la PC con una copia vieja (sin movimientos ni cuentas) subió 34 KB encima de
+      // 517 KB. Sea cual sea la causa, un dispositivo no puede borrar de un saque más de la mitad de los datos: no se
+      // sube, queda pendiente en este dispositivo y se avisa. forzarGuardado()/restaurar lo saltean (es intencional).
+      if (!_forzado && cloudRaw && cloudRaw.length > 50000 && _stateStr.length < cloudRaw.length * 0.5) {
+        localStorage.setItem('_pendingCloudSave', '1');
+        _dgRes = 'bloqueado-achique';
+        _syncEv('bloqueado-achique', { nube: cloudRaw.length, local: _stateStr.length, rama: _writeBranch, cloudSavedAt: cloudData ? cloudData._savedAt : null });
+        console.error('[fbSave] BLOQUEADO: este dispositivo iba a subir ' + Math.round(_stateStr.length / 1024) + ' KB encima de ' + Math.round(cloudRaw.length / 1024) + ' KB.');
+        showToast('⚠️ Esta ventana tiene una versión vieja o incompleta de tus datos: no la subí para no borrar lo que hay en la nube. Cerrala o recargá la página.', 20000);
+        return;
+      }
+
       const wid = Math.random().toString(36).slice(2);
       _lastWriteId = wid;
       const savedAt = Date.now();
