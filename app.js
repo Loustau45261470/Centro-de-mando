@@ -489,6 +489,7 @@ async function _cancelPushAlarm(id) {
 _pwaInit();
 
 let _fbSaveTid  = null;
+let _fbSaveOtraVez = false;    // llegó un guardado mientras otro estaba en vuelo: se repite al terminar (no se pierde)
 let _fbSaveInProgress = false;  // true mientras el async de _fbSave está corriendo (guard para onSnapshot)
 let _lastWriteId = null;  // ID del último write propio — filtra el eco de onSnapshot
 let _lastSyncedSavedAt = null;  // _savedAt del estado que tenemos en mano (de la nube); null = cargado de localStorage sin confirmar nube
@@ -770,7 +771,7 @@ function _mergeStates(base, local, cloud) {
 }
 
 const _fbDoSave = async (opts = {}) => {
-    if (_fbSaveInProgress) return;
+    if (_fbSaveInProgress) { _fbSaveOtraVez = true; return; }
     _fbSaveInProgress = true;
     const _isFlush = !!opts.flush;
     let _reintento = null;   // lectura vieja detectada por la transacción → se recalcula con el doc del servidor
@@ -875,7 +876,7 @@ const _fbDoSave = async (opts = {}) => {
       if (_writeBranch === 'rescue-unconfirmed' && (() => { try { const c = JSON.parse(cloudRaw); return Object.keys(toSave).every(k => _eq(toSave[k], c[k]) || (c[k] === undefined && _vacio(toSave[k]))); } catch (e) { return false; } })()) {
         _lastSyncedState = JSON.parse(cloudRaw);
         try { localStorage.setItem('_lastSyncedStateStr', cloudRaw); } catch (e) {}
-        localStorage.removeItem('_pendingCloudSave');
+        if (!_fbSaveOtraVez) localStorage.removeItem('_pendingCloudSave');
         _dgRes = 'sin-cambios-propios';
         _syncEv('guardar-rama', { rama: 'sin-cambios-propios', cloudSavedAt: cloudData ? cloudData._savedAt : null, cache: cloudFromCache });
         return;
@@ -935,7 +936,7 @@ const _fbDoSave = async (opts = {}) => {
         _lastSyncedSavedAt = savedAt;
         _lastSyncedState = JSON.parse(_stateStr);
         try { localStorage.setItem('_lastSyncedStateStr', _stateStr); } catch (e) {}
-        localStorage.removeItem('_pendingCloudSave');
+        if (!_fbSaveOtraVez) localStorage.removeItem('_pendingCloudSave');   // con otro guardado en espera, sigue pendiente
         _saveSnap(_stateStr, savedAt);
       };
       // Pendiente ANTES de escribir: si iOS congela la app a mitad, el próximo arranque mergea lo local (loadState).
@@ -997,6 +998,7 @@ const _fbDoSave = async (opts = {}) => {
       _syncEv('guardar-fin', { res: _dgRes, ms: Date.now() - _dgT0 });
     }
     if (_reintento) return _fbDoSave(_reintento);
+    if (_fbSaveOtraVez) { _fbSaveOtraVez = false; localStorage.setItem('_pendingCloudSave', '1'); _fbSave(); }   // el cambio que llegó durante el guardado
 };
 
 // Aviso (con freno de 1/min) de que hay cambios locales sin subir a la nube.

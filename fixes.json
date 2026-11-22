@@ -484,6 +484,13 @@
       "desc": "El listener onSnapshot entregaba al arrancar primero la copia vieja de la cache del iPhone y la aplicaba encima de lo cargado del servidor. Ahora una version con _savedAt menor a _lastSyncedSavedAt no se aplica (evento snapshot-viejo-ignorado). Cubierto por tests/sync-lectura-vieja.spec.js.",
       "file": "app.js",
       "marker": "snapshot-viejo-ignorado"
+    },
+    {
+      "id": "sync-guardado-durante-guardado-no-se-pierde",
+      "fecha": "2026-11-22",
+      "desc": "Un guardado que llegaba con otro en vuelo se descartaba y _onWriteOk limpiaba _pendingCloudSave: el cambio quedaba solo en local y, si se cerraba la app, el proximo arranque no lo mergeaba. Ahora se marca _fbSaveOtraVez, el pendiente no se limpia y se repite el guardado al terminar. Cubierto por tests/sync-lectura-vieja.spec.js.",
+      "file": "app.js",
+      "marker": "_fbSaveOtraVez = true"
     }
   ]
 }

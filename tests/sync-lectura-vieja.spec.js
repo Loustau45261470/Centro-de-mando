@@ -110,3 +110,20 @@ test('listener en vivo: una versión más vieja que la que ya tenemos no se apli
   expect(r.last).toBe(6000);
   expect(consoleErrors).toEqual([]);
 });
+
+test('un cambio hecho mientras otro guardado está en vuelo también llega a la nube (y queda pendiente hasta entonces)', async ({ cmPage, consoleErrors }) => {
+  const pendienteEnMedio = await cmPage.evaluate(async () => {
+    const t = id => ({ id, date: '2026-11-22', name: id, type: 'expense', amount: 1 });
+    S.transactions = [t('t-primero'), ...(S.transactions || [])];
+    const p1 = _fbDoSave();                         // guardado en vuelo
+    S.transactions = [t('t-durante'), ...S.transactions];
+    _fbDoSave();                                    // llega con el lock tomado
+    await p1;
+    return localStorage.getItem('_pendingCloudSave');
+  });
+  expect(pendienteEnMedio, 'el cambio de en medio sigue marcado pendiente').toBe('1');
+  await cmPage.waitForFunction(() => !_fbSaveTid && !_fbSaveInProgress && !localStorage.getItem('_pendingCloudSave'), null, { timeout: 15000 });
+  const r = await leerNube(cmPage);
+  expect(r.tx).toEqual(expect.arrayContaining(['t-primero', 't-durante']));
+  expect(consoleErrors).toEqual([]);
+});
