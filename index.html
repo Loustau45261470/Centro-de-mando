@@ -25,6 +25,7 @@
 <script>try{if(localStorage.getItem('cm_rail_off')==='1')document.documentElement.classList.add('rail-off')}catch(e){}</script>
 <link rel="stylesheet" href="gamemode.css">
 <link rel="stylesheet" href="overlay-core.css">
+<link rel="stylesheet" href="historial-versiones.css?v=2">
 <link rel="stylesheet" href="speed-dial.css?v=2">
 <link rel="stylesheet" href="proyectos-overlay.css?v=160">
 <link rel="stylesheet" href="mapa-ideas.css?v=1">
@@ -1917,9 +1918,10 @@
 <script src="errores.js?v=1"></script>
 <script src="deadlines.js?v=11"></script>
 <script src="motion.js?v=1"></script>
-<script src="app.js?v=225"></script>
+<script src="app.js?v=226"></script>
 <script src="datos-privados.js?v=2"></script>
 <script src="sync-diagnostico.js?v=2"></script>
+<script src="historial-versiones.js?v=2"></script>
 <script src="archivo.js?v=2"></script>
 <script src="undo.js?v=2"></script>
 <script src="workspace.js?v=199"></script>
@@ -1957,7 +1959,7 @@
 <script src="jarvis-ears.js"></script>
 
 <script src="busqueda-global.js?v=3"></script>
-<script src="command-palette.js?v=6"></script>
+<script src="command-palette.js?v=7"></script>
 
 <script src="telemetry.js"></script>
 
@@ -2079,6 +2081,7 @@
       <div id="jarvis-api-usage" style="font-size:var(--fs-12-5);opacity:.4;padding:0 2px;font-family:var(--mono)"></div>
       <button id="theme-panel-export-backup" onclick="_sdExportBackup()" style="width:100%;padding:9px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:9px;cursor:pointer;font-size:var(--fs-12-5);font-weight:600;letter-spacing:0.06em;transition:all .2s;font-family:var(--mono)">💾 Exportar backup</button>
       <button id="theme-panel-sync-diag" onclick="CMSyncDiag.open()" style="width:100%;padding:9px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:9px;cursor:pointer;font-size:var(--fs-12-5);font-weight:600;letter-spacing:0.06em;transition:all .2s;font-family:var(--mono)">🔄 Diagnóstico de sincronización</button>
+      <button id="theme-panel-historial" onclick="CMHistorial.open()" style="width:100%;padding:9px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:9px;cursor:pointer;font-size:var(--fs-12-5);font-weight:600;letter-spacing:0.06em;transition:all .2s;font-family:var(--mono)">🕘 Historial y restaurar</button>
       <button id="theme-panel-restore-backup" onclick="_sdRestoreBackup()" style="width:100%;padding:9px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:9px;cursor:pointer;font-size:var(--fs-12-5);font-weight:600;letter-spacing:0.06em;transition:all .2s;font-family:var(--mono)">📥 Restaurar backup</button>
       <button class="theme-close-btn" onclick="document.getElementById('theme-panel').classList.remove('open')">Cerrar</button>
     </div>

@@ -533,6 +533,13 @@
       "desc": "await _maybeBackup sin timeout: con la red caida el guardado quedaba trabado para siempre. Ahora no se espera. Cubierto por tests/sync-merge-profundo.spec.js.",
       "file": "app.js",
       "marker": "_maybeBackup(cloudRaw);   // sin await"
+    },
+    {
+      "id": "sync-guardado-temprano-no-borra",
+      "fecha": "2026-11-22",
+      "desc": "Rama merge-sin-confirmar: un guardado temprano con S vacio (antes de terminar la carga) se interpretaba como \"borre todo\" respecto del ancestro y vaciaba la nube cuando la metrica de datos era chica. Si lo local pesa menos de la mitad del ancestro, se rescata en vez de mergear bajas. Cubierto por tests/sync-merge-profundo.spec.js.",
+      "file": "app.js",
+      "marker": "_localChico"
     }
   ]
 }

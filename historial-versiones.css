@@ -1,0 +1,14 @@
+/* Historial y restaurar (historial-versiones.js). Reutiliza las clases .sdiag-* de styles.css. */
+.hv-item { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 10px; width: 100%; box-sizing: border-box; text-align: left; font: inherit; color: var(--tp); cursor: pointer; min-height: 44px; }
+.hv-item:hover, .hv-item:focus-visible { border-color: var(--hud-dim); background: rgba(56,189,248,0.08); }
+.hv-tag { font-size: var(--fs-12); color: var(--tt); }
+.hv-ahora { border-color: var(--hud-dim); }
+.hv-igual { margin: 10px 0; font-size: var(--fs-13); color: var(--ts); }
+.hv-cambios { margin-top: 8px; }
+li.hv-l-falta { color: var(--warn); }
+li.hv-l-extra { color: var(--ts); }
+.hv-acciones { margin-top: 14px; }
+.hv-acciones[hidden], .hv-confirmar[hidden] { display: none; }
+.hv-confirmar { margin-top: 14px; padding: 12px; border-radius: 10px; border: 1px solid var(--hud-dim); background: rgba(56,189,248,0.07); }
+.hv-texto { margin: 0 0 10px; font-size: var(--fs-13); line-height: 1.5; color: var(--tp); }
+.sdiag-btn:disabled { opacity: .45; cursor: default; }

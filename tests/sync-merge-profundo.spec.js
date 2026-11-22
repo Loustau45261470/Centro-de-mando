@@ -172,3 +172,21 @@ test('volver a la app con cambios propios sin subir: no aplica la versión remot
   await cmPage.waitForTimeout(2600); await idle(cmPage);
   expect(await nube(cmPage)).toEqual(expect.arrayContaining(['t-foco-local', 't-foco-pc']));
 });
+
+test('guardado temprano al arrancar con S vacío y nube chica: no borra nada de la nube', async ({ cmPage }) => {
+  await idle(cmPage);
+  const r = await cmPage.evaluate(async () => {
+    const nubeSt = JSON.parse(JSON.stringify(S));
+    nubeSt.transactions = [{ id: 't-unica', date: '2026-11-22', name: 'x', type: 'expense', amount: 1 }];
+    nubeSt.notas = [...Array(30)].map((_, i) => ({ id: 'n' + i, categoria: 'aprendizaje', titulo: 't' + i, texto: 'x', fecha: '2026-11-20' }));
+    nubeSt.goals = {}; nubeSt.accounts = []; nubeSt.subscriptions = []; nubeSt.nwHistory = []; nubeSt.wishlist = []; nubeSt.tomorrowGoals = {};
+    nubeSt.habitTrackers = { vida: [], finanzas: [], salud: [], conocimiento: [], ia: [] };
+    await _DOC().set({ state: JSON.stringify(nubeSt), _savedAt: 3000, _wid: 'pc', _dev: 'PC' });
+    localStorage.setItem('_lastSyncedStateStr', JSON.stringify(nubeSt));
+    _lastSyncedSavedAt = null; _lastSyncedState = null; S = {};
+    await _fbDoSave();
+    const st = JSON.parse((await _DOC().get()).data().state);
+    return { notas: (st.notas || []).length, tx: (st.transactions || []).length };
+  });
+  expect(r).toEqual({ notas: 30, tx: 1 });
+});

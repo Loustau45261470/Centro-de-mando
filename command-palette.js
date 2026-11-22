@@ -70,6 +70,7 @@
     {ic:'◑', lbl:'Tema: Radar', cat:'Tema', kw:'tema radar', run:()=>{ if(has('applyTheme')) applyTheme('radar'); }},
     {ic:'◑', lbl:'Tema: Infrarrojo', cat:'Tema', kw:'tema infrarrojo infrared', run:()=>{ if(has('applyTheme')) applyTheme('infrared'); }},
     {ic:'⟳', lbl:'Diagnóstico de sincronización', cat:'Sistema', kw:'diagnostico sincronizacion sync nube guardado celular dispositivo datos', run:()=>{ if(window.CMSyncDiag) CMSyncDiag.open(); else if(typeof showToast==='function') showToast('Diagnóstico no disponible'); }},
+    {ic:'🕘', lbl:'Historial y restaurar', cat:'Sistema', kw:'historial restaurar versiones recuperar volver atras copia respaldo backup datos perdidos', run:()=>{ if(window.CMHistorial) CMHistorial.open(); else if(typeof showToast==='function') showToast('Historial no disponible'); }},
     {ic:'◑', lbl:'Tema: Original', cat:'Tema', kw:'tema original normal clasico', run:()=>{ if(has('applyTheme')) applyTheme(''); }}
   ];
 

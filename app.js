@@ -653,8 +653,19 @@ async function _maybeBackup(cloudStateRaw) {
   try {
     await _db.collection('appdata').doc('bak_' + today).set({ state: cloudStateRaw, savedAt: Date.now() });
     localStorage.setItem('_lastBackupDay', today);
+    // Índice liviano (appdata/snapidx) para listar versiones sin bajar los documentos: ver historial-versiones.js
+    try {
+      let n = 0; try { n = _dataMetric(JSON.parse(cloudStateRaw)); } catch (e) {}
+      await _db.collection('appdata').doc('snapidx').set({ items: firebase.firestore.FieldValue.arrayUnion({ id: 'bak_' + today, t: Date.now(), dev: _devInfo(), n }) }, { merge: true });
+    } catch (e) { console.warn('[backup-idx]', e.code || e.message); }
     const old = new Date(); old.setDate(old.getDate() - 15);
-    _db.collection('appdata').doc('bak_' + old.toISOString().slice(0, 10)).delete().catch(() => {});
+    const oldId = 'bak_' + old.toISOString().slice(0, 10);
+    _db.collection('appdata').doc(oldId).delete().catch(() => {});
+    try {
+      const ix = await _db.collection('appdata').doc('snapidx').get();
+      const gone = ix.exists && Array.isArray(ix.data().items) ? ix.data().items.filter(i => i && i.id === oldId) : [];
+      if (gone.length) await _db.collection('appdata').doc('snapidx').set({ items: firebase.firestore.FieldValue.arrayRemove(...gone) }, { merge: true });
+    } catch (e) {}
   } catch (e) { console.warn('[backup]', e.code || e.message); }
 }
 
@@ -927,7 +938,10 @@ const _fbDoSave = async (opts = {}) => {
             // Arranque sin nube (offline) y después se guarda: antes se subía lo local entero y pisaba lo que el otro
             // dispositivo hizo. Ahora merge 3 vías con el último estado sincronizado de este dispositivo (o rescate).
             let base = null; try { base = JSON.parse(localStorage.getItem('_lastSyncedStateStr') || 'null'); } catch (e) {}
-            toSave = base ? _mergeStates(base, localObj, cloudObj) : _rescueLocal(cloudObj, localObj);
+            // Lo local mucho más chico que el ancestro = todavía no cargó (guardado temprano al arrancar con S vacío), no
+            // "borró todo": no se toman bajas, solo se rescata lo que tenga (verificación ciega 22/11: borraba la nube).
+            const _localChico = base && JSON.stringify(localObj).length < JSON.stringify(base).length * 0.5;
+            toSave = (base && !_localChico) ? _mergeStates(base, localObj, cloudObj) : _rescueLocal(cloudObj, localObj);
             _writeBranch = 'merge-sin-confirmar';
             S = toSave;
             localStorage.setItem('lifedash_v2', JSON.stringify(S));
@@ -1097,18 +1111,30 @@ function _fbFlush() {
 // Guarda un snapshot post-write (fire-and-forget). Mantiene los últimos 20.
 async function _saveSnap(stateStr, savedAt) {
   try {
-    await _db.collection('appdata').doc('snap_' + savedAt).set({ state: stateStr, savedAt, _dev: _devInfo() });  // _dev: solo informativo (qué dispositivo escribió el snap)
-    // Trim: mantener solo los últimos 20 snaps. Como mucho una vez por hora por dispositivo y leyendo solo los snap_:
-    // antes leía toda la colección (datos + backups + snaps, ~15 MB) después de cada guardado. Más snaps un rato no pierde nada.
+    const _col = _db.collection('appdata'), _FV = firebase.firestore.FieldValue, _dev = _devInfo();
+    await _col.doc('snap_' + savedAt).set({ state: stateStr, savedAt, _dev });  // _dev: solo informativo (qué dispositivo escribió el snap)
+    // Índice liviano (appdata/snapidx): la pantalla "Historial y restaurar" lista versiones sin bajar los documentos.
+    try {
+      let n = 0; try { n = _dataMetric(JSON.parse(stateStr)); } catch (e) {}
+      await _col.doc('snapidx').set({ items: _FV.arrayUnion({ id: 'snap_' + savedAt, t: savedAt, dev: _dev, n }) }, { merge: true });
+    } catch (e) { console.warn('[snap-idx]', e.code || e.message); }
+    // Retención: los 30 snaps más nuevos + el más nuevo de cada hora de las últimas 72 h; el resto se borra (doc + entrada del índice).
+    // Como mucho una vez por hora por dispositivo y decidiendo desde el índice (sin bajar los snaps: pesan ~500 KB cada uno).
     let lastTrim = 0; try { lastTrim = +localStorage.getItem('_snapTrimAt') || 0; } catch (e) {}
     if (Date.now() - lastTrim < 3600000) return;
     try { localStorage.setItem('_snapTrimAt', String(Date.now())); } catch (e) {}
-    const docId = firebase.firestore.FieldPath.documentId();
-    const q = await _db.collection('appdata').where(docId, '>=', 'snap_').where(docId, '<', 'snap`').get();
-    const snaps = q.docs
-      .filter(d => d.id.startsWith('snap_'))
-      .sort((a, b) => (parseInt(b.id.slice(5)) || 0) - (parseInt(a.id.slice(5)) || 0));
-    if (snaps.length > 20) snaps.slice(20).forEach(d => d.ref.delete().catch(() => {}));
+    if (!window.CMHistorial) return;
+    const items = await CMHistorial.indice();   // reconstruye el índice una sola vez si no existía
+    const snaps = items.filter(i => i && String(i.id).startsWith('snap_'))
+      .sort((a, b) => (b.t || 0) - (a.t || 0));
+    const keep = new Set(snaps.slice(0, 30).map(i => i.id));
+    const desde = Date.now() - 72 * 3600000, horas = new Set();
+    snaps.forEach(i => { if (i.t < desde) return; const h = Math.floor(i.t / 3600000); if (!horas.has(h)) { horas.add(h); keep.add(i.id); } });
+    const borrar = snaps.filter(i => !keep.has(i.id));
+    if (borrar.length) {
+      borrar.forEach(i => _col.doc(i.id).delete().catch(() => {}));
+      await _col.doc('snapidx').set({ items: _FV.arrayRemove(...borrar) }, { merge: true });
+    }
   } catch (e) { console.warn('[snap]', e); }
 }
 

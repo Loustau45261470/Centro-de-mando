@@ -19,6 +19,22 @@ function buildInitScript(fixtureObj) {
   return `(function () {
     var STORE = new Map();
 
+    // FieldValue.arrayUnion / arrayRemove: centinelas que set()/update() resuelven contra el valor previo del campo.
+    function aplicarCentinelas(prev, data) {
+      var out = Object.assign({}, data);
+      Object.keys(out).forEach(function (k) {
+        var v = out[k];
+        if (v && v.__fv) {
+          var cur = Array.isArray(prev && prev[k]) ? prev[k].slice() : [];
+          var ser = function (x) { return JSON.stringify(x); };
+          if (v.__fv === 'union') v.els.forEach(function (e) { if (!cur.some(function (c) { return ser(c) === ser(e); })) cur.push(e); });
+          else cur = cur.filter(function (c) { return !v.els.some(function (e) { return ser(c) === ser(e); }); });
+          out[k] = cur;
+        }
+      });
+      return out;
+    }
+
     function docRef(path) {
       return {
         id: path.split('/').pop(),
@@ -36,13 +52,14 @@ function buildInitScript(fixtureObj) {
         },
         set: function (data, options) {
           var prev = STORE.get(path);
+          data = aplicarCentinelas(prev, data);
           var merged = (options && options.merge && prev) ? Object.assign({}, prev, data) : Object.assign({}, data);
           STORE.set(path, merged);
           return Promise.resolve();
         },
         update: function (data) {
           var prev = STORE.get(path) || {};
-          STORE.set(path, Object.assign({}, prev, data));
+          STORE.set(path, Object.assign({}, prev, aplicarCentinelas(prev, data)));
           return Promise.resolve();
         },
         delete: function () { STORE.delete(path); return Promise.resolve(); },
@@ -50,14 +67,19 @@ function buildInitScript(fixtureObj) {
       };
     }
 
-    function collectionRef(name) {
+    function collectionRef(name, filtros) {
+      filtros = filtros || [];
       return {
         doc: function (id) { return docRef(name + '/' + id); },
+        // where() solo sobre FieldPath.documentId() con >= y < (lo único que usa la app).
+        where: function (campo, op, val) { return collectionRef(name, filtros.concat([[op, val]])); },
         get: function () {
           var docs = [];
           STORE.forEach(function (data, path) {
             if (path.indexOf(name + '/') === 0) {
-              docs.push({ id: path.slice(name.length + 1), data: function () { return data; }, ref: docRef(path) });
+              var id = path.slice(name.length + 1);
+              var ok = filtros.every(function (f) { return f[0] === '>=' ? id >= f[1] : f[0] === '<' ? id < f[1] : true; });
+              if (ok) docs.push({ id: id, data: function () { return data; }, ref: docRef(path) });
             }
           });
           return Promise.resolve({ docs: docs });
@@ -83,10 +105,7 @@ function buildInitScript(fixtureObj) {
     }
     mockAuth.GoogleAuthProvider = function GoogleAuthProvider() {};
 
-    window.firebase = {
-      initializeApp: function () {},
-      appCheck: function () { return { activate: function () {} }; },
-      firestore: function () {
+    var firestoreFn = function () {
         return {
           collection: collectionRef,
           runTransaction: function (fn) {
@@ -101,7 +120,16 @@ function buildInitScript(fixtureObj) {
           },
           enablePersistence: function () { return Promise.resolve(); },
         };
-      },
+    };
+    firestoreFn.FieldPath = { documentId: function () { return '__name__'; } };
+    firestoreFn.FieldValue = {
+      arrayUnion: function () { return { __fv: 'union', els: Array.prototype.slice.call(arguments) }; },
+      arrayRemove: function () { return { __fv: 'remove', els: Array.prototype.slice.call(arguments) }; },
+    };
+    window.firebase = {
+      initializeApp: function () {},
+      appCheck: function () { return { activate: function () {} }; },
+      firestore: firestoreFn,
       auth: mockAuth,
     };
 
