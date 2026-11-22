@@ -50,6 +50,8 @@
       run:()=>{ if (typeof abrirRevisionSemanal==='function') abrirRevisionSemanal(); else showToast('La revisión semanal no está disponible'); }},
     {ic:'★', lbl:'Principios', cat:'Vida', kw:'principios objetivos categorias huecos foco chequeo',
       run:()=>{ if (window.Principios) Principios.abrir(); else showToast('Principios no está disponible'); }},
+    {ic:'☀', lbl:'Principio del día', cat:'Vida', kw:'principio del dia hoy recordar jarvis decir voz sugerencias opciones',
+      run:()=>{ const dd = window.Principios && Principios.delDia && Principios.delDia(); if (dd) { Principios.mostrarDelDia(dd); Principios.decirDelDia(dd); } else showToast('No hay principios para recordar hoy'); }},
     {ic:'✦', lbl:'Consejero', cat:'Vida', kw:'consejero consejo ia gemini situacion pregunta principios aconsejar',
       run:()=>{ if (window.Principios) Principios.abrir('consejero'); else showToast('El consejero no está disponible'); }},
     {ic:'▤', lbl:'Reportes', cat:'Vida', kw:'reportes revision revisiones semanal mensual trimestral semestral anual informe balance',

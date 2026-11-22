@@ -272,6 +272,7 @@
       objetivosTrimestre: quarter,
       habitosHoy: habitsToday.join(', ') || 'ninguno',
       jarvisMemory: S.jarvisMemory || [],
+      principios: (() => { try { return window.Principios && Principios.paraChat ? Principios.paraChat() : []; } catch { return []; } })(),
     };
   }
 
@@ -848,6 +849,7 @@ Instrucciones:
 - Podés consultar la cartera de inversión (CEDEARs) con query_data area 'cartera', y capturar una idea/nota rápida del usuario para su segundo cerebro con la tool capture
 - El usuario guarda sus propias opiniones/valores/posturas en el Mapa de Ideas: si pregunta algo sobre lo que piensa o cree, usá consultar_mapa_ideas y citá el contenido real de las notas encontradas en vez de responder genéricamente. Si tenés disponible debatir_postura (Modo debate activo) y el usuario pide que argumentes en contra de una postura suya, usala — si no está disponible, avisá que el Modo debate está desactivado
 - Podés crear recordatorios con fecha y hora (add_reminder; si falta la hora, preguntala) y marcar un hábito como hecho (mark_habit; si devuelve error por nombre ambiguo o inexistente, mostrale las opciones al usuario)
+- get_app_state incluye "principios" (los del usuario; los que traen "aviso" están activos hoy). Cuando sea pertinente (decisiones, gastos, hábitos o planes que tocan uno), recordá el principio aplicable y ofrecé 2-3 opciones concretas y cortas para que elija; no los recites si no vienen al caso
 - Confirmá brevemente lo que hiciste
 - Si hay un error o no podés hacer algo, explicalo en una frase`;
 

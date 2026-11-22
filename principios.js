@@ -261,6 +261,56 @@ function prAvisosDePrincipios(principios, datos, hoy, ahora) {
   return out;
 }
 
+// ── Jarvis: principio del día y sugerencias (puras; sin costo de IA) ───────────────────────────────────────────────────
+// → { p, aviso } o null. aviso = { tipo:'datos', detalle } | { tipo:'diario' } | null (rotación). Prioridad: aviso por datos > aviso diario > rotación
+// determinística por fecha entre los no silenciados (principios y antiprincipios). `avisos` = salida de prAvisosDePrincipios.
+function prPrincipioDelDia(principios, avisos, hoy, ahora) {
+  const ok = p => !!p && !!p.id && !!String(p.enunciado || '').trim() && (p.tipo === 'principio' || p.tipo === 'anti');
+  const av = avisos || {};
+  const dat = (av.datos || []).find(x => x && ok(x.p)); if (dat) return { p: dat.p, aviso: { tipo: 'datos', detalle: dat.detalle || '' } };
+  const dia = (av.diarios || []).find(ok); if (dia) return { p: dia, aviso: { tipo: 'diario' } };
+  if (!_PR_FECHA.test(hoy || '')) return null;
+  const libres = (Array.isArray(principios) ? principios : []).filter(p => ok(p) && !prSilenciado(p, hoy, ahora)).sort((a, b) => String(a.id) < String(b.id) ? -1 : String(a.id) > String(b.id) ? 1 : 0);
+  if (!libres.length) return null;
+  return { p: libres[_prDiasEntre('2000-01-01', hoy) % libres.length], aviso: null };
+}
+// Opciones concretas para un principio: [{ id, label, accion }]. ctx = { habitTrackers, hoy }. Solo reglas, sin IA.
+//   agendar → crea una actividad de 30 min en el próximo bloque libre de hoy · habito → marca hecho hoy un hábito vinculado sin registro hoy
+//   posponer → 1 h · ver → abre el principio.
+function prSugerencias(p, aviso, ctx) {
+  const out = []; if (!p) return out;
+  ctx = ctx || {};
+  const corto = (s, n) => s.length > n ? s.slice(0, n - 1).trim() + '…' : s;
+  const haz = String(p.haz || '').trim();
+  if (haz) out.push({ id: 'agendar', label: 'Agendar 30 min ahora: ' + corto(haz, 40), accion: { tipo: 'agendar', texto: haz } });
+  for (const ref of (Array.isArray(p.habitosIds) ? p.habitosIds : [])) {
+    const [sec, id] = String(ref).split('|'), h = ((ctx.habitTrackers || {})[sec] || []).find(x => x && x.id === id);
+    if (!h || !h.name || (h.days || {})[ctx.hoy]) continue;   // hábito borrado o con algún registro hoy (hecho, parcial, descanso…)
+    out.push({ id: 'habito', label: 'Marcar «' + corto(h.name, 28) + '» hecho hoy', accion: { tipo: 'habito', ref: sec + '|' + id } }); break;
+  }
+  out.push({ id: 'posponer', label: 'Posponer 1 h', accion: { tipo: 'posponer', min: 60 } });
+  out.push({ id: 'ver', label: 'Ver principio', accion: { tipo: 'ver' } });
+  return out;
+}
+// Texto hablado/escrito del principio del día (español): «Principio de hoy: …» + la razón corta si viene de un aviso por datos.
+function prTextoDelDia(sel) {
+  if (!sel || !sel.p) return '';
+  const fin = s => String(s || '').trim().replace(/[.\s]+$/, '');
+  return 'Principio de hoy: ' + fin(sel.p.enunciado) + '.' + (sel.aviso && sel.aviso.tipo === 'datos' && sel.aviso.detalle ? ' ' + fin(sel.aviso.detalle) + '.' : '');
+}
+// Primer bloque libre de 30 min a partir de `desdeMin` (minutos del día; se redondea hacia arriba a la media hora), dentro de 05:00–24:00.
+// ocupados = [{start,end}] en minutos. null si no entra ninguno. Pura.
+function prProximoBloqueLibre(desdeMin, ocupados) {
+  let s = Math.max(300, Math.ceil(desdeMin / 30) * 30);
+  const oc = (Array.isArray(ocupados) ? ocupados : []).filter(o => Number.isFinite(o.start) && Number.isFinite(o.end));
+  while (s + 30 <= 1440) {
+    const choca = oc.find(o => o.start < s + 30 && o.end > s);
+    if (!choca) return s;
+    s = Math.ceil(Math.max(choca.end, s + 1) / 30) * 30;
+  }
+  return null;
+}
+
 // ── Importar desde Libros (solo lectura de S.libros; ver `origen` en el modelo de arriba) ──
 const PR_LIBRO_CAT_A_SECCION = { finanzas: 'Economía', negocios: 'Economía', fe: 'Vida', filosofia: 'Vida', deporte: 'Salud' };
 function prSeccionDeLibro(cat) { return PR_LIBRO_CAT_A_SECCION[prSlug(cat || '')] || 'Conocimiento'; }
@@ -745,9 +795,16 @@ function _prAvTexto(it) {
     + '<button type="button" class="pr-av-link" data-id="' + _prEsc(it.p.id) + '" onclick="Principios.abrirPrincipio(this.dataset.id)">' + _prEsc(it.p.enunciado) + '</button>'
     + (it.p.porque ? '<div class="pr-av-por"><b>Por qué:</b> ' + _prEsc(it.p.porque) + '</div>' : '');
 }
+// Opciones concretas del principio (prSugerencias) como botones. En el panel se omite «Posponer 1 h»: ya está en la fila de posponer.
+function _prSugCtx() { return { habitTrackers: (typeof S !== 'undefined' && S) ? S.habitTrackers : null, hoy: _prHoyLocal() }; }
+function _prSugsHtml(p, omitirPosponer, cls) {
+  const l = prSugerencias(p, null, _prSugCtx()).filter(x => !(omitirPosponer && x.id === 'posponer'));
+  return l.length ? '<div class="pr-av-sugs' + (cls ? ' ' + cls : '') + '" role="group" aria-label="Opciones">'
+    + l.map(x => '<button type="button" class="pr-btn pr-av-sug" aria-label="' + _prEsc(x.label) + '" data-id="' + _prEsc(p.id) + '" data-s="' + x.id + '" onclick="Principios.sug(this.dataset.id,this.dataset.s)">' + _prEsc(x.label) + '</button>').join('') + '</div>' : '';
+}
 function _prAvItemPanel(it) {
   const id = it.p.id, pos = (txt, label, fn) => _prAvBtn(txt, label, fn, id);
-  return '<div class="pr-av-item">' + _prAvTexto(it)
+  return '<div class="pr-av-item">' + _prAvTexto(it) + _prSugsHtml(it.p, true)
     + '<div class="pr-av-pos" role="group" aria-label="Posponer"><span class="pr-av-pl">Posponer</span>'
     + pos('15 min', 'Posponer 15 minutos', 'Principios.posponerMin(this.dataset.id,15)') + pos('1 h', 'Posponer 1 hora', 'Principios.posponerMin(this.dataset.id,60)')
     + pos('3 h', 'Posponer 3 horas', 'Principios.posponerMin(this.dataset.id,180)') + pos('Mañana', 'Posponer hasta mañana', 'Principios.posponer(this.dataset.id)')
@@ -762,7 +819,7 @@ function _prAvPintar() {
   let h = '<button type="button" class="pr-bell' + (n ? ' tiene' : '') + '" aria-label="Avisos de principios' + (n ? ': ' + n + (n === 1 ? ' pendiente' : ' pendientes') : ': ninguno') + '" aria-expanded="' + ab + '" aria-controls="pr-av-panel" onclick="Principios.campana()">'
     + _PR_BELL_SVG + (n ? '<span class="pr-bell-n" aria-hidden="true">' + (n > 9 ? '9+' : n) + '</span>' : '') + '</button>';
   if (card.length) {
-    h += '<div class="pr-av-card" role="status" aria-live="polite">' + _prAvTexto(card[0])
+    h += '<div class="pr-av-card" role="status" aria-live="polite">' + _prAvTexto(card[0]) + _prSugsHtml(card[0].p, false)
       + '<div class="pr-av-fin">' + _prAvBtn(card.length > 1 ? 'y ' + (card.length - 1) + ' más' : 'Posponer…', card.length > 1 ? 'Ver los demás avisos' : 'Ver opciones para posponer', 'Principios.campana()', '', 'pr-btn-p')
       + _prAvBtn('Cerrar', 'Cerrar la tarjeta', 'Principios.cerrarTarjeta()', '') + '</div></div>';
   }
@@ -784,6 +841,44 @@ function _prAvProgramarTs(lista, ahora) {
   const ts = lista.filter(p => p && p.disparo && Number.isFinite(p.silenciadoHastaTs) && p.silenciadoHastaTs > ahora).map(p => p.silenciadoHastaTs);
   if (ts.length) _prAvTsTimer = setTimeout(() => { try { prChequearAvisos(); } catch (e) {} }, Math.min(Math.min.apply(null, ts) - ahora + 300, 2147483000));
 }
+// Voz de Jarvis en español (misma voz): solo con Jarvis activado y la pestaña visible; una vez por aviso por día (firma por dispositivo en localStorage).
+function _prVozKey(hoy) { return 'cm_pr_voz_' + hoy; }
+function _prVozDicho(hoy, k) { try { const a = JSON.parse(localStorage.getItem(_prVozKey(hoy)) || '[]'); return Array.isArray(a) && a.indexOf(k) >= 0; } catch (e) { return false; } }
+function _prVozMarcar(hoy, k) { try { const a = JSON.parse(localStorage.getItem(_prVozKey(hoy)) || '[]'); a.push(k); localStorage.setItem(_prVozKey(hoy), JSON.stringify(a.slice(-40))); } catch (e) {} }
+function _prHablar(texto) {
+  try {
+    if (!texto || document.hidden || localStorage.getItem('jarvis_enabled') !== '1' || !window.JARVIS || typeof JARVIS.speak !== 'function') return false;
+    JARVIS.speak(texto, { lang: 'es' }); return true;
+  } catch (e) { return false; }
+}
+function _prAvDecir(it, hoy) {
+  if (!it || _prVozDicho(hoy, it.k)) return;
+  const fin = s => String(s || '').trim().replace(/[.\s]+$/, '');
+  if (_prHablar(it.diario ? 'Principio de hoy: ' + fin(it.p.enunciado) + '.' : fin(it.detalle) + '. ' + fin(it.p.enunciado) + '.')) _prVozMarcar(hoy, it.k);
+}
+// Qué principio recordar hoy (con la misma evaluación de avisos que la campanita, sin los vistos/ocultos).
+function _prDelDia() {
+  if (typeof S === 'undefined' || !S || !S.principios || !Array.isArray(S.principios.principios)) return null;
+  const lista = S.principios.principios, ahora = Date.now(), hoy = _prHoyLocal(), av = prAvisosDePrincipios(lista, _prDatosEval(hoy), hoy, ahora);
+  av.datos = av.datos.filter(x => !_prOcultos[x.p.id]); av.diarios = av.diarios.filter(p => !_prVistoHoy(hoy, p.id));
+  const sel = prPrincipioDelDia(lista, av, hoy, ahora); if (!sel) return null;
+  return { p: sel.p, aviso: sel.aviso, texto: prTextoDelDia(sel), sugerencias: prSugerencias(sel.p, sel.aviso, _prSugCtx()), hoy,
+    k: sel.aviso ? (sel.aviso.tipo === 'datos' ? 'd:' : 'h:') + sel.p.id : null };
+}
+// Agenda `texto` 30 min en el próximo bloque libre de hoy (misma estructura que savePlanActivity de app.js).
+function _prAgendar(p) {
+  if (typeof getDayPlan !== 'function' || typeof plannerDayAgenda !== 'function') { _prToast('El planner no está disponible'); return; }
+  const hoy = _prHoyLocal(), n = new Date();
+  const ocup = plannerDayAgenda(hoy).map(t => ({ start: _timeToMin(t.time), end: _timeToMin(t.time) + (t.duration || 30) }));
+  const ini = prProximoBloqueLibre(n.getHours() * 60 + n.getMinutes(), ocup);
+  if (ini == null) { _prToast('No queda un hueco de 30 min hoy'); return; }
+  const slug = prSlug(p.seccion || ''), area = slug === 'economia' ? 'finanzas' : (typeof PLANNER_AREAS !== 'undefined' && PLANNER_AREAS[slug] ? slug : 'vida');
+  getDayPlan(hoy).tasks.push({ id: _pid(), text: String(p.haz).trim(), area, priority: 2, time: _minToTime(ini), duration: 30, habit: null, done: false });
+  saveState(); if (typeof renderDayPlanner === 'function') renderDayPlanner();
+  _prToast('Agendado a las ' + _minToTime(ini) + ' (30 min)');
+}
+function _prQuitarDia() { const e = document.getElementById('pr-dia'); if (e) e.remove(); clearTimeout(_prDiaTimer); }
+let _prDiaTimer = null;
 function prChequearAvisos() {
   if (typeof S === 'undefined' || !S || !S.principios || !Array.isArray(S.principios.principios)) { _prQuitarAvisos(); return; }   // lectura pura: no crea S.principios
   const lista = S.principios.principios, ahora = Date.now(), hoy = _prHoyLocal(), av = prAvisosDePrincipios(lista, _prDatosEval(hoy), hoy, ahora);
@@ -802,7 +897,7 @@ function prChequearAvisos() {
   nuevos.forEach(i => _prAvMostrados.add(clave(i)));
   _prAvItems = items; _prAvSig = sig;
   _prAvCard = _prAvCard.filter(k => items.some(i => i.k === k));
-  if (nuevos.length && !_prAvAbierto) { _prAvCard = nuevos.map(i => i.k); _prAvIniciarTimer(); }
+  if (nuevos.length && !_prAvAbierto) { _prAvCard = nuevos.map(i => i.k); _prAvIniciarTimer(); _prAvDecir(nuevos[0], hoy); }
   if (!_prAvCard.length) clearTimeout(_prAvTimer);
   _prAvPintar();
 }
@@ -845,6 +940,55 @@ Object.assign(Principios, {
     prChequearAvisos();
   },
   campana() { _prAvAbrir(!_prAvAbierto); },
+  // Jarvis: principio del día → { p, aviso, texto, sugerencias, k } o null.
+  delDia: _prDelDia,
+  // Resumen compacto para el chat con IA (máx. 10, primero los que tienen aviso activo hoy): [{ enunciado, haz?, aviso? }].
+  paraChat() {
+    if (typeof S === 'undefined' || !S || !S.principios || !Array.isArray(S.principios.principios)) return [];
+    const lista = S.principios.principios.filter(p => p && p.enunciado && (p.tipo === 'principio' || p.tipo === 'anti')), hoy = _prHoyLocal(), ahora = Date.now();
+    let av = { diarios: [], datos: [] }; try { av = prAvisosDePrincipios(lista, _prDatosEval(hoy), hoy, ahora); } catch (e) {}
+    const det = {}; av.datos.forEach(x => { det[x.p.id] = x.detalle; }); av.diarios.forEach(p => { if (!(p.id in det)) det[p.id] = 'aviso diario'; });
+    const cut = (s, n) => { s = String(s || '').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
+    return lista.map(p => ({ p, a: p.id in det })).sort((x, y) => (y.a ? 1 : 0) - (x.a ? 1 : 0)).slice(0, 10).map(({ p, a }) => {
+      const o = { enunciado: cut(p.enunciado, 140) }; if (p.tipo === 'anti') o.tipo = 'anti'; if (p.haz) o.haz = cut(p.haz, 80); if (a) o.aviso = cut(det[p.id], 100); return o;
+    });
+  },
+  // Lo dice en español. `soloSiNuevo`: no repite si ya sonó hoy como aviso de la campanita. Devuelve true si habló.
+  decirDelDia(dd, soloSiNuevo) {
+    dd = dd || _prDelDia(); if (!dd) return false;
+    if (soloSiNuevo && dd.k && _prVozDicho(dd.hoy, dd.k)) return false;
+    const ok = _prHablar(dd.texto); if (ok && dd.k) _prVozMarcar(dd.hoy, dd.k); return ok;
+  },
+  // Tarjeta con el principio del día y sus opciones (la usa el saludo de la mañana). No se muestra si la campanita ya tiene su tarjeta abierta.
+  mostrarDelDia(dd, ms) {
+    dd = dd || _prDelDia(); if (!dd || typeof document === 'undefined') return;
+    if (document.querySelector('#pr-avisos .pr-av-card')) return;
+    _prQuitarDia();
+    const el = document.createElement('div'); el.id = 'pr-dia'; el.className = 'pr-dia'; el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite');
+    el.innerHTML = '<div class="pr-av-t">Principio de hoy</div>'
+      + '<button type="button" class="pr-av-link" data-id="' + _prEsc(dd.p.id) + '" onclick="Principios.abrirPrincipio(this.dataset.id)">' + _prEsc(dd.p.enunciado) + '</button>'
+      + (dd.aviso && dd.aviso.detalle ? '<div class="pr-av-por">' + _prEsc(dd.aviso.detalle) + '</div>' : '')
+      + _prSugsHtml(dd.p, false) + '<div class="pr-av-fin">' + _prAvBtn('Cerrar', 'Cerrar', 'Principios.cerrarDelDia()', '') + '</div>';
+    document.body.appendChild(el);
+    el.onpointerenter = el.onfocusin = () => clearTimeout(_prDiaTimer);
+    el.onpointerleave = el.onfocusout = () => { clearTimeout(_prDiaTimer); _prDiaTimer = setTimeout(_prQuitarDia, 8000); };
+    clearTimeout(_prDiaTimer); _prDiaTimer = setTimeout(_prQuitarDia, ms || 15000);
+  },
+  cerrarDelDia: _prQuitarDia,
+  // Ejecuta una opción de prSugerencias (id del principio + id de la opción).
+  sug(id, sid) {
+    const p = ((typeof S !== 'undefined' && S.principios && S.principios.principios) || []).find(x => x.id === id); if (!p) { _prToast('Ese principio ya no existe'); return; }
+    const s = prSugerencias(p, null, _prSugCtx()).find(x => x.id === sid); if (!s) { _prToast('Esa opción ya no aplica'); _prAvPintar(); return; }
+    _prQuitarDia();
+    if (s.accion.tipo === 'agendar') _prAgendar(p);
+    else if (s.accion.tipo === 'habito') {
+      const [sec, hid] = s.accion.ref.split('|');
+      if (typeof setHabitDay === 'function') setHabitDay(sec, hid, _prHoyLocal(), 'done');
+      _prToast('Hábito marcado como hecho hoy'); prChequearAvisos(); _prAvPintar();
+    }
+    else if (s.accion.tipo === 'posponer') Principios.posponerMin(id, s.accion.min);
+    else Principios.abrirPrincipio(id);
+  },
   cerrarTarjeta: prAvPlegar,
   // Destino del aviso: la ventana de Principios mostrando solo ese principio.
   abrirPrincipio(id) {
@@ -887,6 +1031,6 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { prNormalizarRegla, prNormalizarDisparo, prEvaluarRegla, prAvisosDePrincipios, prTextoRegla, prSilenciado, prSumarDias, PR_PLANTILLAS, prSembrarCategorias, prVistaObjetivos, prContarHijos, prCadena, prHuecos, prVinculosDePrincipio, prContarObjetivosDeCategoria,
+  module.exports = { prPrincipioDelDia, prSugerencias, prTextoDelDia, prProximoBloqueLibre, prNormalizarRegla, prNormalizarDisparo, prEvaluarRegla, prAvisosDePrincipios, prTextoRegla, prSilenciado, prSumarDias, PR_PLANTILLAS, prSembrarCategorias, prVistaObjetivos, prContarHijos, prCadena, prHuecos, prVinculosDePrincipio, prContarObjetivosDeCategoria,
     prEliminarCategoria, prEliminarPrincipio, prEliminarObjetivo, prFiltrarPrincipios, prKeyTrimestral, prImportCandidatos, prPrincipioDeLibro, prSeccionDeLibro, prRecortarEnunciado };
 }

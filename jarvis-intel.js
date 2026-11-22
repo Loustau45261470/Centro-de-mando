@@ -358,6 +358,18 @@
       if (window.JARVIS && typeof JARVIS.speak === 'function') JARVIS.speak(text);
     } catch(e) {}
   }
+  // El briefing se traduce y habla en inglés (async): el principio (español) espera a que Jarvis termine para no pisarlo. Tope ~40 s.
+  function _speakPrincipioTrasBriefing(dd) {
+    let n = 0;
+    const tick = () => {
+      try {
+        const ocupado = window.JARVIS && JARVIS.isSpeaking && JARVIS.isSpeaking();
+        if ((ocupado || n < 3) && n++ < 55) { setTimeout(tick, 700); return; }   // ≥3 vueltas (~2 s): da tiempo a que arranque la voz del briefing
+        Principios.decirDelDia(dd, true);
+      } catch(e) {}
+    };
+    setTimeout(tick, 700);
+  }
   function _maybeMorningBriefing() {
     try {
       const h = new Date().getHours();
@@ -367,17 +379,21 @@
       const today = _today();
       if (localStorage.getItem('jarvis_last_briefing') === today) return; // ya se dio hoy
       const b = briefing();
-      if (!b) return;                                                    // nada que decir
+      let dd = null;                                                     // principio del día (principios.js), siempre en español
+      try { dd = window.Principios && typeof Principios.delDia === 'function' ? Principios.delDia() : null; } catch(e) {}
+      if (!b && !dd) return;                                             // nada que decir
       localStorage.setItem('jarvis_last_briefing', today);
-      let text = 'Good morning, sir. ' + b;
+      let text = 'Good morning, sir.' + (b ? ' ' + b : '');
       const gl = _pendingGoalsLine();
       if (gl) text += ' ' + gl;
       _speakBriefingText(text);
-      if (typeof showToast === 'function') showToast('☀️ ' + text, 15000);
+      if (dd) _speakPrincipioTrasBriefing(dd);
+      if (typeof showToast === 'function') showToast('☀️ ' + text + (dd ? ' ' + dd.texto : ''), 15000);
+      if (dd) Principios.mostrarDelDia(dd, 15000);
     } catch(e) {}
   }
 
-  window.JARVIS_INTEL = { insights, briefing, renderCard, renderKPIs: renderCard, _agendaLine };
+  window.JARVIS_INTEL = { insights, briefing, renderCard, renderKPIs: renderCard, _agendaLine, maybeMorningBriefing: _maybeMorningBriefing };
   setTimeout(_maybeMorningBriefing, 10000);
   setTimeout(() => renderCard(), 1200);
   setInterval(() => {

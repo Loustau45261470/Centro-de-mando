@@ -249,9 +249,15 @@
     }
   }
 
-  async function speakElevenLabs(text) {
+  // Modelos de ElevenLabs que NO hablan español: para texto en español (opts.lang === 'es') se cambia al multilingüe que la app ya usa por defecto.
+  const _EL_EN_ONLY = ['eleven_monolingual_v1', 'eleven_turbo_v2'];
+  function _elModelFor(lang) {
+    const m = localStorage.getItem('jarvis_el_model') || 'eleven_flash_v2_5';
+    return lang === 'es' && _EL_EN_ONLY.indexOf(m) >= 0 ? 'eleven_flash_v2_5' : m;
+  }
+  async function speakElevenLabs(text, lang) {
     // Modelo TTS: Flash v2.5 por defecto (más barato/rápido); override posible vía localStorage.
-    const elModel = localStorage.getItem('jarvis_el_model') || 'eleven_flash_v2_5';
+    const elModel = _elModelFor(lang);
     const c = await _openCache();
     // Fast path: la frase COMPLETA ya sonó antes tal cual → 1 sola lectura de cache, sin split ni
     // llamadas extra (cubre las líneas fijas/canned que se repiten exactas).
@@ -290,21 +296,21 @@
   // Preprocesador TTS: los datos de la app vienen en formato es-AR ($1.234.567,89 · 45,5%) pero
   // JARVIS habla en inglés — sin esto, ElevenLabs/speechSynthesis leen los símbolos literalmente.
   // Puro: solo regex, sin dependencias. Se aplica a TODO texto antes de sintetizar.
-  function _ttsPrep(text) {
+  function _ttsPrep(text, lang) {
     if (!text) return text;
     let out = text;
     // es-AR → número plano en inglés: punto = separador de miles, coma = decimal
     function esArToPlain(numStr) {
       if (numStr.indexOf(',') !== -1) {
         const parts = numStr.split(',');
-        return parts[0].replace(/\./g, '') + '.' + parts[1];
+        return parts[0].replace(/\./g, '') + (lang === 'es' ? ',' : '.') + parts[1];
       }
       return numStr.replace(/\./g, '');
     }
     // 1) Montos: "$1.234.567,89" → "1234567.89 pesos"
     out = out.replace(/\$\s?(\d{1,3}(?:\.\d{3})*(?:,\d+)?|\d+(?:,\d+)?)/g, (m, num) => esArToPlain(num) + ' pesos');
     // 2) Porcentajes: "45,5%" → "45.5 percent"
-    out = out.replace(/(\d+(?:,\d+)?)\s?%/g, (m, num) => num.replace(',', '.') + ' percent');
+    out = out.replace(/(\d+(?:,\d+)?)\s?%/g, (m, num) => lang === 'es' ? num + ' por ciento' : num.replace(',', '.') + ' percent');
     // 3) Números es-AR sueltos con separador de miles (sin $ ni %): "1.234.567" → "1234567"
     //    Exige al menos un grupo de EXACTAMENTE 3 dígitos tras el punto, para no tocar decimales
     //    normales (ej. "3.14") ni fechas ISO ("2026-07-14", que usa guiones, no puntos).
@@ -316,11 +322,11 @@
   // _elHint), para que una key vencida/rate-limit no deje a JARVIS mudo. Nunca reemplaza a
   // ElevenLabs como voz primaria (issues históricos de speechSynthesis trabado — ver fixes.json);
   // es puramente el "no te quedes sin hablar" ante un error puntual de la API.
-  function _speakBrowser(text) {
+  function _speakBrowser(text, lang) {
     try {
       if (!window.speechSynthesis) return;
       const u = new SpeechSynthesisUtterance(text);
-      u.lang = 'en-GB';
+      u.lang = lang === 'es' ? 'es-AR' : 'en-GB';
       if (_isNightTime()) u.volume = NIGHT_VOLUME;
       speechSynthesis.speak(u);
     } catch(e) {}
@@ -406,7 +412,8 @@
   async function speak(text, opts) {
     if (!enabled || !text) return;
     _speakAt = Date.now();
-    let prepped = _ttsPrep(text);
+    const lang = opts && opts.lang === 'es' ? 'es' : 'en';
+    let prepped = _ttsPrep(text, lang);
     // Tope duro en respuestas dinámicas: el prompt de Gemini ya pide "max 2 sentences" pero un
     // LLM puede ignorarlo — sin este corte una respuesta larga se comería la cuota de ElevenLabs.
     // No aplica a texto no-dinámico (líneas fijas, ya son cortas por diseño).
@@ -418,11 +425,11 @@
     if (!_elKey()) { _elHint(); return; }                                  // sin key → silencio
     if (opts && opts.dynamic && !(await _elQuotaOk())) return;              // dinámica sin cuota → silencio
     try {
-      await speakElevenLabs(prepped);
+      await speakElevenLabs(prepped, lang);
     } catch (e) {
       console.warn('JARVIS sin voz premium (ElevenLabs), usando voz del navegador:', e.message);
       _elHandleFailure(e);
-      _speakBrowser(prepped);                                              // nunca queda mudo
+      _speakBrowser(prepped, lang);                                        // nunca queda mudo
     }
   }
 

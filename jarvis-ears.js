@@ -518,6 +518,12 @@
       }
     }
 
+    // principio del día (principios.js): lo dice en español con sus opciones en pantalla
+    if (/\b(principio del dia|principio de hoy|que principio|cual principio)\b/.test(t) && window.Principios && Principios.delDia) {
+      const dd = Principios.delDia(); if (dd) { Principios.mostrarDelDia(dd); Principios.decirDelDia(dd); } else if (window.JARVIS) JARVIS.speak('No tenés principios para recordar hoy.', { lang: 'es' });
+      return;
+    }
+
     // briefing / informe del sistema (motor de inteligencia)
     if (/\b(briefing|informe|como voy|como vengo|como vamos)\b/.test(t) && window.JARVIS_INTEL) {
       const c = document.querySelector('.intel-card'); if (c) { JARVIS_INTEL.renderCard(); c.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
