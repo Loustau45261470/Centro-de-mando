@@ -65,7 +65,7 @@ test.describe('error del listener de onSnapshot (R8)', () => {
     await cmPage.evaluate(() => { localStorage.setItem('_syncEvents', '[]'); document.getElementById('toast').textContent = ''; window.__snap.err({ code: 'permission-denied' }); });
     expect((await eventos(cmPage)).map((e) => e.code)).toEqual(['permission-denied']);
     await expect(cmPage.locator('#toast')).toHaveClass(/show/);
-    await expect(cmPage.locator('#toast')).toContainText('La sincronización en vivo se detuvo (permission-denied). Recargá la app.');
+    await expect(cmPage.locator('#toast')).toContainText('Se cortó la conexión en vivo con la nube (permission-denied). Reconecto sola cuando vuelvas a la app');
   });
 
   test('unavailable (error de red): se registra pero NO muestra aviso', async ({ cmPage }) => {

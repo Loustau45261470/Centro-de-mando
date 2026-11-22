@@ -495,6 +495,23 @@ let _fbSaveTid  = null;
 let _fbSaveOtraVez = false;    // llegó un guardado mientras otro estaba en vuelo: se repite al terminar (no se pierde)
 let _fbSaveInProgress = false;  // true mientras el async de _fbSave está corriendo (guard para onSnapshot)
 let _lastWriteId = null;  // ID del último write propio — filtra el eco de onSnapshot
+// Versiones (por _wid) que este dispositivo ya tuvo: escritas por él o aplicadas. Una versión ya vista que no es la
+// actual es una copia vieja (la caché del iPhone las entrega como nuevas). No depende de los relojes de cada equipo.
+let _widActual = null;
+const _widsVistos = (() => { try { return new Set(JSON.parse(localStorage.getItem('_widsVistos') || '[]')); } catch (e) { return new Set(); } })();
+function _marcarWid(w) {
+  if (!w) return;
+  _widActual = w; _widsVistos.delete(w); _widsVistos.add(w);
+  try { localStorage.setItem('_widsVistos', JSON.stringify([..._widsVistos].slice(-300))); } catch (e) {}
+}
+// ¿Es una versión vieja? Sí si ya la tuvimos y no es la actual; sin _wid (o nunca vista), solo si su hora es más de
+// 10 min anterior a la que tenemos (margen para relojes desfasados entre PC e iPhone).
+function _esVersionVieja(d) {
+  const w = d && d._wid, sa = d && d._savedAt;
+  if (w && w === _widActual) return false;
+  if (w && _widsVistos.has(w)) return true;
+  return _lastSyncedSavedAt != null && sa != null && sa < _lastSyncedSavedAt - 600000;
+}
 let _lastSyncedSavedAt = null;  // _savedAt del estado que tenemos en mano (de la nube); null = cargado de localStorage sin confirmar nube
 let _lastSyncedState = null;    // copia del último estado sincronizado (ancestro común para el merge 3-vías)
 let _forceSaveOnce = false;     // override puntual del guard anti-pisada (forzarGuardado())
@@ -964,6 +981,7 @@ const _fbDoSave = async (opts = {}) => {
         try { localStorage.setItem('_lastSyncedStateStr', cloudRaw); } catch (e) {}
         if (!_fbSaveOtraVez) localStorage.removeItem('_pendingCloudSave');
         _dgRes = 'sin-cambios-propios';
+        if (cloudData) _marcarWid(cloudData._wid);
         _syncEv('guardar-rama', { rama: 'sin-cambios-propios', cloudSavedAt: cloudData ? cloudData._savedAt : null, cache: cloudFromCache });
         return;
       }
@@ -1044,6 +1062,7 @@ const _fbDoSave = async (opts = {}) => {
       _lastWriteId = wid;
       const savedAt = Date.now();
       const _onWriteOk = () => {
+        _marcarWid(wid);
         _dgRes = 'ok'; _syncEv('guardado-ok', { savedAt, ms: Date.now() - _dgT0 });
         _lastSyncedSavedAt = savedAt;
         _lastSyncedState = JSON.parse(_stateStr);
@@ -1328,7 +1347,15 @@ function _applyRemoteState(raw, savedAt) {
 }
 
 // ── Real-time Firestore listener ──────────────────────────
+// Si el listener muere por un error que no es de red (permisos, sesión), se reconecta solo al volver a la app.
+let _listenerVivo = false;
+function _reanudarListener() {
+  if (_listenerVivo || !_estadoCargado || !(_auth && _auth.currentUser)) return;
+  _syncEv('listener-reanudado', {});
+  _startFirestoreSync();
+}
 function _startFirestoreSync() {
+  _listenerVivo = true;
   _DOC().onSnapshot(snap => {
     if (snap.exists) _registrarEscritura(snap.data()._dev, snap.data()._savedAt);  // solo informativo
     if (typeof pushDeadAviso === 'function') pushDeadAviso(snap.exists ? snap.data().pushDead : null);  // solo visibilidad: aviso de avisos caídos
@@ -1339,20 +1366,22 @@ function _startFirestoreSync() {
     if (localStorage.getItem('_pendingCloudSave')) { _syncEv('snapshot-con-pendiente', { savedAt: snap.data()._savedAt }); _fbSave(); return; }
     // Versión más vieja que la que ya tenemos (la caché del iPhone entrega primero copias de horas/días atrás):
     // no se aplica. En el peor caso (relojes desfasados) solo demora la vista; al guardar, la transacción mergea.
-    const _snapSa = snap.data()._savedAt;
-    if (_lastSyncedSavedAt != null && _snapSa != null && _snapSa < _lastSyncedSavedAt) {
-      _syncEv('snapshot-viejo-ignorado', { savedAt: _snapSa, lastSynced: _lastSyncedSavedAt, cache: !!(snap.metadata && snap.metadata.fromCache) });
+    if (_esVersionVieja(snap.data())) {
+      _syncEv('snapshot-viejo-ignorado', { savedAt: snap.data()._savedAt, lastSynced: _lastSyncedSavedAt, cache: !!(snap.metadata && snap.metadata.fromCache) });
       return;
     }
+    if (snap.data()._wid && snap.data()._wid === _widActual) return;   // ya es la versión que tenemos
     window._applySrc = 'onSnapshot';   // visibilidad: quién pidió el apply (solo registro)
     _applyRemoteState(snap.data().state, snap.data()._savedAt);
+    _marcarWid(snap.data()._wid);
   }, err => {
     // Los errores de red los reintenta el SDK solo. Cualquier otro (permission-denied,
     // unauthenticated…) cierra el listener para siempre: se registra y se avisa. No se re-suscribe.
     const code = (err && err.code) || 'desconocido';
     _syncEv('snapshot-error', { code });
     if (code !== 'unavailable' && code !== 'deadline-exceeded') {
-      showToast('⚠️ La sincronización en vivo se detuvo (' + code + '). Recargá la app.', 15000);
+      _listenerVivo = false;
+      showToast('⚠️ Se cortó la conexión en vivo con la nube (' + code + '). Reconecto sola cuando vuelvas a la app; si no, recargá.', 15000);
     }
   });
 }
@@ -1372,10 +1401,10 @@ async function _syncOnFocus() {
     // Cambios propios sin subir → no pisarlos: guardar y que el merge 3 vías junte ambos.
     if (localStorage.getItem('_pendingCloudSave')) { _syncEv('sync-fin', Object.assign({ res: 'pendiente-propio-guardo' }, _dgInfo)); _fbSave(); return; }
     // Versión más vieja que la conocida (la lectura cayó a la caché del iPhone): no se aplica.
-    const _sa = snap.data()._savedAt;
-    if (_lastSyncedSavedAt != null && _sa != null && _sa < _lastSyncedSavedAt) { _syncEv('sync-fin', Object.assign({ res: 'version-vieja-ignorada' }, _dgInfo)); return; }
+    if (_esVersionVieja(snap.data())) { _syncEv('sync-fin', Object.assign({ res: 'version-vieja-ignorada' }, _dgInfo)); return; }
     window._applySrc = 'syncOnFocus';   // visibilidad: quién pidió el apply (solo registro)
     _applyRemoteState(snap.data().state, snap.data()._savedAt);
+    _marcarWid(snap.data()._wid);
     _syncEv('sync-fin', Object.assign({ res: 'aplicado' }, _dgInfo));
   } catch(e) { _syncEv('sync-fin', { res: 'error', msg: String((e && (e.code || e.message)) || e).slice(0, 120), ms: Date.now() - _dgT0 }); }
 }
@@ -1403,6 +1432,7 @@ async function loadState() {
     if (snap.exists && snap.data()?.state) {
       S = JSON.parse(snap.data().state);
       _lastSyncedSavedAt = snap.data()._savedAt || 0;
+      _marcarWid(snap.data()._wid);
       _lastSyncedState = JSON.parse(snap.data().state);
       _loadSrc = (snap.metadata && snap.metadata.fromCache) ? 'cloud-cache' : 'cloud';
     } else {
@@ -1470,33 +1500,41 @@ async function loadState() {
     if (!S.habitTrackers[s]) S.habitTrackers[s] = [];
   });
   // ── Migrar calendarios a hábitos (única ejecución si no existían) ──
-  // Registro financiero → Hábitos Contables
-  if (!S.habitTrackers.finanzas.find(h => h.id === 'habit-registro-financiero')) {
-    S.habitTrackers.finanzas.push({
-      id: 'habit-registro-financiero', name: 'Registro financiero', emoji: '📒',
-      days: { ...(S.financeCalendar?.days || {}) },
-    });
-  }
-  // Entrenamientos → Hábitos de Salud (migra workoutCalendar)
-  if (!S.habitTrackers.salud.find(h => h.id === 'habit-entrenamientos')) {
-    S.habitTrackers.salud.push({
-      id: 'habit-entrenamientos', name: 'Entrenamientos', emoji: '🏋️',
-      days: { ...(S.workoutCalendar?.days || {}) },
-    });
-  }
-  // Calendario de estudio → Hábitos de Aprendizaje (migra studyCalendar)
-  if (!S.habitTrackers.conocimiento.find(h => h.id === 'habit-estudio')) {
-    S.habitTrackers.conocimiento.push({
-      id: 'habit-estudio', name: 'Calendario de estudio', emoji: '📅',
-      days: { ...(S.studyCalendar?.days || {}) },
-    });
-  }
-  // Hábito de lectura diaria
-  if (!S.habitTrackers.conocimiento.find(h => h.id === 'habit-lectura')) {
-    S.habitTrackers.conocimiento.push({
-      id: 'habit-lectura', name: 'Lectura diaria', emoji: '📖',
-      days: {},
-    });
+  // Una sola vez y solo en una instalación nueva: antes corría en cada arranque y volvía a crear los hábitos que
+  // el usuario había borrado (22/11/2026). Con hábitos ya cargados solo se marca como hecho.
+  if (!S._habitosBaseCreados) {
+    const _yaTieneHabitos = ['vida','finanzas','salud','conocimiento','ia'].some(s => (S.habitTrackers[s] || []).length);
+    if (!_yaTieneHabitos) {
+      // Registro financiero → Hábitos Contables
+      if (!S.habitTrackers.finanzas.find(h => h.id === 'habit-registro-financiero')) {
+        S.habitTrackers.finanzas.push({
+          id: 'habit-registro-financiero', name: 'Registro financiero', emoji: '📒',
+          days: { ...(S.financeCalendar?.days || {}) },
+        });
+      }
+      // Entrenamientos → Hábitos de Salud (migra workoutCalendar)
+      if (!S.habitTrackers.salud.find(h => h.id === 'habit-entrenamientos')) {
+        S.habitTrackers.salud.push({
+          id: 'habit-entrenamientos', name: 'Entrenamientos', emoji: '🏋️',
+          days: { ...(S.workoutCalendar?.days || {}) },
+        });
+      }
+      // Calendario de estudio → Hábitos de Aprendizaje (migra studyCalendar)
+      if (!S.habitTrackers.conocimiento.find(h => h.id === 'habit-estudio')) {
+        S.habitTrackers.conocimiento.push({
+          id: 'habit-estudio', name: 'Calendario de estudio', emoji: '📅',
+          days: { ...(S.studyCalendar?.days || {}) },
+        });
+      }
+      // Hábito de lectura diaria
+      if (!S.habitTrackers.conocimiento.find(h => h.id === 'habit-lectura')) {
+        S.habitTrackers.conocimiento.push({
+          id: 'habit-lectura', name: 'Lectura diaria', emoji: '📖',
+          days: {},
+        });
+      }
+    }
+    S._habitosBaseCreados = true;
   }
   // ── Migrar proyectos de localStorage a S (una sola vez) ──────────────────
   if (!S.proyectos) S.proyectos = { vida: null, finanzas: null, salud: null, conocimiento: null, ia: null };
@@ -4961,7 +4999,7 @@ document.addEventListener('visibilitychange', () => {
 });
 window.addEventListener('pagehide', () => _syncEv('pagehide', { timer: !!_fbSaveTid, vuelo: _fbSaveInProgress }));
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) { checkReminderNotifications(); _syncOnFocus(); _msHub.showReminders(); }
+  if (!document.hidden) { checkReminderNotifications(); _reanudarListener(); _syncOnFocus(); _msHub.showReminders(); }
   else { _fbFlush(); }   // al ocultar: subir cambios pendientes sin esperar el debounce de 2s
 });
 window.addEventListener('pagehide', _fbFlush);

@@ -98,16 +98,16 @@ test('listener en vivo: una versión más vieja que la que ya tenemos no se apli
     const cb = (window.__cmSnapCbs || []).filter(x => x.path === 'appdata/lifedash_v2').pop().cb;
     const fake = (sa, txId) => { const st = JSON.parse(JSON.stringify(S)); st.transactions = [{ id: txId, date: '2026-11-22', name: txId, type: 'expense', amount: 1 }, ...(st.transactions || [])];
       return { exists: true, metadata: { fromCache: true }, data: () => ({ state: JSON.stringify(st), _savedAt: sa, _wid: 'otro', _dev: 'iPhone' }) }; };
-    _lastSyncedSavedAt = 5000;
+    _lastSyncedSavedAt = 5000000;   // la vieja es >10 min anterior (sin _wid conocido decide la hora, con margen)
     cb(fake(4000, 't-snap-vieja'));
     const tieneVieja = (S.transactions || []).some(t => t.id === 't-snap-vieja');
-    cb(fake(6000, 't-snap-nueva'));
+    cb(fake(6000000, 't-snap-nueva'));
     const tieneNueva = (S.transactions || []).some(t => t.id === 't-snap-nueva');
     return { tieneVieja, tieneNueva, last: _lastSyncedSavedAt };
   });
   expect(r.tieneVieja).toBe(false);
   expect(r.tieneNueva).toBe(true);
-  expect(r.last).toBe(6000);
+  expect(r.last).toBe(6000000);
   expect(consoleErrors).toEqual([]);
 });
 
