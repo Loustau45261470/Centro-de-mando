@@ -29,6 +29,14 @@ No toques nada más. Abrí la app en la compu → consola del navegador (F12):
 - `listarSnaps()` muestra las últimas copias guardadas.
 - `restaurarSnap('<id>')` vuelve a una de ellas.
 
-## 4. Arreglar con otra herramienta de IA
-Cualquier agente (OpenCode, Gemini CLI, Kimi, Cline) lee `AGENTS.md` con las reglas del proyecto.
+## 4. Arreglar con IA pero sin la suscripción de Claude
+Mismo Claude Code (con tus skills y agentes), pero con otro modelo. Solo afecta esa ventana:
+```
+.\tools\claude-sin-suscripcion.ps1              # Kimi: pago por uso
+.\tools\claude-sin-suscripcion.ps1 openrouter   # modelo gratis de OpenRouter (con límites)
+```
+La primera vez te dice dónde sacar la clave y en qué archivo guardarla.
+Adentro, `/status` confirma qué proveedor está usando.
+
+Otras herramientas (OpenCode, Cline) leen `AGENTS.md` con las reglas del proyecto.
 Pedile siempre: "leé AGENTS.md primero, diagnosticá antes de cambiar, y corré `npm test` antes de subir".
