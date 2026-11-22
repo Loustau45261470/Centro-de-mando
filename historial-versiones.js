@@ -143,6 +143,8 @@ window.CMHistorial = (() => {
   let ov = null, body = null, previo = null;
   const rotulo = e => diaCorto(e.t) + ' · ' + horaDe(e.t) + (e.dev && e.dev !== 'antes de restaurar' ? ' · ' + e.dev : '');
   const tipoDe = e => (String(e.id).startsWith('bak_') ? 'copia diaria' : e.dev === 'antes de restaurar' ? 'antes de restaurar' : 'guardado');
+  // Cantidad de registros (tareas, movimientos, días de hábitos…): una versión con muchos menos que las vecinas delata una pisada.
+  const regs = n => (Number(n) === 1 ? '1 registro' : Number(n || 0).toLocaleString('es-AR') + ' registros');
   const errAmable = () => '<p class="sdiag-muted">No se pudo leer el historial. Revisá la conexión y probá de nuevo.</p>';
 
   async function pintarLista() {
@@ -152,13 +154,13 @@ window.CMHistorial = (() => {
     items = items.filter(i => i && i.t).sort((a, b) => b.t - a.t);
     let html = '<p class="sdiag-intro">Elegí una fecha para ver qué tenías en ese momento y recuperarlo. Antes de cambiar nada se guarda una copia de lo que tenés ahora, así siempre se puede deshacer.</p>' +
       '<h3 class="sdiag-h">Ahora</h3><ul class="sdiag-list"><li class="sdiag-item hv-ahora"><div class="sdiag-row"><span class="sdiag-what">Ahora</span><span class="hv-tag">lo que tenés en pantalla</span></div>' +
-      '<div class="sdiag-sub">' + esc(metrica(S)) + ' datos</div></li></ul>';
+      '<div class="sdiag-sub">' + esc(regs(metrica(S))) + '</div></li></ul>';
     if (!items.length) html += '<p class="sdiag-muted">Todavía no hay versiones anteriores guardadas.</p>';
     let dia = '';
     items.forEach(e => {
       const dk = new Date(e.t).toDateString();
       if (dk !== dia) { if (dia) html += '</ul>'; dia = dk; html += '<h3 class="sdiag-h">' + esc(diaCorto(e.t)) + '</h3><ul class="sdiag-list">'; }
-      html += '<li><button type="button" class="sdiag-item hv-item" data-id="' + esc(e.id) + '"><span class="sdiag-what">' + esc(rotulo(e)) + '</span><span class="hv-tag">' + esc(tipoDe(e)) + '</span></button></li>';
+      html += '<li><button type="button" class="sdiag-item hv-item" data-id="' + esc(e.id) + '"><span class="sdiag-what">' + esc(rotulo(e)) + '</span><span class="hv-tag">' + esc(tipoDe(e)) + '</span>' + (e.n != null ? '<span class="sdiag-sub hv-regs">' + esc(regs(e.n)) + '</span>' : '') + '</button></li>';
     });
     if (dia) html += '</ul>';
     body.innerHTML = html;

@@ -12,3 +12,4 @@ li.hv-l-extra { color: var(--ts); }
 .hv-confirmar { margin-top: 14px; padding: 12px; border-radius: 10px; border: 1px solid var(--hud-dim); background: rgba(56,189,248,0.07); }
 .hv-texto { margin: 0 0 10px; font-size: var(--fs-13); line-height: 1.5; color: var(--tp); }
 .sdiag-btn:disabled { opacity: .45; cursor: default; }
+.hv-regs { flex-basis: 100%; margin: 0; }
