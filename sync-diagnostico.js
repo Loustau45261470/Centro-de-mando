@@ -199,6 +199,20 @@ window.CMSyncDiag = (() => {
     else { ta.hidden = false; try { ta.focus(); ta.select(); ta.setSelectionRange(0, txt.length); } catch (e) {} aviso('No se pudo copiar solo: el texto quedó seleccionado. Mantené apretado y elegí Copiar.'); }
   }
 
+  // Sube el mismo texto de "Copiar todo" a appdata/diag_<ts> para que Claude lo lea sin copiar/pegar (iPhone).
+  // Solo escribe ese doc aparte: no toca lifedash_v2 ni el sync.
+  async function enviar() {
+    let txt = "";
+    try { txt = JSON.stringify(payload()); } catch (e) { aviso('No se pudo armar el texto.'); return; }
+    if (typeof _db === "undefined" || !_db) { aviso('Sin conexión con la nube: usá Copiar todo.'); return; }
+    const id = "diag_" + Date.now();
+    aviso('Enviando…');
+    try {
+      await _db.collection("appdata").doc(id).set({ payload: txt, t: Date.now(), dev: dispositivo() });
+      aviso("Enviado (" + Math.round(txt.length / 1024) + " KB). Avisale a Claude.");
+    } catch (e) { aviso("No se pudo enviar (" + (e.code || e.message || "error") + "). Probá de nuevo."); }
+  }
+
   function construir() {
     ov = document.createElement('div');
     ov.id = 'sdiag-overlay'; ov.className = 'sdiag-ov';
@@ -207,7 +221,7 @@ window.CMSyncDiag = (() => {
       '<div class="sdiag-panel">' +
         '<div class="sdiag-head"><h2 class="sdiag-title">Diagnóstico de sincronización</h2><button type="button" class="sdiag-x" aria-label="Cerrar">✕</button></div>' +
         '<p class="sdiag-intro">Qué hizo este dispositivo con tus datos. Si algo se pisa o se pierde, tocá «Copiar todo» y pegalo en el chat.</p>' +
-        '<div class="sdiag-actions"><button type="button" class="sdiag-btn sdiag-copiar">Copiar todo</button><button type="button" class="sdiag-btn sdiag-btn-sec sdiag-act">Actualizar</button></div>' +
+        '<div class="sdiag-actions"><button type="button" class="sdiag-btn sdiag-enviar">Enviar a Claude</button><button type="button" class="sdiag-btn sdiag-btn-sec sdiag-copiar">Copiar todo</button><button type="button" class="sdiag-btn sdiag-btn-sec sdiag-act">Actualizar</button></div>' +
         '<div class="sdiag-msg" role="status" aria-live="polite"></div>' +
         '<textarea class="sdiag-copia" id="sdiag-copia" readonly hidden aria-label="Texto para copiar"></textarea>' +
         '<h3 class="sdiag-h">Este dispositivo</h3><div class="sdiag-resumen"></div>' +
@@ -218,6 +232,7 @@ window.CMSyncDiag = (() => {
     ta = ov.querySelector('.sdiag-copia'); msgEl = ov.querySelector('.sdiag-msg');
     ov.addEventListener('click', e => { if (e.target === ov) cerrar(); });
     ov.querySelector('.sdiag-x').addEventListener('click', cerrar);
+    ov.querySelector('.sdiag-enviar').addEventListener('click', enviar);
     ov.querySelector('.sdiag-copiar').addEventListener('click', copiarTodo);
     ov.querySelector('.sdiag-act').addEventListener('click', () => { pintar(); aviso('Actualizado.'); });
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && ov.classList.contains('open')) cerrar(); });

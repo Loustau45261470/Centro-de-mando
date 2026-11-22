@@ -38,6 +38,26 @@ test.describe('diagnóstico de sincronización', () => {
     expect(consoleErrors).toEqual([]);
   });
 
+  test('"Enviar a Claude" sube el diagnóstico a appdata/diag_<ts> sin tocar lifedash_v2', async ({ cmPage, consoleErrors }) => {
+    await guardarNota(cmPage, 'para-enviar', 'n-diag-env');
+    const antes = await cmPage.evaluate(async () => JSON.stringify((await _db.collection('appdata').doc('lifedash_v2').get()).data()));
+    await abrirPorPaleta(cmPage);
+    await cmPage.locator('.sdiag-enviar').click();
+    await expect(cmPage.locator('.sdiag-msg')).toContainText('Enviado');
+    const r = await cmPage.evaluate(async () => {
+      const q = await _db.collection('appdata').get();
+      const d = q.docs.filter(x => x.id.startsWith('diag_'));
+      const main = JSON.stringify((await _db.collection('appdata').doc('lifedash_v2').get()).data());
+      return { n: d.length, data: d[0] && d[0].data(), main };
+    });
+    expect(r.n).toBe(1);
+    const p = JSON.parse(r.data.payload);
+    expect(Array.isArray(p.saveDiag) && p.saveDiag.length).toBeTruthy();
+    expect(r.data.payload).not.toContain('para-enviar');
+    expect(r.main, 'el documento de datos no cambia').toBe(antes);
+    expect(consoleErrors).toEqual([]);
+  });
+
   test('abre desde el panel de ajustes (botón ◐) a 375px y el botón es alcanzable', async ({ cmPage, consoleErrors }) => {
     await cmPage.setViewportSize({ width: 375, height: 667 });
     await cmPage.locator('#theme-trigger').click();
