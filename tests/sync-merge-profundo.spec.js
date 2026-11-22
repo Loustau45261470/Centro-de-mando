@@ -193,6 +193,7 @@ test('guardado temprano al arrancar con S vacío y nube chica: no borra nada de 
 
 test('red de seguridad: un dispositivo no puede achicar la nube a menos de la mitad (22/11 08:13)', async ({ cmPage }) => {
   await idle(cmPage);
+  cmPage.once('dialog', d => d.dismiss());   // «¿lo borraste a propósito?» → No
   const r = await cmPage.evaluate(async () => {
     const grande = JSON.parse(JSON.stringify(S));
     grande.transactions = [...Array(600)].map((_, i) => ({ id: 'tg' + i, date: '2026-11-20', name: 'movimiento ' + i, type: 'expense', amount: i }));
@@ -254,4 +255,38 @@ test('saveState antes de que terminen de cargar los datos no toca nada', async (
     return out;
   });
   expect(r).toEqual({ igual: true, pend: null, timer: false });
+});
+
+test('red de seguridad: si el borrado grande fue a propósito, al confirmarlo se guarda', async ({ cmPage }) => {
+  await idle(cmPage);
+  let texto = '';
+  cmPage.once('dialog', d => { texto = d.message(); d.accept(); });
+  await cmPage.evaluate(async () => {
+    const grande = JSON.parse(JSON.stringify(S));
+    grande.transactions = [...Array(600)].map((_, i) => ({ id: 'tg' + i, date: '2026-11-20', name: 'movimiento ' + i, type: 'expense', amount: i }));
+    await _DOC().set({ state: JSON.stringify(grande), _savedAt: 5000, _wid: 'pc', _dev: 'PC' });
+    _lastSyncedSavedAt = 5000; _lastSyncedState = JSON.parse(JSON.stringify(grande));
+    S = JSON.parse(JSON.stringify(grande)); S.transactions = [];
+    await _fbDoSave();
+  });
+  await cmPage.waitForTimeout(500); await idle(cmPage);
+  const tx = await cmPage.evaluate(async () => JSON.parse((await _DOC().get()).data().state).transactions.length);
+  expect(texto).toContain('A PROPÓSITO');
+  expect(tx).toBe(0);
+});
+
+test('red de seguridad: si no fue a propósito, se vuelve a cargar lo de la nube', async ({ cmPage }) => {
+  await idle(cmPage);
+  cmPage.once('dialog', d => d.dismiss());
+  await cmPage.evaluate(async () => {
+    const grande = JSON.parse(JSON.stringify(S));
+    grande.transactions = [...Array(600)].map((_, i) => ({ id: 'tg' + i, date: '2026-11-20', name: 'movimiento ' + i, type: 'expense', amount: i }));
+    await _DOC().set({ state: JSON.stringify(grande), _savedAt: 5000, _wid: 'pc', _dev: 'PC' });
+    _lastSyncedSavedAt = 5000; _lastSyncedState = JSON.parse(JSON.stringify(grande));
+    S = JSON.parse(JSON.stringify(grande)); S.transactions = [];
+    await _fbDoSave();
+  });
+  await cmPage.waitForTimeout(500);
+  const r = await cmPage.evaluate(async () => ({ s: S.transactions.length, n: JSON.parse((await _DOC().get()).data().state).transactions.length, pend: localStorage.getItem('_pendingCloudSave') }));
+  expect(r).toEqual({ s: 600, n: 600, pend: null });
 });

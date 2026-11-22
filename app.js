@@ -1023,7 +1023,20 @@ const _fbDoSave = async (opts = {}) => {
         _dgRes = 'bloqueado-achique';
         _syncEv('bloqueado-achique', { nube: cloudRaw.length, local: _stateStr.length, rama: _writeBranch, cloudSavedAt: cloudData ? cloudData._savedAt : null });
         console.error('[fbSave] BLOQUEADO: este dispositivo iba a subir ' + Math.round(_stateStr.length / 1024) + ' KB encima de ' + Math.round(cloudRaw.length / 1024) + ' KB.');
-        showToast('⚠️ Esta ventana tiene una versión vieja o incompleta de tus datos: no la subí para no borrar lo que hay en la nube. Cerrala o recargá la página.', 20000);
+        // Fuera del cierre de la app, preguntar una vez por sesión: puede ser un borrado grande hecho a propósito.
+        if (!_isFlush && !window._achiqueConsultado) {
+          window._achiqueConsultado = true;
+          const _rN = (() => { try { return _dataMetric(JSON.parse(cloudRaw)); } catch (e) { return null; } })(), _rL = _dataMetric(toSave);
+          const _cR = cloudRaw, _cSa = cloudData ? cloudData._savedAt : null, _fmt = n => Number(n).toLocaleString('es-AR');
+          setTimeout(() => {
+            const _txt = 'Cuidado: en la nube tenés ' + (_rN != null ? _fmt(_rN) + ' registros' : 'tus datos') + ' y esta ventana quiere dejar ' + _fmt(_rL) +
+              '. Eso borraría más de la mitad de tus datos.\n\n¿Borraste todo eso A PROPÓSITO?\n\nAceptar = sí, guardar el borrado.\nCancelar = no, volver a cargar lo que está en la nube (recomendado si no borraste nada).';
+            if (confirm(_txt)) { _forceSaveOnce = true; saveState(); showToast('Listo: guardé el borrado.', 6000); }
+            else { localStorage.removeItem('_pendingCloudSave'); _applyRemoteState(_cR, _cSa); showToast('Listo: volví a cargar lo que está en la nube.', 6000); }
+          }, 0);
+        } else {
+          showToast('⚠️ Esta ventana tiene una versión vieja o incompleta de tus datos: no la subí para no borrar lo que hay en la nube. Recargá la página.', 20000);
+        }
         return;
       }
 
