@@ -46,7 +46,7 @@ test('1) efectivo 200k + Ualá 500k + deuda a favor 100k + inversiones 300k − 
   expect(await cmPage.evaluate(() => calcBalanceReal())).toBe(500000);
   expect(await nw(cmPage)).toBe(500000);
   // Lo que ve el usuario
-  expect(digitos(await cmPage.locator('#nwTotal').innerText())).toBe('500000');
+  await expect.poll(async () => digitos(await cmPage.locator('#nwTotal').innerText())).toBe('500000');
   expect(digitos(await cmPage.locator('#nwCash').innerText())).toBe('800000');
   // Reorganización de Finanzas: el balance real es el número grande y el cash va en pequeño debajo; sin desglose ni etiquetas.
   await expect(cmPage.locator('#nwCash').locator('xpath=..')).toHaveText('Cash $800,000');
@@ -58,7 +58,7 @@ test('1b) un crédito usado negativo se muestra tal cual y suma al balance', asy
   await preparar(cmPage, { cards: [{ ...NARANJA, openingUsed: -50000 }] });
   expect(await used(cmPage)).toBe(-50000);
   expect(await nw(cmPage)).toBe(1150000);
-  expect(digitos(await cmPage.locator('#nwTotal').innerText())).toBe('1150000');   // el desglose textual ya no se muestra
+  await expect.poll(async () => digitos(await cmPage.locator('#nwTotal').innerText())).toBe('1150000');   // el desglose textual ya no se muestra
 });
 
 test('2) compra now1: sube el usado y baja el patrimonio ese monto; pagar (automático y manual) no cambia el patrimonio', async ({ cmPage }) => {
@@ -67,7 +67,7 @@ test('2) compra now1: sube el usado y baja el patrimonio ese monto; pagar (autom
   await cargar(cmPage, { monto: 100000 });
   expect(await used(cmPage)).toBe(700000);
   expect(await nw(cmPage)).toBe(antes - 100000);
-  expect(digitos(await cmPage.locator('#nwTotal').innerText())).toBe(String(antes - 100000));
+  await expect.poll(async () => digitos(await cmPage.locator('#nwTotal').innerText())).toBe(String(antes - 100000));
   const conCompra = await nw(cmPage);
 
   // Pago automático el 10/11: baja el usado y el saldo de Ualá lo mismo.
@@ -115,7 +115,7 @@ test('5) una cuenta de tipo Otro suma en el balance real pero no en el cash', as
   expect(await cmPage.evaluate(() => calcCash())).toBe(800000);
   expect(await nw(cmPage)).toBe(540000);
   expect(digitos(await cmPage.locator('#nwCash').innerText())).toBe('800000');
-  expect(digitos(await cmPage.locator('#nwTotal').innerText())).toBe('540000');   // el desglose textual ya no se muestra
+  await expect.poll(async () => digitos(await cmPage.locator('#nwTotal').innerText())).toBe('540000');   // el desglose textual ya no se muestra
 });
 
 test('6) historial: el punto nuevo lleva c:1 y los viejos no se tocan (la nota del método ya no se muestra)', async ({ cmPage }) => {

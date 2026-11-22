@@ -13,7 +13,7 @@ test('acumulado de gastos: períodos, categorías, donut y barras', async ({ cmP
   await page.evaluate((txns) => { S.transactions = txns; }, [
     tx('a', 0, 1000, CA), tx('b', 2, 2000, CA), tx('c', 5, 4000, CB),
     tx('d', 8, 8000, CA), tx('e', 11, 16000, CA),
-    tx('usd', 0, 999, CA, { currency: 'USD' }), tx('pend', 0, 777, CA, { pending: true }),
+    tx('usd', 0, 999, CA, { currency: 'USD' }), tx('pend', -1, 777, CA, { pending: true }),   // programado a futuro (el mes que viene): si su fecha ya pasó la app lo aplica solo
   ]);
   await page.evaluate(() => openBudgetOverlay('historial'));
   await expect(page.locator('#gacc-card')).toBeVisible();
