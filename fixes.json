@@ -456,6 +456,13 @@
       "desc": "La clave de Gemini del Consejero vive solo en localStorage del dispositivo (jarvis_gemini_key o cm_consejero_key_paga) y viaja unicamente en el header x-goog-api-key (nunca en la URL, el repo, logs ni mensajes de error). NO poner claves en el codigo ni en la URL.",
       "file": "consejero.js",
       "marker": "'x-goog-api-key': cfg.clave"
+    },
+    {
+      "id": "sync-arranque-no-reescribe-sin-cambios",
+      "fecha": "2026-11-22",
+      "desc": "Al arrancar (sesion sin confirmar, S vacio) un saveState temprano (cardsCatchUp) caia en rescue-unconfirmed y re-subia la copia recien leida de la nube con _savedAt nuevo; el iPhone leyo una copia vieja (01:38) y piso a las 03:54 los cambios de la PC. Sin nada propio que subir, _fbDoSave no escribe. Cubierto por tests/sync-arranque-sin-cambios.spec.js. NO quitar.",
+      "file": "app.js",
+      "marker": "sin-cambios-propios"
     }
   ]
 }

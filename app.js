@@ -860,6 +860,20 @@ const _fbDoSave = async (opts = {}) => {
         } catch (e) {}
       }
 
+      // Sin nada propio que subir no se reescribe la nube. Al arrancar (sesión sin confirmar, S todavía vacío)
+      // un saveState temprano caía en rescue-unconfirmed y re-subía la copia leída de la nube con _savedAt nuevo;
+      // si esa lectura venía vieja (iPhone 22/11 03:54: leyó la de 01:38), pisaba los cambios de otro dispositivo.
+      // "Nada propio" = cada clave igual a la nube (una clave vacía que la nube no tiene, p. ej. txnCategories {}, no cuenta).
+      const _vacio = v => v == null || (typeof v === 'object' && Object.keys(v).length === 0);
+      if (_writeBranch === 'rescue-unconfirmed' && (() => { try { const c = JSON.parse(cloudRaw); return Object.keys(toSave).every(k => _eq(toSave[k], c[k]) || (c[k] === undefined && _vacio(toSave[k]))); } catch (e) { return false; } })()) {
+        _lastSyncedState = JSON.parse(cloudRaw);
+        try { localStorage.setItem('_lastSyncedStateStr', cloudRaw); } catch (e) {}
+        localStorage.removeItem('_pendingCloudSave');
+        _dgRes = 'sin-cambios-propios';
+        _syncEv('guardar-rama', { rama: 'sin-cambios-propios', cloudSavedAt: cloudData ? cloudData._savedAt : null, cache: cloudFromCache });
+        return;
+      }
+
       if (cloudRaw) await _maybeBackup(cloudRaw);
 
       // ── Diag de cada write (entender por qué un device pisa al otro). diagSave() en consola.
