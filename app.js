@@ -981,7 +981,7 @@ const _fbDoSave = async (opts = {}) => {
         try { localStorage.setItem('_lastSyncedStateStr', cloudRaw); } catch (e) {}
         if (!_fbSaveOtraVez) localStorage.removeItem('_pendingCloudSave');
         _dgRes = 'sin-cambios-propios';
-        if (cloudData) _marcarWid(cloudData._wid);
+        if (cloudData && !cloudFromCache) _marcarWid(cloudData._wid);   // una lectura de caché no cuenta como versión vigente
         _syncEv('guardar-rama', { rama: 'sin-cambios-propios', cloudSavedAt: cloudData ? cloudData._savedAt : null, cache: cloudFromCache });
         return;
       }
@@ -1045,12 +1045,12 @@ const _fbDoSave = async (opts = {}) => {
         if (!_isFlush && !window._achiqueConsultado) {
           window._achiqueConsultado = true;
           const _rN = (() => { try { return _dataMetric(JSON.parse(cloudRaw)); } catch (e) { return null; } })(), _rL = _dataMetric(toSave);
-          const _cR = cloudRaw, _cSa = cloudData ? cloudData._savedAt : null, _fmt = n => Number(n).toLocaleString('es-AR');
+          const _cR = cloudRaw, _cSa = cloudData ? cloudData._savedAt : null, _cWid = cloudData ? cloudData._wid : null, _fmt = n => Number(n).toLocaleString('es-AR');
           setTimeout(() => {
             const _txt = 'Cuidado: en la nube tenés ' + (_rN != null ? _fmt(_rN) + ' registros' : 'tus datos') + ' y esta ventana quiere dejar ' + _fmt(_rL) +
               '. Eso borraría más de la mitad de tus datos.\n\n¿Borraste todo eso A PROPÓSITO?\n\nAceptar = sí, guardar el borrado.\nCancelar = no, volver a cargar lo que está en la nube (recomendado si no borraste nada).';
             if (confirm(_txt)) { _forceSaveOnce = true; saveState(); showToast('Listo: guardé el borrado.', 6000); }
-            else { localStorage.removeItem('_pendingCloudSave'); _applyRemoteState(_cR, _cSa); showToast('Listo: volví a cargar lo que está en la nube.', 6000); }
+            else { localStorage.removeItem('_pendingCloudSave'); _applyRemoteState(_cR, _cSa); _marcarWid(_cWid); showToast('Listo: volví a cargar lo que está en la nube.', 6000); }
           }, 0);
         } else {
           showToast('⚠️ Esta ventana tiene una versión vieja o incompleta de tus datos: no la subí para no borrar lo que hay en la nube. Recargá la página.', 20000);
