@@ -773,13 +773,17 @@ const _fbDoSave = async (opts = {}) => {
     if (_fbSaveInProgress) return;
     _fbSaveInProgress = true;
     const _isFlush = !!opts.flush;
+    let _reintento = null;   // lectura vieja detectada por la transacción → se recalcula con el doc del servidor
     const localObj = JSON.parse(JSON.stringify(S));
     const sessionConfirmed = _lastSyncedSavedAt !== null;
     let _dgRes = 'abortado'; const _dgT0 = Date.now();   // visibilidad: resultado del intento (solo registro)
     _syncEv('guardar-inicio', { flush: _isFlush, conf: sessionConfirmed, forzado: _forceSaveOnce });
     try {
       let cloudRaw = null, cloudData = null, cloudReadFailed = false, cloudFromCache = false;
-      try {
+      if (opts.cloud) {
+        // Reintento tras lectura vieja: se usa el documento que la transacción leyó del SERVIDOR.
+        cloudRaw = opts.cloud.raw; cloudData = opts.cloud.data;
+      } else try {
         // En flush (cierre/ocultado de la app) se lee la caché local: resuelve al instante.
         // Un GET al servidor puede no completar antes de que el SO congele la PWA y el
         // write nunca llegaría a emitirse. La caché la mantiene fresca el onSnapshot.
@@ -787,6 +791,9 @@ const _fbDoSave = async (opts = {}) => {
         cloudFromCache = !!(snap.metadata && snap.metadata.fromCache);
         if (snap.exists && snap.data()?.state) { cloudRaw = snap.data().state; cloudData = snap.data(); }
       } catch (e) { cloudReadFailed = true; }
+      // Versión de la nube sobre la que se calcula este guardado. La escritura (transacción) solo procede si el
+      // servidor sigue en esta versión: el iPhone llegó a leer como "del servidor" copias de su caché de días atrás.
+      const _baseSavedAt = cloudData ? (cloudData._savedAt ?? null) : null;
 
       // Sin lectura FRESCA de la nube no se escribe: un set() encolado offline evaluó la
       // divergencia contra datos viejos y al reconectar pisaría el documento entero sin
@@ -931,8 +938,24 @@ const _fbDoSave = async (opts = {}) => {
         localStorage.removeItem('_pendingCloudSave');
         _saveSnap(_stateStr, savedAt);
       };
+      // Pendiente ANTES de escribir: si iOS congela la app a mitad, el próximo arranque mergea lo local (loadState).
+      localStorage.setItem('_pendingCloudSave', '1');
       try {
-        const _setP = _DOC().set({ state: _stateStr, _wid: wid, _savedAt: savedAt, _dev: _devInfo() }, { merge: true });
+        const _payload = { state: _stateStr, _wid: wid, _savedAt: savedAt, _dev: _devInfo() };
+        // Escritura condicionada: la transacción lee del servidor (nunca de la caché) y solo escribe si nadie
+        // escribió desde la versión que leímos. Si no, aborta con 'cm-stale' y se recalcula sobre la versión real.
+        // forzarGuardado()/restaurar escriben directo (pisar es la intención).
+        const _setP = _forzado ? _DOC().set(_payload, { merge: true }) : _db.runTransaction(async tx => {
+          const d = await tx.get(_DOC());
+          const srv = d.exists ? (d.data()._savedAt ?? null) : null;
+          const srvRaw = d.exists ? (d.data().state || null) : null;
+          if (srv !== _baseSavedAt || (srvRaw === null) !== (cloudRaw === null)) {
+            const err = new Error('lectura-vieja'); err.code = 'cm-stale';
+            err.fresh = { raw: srvRaw, data: srvRaw ? d.data() : null }; err.srv = srv;
+            throw err;
+          }
+          tx.set(_DOC(), _payload, { merge: true });
+        });
         // La promesa del set() solo resuelve con el ack del servidor: si la red se cayó
         // entre el get y el set quedaría pendiente para siempre con el lock tomado,
         // bloqueando todos los saves siguientes. Timeout → liberar el lock y dejar la
@@ -948,17 +971,32 @@ const _fbDoSave = async (opts = {}) => {
           _onWriteOk();
         }
       } catch (e) {
-        console.warn('[fbSave]', e.code, e.message);
-        _dgRes = 'error-' + (e.code || 'desconocido');
-        localStorage.setItem('_pendingCloudSave', '1');
-        showToast(e.code === 'permission-denied'
-          ? '⚠️ Sin permiso para guardar en la nube — iniciá sesión'
-          : '⚠️ No se pudo guardar en la nube — reintento pendiente (' + (e.code || 'error') + ')', 7000);
+        if (e && e.code === 'cm-stale') {
+          // No se escribió nada. Recalcular (merge) sobre lo que el servidor tiene de verdad.
+          _dgRes = 'lectura-vieja';
+          _syncEv('lectura-vieja', { leida: _baseSavedAt, servidor: e.srv, cache: cloudFromCache, intento: (opts.intento || 0) + 1 });
+          // Sin ancestro (arranque/rescate): el ancestro es la copia sobre la que calculamos. Así el reintento hace
+          // merge 3 vías (lo nuevo del servidor + lo propio) en vez de sobrescribir con lo local.
+          if (_lastSyncedState == null || _lastSyncedSavedAt == null) {
+            try { _lastSyncedState = cloudRaw ? JSON.parse(cloudRaw) : {}; } catch (e2) { _lastSyncedState = {}; }
+            _lastSyncedSavedAt = _baseSavedAt ?? 0;
+          }
+          if ((opts.intento || 0) < 3) _reintento = { cloud: e.fresh, intento: (opts.intento || 0) + 1 };
+          else _warnCloudSavePending('lectura-vieja-reiterada');
+        } else {
+          console.warn('[fbSave]', e.code, e.message);
+          _dgRes = 'error-' + (e.code || 'desconocido');
+          localStorage.setItem('_pendingCloudSave', '1');
+          showToast(e.code === 'permission-denied'
+            ? '⚠️ Sin permiso para guardar en la nube — iniciá sesión'
+            : '⚠️ No se pudo guardar en la nube — reintento pendiente (' + (e.code || 'error') + ')', 7000);
+        }
       }
     } finally {
       _fbSaveInProgress = false;
       _syncEv('guardar-fin', { res: _dgRes, ms: Date.now() - _dgT0 });
     }
+    if (_reintento) return _fbDoSave(_reintento);
 };
 
 // Aviso (con freno de 1/min) de que hay cambios locales sin subir a la nube.
@@ -1171,6 +1209,13 @@ function _startFirestoreSync() {
     if (_fbSaveTid || _fbSaveInProgress) { window._snapDrops = (window._snapDrops || 0) + 1; _dgSnapDrop(snap); return; }  // save en vuelo — descarta update remoto
     if (!snap.exists || !snap.data()?.state) return;
     if (snap.data()._wid && snap.data()._wid === _lastWriteId) return;  // eco propio
+    // Versión más vieja que la que ya tenemos (la caché del iPhone entrega primero copias de horas/días atrás):
+    // no se aplica. En el peor caso (relojes desfasados) solo demora la vista; al guardar, la transacción mergea.
+    const _snapSa = snap.data()._savedAt;
+    if (_lastSyncedSavedAt != null && _snapSa != null && _snapSa < _lastSyncedSavedAt) {
+      _syncEv('snapshot-viejo-ignorado', { savedAt: _snapSa, lastSynced: _lastSyncedSavedAt, cache: !!(snap.metadata && snap.metadata.fromCache) });
+      return;
+    }
     window._applySrc = 'onSnapshot';   // visibilidad: quién pidió el apply (solo registro)
     _applyRemoteState(snap.data().state, snap.data()._savedAt);
   }, err => {
@@ -1190,7 +1235,8 @@ async function _syncOnFocus() {
   _syncEv('sync-inicio', { timer: !!_fbSaveTid, vuelo: _fbSaveInProgress, conf: _lastSyncedSavedAt !== null, lastSynced: _lastSyncedSavedAt });
   if (_fbSaveTid || _fbSaveInProgress) { window._snapDrops = (window._snapDrops || 0) + 1; _syncEv('sync-fin', { res: 'descartado-save-en-vuelo', ms: 0 }); return; }
   try {
-    const snap = await _DOC().get();
+    const snap = await _leerServidor();
+    if (_fbSaveTid || _fbSaveInProgress) { _syncEv('sync-fin', { res: 'descartado-save-en-vuelo', ms: Date.now() - _dgT0 }); return; }  // empezó un guardado mientras se leía
     if (snap.exists) _registrarEscritura(snap.data()._dev, snap.data()._savedAt);  // solo informativo
     const _dgInfo = { dev: snap.exists ? (snap.data()._dev || null) : null, cloudSavedAt: snap.exists ? (snap.data()._savedAt || null) : null, lastSynced: _lastSyncedSavedAt, cache: !!(snap.metadata && snap.metadata.fromCache), ms: Date.now() - _dgT0 };
     if (!snap.exists || !snap.data()?.state) { _syncEv('sync-fin', Object.assign({ res: 'sin-documento' }, _dgInfo)); return; }
@@ -1202,10 +1248,25 @@ async function _syncOnFocus() {
 }
 // ─────────────────────────────────────────────────────────────────────────
 
+// Lectura garantizada del servidor: el get() normal llegó a devolver en el iPhone (con fromCache=false) una copia
+// de su caché de horas o días atrás. Las lecturas de una transacción nunca salen de la caché. Sin red o lenta
+// (6 s) cae al get() de siempre, que sí puede servir la caché offline.
+async function _leerServidor() {
+  try {
+    let snap = null;
+    const p = _db.runTransaction(async tx => { snap = await tx.get(_DOC()); });
+    const r = await Promise.race([p.then(() => 'ok'), new Promise(res => setTimeout(() => res('lento'), 6000))]);
+    if (r === 'ok' && snap) return snap;
+    p.catch(() => {});
+    _syncEv('lectura-servidor', { res: r });
+  } catch (e) { _syncEv('lectura-servidor', { res: 'error', code: String((e && e.code) || 'error') }); }
+  return _DOC().get();
+}
+
 async function loadState() {
   let _loadSrc = '?', _loadErr = null;
   try {
-    const snap = await _DOC().get();
+    const snap = await _leerServidor();
     if (snap.exists && snap.data()?.state) {
       S = JSON.parse(snap.data().state);
       _lastSyncedSavedAt = snap.data()._savedAt || 0;

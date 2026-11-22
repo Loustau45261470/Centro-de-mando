@@ -22,8 +22,12 @@ function buildInitScript(fixtureObj) {
     function docRef(path) {
       return {
         id: path.split('/').pop(),
+        __path: path,
         get: function () {
-          var data = STORE.get(path);
+          // window.__cmLecturaVieja[path]: simula la caché vieja del iPhone (dato viejo con fromCache=false).
+          // Solo afecta get(); las lecturas de runTransaction van siempre al STORE ("servidor").
+          var vieja = window.__cmLecturaVieja ? window.__cmLecturaVieja[path] : undefined;
+          var data = vieja !== undefined ? vieja : STORE.get(path);
           return Promise.resolve({
             exists: data !== undefined,
             data: function () { return data; },
@@ -42,7 +46,7 @@ function buildInitScript(fixtureObj) {
           return Promise.resolve();
         },
         delete: function () { STORE.delete(path); return Promise.resolve(); },
-        onSnapshot: function () { return function () {}; },
+        onSnapshot: function (cb) { (window.__cmSnapCbs = window.__cmSnapCbs || []).push({ path: path, cb: cb }); return function () {}; },
       };
     }
 
@@ -85,6 +89,16 @@ function buildInitScript(fixtureObj) {
       firestore: function () {
         return {
           collection: collectionRef,
+          runTransaction: function (fn) {
+            var tx = {
+              get: function (ref) {
+                var key = ref.__path, data = STORE.get(key);
+                return Promise.resolve({ exists: data !== undefined, data: function () { return data; }, metadata: { fromCache: false } });
+              },
+              set: function (ref, data, options) { ref.set(data, options); return tx; },
+            };
+            return Promise.resolve().then(function () { return fn(tx); });
+          },
           enablePersistence: function () { return Promise.resolve(); },
         };
       },

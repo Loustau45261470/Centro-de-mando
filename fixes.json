@@ -463,6 +463,27 @@
       "desc": "Al arrancar (sesion sin confirmar, S vacio) un saveState temprano (cardsCatchUp) caia en rescue-unconfirmed y re-subia la copia recien leida de la nube con _savedAt nuevo; el iPhone leyo una copia vieja (01:38) y piso a las 03:54 los cambios de la PC. Sin nada propio que subir, _fbDoSave no escribe. Cubierto por tests/sync-arranque-sin-cambios.spec.js. NO quitar.",
       "file": "app.js",
       "marker": "sin-cambios-propios"
+    },
+    {
+      "id": "sync-escritura-condicionada-transaccion",
+      "fecha": "2026-11-22",
+      "desc": "El iPhone leia con get() (fromCache=false) copias de su cache de horas/dias atras (11/17: la del 11/12; 11/22: la de 01:38) y escribia encima de la PC. _fbDoSave escribe en una transaccion que relee del servidor y solo escribe si _savedAt sigue igual a la version leida; si no, aborta (cm-stale) y recalcula con merge 3 vias sobre la version real (si no habia ancestro, el ancestro es la copia leida). Cubierto por tests/sync-lectura-vieja.spec.js. NO volver a un set() directo.",
+      "file": "app.js",
+      "marker": "cm-stale"
+    },
+    {
+      "id": "sync-lectura-servidor-arranque-y-foco",
+      "fecha": "2026-11-22",
+      "desc": "loadState y _syncOnFocus leen con _leerServidor (lectura de transaccion, nunca cache; 6 s y cae al get de siempre) para no mostrar ni tomar como ancestro una copia vieja de la cache del iPhone. _syncOnFocus descarta lo leido si empezo un guardado mientras leia.",
+      "file": "app.js",
+      "marker": "async function _leerServidor"
+    },
+    {
+      "id": "sync-snapshot-viejo-ignorado",
+      "fecha": "2026-11-22",
+      "desc": "El listener onSnapshot entregaba al arrancar primero la copia vieja de la cache del iPhone y la aplicaba encima de lo cargado del servidor. Ahora una version con _savedAt menor a _lastSyncedSavedAt no se aplica (evento snapshot-viejo-ignorado). Cubierto por tests/sync-lectura-vieja.spec.js.",
+      "file": "app.js",
+      "marker": "snapshot-viejo-ignorado"
     }
   ]
 }
