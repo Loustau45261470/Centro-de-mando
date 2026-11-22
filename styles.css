@@ -1735,6 +1735,7 @@ textarea { resize: vertical; min-height: 60px; }
   background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.1);
   color:var(--tt); border-radius:7px; cursor:pointer; transition:all .15s;
 }
+.habit-view-toggle .habit-bulk-btn { margin-left:auto; background:transparent; border:1px dashed var(--border); color:var(--tt); }
 .habit-view-toggle button.active { background:var(--accent); border-color:var(--accent); color:#fff; }
 .hm-scroll { overflow-x:auto; padding:8px 0 2px; -webkit-overflow-scrolling:touch; }
 .hm { display:inline-grid; grid-template-columns:auto 1fr; gap:0 4px; }

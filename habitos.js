@@ -308,6 +308,7 @@ function renderHabitsCard(section) {
     <div class="card-title">${cfg.title}
       <div style="display:flex;gap:6px;align-items:center">
         <button class="icon-btn" onclick="openEditHabitFor('${section}','${_habitActiveId[section]}')" title="Editar">${PENCIL}</button>
+        <button class="btn btn-ghost btn-sm" onclick="openHabitBulkMenu(this,'${section}','today')">Marcar todos hoy</button>
         <button class="btn btn-ghost btn-sm" onclick="openAddHabitFor('${section}')">+ Hábito</button>
       </div>
     </div>
@@ -394,8 +395,15 @@ function renderHabitCal(section) {
     else if (!days[ds] && ds < today) nUnlogged++;
   }
   const nPoints = nDone + nPartial * 0.5;
-  const denom   = Math.max(0, dim - nRest);   // mes menos descansos
-  const monthPct = denom ? Math.round(nPoints / denom * 100) : 0;
+  // Denominador = días transcurridos (1..ayer, y hoy solo si ya tiene registro) menos descansos.
+  let denom = 0;
+  for (let d = 1; d <= dim; d++) {
+    const ds = calDateStr(y, m, d);
+    if (ds > today || (ds === today && !days[ds])) break;
+    if (days[ds] !== 'rest') denom++;
+  }
+  const monthPct = denom ? Math.round(nPoints / denom * 100) : null;
+  const pctTxt = monthPct === null ? '—' : monthPct + '%';
 
   // Current streak
   const curStreak = habitCurrentStreak(days, today);
@@ -418,16 +426,16 @@ function renderHabitCal(section) {
   // ── Summary stats (estilos finanzas) ────────────────
   if (statsEl) {
     const R = 28, C = 2 * Math.PI * R;
-    const pctClamped = Math.max(0, Math.min(100, monthPct));
+    const pctClamped = monthPct === null ? 0 : Math.max(0, Math.min(100, monthPct));
     const off = C * (1 - pctClamped / 100);
     statsEl.innerHTML = `
     <div class="habit-ring-row" style="margin:10px 0 6px">
-      <svg class="habit-ring" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="${monthPct}% del mes">
+      <svg class="habit-ring" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="${pctTxt} del mes">
         <circle cx="32" cy="32" r="${R}" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="6"/>
         <circle class="habit-ring-prog" cx="32" cy="32" r="${R}" fill="none" stroke="var(--accent)" stroke-width="6"
           stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"
           transform="rotate(-90 32 32)"/>
-        <text x="32" y="32" text-anchor="middle" dominant-baseline="central" class="habit-ring-txt">${monthPct}%</text>
+        <text x="32" y="32" text-anchor="middle" dominant-baseline="central" class="habit-ring-txt">${pctTxt}</text>
       </svg>
       <div class="fin-summary-row" style="flex:1;margin:0">
         <div class="fin-summary-stat">
@@ -435,7 +443,7 @@ function renderHabitCal(section) {
           <div class="fin-summary-lbl">Racha</div>
         </div>
         <div class="fin-summary-stat">
-          <div class="fin-summary-num">${nPoints}/${denom}</div>
+          <div class="fin-summary-num">${denom ? nPoints + '/' + denom : '—'}</div>
           <div class="fin-summary-lbl">Completados</div>
         </div>
         <div class="fin-summary-stat">
@@ -477,6 +485,7 @@ function renderHabitCal(section) {
   const toggle = `<div class="habit-view-toggle">
     <button class="${view==='month'?'active':''}" onclick="_setHabitView('${section}','month')">Mes</button>
     <button class="${view==='year'?'active':''}" onclick="_setHabitView('${section}','year')">Año</button>
+    ${view==='month' ? `<button class="habit-bulk-btn" onclick="openHabitBulkMenu(this,'${section}','month')">Completar mes</button>` : ''}
   </div>`;
 
   if (view === 'year') {
@@ -724,6 +733,107 @@ function openHabitDayMenu(anchor, section, habitId, ds, ev) {
   if (!sheet && anchor && anchor.getBoundingClientRect) place();
   const first = el.querySelector('.hdm-item.is-current') || el.querySelector('.hdm-item');
   if (first) first.focus({ preventScroll: true });
+}
+
+// ── Atajos de llenado ────────────────────────────────────────
+// 'month': completa los días SIN registro del mes visible (1..hoy) del hábito activo.
+// 'today': marca HOY en los hábitos de la sección que no tienen registro hoy.
+// Nunca toca días futuros ni pisa un registro existente. Un solo saveState y un solo repintado.
+function openHabitBulkMenu(anchor, section, modo) {
+  const key = 'bulk|' + section + '|' + modo;
+  if (_hdm && _hdm.key === key) { closeHabitDayMenu(); return; }
+  closeHabitDayMenu();
+  const sheet = window.matchMedia('(max-width: 480px)').matches;
+  const el = document.createElement('div');
+  el.className = 'hdm-menu' + (sheet ? ' hdm-sheet' : '');
+  el.setAttribute('role', 'menu');
+  el.innerHTML = `<div class="hdm-title">${modo === 'month' ? 'Completar los días vacíos con…' : 'Marcar hoy con…'}</div>`
+    + HABIT_DAY_OPTS.map(o => `<button type="button" role="menuitem" class="hdm-item" data-st="${o.st}">
+      <span class="hdm-sw ${o.sw}">${o.txt}</span><span class="hdm-label">${o.label}</span></button>`).join('');
+  let back = null;
+  if (sheet) { back = document.createElement('div'); back.className = 'hdm-back'; document.body.appendChild(back); }
+  document.body.appendChild(el);
+  el.addEventListener('click', e => {
+    const b = e.target.closest('.hdm-item');
+    if (!b) return;
+    closeHabitDayMenu();
+    if (modo === 'month') habitFillMonth(section, b.dataset.st);
+    else habitMarkAllToday(section, b.dataset.st);
+  });
+  const onOutside = e => {
+    if (el.contains(e.target) || (anchor && anchor.contains(e.target))) return;
+    closeHabitDayMenu();
+  };
+  const onKey = e => { if (e.key === 'Escape') { e.stopPropagation(); closeHabitDayMenu(); } };
+  // Popover: acompaña al botón si se mueve (scroll/resize); solo se cierra si el botón desaparece o sale de la pantalla.
+  const place = () => {
+    const r = anchor.getBoundingClientRect(), m = 8;
+    const w = el.offsetWidth, h = el.offsetHeight;
+    const vw = document.documentElement.clientWidth, vh = window.innerHeight;
+    el.style.left = Math.max(m, Math.min(r.right - w, vw - w - m)) + 'px';
+    let top = r.bottom + 6;
+    if (top + h > vh - m) top = r.top - h - 6;
+    el.style.top = Math.max(m, Math.min(top, vh - h - m)) + 'px';
+  };
+  const onClose = e => {
+    if (e && e.target && e.target !== window && e.target !== document && el.contains(e.target)) return;
+    if (!anchor.isConnected) { closeHabitDayMenu(); return; }
+    const r = anchor.getBoundingClientRect();
+    if (r.bottom < 0 || r.top > window.innerHeight) { closeHabitDayMenu(); return; }
+    place();
+  };
+  _hdm = { el, back, key, onOutside, onKey, onClose };
+  document.addEventListener('pointerdown', onOutside, true);
+  document.addEventListener('keydown', onKey, true);
+  if (!sheet) {
+    window.addEventListener('resize', onClose);
+    window.addEventListener('scroll', onClose, true);
+    place();
+  }
+  const first = el.querySelector('.hdm-item');
+  if (first) first.focus({ preventScroll: true });
+}
+
+// Aplica [{habit, ds}] con `estado` y registra el deshacer. Un solo guardado y repintado.
+function _habitBulkApply(section, items, estado, descripcion) {
+  items.forEach(({ habit, ds }) => { if (!habit.days) habit.days = {}; habit.days[ds] = estado; });
+  const repintar = () => {
+    saveState(); renderHabitCal(section); checkAchievements();
+    if (typeof renderDayPlanner === 'function') renderDayPlanner();
+  };
+  repintar();
+  const deshacer = () => {
+    // Solo revierte lo que sigue igual a lo que se puso (no pisa ediciones posteriores).
+    items.forEach(({ habit, ds }) => { if (habit.days && habit.days[ds] === estado) delete habit.days[ds]; });
+    repintar();
+  };
+  if (window.CMUndo) CMUndo.registrar({ descripcion, deshacer });
+  else showToast(descripcion, 4000);
+}
+
+function habitFillMonth(section, estado) {
+  const habit = _getHabits(section).find(h => h.id === _habitActiveId[section]);
+  if (!habit || !HABIT_DAY_OPTS.some(o => o.st === estado)) return;
+  const cs = habitCalState[section], today = getActiveDate();
+  const dim = new Date(cs.year, cs.month + 1, 0).getDate();
+  const items = [];
+  for (let d = 1; d <= dim; d++) {
+    const ds = calDateStr(cs.year, cs.month, d);
+    if (ds > today) break;
+    if (!(habit.days || {})[ds]) items.push({ habit, ds });
+  }
+  if (!items.length) { showToast('No hay días vacíos para completar'); return; }
+  _habitBulkApply(section, items, estado,
+    'Se completaron ' + items.length + (items.length === 1 ? ' día' : ' días'));
+}
+
+function habitMarkAllToday(section, estado) {
+  if (!HABIT_DAY_OPTS.some(o => o.st === estado)) return;
+  const today = getActiveDate();
+  const items = _getHabits(section).filter(h => !(h.days || {})[today]).map(habit => ({ habit, ds: today }));
+  if (!items.length) { showToast('Todos los hábitos ya tienen registro hoy'); return; }
+  _habitBulkApply(section, items, estado,
+    items.length + (items.length === 1 ? ' hábito marcado' : ' hábitos marcados'));
 }
 
 function _habitMonthNav(section, dir) {

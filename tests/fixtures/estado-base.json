@@ -21,7 +21,7 @@
       } }
     ],
     "finanzas": [],
-    "salud": [],
+    "salud": [{ "id": "habit-entrenamientos", "name": "Entrenamientos", "emoji": "🏋️", "days": {} }, { "id": "habit-test-2", "name": "Estirar", "emoji": "🧘", "days": {} }],
     "conocimiento": [],
     "ia": []
   },
