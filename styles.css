@@ -533,6 +533,8 @@ textarea { resize: vertical; min-height: 60px; }
 #goalList, #metasReadonlyBody { container-type: inline-size; }
 .tl-matrix { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 @container (min-width: 440px) { .tl-matrix { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* Card a todo el ancho: con ~1000px o más los 4 cuadrantes van en una fila. */
+@container (min-width: 1000px) { #metasReadonlyBody .tl-matrix { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 .tl-q { min-width: 0; padding: 8px 8px 2px; border-radius: 12px; border: 1px solid var(--border); background: rgba(255,255,255,.015); }
 .tl-q-head { display: flex; align-items: center; gap: 7px; margin-bottom: 7px; padding-bottom: 5px; border-bottom: 1px solid var(--border); }
 .tl-q-name { font-size: var(--fs-12-5); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ts); min-width: 0; overflow-wrap: anywhere; }
@@ -542,6 +544,17 @@ textarea { resize: vertical; min-height: 60px; }
 .tl-q-head .gs-count { margin-left: auto; font-family: var(--mono); font-size: var(--fs-12-5); color: var(--ts); }
 .tl-q-add { flex: none; width: 20px; height: 20px; padding: 0; line-height: 1; border-radius: 6px; border: 1px solid var(--border); background: none; color: var(--ts); font-size: var(--fs-14); cursor: pointer; }
 .tl-q-add:hover { color: var(--tp); border-color: var(--border-h); }
+/* Horario de la tarea (chip que abre el editor) */
+button.goal-hora { font-family: var(--mono); font-size: var(--fs-12-5); cursor: pointer; flex: none; white-space: nowrap; }
+button.goal-hora.mrd-time { background: none; border: 0; padding: 0; }
+button.goal-hora-vacio { width: 20px; height: 20px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 6px; background: none; color: var(--tt); opacity: .55; }
+button.goal-hora-vacio:hover { color: var(--tp); background: rgba(255,255,255,.06); opacity: 1; }
+.goal-oblig { margin-left: 4px; font-size: .85em; }
+/* padding derecho: el botón flotante de tema (theme-trigger, z 9990) cae justo en la esquina inferior derecha del modal */
+.gh-oblig { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-right: 44px; }
+.gh-oblig label { margin: 0; }
+.gh-oblig input[type=checkbox] { width: 16px; height: 16px; flex: none; accent-color: var(--accent); }
+.field[hidden] { display: none; }
 .tl-q-vacia { font-size: var(--fs-12-5); color: var(--tt); opacity: .55; font-style: italic; padding: 2px 4px 8px; }
 .tl-q .goal-item { padding: 8px 9px; gap: 8px; }
 .tl-q .mrd-item { padding: 8px 9px; gap: 8px; }
@@ -4210,7 +4223,8 @@ body:has(#login-screen) #hud-frame { opacity: 0; }
   .tab-panel.active > .net-worth-hero,
   .tab-panel.active > .day-progress-card,
   .tab-panel.active > .day-progress-wrap,
-  .tab-panel.active > .intel-card {
+  .tab-panel.active > .intel-card,
+  #tab-vida.tab-panel.active > #metas-readonly-card {
     column-span: all;
   }
   /* Finanzas/Vida/Conocimiento/Salud: 2 columnas reales en vez del masonry (evita huecos entre tarjetas) ·

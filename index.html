@@ -21,7 +21,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-<link rel="stylesheet" href="styles.css?v=278">
+<link rel="stylesheet" href="styles.css?v=280">
 <script>try{if(localStorage.getItem('cm_rail_off')==='1')document.documentElement.classList.add('rail-off')}catch(e){}</script>
 <link rel="stylesheet" href="gamemode.css">
 <link rel="stylesheet" href="overlay-core.css">
@@ -244,6 +244,16 @@
       <div id="intel-body-vida" class="intel-body"></div>
     </div>
 
+    <!-- Lista de tareas del día (sección, a todo el ancho como las cards de análisis): ver, marcar, agregar, editar, cambiar de categoría y arrastrar. Borrar vive en Planificación (overlay). -->
+    <div class="card cc-card-link" id="metas-readonly-card" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Abrir la planificación del día">
+      <div class="card-title">
+        <div class="flex items-center gap-8">🎯 Lista de tareas del día</div>
+        <div class="card-title-acc"><button class="btn btn-ghost btn-sm" onclick="openAddGoalToday()">+ Tarea</button></div>
+      </div>
+      <div id="pendientesCard" class="pend-block" hidden></div>
+      <div id="metasReadonlyBody"></div>
+    </div>
+
     <!-- ── 2 columnas: izq objetivos/planificación/metas · der hábitos + resto ── -->
     <div class="fin-cols">
       <div class="fin-col">
@@ -268,16 +278,6 @@
         <div class="planner-slide" id="dayPlannerList"></div>
         <div class="planner-slide" id="dayPlannerListTom"></div>
       </div>
-    </div>
-
-    <!-- Lista de tareas del día (sección): ver, marcar, agregar, editar, cambiar de categoría y arrastrar. Borrar vive en Planificación (overlay). -->
-    <div class="card cc-card-link" id="metas-readonly-card" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Abrir la planificación del día">
-      <div class="card-title">
-        <div class="flex items-center gap-8">🎯 Lista de tareas del día</div>
-        <div class="card-title-acc"><button class="btn btn-ghost btn-sm" onclick="openAddGoalToday()">+ Tarea</button></div>
-      </div>
-      <div id="pendientesCard" class="pend-block" hidden></div>
-      <div id="metasReadonlyBody"></div>
     </div>
 
     <!-- Today goals (completo: vive en el overlay de Planificación, pestaña Hoy) -->
@@ -810,6 +810,39 @@
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('modal-add-goal')">Cancelar</button>
       <button class="btn btn-primary" onclick="addGoal('today')">Agregar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Horario de una tarea del día: hora exacta, franja o sin horario + "obligatoria a esa hora" -->
+<div class="modal-overlay" id="modal-goal-hora">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Horario de la tarea</div>
+    <div class="field"><div id="ghText" class="text-ter" style="overflow-wrap:anywhere"></div></div>
+    <div class="field">
+      <div id="ghMode" class="seg seg-sm">
+        <button type="button" data-v="hora" onclick="_ghSetMode('hora')">Hora</button>
+        <button type="button" data-v="franja" onclick="_ghSetMode('franja')">Franja</button>
+        <button type="button" data-v="none" onclick="_ghSetMode('none')">Sin horario</button>
+      </div>
+    </div>
+    <div class="field" id="ghHoraBox"><label>Hora</label><input type="time" class="inp" id="ghTime" style="color-scheme:dark"></div>
+    <div class="field" id="ghFranjaSeg" hidden>
+      <label>Franja del día</label>
+      <div class="seg seg-sm">
+        <button type="button" data-v="m" onclick="_ghSetFranja('m')">Mañana</button>
+        <button type="button" data-v="t" onclick="_ghSetFranja('t')">Tarde</button>
+        <button type="button" data-v="n" onclick="_ghSetFranja('n')">Noche</button>
+      </div>
+    </div>
+    <div class="field gh-oblig" id="ghObligRow">
+      <label for="ghOblig">Obligatoria a esa hora <span style="font-weight:400;color:var(--tt)">(te avisa)</span></label>
+      <input type="checkbox" id="ghOblig">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-goal-hora')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveGoalHora()">Guardar</button>
     </div>
   </div>
 </div>
@@ -1916,9 +1949,9 @@
 </div>
 
 <script src="errores.js?v=1"></script>
-<script src="deadlines.js?v=11"></script>
+<script src="deadlines.js?v=12"></script>
 <script src="motion.js?v=1"></script>
-<script src="app.js?v=232"></script>
+<script src="app.js?v=233"></script>
 <script src="datos-privados.js?v=2"></script>
 <script src="sync-diagnostico.js?v=2"></script>
 <script src="historial-versiones.js?v=3"></script>

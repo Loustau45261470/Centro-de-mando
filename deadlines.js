@@ -19,6 +19,9 @@ const CMDeadlines = (() => {
   const ALLDAY_HOUR = '09:00';   // hora a la que avisa lo que solo tiene fecha
   const ACT_WINDOW  = 2;         // días hacia adelante que se expanden metas y actividades
 
+  // Tareas del día con franja (sin hora exacta): aviso a la hora de arranque de la franja.
+  const FRANJAS = { m: ['08:00', 'Esta mañana'], t: ['13:00', 'Esta tarde'], n: ['19:00', 'Esta noche'] };
+
   const PRIO_EMOJI = { critical: '⚡', high: '🔴', medium: '🟡', low: '🟢', someday: '🔵' };
 
   // ── fechas ──────────────────────────────────────────────────────────────
@@ -83,10 +86,11 @@ const CMDeadlines = (() => {
       out.push({ key: it.id + '_1d', at: it.at - DAY, title: '📅 Vence mañana — Centro de Mando', body: it.notifBody, lead: true });
       out.push({ key: it.id,        at: it.at,       title: '🔔 Recordatorio — Centro de Mando', body: it.notifBody, lead: false });
     } else {
-      push('_10m', it.at - 10 * MIN, `${it.icon} En 10 min: ${it.title}`, false);
+      // Tarea con franja (sin hora exacta): un solo aviso al arrancar la franja, sin el "en 10 min".
+      if (!it.ahoraTxt) push('_10m', it.at - 10 * MIN, `${it.icon} En 10 min: ${it.title}`, false);
       // Las actividades del planner avisan SOLO 10 min antes: son muchas por día y
       // el segundo aviso al arrancar no agrega nada. El resto sí avisa a la hora.
-      if (it.kind !== 'actividad') push('_due', it.at, `${it.icon} Ahora: ${it.title}`, false);
+      if (it.kind !== 'actividad') push('_due', it.at, `${it.icon} ${it.ahoraTxt || 'Ahora'}: ${it.title}`, false);
     }
     return out;
   }
@@ -98,7 +102,7 @@ const CMDeadlines = (() => {
     it.at = toMs(it.date, it.time, opts.tz);
     if (isNaN(it.at)) return null;
     it.datetime = `${it.date}T${isTime(it.time) ? it.time.slice(0, 5) : '00:00'}`;
-    const cuando = it.allDay ? `${it.date.slice(8, 10)}/${it.date.slice(5, 7)}` : it.time;
+    const cuando = it.allDay ? `${it.date.slice(8, 10)}/${it.date.slice(5, 7)}` : (it.cuandoTxt || it.time);
     it.notifBody = it.kind === 'rec'
       ? `${PRIO_EMOJI[it.priority] || '🔵'} ${it.title}`
       : `${PRIO_EMOJI[it.priority] || '🔵'} ${it.kindLabel}${it.sub ? ' · ' + it.sub : ''} · ${cuando}`;
@@ -197,10 +201,15 @@ const CMDeadlines = (() => {
       const date = addDays(today, i);
 
       (S.goals && S.goals[date] || []).forEach(g => {
-        if (!g || g.done || !isTime(g.time)) return;
+        if (!g || g.done) return;
+        const conHora = isTime(g.time), fr = !conHora && FRANJAS[g.franja];
+        if (!conHora && !(fr && g.oblig)) return;   // la franja solo avisa si es obligatoria
+        // "Obligatoria a esa hora": se marca en el aviso y sube a prioridad alta. Con franja avisa a la hora de arranque de la franja.
+        const oblig = !!g.oblig;
         add({ id: 'meta_' + g.id + '_' + date, kind: 'meta', kindLabel: 'Meta', icon: '🎯', tab: 'vida',
-              title: g.text || 'Meta', date, time: g.time, allDay: false,
-              priority: g.priority === 'high' ? 'high' : g.priority === 'mid' ? 'medium' : 'low',
+              title: g.text || 'Meta', sub: oblig ? 'Obligatoria' : '', date, time: conHora ? g.time : fr[0], allDay: false,
+              ...(fr ? { ahoraTxt: fr[1], cuandoTxt: fr[1].replace('Esta ', '').replace(/^./, c => c.toUpperCase()) } : {}),
+              priority: oblig ? 'high' : g.priority === 'high' ? 'high' : g.priority === 'mid' ? 'medium' : 'low',
               doneAction: `toggleGoalById('${date}','${g.id}')` });
       });
 

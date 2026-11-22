@@ -230,7 +230,8 @@ test('10) en la tarjeta de la sección se puede editar el texto, cambiar de cate
   await cmPage.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
   await cmPage.mouse.down();
   await cmPage.mouse.move(a.x + 20, a.y + 10, { steps: 5 });
-  await cmPage.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 15 });
+  await cmPage.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 60 });   // la card ocupa todo el ancho: el recorrido hasta la 4.ª categoría es largo
+  await cmPage.waitForTimeout(300);
   await cmPage.mouse.up();
   await expect(t.locator('.tl-q[data-q="nn"] .mrd-text')).toHaveText(['Otra']);
   const otra = await estado(cmPage, 'Otra');

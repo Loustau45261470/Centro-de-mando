@@ -1860,6 +1860,53 @@ function setGoalQuad(date, idx, q) {
   g.q = q; g.priority = GOAL_QUAD_PRIO[q];
   saveState(); renderGoals();
 }
+// Horario de una tarea: hora exacta (g.time 'HH:MM') o franja (g.franja 'm'|'t'|'n', excluyente con time). g.oblig=true = "obligatoria a esa hora".
+// Solo la hora exacta entra al planner; la franja solo ordena y avisa (a las 08:00 / 13:00 / 19:00, ver deadlines.js).
+const GOAL_FRANJAS = { m: 'Mañana', t: 'Tarde', n: 'Noche' };
+function goalHoraTxt(g) { return g.time ? fmtGoalTime(g.time) : (GOAL_FRANJAS[g.franja] || ''); }
+// Chip de horario (abre el editor). conHora=true → el chip con la hora/franja (al inicio de la fila); false → el reloj discreto de las tareas sin horario (con los otros íconos).
+function _goalHoraBtn(g, date, idx, cls, conHora) {
+  const txt = goalHoraTxt(g);
+  if (!!txt !== conHora) return '';
+  const a = `openGoalHora('${escHtml(date)}',${idx})`;
+  if (!txt) return `<button class="goal-hora goal-hora-vacio" type="button" onclick="${a}" title="Poner horario" aria-label="Poner horario a la tarea"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></button>`;
+  return `<button class="goal-hora ${cls}" type="button" onclick="${a}" title="Editar horario" aria-label="Editar horario: ${txt}${g.oblig ? ', obligatoria' : ''}">${txt}${g.oblig ? '<span class="goal-oblig" title="Obligatoria a esa hora">🔒</span>' : ''}</button>`;
+}
+let _ghEdit = null;   // { date, idx }
+function _ghSetMode(mode) {
+  document.querySelectorAll('#ghMode button').forEach(b => b.classList.toggle('on', b.dataset.v === mode));
+  document.getElementById('ghHoraBox').hidden = mode !== 'hora';
+  document.getElementById('ghFranjaSeg').hidden = mode !== 'franja';
+  document.getElementById('ghObligRow').hidden = mode === 'none';
+}
+function _ghSetFranja(f) { document.querySelectorAll('#ghFranjaSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === f)); }
+function openGoalHora(date, idx) {
+  const g = (S.goals[date] || [])[idx]; if (!g) return;
+  _ghEdit = { date, idx };
+  document.getElementById('ghText').textContent = g.text;
+  document.getElementById('ghTime').value = g.time || '';
+  _ghSetFranja(g.franja || 'm');
+  document.getElementById('ghOblig').checked = !!g.oblig;
+  _ghSetMode(g.time ? 'hora' : g.franja ? 'franja' : 'none');
+  openModal('modal-goal-hora');
+}
+function saveGoalHora() {
+  if (!_ghEdit) { closeModal('modal-goal-hora'); return; }
+  const modeBtn = document.querySelector('#ghMode button.on');
+  const mode = modeBtn ? modeBtn.dataset.v : 'none';
+  const time = document.getElementById('ghTime').value;
+  if (mode === 'hora' && !time) { showToast('Elegí una hora, o cambiá a Franja / Sin horario'); return; }
+  const m = _aHoySiPasada(_ghEdit.date, _ghEdit.idx);   // una arrastrada primero pasa a hoy
+  const g = m && (S.goals[m.date] || [])[m.idx];
+  if (!g) { closeModal('modal-goal-hora'); return; }
+  g.time = mode === 'hora' ? time : null;
+  if (mode === 'franja') { const f = document.querySelector('#ghFranjaSeg button.on'); g.franja = f ? f.dataset.v : 'm'; } else delete g.franja;
+  if (mode !== 'none' && document.getElementById('ghOblig').checked) g.oblig = true; else delete g.oblig;
+  _ghEdit = null;
+  closeModal('modal-goal-hora');
+  saveState(); renderGoals();
+  renderReminders('vida');
+}
 // Tareas del planner: 3 niveles, gradiente de apagado (baja) a llamativo (alta).
 // La distinción es por combinación de factores (color de barra + badge + peso/saturación via clase .prio-N en CSS).
 const PLANNER_PRIO = {
@@ -1966,10 +2013,10 @@ function renderMetasReadonly() {
       const nDone = propias.filter(x => x.g.done).length;
       return `<section class="tl-q" data-q="${key}"><div class="tl-q-head"><span class="tl-q-name">${label}</span><span class="gs-count">${nDone}/${propias.length}</span></div>`
         + `<div class="tl-q-list" data-q="${key}">` + (items.length ? items.map(({ g, i: idx, date: gd }) => `<div class="mrd-item${g.done ? ' done' : ''}${gd !== date ? ' mrd-arrastrada' : ''}" data-idx="${idx}"${gd !== date ? ` data-from="${escHtml(gd)}"` : ''}>
-        ${g.time ? `<span class="mrd-time">${fmtGoalTime(g.time)}</span>` : ''}
+        ${_goalHoraBtn(g, gd, idx, 'mrd-time', true)}
         <span class="mrd-prio" style="background:${PRIORITY_COLOR[g.priority] || '#666'}"></span>
         <span class="mrd-text" title="Tocá para editar">${escHtml(g.text)}</span>
-        ${_goalRepBtn(g, gd, idx)}
+        ${_goalHoraBtn(g, gd, idx, 'mrd-time', false)}${_goalRepBtn(g, gd, idx)}
         <span class="goal-q-wrap" title="Cambiar de categoría"><span class="goal-q-ic" aria-hidden="true">⇅</span><select class="goal-q-sel" aria-label="Categoría de la tarea">${goalQuadOptions(key)}</select></span>
         <button class="mrd-check" onclick="toggleGoal('${escHtml(gd)}',${idx})" aria-label="Marcar tarea"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></button>
       </div>`).join('') : '<div class="tl-q-vacia">Nada acá</div>')
@@ -1984,7 +2031,7 @@ function renderMetasReadonly() {
     const matrix = body.querySelector('.tl-matrix');
     matrix.querySelectorAll('.tl-q-list').forEach(sec => Sortable.create(sec, {
       group: 'goalsCard', animation: 150, draggable: '.mrd-item',
-      filter: '.mrd-check, .goal-q-wrap, .goal-rep', preventOnFilter: false,
+      filter: '.mrd-check, .goal-q-wrap, .goal-rep, .goal-hora', preventOnFilter: false,
       delay: 250, delayOnTouchOnly: true,   // en el celu: mantener apretado para arrastrar (si no, choca con el scroll)
       onEnd: () => { _goalMatrixReorder(matrix, date, '.mrd-item'); setTimeout(renderGoals, 0); }
     }));
@@ -2048,12 +2095,15 @@ function _goalTextEditable(textEl, date, idx) {
 // Empates: sort nativo estable → respeta el orden manual (drag) dentro del mismo nivel.
 const GOAL_PRIO_ORDER = { high: 0, mid: 1, low: 2 };
 function goalPrioRank(g) { const v = GOAL_PRIO_ORDER[g.priority]; return v == null ? 1 : v; }
+// Grupos: 0) con hora, 1) con franja (mañana, tarde, noche), 2) sin horario, 3) completadas.
+const GOAL_FRANJA_ORD = { m: 0, t: 1, n: 2 };
+function _goalGrupo(g) { return g.done ? 3 : g.time ? 0 : GOAL_FRANJAS[g.franja] ? 1 : 2; }
 function _sortVista(items) {
   return items.sort((a, b) => {
-    const ra = a.g.done ? 2 : (a.g.time ? 0 : 1);
-    const rb = b.g.done ? 2 : (b.g.time ? 0 : 1);
+    const ra = _goalGrupo(a.g), rb = _goalGrupo(b.g);
     if (ra !== rb) return ra - rb;
     if (ra === 0 && a.g.time !== b.g.time) return a.g.time < b.g.time ? -1 : 1;
+    if (ra === 1 && a.g.franja !== b.g.franja) return GOAL_FRANJA_ORD[a.g.franja] - GOAL_FRANJA_ORD[b.g.franja];
     return goalPrioRank(a.g) - goalPrioRank(b.g);
   });
 }
@@ -2076,9 +2126,9 @@ function buildGoalItem(g, idx, date, readOnly) {
   li.innerHTML = `
     <span class="goal-drag" title="Arrastrar">⋮⋮</span>
     <span class="goal-priority" style="background:${PRIORITY_COLOR[g.priority]||'#666'}"></span>
-    ${g.time ? `<span class="goal-time-badge">${fmtGoalTime(g.time)}</span>` : ''}
+    ${_goalHoraBtn(g, date, idx, 'goal-time-badge', true)}
     <span class="goal-text-el">${escHtml(g.text)}</span>
-    ${_goalRepBtn(g, date, idx)}
+    ${_goalHoraBtn(g, date, idx, 'goal-time-badge', false)}${_goalRepBtn(g, date, idx)}
     <span class="goal-q-wrap" title="Cambiar de categoría"><span class="goal-q-ic" aria-hidden="true">⇅</span><select class="goal-q-sel" aria-label="Categoría de la tarea">${goalQuadOptions(cuadranteDe(g))}</select></span>
     <button class="goal-del" data-idx="${idx}" data-date="${date}" title="Eliminar">×</button>
     <span class="check-box ${g.done?'checked':''}" data-idx="${idx}" data-date="${date}"></span>
@@ -2447,7 +2497,7 @@ function _grSkip(repId, date) {
   if (r && !(r.skips || []).includes(date)) { if (!r.skips) r.skips = []; r.skips.push(date); }
 }
 function _grCreate(o) {
-  const r = { id: 'gr' + uid(), text: o.text, q: o.q, priority: o.priority, time: o.time || null, byDays: o.byDays.slice(), startDate: o.startDate, skips: [] };
+  const r = { id: 'gr' + uid(), text: o.text, q: o.q, priority: o.priority, time: o.time || null, ...(o.franja ? { franja: o.franja } : {}), ...(o.oblig ? { oblig: true } : {}), byDays: o.byDays.slice(), startDate: o.startDate, skips: [] };
   _grStore().push(r);
   return r;
 }
@@ -2475,7 +2525,7 @@ function ensureGoalRepeats() {
       if (!_grOccursOn(r, date)) return;
       if (!S.goals[date]) S.goals[date] = [];
       if (S.goals[date].some(g => g.repId === r.id)) return;
-      S.goals[date].push({ id: `rep:${r.id}:${date}`, repId: r.id, text: r.text, done: false, priority: r.priority, q: r.q, time: r.time || null });
+      S.goals[date].push({ id: `rep:${r.id}:${date}`, repId: r.id, text: r.text, done: false, priority: r.priority, q: r.q, time: r.time || null, ...(r.franja ? { franja: r.franja } : {}), ...(r.oblig ? { oblig: true } : {}) });
       changed = true;
     });
   });
@@ -2512,7 +2562,7 @@ function saveGoalRepeat() {
   if (r) { r.byDays = days; _grPruneTomorrow(r); }
   else {
     delete t.g.repId;
-    r = _grCreate({ text: t.g.text, q: cuadranteDe(t.g), priority: t.g.priority, time: t.g.time, byDays: days, startDate: _grEdit.date });
+    r = _grCreate({ text: t.g.text, q: cuadranteDe(t.g), priority: t.g.priority, time: t.g.time, franja: t.g.franja, oblig: t.g.oblig, byDays: days, startDate: _grEdit.date });
     if (days.includes(_grDow(_grEdit.date))) { t.g.repId = r.id; t.g.id = `rep:${r.id}:${_grEdit.date}`; }
   }
   closeModal('modal-goal-repeat');
