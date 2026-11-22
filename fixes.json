@@ -547,6 +547,13 @@
       "desc": "22/11 08:13 una ventana de la PC con una copia vieja subio 34 KB encima de 517 KB (se restauro a mano desde snap). Ningun guardado no forzado puede dejar la nube en menos de la mitad de su tamano: no se sube, queda pendiente y avisa. Cubierto por tests/sync-merge-profundo.spec.js.",
       "file": "app.js",
       "marker": "bloqueado-achique"
+    },
+    {
+      "id": "sync-no-guardar-antes-de-cargar",
+      "fecha": "2026-11-22",
+      "desc": "Causa del vaciado del 22/11 08:13: cardsCatchUp llamaba saveState antes de que loadState terminara; S eran los valores de fabrica (DEFAULT_STATE) y saveState (que desde 4888965 marca pendiente) los dejaba en localStorage como pendientes; al cargar se mergeaban como si se hubiera borrado todo. saveState no hace nada hasta _estadoCargado, y al cargar una copia pendiente mucho mas chica que lo sincronizado se descarta. Tambien arreglo 9 tests de recarga que fallaban (persistence, cards, budgets, transactions...). Cubierto por tests/sync-merge-profundo.spec.js.",
+      "file": "app.js",
+      "marker": "if (!_estadoCargado) return;"
     }
   ]
 }

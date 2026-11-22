@@ -252,6 +252,9 @@ const DEFAULT_STATE = {
   }
 };
 
+// false hasta que loadState termina de poner los datos reales en S: antes de eso S son los valores de fábrica y
+// saveState no puede tocar nada (22/11/2026 08:13: un guardado temprano dejó los de fábrica como "pendientes" y se subieron).
+let _estadoCargado = false;
 let S = JSON.parse(JSON.stringify(DEFAULT_STATE));  // live state — precargado con defaults para que un click a una pestaña antes de que loadState() resuelva no crashee (ver fixes.json)
 
 // ── Storage ──────────────────────────────────────────────
@@ -1411,10 +1414,18 @@ async function loadState() {
       if (localObj && JSON.stringify(localObj) !== JSON.stringify(S)) {
         let base = null;
         try { base = JSON.parse(localStorage.getItem('_lastSyncedStateStr') || 'null'); } catch (e) {}
-        S = base ? _mergeStates(base, localObj, S) : _rescueLocal(_mergeStates(base, localObj, S), localObj);   // sin ancestro: rescate (no se sabe qué se borró)
-        console.warn('[load] merge de cambios offline pendientes');
-        setTimeout(() => showToast('🔀 Recuperando cambios hechos sin conexión…', 6000), 1500);
-        setTimeout(() => saveState(), 2500);   // subir el merge a la nube (limpia el pendiente al confirmar)
+        // Copia local mucho más chica que lo último sincronizado (o que la nube) = restos de un arranque, no ediciones:
+        // se descarta. Mergearla como si fueran bajas vació la nube el 22/11/2026 08:13.
+        const _refLen = Math.max(base ? JSON.stringify(base).length : 0, JSON.stringify(S).length);
+        if (JSON.stringify(localObj).length < _refLen * 0.5) {
+          localStorage.removeItem('_pendingCloudSave');
+          _syncEv('pendiente-descartado-chico', { local: JSON.stringify(localObj).length, ref: _refLen });
+        } else {
+          S = base ? _mergeStates(base, localObj, S) : _rescueLocal(_mergeStates(base, localObj, S), localObj);   // sin ancestro: rescate (no se sabe qué se borró)
+          console.warn('[load] merge de cambios offline pendientes');
+          setTimeout(() => showToast('🔀 Recuperando cambios hechos sin conexión…', 6000), 1500);
+          setTimeout(() => saveState(), 2500);   // subir el merge a la nube (limpia el pendiente al confirmar)
+        }
       } else {
         localStorage.removeItem('_pendingCloudSave');
       }
@@ -1423,6 +1434,7 @@ async function loadState() {
   if (_loadSrc === 'cloud') {
     try { localStorage.setItem('_lastSyncedStateStr', JSON.stringify(_lastSyncedState)); } catch (e) {}
   }
+  _estadoCargado = true;   // desde acá S son los datos reales: saveState ya puede guardar
   // ── Diag de carga (de dónde vino el estado inicial). diagLoad() en consola.
   try {
     const _ld = { t: new Date().toLocaleString('es-AR'), src: _loadSrc, lastSynced: _lastSyncedSavedAt, items: _dataMetric(S), err: _loadErr || null, uid: (_auth.currentUser && _auth.currentUser.uid) || null };
@@ -1516,6 +1528,7 @@ function _migrateQToT() {
 }
 function saveState() {
   _syncEvSave();   // visibilidad: quién llamó y cuándo (solo registro)
+  if (!_estadoCargado) return;   // S todavía son los valores de fábrica: no se guarda ni se marca nada (ver _estadoCargado)
   // Pendiente en el acto: si iOS congela/mata la app antes de que el guardado llegue a la nube, el próximo arranque
   // lo mergea (loadState) y mientras tanto no se aplica encima una versión remota (onSnapshot/_syncOnFocus).
   try { localStorage.setItem('_pendingCloudSave', '1'); } catch (e) {}

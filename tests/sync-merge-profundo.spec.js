@@ -220,3 +220,38 @@ test('red de seguridad: forzarGuardado (borrado grande intencional) sí puede ac
   });
   expect(tx).toBe(0);
 });
+
+// 22/11/2026 08:13: un saveState temprano (cardsCatchUp antes de que termine loadState) dejaba en localStorage los
+// valores de fábrica marcados como pendientes; al cargar se mergeaban como si el usuario hubiera borrado todo.
+test('recargar: los valores de fábrica que quedaron como pendientes no vacían los datos', async ({ cmPage }) => {
+  await idle(cmPage);
+  const r = await cmPage.evaluate(async () => {
+    const grande = JSON.parse(JSON.stringify(S));
+    grande.transactions = [...Array(600)].map((_, i) => ({ id: 'tg' + i, date: '2026-11-20', name: 'movimiento ' + i, type: 'expense', amount: i }));
+    await _DOC().set({ state: JSON.stringify(grande), _savedAt: 7000, _wid: 'pc', _dev: 'PC' });
+    localStorage.setItem('_lastSyncedStateStr', JSON.stringify(grande));
+    localStorage.setItem('lifedash_v2', JSON.stringify(DEFAULT_STATE));      // lo que dejaba el guardado temprano
+    localStorage.setItem('_pendingCloudSave', '1');
+    await loadState();
+    return { s: (S.transactions || []).length, pend: localStorage.getItem('_pendingCloudSave') };
+  });
+  expect(r).toEqual({ s: 600, pend: null });
+  await cmPage.waitForTimeout(3000); await idle(cmPage);
+  const n = await cmPage.evaluate(async () => JSON.parse((await _DOC().get()).data().state).transactions.length);
+  expect(n).toBe(600);
+});
+
+test('saveState antes de que terminen de cargar los datos no toca nada', async ({ cmPage }) => {
+  await idle(cmPage);
+  const r = await cmPage.evaluate(() => {
+    localStorage.removeItem('_pendingCloudSave');
+    const antes = localStorage.getItem('lifedash_v2');
+    _estadoCargado = false;
+    const Sreal = S; S = JSON.parse(JSON.stringify(DEFAULT_STATE));
+    saveState();
+    const out = { igual: localStorage.getItem('lifedash_v2') === antes, pend: localStorage.getItem('_pendingCloudSave'), timer: !!_fbSaveTid };
+    S = Sreal; _estadoCargado = true;
+    return out;
+  });
+  expect(r).toEqual({ igual: true, pend: null, timer: false });
+});
