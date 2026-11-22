@@ -1,36 +1,4 @@
-// ════════════════════════════════════════════════════════
-// PLANNER MOTIVATIONAL QUOTES
-// ════════════════════════════════════════════════════════
-(function initPlannerQuotes() {
-  const quotes = [
-    'Planifica tu tiempo y tu concentración',
-    '"Actuar sin planear es la causa de cada fracaso"',
-    'Lista de 3: trabaja con máximo 3 tareas importantes al día; lo demás es secundario',
-  ];
-  let idx = 0;
-  const BASE_FONT = 13.5, MIN_FONT = 8;
-  function fitOneLine(el) {
-    let size = BASE_FONT;
-    el.style.fontSize = size + 'px';
-    while (el.scrollWidth > el.clientWidth && size > MIN_FONT) {
-      size -= 0.5;
-      el.style.fontSize = size + 'px';
-    }
-  }
-  function rotate() {
-    const el = document.getElementById('plannerQuoteText');
-    if (!el) return;
-    el.style.opacity = '0';
-    setTimeout(() => {
-      el.textContent = quotes[idx];
-      fitOneLine(el);
-      el.style.opacity = '1';
-      idx = (idx + 1) % quotes.length;
-    }, 460);
-  }
-  rotate();
-  setInterval(rotate, 7000);
-})();
+// La frase motivacional del planner ahora la muestra la franja única de frases.js (CMFrases) arriba de cada pestaña.
 
 // ════════════════════════════════════════════════════════
 // PROYECTOS WORKSPACE

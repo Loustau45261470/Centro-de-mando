@@ -15,50 +15,21 @@ const CarteraOverlay = (() => {
   let _rendimientoCargado = false;
   let _radarCargado = false;
 
-  // Frases de la cabecera. Para agregar una: sumar una línea { t: 'texto', a: 'Autor' } al array (se rotan en este orden).
-  const FRASES = [
-    { t: "If you're not willing to react with equanimity to a market price decline of 50%, you're not fit to be a common shareholder.", a: 'Charlie Munger' },
-    { t: 'I did not succeed in life by intelligence. I succeeded because I have a long attention span.', a: 'Charlie Munger' },
-    { t: "We don't have to be smarter than the rest. We have to be more disciplined than the rest.", a: 'Warren Buffett' },
-  ];
-  const FRASE_MS = 45000; // cuánto se ve cada frase
-  let _fraseIdx = 0, _fraseTimer = null, _fraseBox = null, _fraseCleanup = null;
+  // Frase de la cabecera: la misma del sistema único (frases.js / CMFrases), rota cada 5 min; clic/Enter pasa a la siguiente.
+  let _fraseOff = null;
   const _esc = x => String(x).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-
-  function _fraseMostrar(i) {
-    if (!_fraseBox) return;
-    _fraseIdx = (i + FRASES.length) % FRASES.length;
-    _fraseBox.querySelectorAll('.cov-q').forEach((f, k) => {
-      const on = k === _fraseIdx;
-      f.classList.toggle('on', on);
-      f.setAttribute('aria-hidden', String(!on));
-    });
+  function _fraseHtml(f) {
+    return f ? `<figure class="cov-q on"><blockquote>${f.fav ? '<span class="cov-star" aria-label="Favorita">★</span> ' : ''}“${_esc(f.t)}”</blockquote>${f.a ? `<figcaption>— ${_esc(f.a)}</figcaption>` : ''}</figure>` : '';
   }
-  function _frasePausa() { clearTimeout(_fraseTimer); _fraseTimer = null; }
-  function _fraseReanuda() {
-    _frasePausa();
-    if (!_fraseBox || document.hidden) return;
-    _fraseTimer = setTimeout(() => { _fraseMostrar(_fraseIdx + 1); _fraseReanuda(); }, FRASE_MS);
-  }
-  function _fraseDetener() {
-    _frasePausa();
-    if (_fraseCleanup) { _fraseCleanup(); _fraseCleanup = null; }
-    _fraseBox = null;
-  }
+  function _fraseDetener() { if (_fraseOff) { _fraseOff(); _fraseOff = null; } }
   function _fraseIniciar(box) {
     _fraseDetener();
-    _fraseBox = box;
-    _fraseMostrar(Math.floor(Math.random() * FRASES.length));
-    const sig = () => { _fraseMostrar(_fraseIdx + 1); _fraseReanuda(); };
-    const onKey = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); sig(); } };
-    const onVis = () => { if (document.hidden) _frasePausa(); else if (!box.matches(':hover')) _fraseReanuda(); };
-    box.addEventListener('click', sig);
-    box.addEventListener('keydown', onKey);
-    box.addEventListener('mouseenter', _frasePausa);
-    box.addEventListener('mouseleave', _fraseReanuda);
-    document.addEventListener('visibilitychange', onVis);
-    _fraseCleanup = () => document.removeEventListener('visibilitychange', onVis);
-    _fraseReanuda();
+    if (!window.CMFrases) return;
+    const pintar = f => { f = f || CMFrases.actual(); box.innerHTML = _fraseHtml(f); box.title = f ? f.t + (f.a ? ' — ' + f.a : '') : ''; };
+    pintar();
+    _fraseOff = CMFrases.onCambio(pintar);
+    box.addEventListener('click', () => CMFrases.siguiente());
+    box.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); CMFrases.siguiente(); } });
   }
 
   function open() {
@@ -68,7 +39,7 @@ const CarteraOverlay = (() => {
     _radarCargado = false;
     body.innerHTML = `
       <div class="cm-ov-head"><div class="cm-ov-eyebrow">FINANZAS · CARTERA</div><div class="cm-ov-title">Cartera</div></div>
-      <div class="cov-quote" role="button" tabindex="0" aria-label="Siguiente frase" aria-live="polite">${FRASES.map(f => `<figure class="cov-q"><blockquote>“${_esc(f.t)}”</blockquote><figcaption>— ${_esc(f.a)}</figcaption></figure>`).join('')}</div>
+      <div class="cov-quote" role="button" tabindex="0" aria-label="Siguiente frase" aria-live="polite"></div>
       <div class="plov-tabs" data-on="tenencias" role="tablist">
         <button class="plov-tab on" data-t="tenencias" role="tab" aria-selected="true" onclick="CarteraOverlay._tab('tenencias')">Mis tenencias</button>
         <button class="plov-tab" data-t="historial" role="tab" aria-selected="false" onclick="CarteraOverlay._tab('historial')">Historial</button>
