@@ -53,18 +53,18 @@ test('1) +1 h corre todo hoy conservando la duración; las recurrentes solo por 
   ]);
   await cmPage.click(`${barra} .pat-chip:has-text("+1 h")`);
   expect(await dia(cmPage, HOY)).toEqual([
-    ['Rutina con excepción', '08:00', 30], ['Rutina mañana', '09:00', 30], ['Puntual uno', '10:00', 60],
-  ]);
+    ['Rutina con excepción', '07:00', 30], ['Rutina mañana', '09:00', 30], ['Puntual uno', '10:00', 60],
+  ]);   // la recurrente "hecha" no se mueve
   // Las reglas no cambian (solo se agregó la excepción de hoy) y la excepción previa "hecha" se conserva.
   const reglas = await cmPage.evaluate(() => S.planRecurring.map((r) => [r.id, r.time, r.duration, r.repeat.freq, r.startDate]));
   expect(reglas).toEqual([['r1', '08:00', 30, 'daily', '2026-11-01'], ['r2', '23:00', 45, 'daily', '2026-11-01'], ['r3', '07:00', 30, 'daily', '2026-11-01']]);
-  expect(await cmPage.evaluate((h) => S.planRecurring[2].exceptions[h], HOY)).toEqual({ done: true, time: '08:00' });
+  expect(await cmPage.evaluate((h) => S.planRecurring[2].exceptions[h], HOY)).toEqual({ done: true });
   // Mañana: las recurrentes en su horario original, la puntual de mañana intacta.
   expect(await dia(cmPage, MAN)).toEqual([
     ['Rutina con excepción', '07:00', 30], ['Rutina mañana', '08:00', 30], ['Puntual de mañana', '10:00', 30], ['Rutina noche', '23:00', 45],
   ]);
   // Lo que ve el usuario en la card: filas con el horario nuevo.
-  await expect(cmPage.locator('#dayPlannerList .pcal-row .pcal-row-time')).toHaveText(['08:00–08:30', '09:00–09:30', '10:00–11:00']);
+  await expect(cmPage.locator('#dayPlannerList .pcal-row .pcal-row-time')).toHaveText(['07:00–07:30', '09:00–09:30', '10:00–11:00']);
   expect(consoleErrors).toEqual([]);
 });
 
@@ -209,6 +209,49 @@ test('7) avisos (deadlines.js en Node): tras correr, el aviso de hoy cae en el h
   const vacio = await snap();
   expect(acts(vacio, HOY)).toEqual([]);
   expect(horas(vacio, MAN)).toHaveLength(4);
+  expect(consoleErrors).toEqual([]);
+});
+
+test('9) solo se corre lo pendiente: puntual, recurrente y vinculada a hábito hechas se quedan; Deshacer restaura', async ({ cmPage, consoleErrors }) => {
+  await armar(cmPage);
+  await cmPage.evaluate(([h]) => {
+    S.habitTrackers = S.habitTrackers || {};
+    const sec = Object.keys(S.habitTrackers)[0] || 'salud';
+    S.habitTrackers[sec] = [{ id: 'hb1', name: 'Hábito test', emoji: 'x', days: { [h]: 'done' } }];
+    S.dayPlan[h].tasks = [
+      { id: 'p1', text: 'Puntual pendiente', time: '09:00', duration: 60, priority: 2, area: 'vida', done: false },
+      { id: 'p2', text: 'Puntual hecha', time: '10:30', duration: 60, priority: 2, area: 'vida', done: true },
+      { id: 'p4', text: 'Vinculada hecha', time: '11:00', duration: 60, priority: 2, area: 'vida', done: false, habit: { section: sec, id: 'hb1' } },
+    ];
+    S.planRecurring = [
+      { id: 'r1', text: 'Rec pendiente', time: '08:00', duration: 30, priority: 2, area: 'vida', startDate: '2026-11-01', repeat: { freq: 'daily', byDays: [] } },
+      { id: 'r3', text: 'Rec hecha', time: '07:00', duration: 30, priority: 2, area: 'vida', startDate: '2026-11-01', repeat: { freq: 'daily', byDays: [] }, exceptions: { [h]: { done: true } } },
+    ];
+    renderDayPlanner();
+  }, [HOY]);
+  const antes = await estado(cmPage);
+  await cmPage.click(`${barra} .pat-chip:has-text("+1 h")`);
+  expect(await dia(cmPage, HOY)).toEqual([
+    ['Rec hecha', '07:00', 30], ['Rec pendiente', '09:00', 30], ['Puntual pendiente', '10:00', 60],
+    ['Puntual hecha', '10:30', 60], ['Vinculada hecha', '11:00', 60],
+  ]);
+  await cmPage.click('#cmundo-toast button');
+  expect(await estado(cmPage)).toBe(antes);
+  expect(consoleErrors).toEqual([]);
+});
+
+test('10) si todo está hecho avisa y no cambia nada', async ({ cmPage, consoleErrors }) => {
+  await armar(cmPage);
+  await cmPage.evaluate((h) => {
+    S.dayPlan[h].tasks.forEach((t) => { t.done = true; });
+    S.planRecurring.forEach((r) => { r.exceptions = { ...(r.exceptions || {}), [h]: { done: true } }; });
+    renderDayPlanner();
+  }, HOY);
+  const antes = await estado(cmPage);
+  await cmPage.click(`${barra} .pat-chip:has-text("+1 h")`);
+  await expect(cmPage.locator('#toast')).toHaveText('No hay actividades pendientes para correr');
+  expect(await estado(cmPage)).toBe(antes);
+  await expect(cmPage.locator('#cmundo-toast')).not.toHaveClass(/show/);
   expect(consoleErrors).toEqual([]);
 });
 

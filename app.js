@@ -3007,8 +3007,10 @@ function plannerShiftToday(mins) {
   mins = Math.round(Number(mins));
   if (!(mins > 0)) { showToast('Poné una cantidad mayor a 0'); return; }
   const date = getActiveDate();
-  const acts = plannerDayTasks(date);
-  if (!acts.length) { showToast('No hay actividades para correr hoy'); return; }
+  const todas = plannerDayTasks(date);
+  if (!todas.length) { showToast('No hay actividades para correr hoy'); return; }
+  const acts = todas.filter(t => !t.done);   // las hechas (incl. las vinculadas a hábito, ya resueltas en plannerDayTasks) no se mueven
+  if (!acts.length) { showToast('No hay actividades pendientes para correr'); return; }
   const snap = _plannerSnap(date);
   const plan = getDayPlan(date);
   let fuera = 0;
