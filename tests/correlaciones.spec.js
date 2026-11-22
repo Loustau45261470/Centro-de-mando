@@ -15,7 +15,7 @@ test('Relaciones se actualiza al aparecer datos nuevos en la sesión', async ({ 
     S.sleepLog = {}; S.dayPlan = {};
     for (let i = 1; i <= 25; i++) {
       const f = iso(i), h = 5 + (i % 5);
-      S.sleepLog[f] = { hours: h, feeling: 3 };
+      S.sleepLog[f] = { hours: h, wellness: { sleepQuality: 1 + (i % 5) } };
       const hechas = Math.min(4, h - 4);
       S.dayPlan[f] = { grid: {}, tasks: Array.from({length: 4}, (_, k) => ({
         id: 't'+i+'_'+k, time: '09:00', priority: 2, text: 'x', done: k < hechas })) };

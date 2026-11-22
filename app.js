@@ -47,7 +47,7 @@ const DEFAULT_STATE = {
   budgets: {},         // { 'YYYY-MM': { fixed:[{id,name,category,unit,v1,v2,v3}], reserved:[{id,name,category,amount}] } }
   txnCategories: {},   // { catId: { label, icon, color, section } } — categorías de transacción gestionables por el usuario
   txnCategoriesSeeded: false, // true una vez que ensureTxnCategories() sembró los defaults — distingue "nunca sembrado" de "usuario borró todo" (un {} vacío es truthy y no alcanza, ver fixes.json)
-  sleepLog:        {}, // { 'YYYY-MM-DD': { hours: number, feeling: number } }
+  sleepLog:        {}, // { 'YYYY-MM-DD': { bedtime:'HH:MM', waketime:'HH:MM', hours, wellness:{sleepQuality,energy,mood,pain,stress}, notes } }
   ideas:     { vida: [], finanzas: [], salud: [], conocimiento: [], ia: [] }, // [{ id, title, description, notes }]
   reminders: { vida: [], finanzas: [], salud: [], conocimiento: [], ia: [] }, // [{ id, title, datetime, priority:'high'|'medium'|'low' }]
   lawProgress: { years: [
@@ -4280,7 +4280,32 @@ function _renderWellnessStrips() {
     <div class="wstrip-foot">
       <span>Sueño 7 días: <b>${avg7 !== null ? avg7 + 'h' : '—'}</b> promedio</span>
       <span><b>${inRng}</b> de ${last7.length || 0} noches en rango 7-9h</span>
-    </div>`;
+    </div>
+    ${_sleepStatsHtml(today)}`;
+}
+
+// Horarios de sueño (CMSueno, sueno-stats.js): fichas chicas con selector 7/30 días. El selector es solo de pantalla (no se guarda).
+let _sleepStatsDias = 7;
+function setSleepStatsDias(n) { _sleepStatsDias = n === 30 ? 30 : 7; _renderWellnessStrips(); }
+function _sleepStatsHtml(today) {
+  if (typeof CMSueno === 'undefined') return '';
+  const r = CMSueno.resumen(S.sleepLog || {}, { desde: _wbAddDias(today, -(_sleepStatsDias - 1)), hasta: today });
+  const ficha = (lbl, val, sub) => `<div class="sstat"><div class="sstat-l">${lbl}</div><div class="sstat-v${val === null ? ' is-nulo' : ''}">${val === null ? '—' : val}</div>${sub ? `<div class="sstat-s">${sub}</div>` : ''}</div>`;
+  const reg = r.regularidad ? `${r.regularidad}` : null;
+  const regSub = r.desvio != null ? `±${r.desvio} min` : (r.bedN || r.wakeN ? 'faltan noches' : '');
+  const seg = n => `<button type="button" class="${_sleepStatsDias === n ? 'active' : ''}" aria-pressed="${_sleepStatsDias === n}" onclick="setSleepStatsDias(${n})">${n} días</button>`;
+  const cuerpo = (r.bedN || r.wakeN || r.noches)
+    ? `<div class="sstats">
+        ${ficha('Te levantás', r.wake, r.wakeN ? `${r.wakeN} registro${r.wakeN === 1 ? '' : 's'}` : '')}
+        ${ficha('Te acostás', r.bed, r.bedN ? `${r.bedN} registro${r.bedN === 1 ? '' : 's'}` : '')}
+        ${ficha('Regularidad', reg, regSub)}
+        ${ficha('Horas promedio', r.horasProm !== null ? String(r.horasProm).replace('.', ',') + ' h' : null, `${r.noches} noche${r.noches === 1 ? '' : 's'}`)}
+      </div>`
+    : '<div class="sstats-vacio">Sin registros en este período</div>';
+  return `<div class="sstats-wrap">
+    <div class="sstats-head"><span>Tus horarios de sueño</span><span class="sstats-seg">${seg(7)}${seg(30)}</span></div>
+    ${cuerpo}
+  </div>`;
 }
 
 // ── Historial de Bienestar (overlay) — mismo patrón día/semana/mes que el
@@ -4289,8 +4314,12 @@ function _renderWellnessStrips() {
 // (horas de sueño + las 5 métricas de WELLNESS_METRICS).
 const WB_METRICS = [
   { id: 'hours', label: 'Sueño', unit: 'h', color: '#5EEAD4' },
+  { id: 'wake',  label: 'Hora de levantarse', unit: 'hm', color: '#FFD166' },
+  { id: 'bed',   label: 'Hora de acostarse',  unit: 'hm', color: '#8FA8FF' },
   ...WELLNESS_METRICS.map(m => ({ id: m.id, label: m.label, unit: '/5', color: m.color })),
 ];
+// Horas de reloj (unit 'hm'): minutos del día; acostarse como día corrido desde el mediodía (00:30 = 1470) para no romperse al cruzar la medianoche.
+const _wbHm = v => (typeof CMSueno !== 'undefined' ? CMSueno.fmtHora(v) : null);
 let _wbHistContainer = null;
 let _wbHistView   = 'day';   // 'day' | 'week' | 'month'
 let _wbHistMetric = 'hours';
@@ -4300,6 +4329,10 @@ const _wbAddDias = (iso, n) => { const d = new Date(iso + 'T12:00:00'); d.setDat
 
 function _wbVal(entry, metricId) {
   if (!entry) return null;
+  if (metricId === 'wake' || metricId === 'bed') {
+    if (typeof CMSueno === 'undefined') return null;
+    return metricId === 'wake' ? CMSueno.horaAMin(entry.waketime) : CMSueno.acostarseAMin(entry.bedtime);
+  }
   if (metricId === 'hours') {
     let h = entry.hours ?? null;
     if (entry.bedtime && entry.waketime) { const c = _sleepCalcHours(entry.bedtime, entry.waketime); if (c !== null) h = c; }
@@ -4315,6 +4348,7 @@ function _wbAvg(dates, metricId) {
 }
 function _wbFmt(val, metric) {
   if (val === null || val === undefined) return '—';
+  if (metric.unit === 'hm') return _wbHm(val) || '—';
   return metric.unit === 'h' ? val.toFixed(1) + '<span class="u">h</span>' : val.toFixed(1) + '<span class="u">/5</span>';
 }
 const _wbPlain = (val, metric) => _wbFmt(val, metric).replace(/<\/?span[^>]*>/g, '');
@@ -4424,7 +4458,7 @@ function renderBienestarHistory() {
     return `<div class="wb-day${d === today ? ' is-today' : ''}">
         <span class="wb-day-lbl">${dayLbl(d)}</span>
         <span class="wb-day-line"></span>
-        <span class="wb-day-tot">${hoursVal !== null ? hoursVal.toFixed(1) + 'h' : '—'}</span>
+        <span class="wb-day-tot">${entry.bedtime && entry.waketime ? `<small class="wb-day-hm">${entry.bedtime} → ${entry.waketime}</small> ` : ''}${hoursVal !== null ? hoursVal.toFixed(1) + 'h' : '—'}</span>
       </div>
       <div class="wb-chips-row">${chips || '<span class="wb-chip-empty">Sin métricas registradas</span>'}</div>`;
   };
@@ -4442,11 +4476,16 @@ function renderBienestarHistory() {
   const canvas = document.getElementById('wb-hist-canvas');
   if (!canvas || typeof Chart === 'undefined') return;
   const _f = n => (typeof _cfs === 'function' ? _cfs(n) : n);
+  const esHora = metric.unit === 'hm';
   _wbHistChart = new Chart(canvas.getContext('2d'), {
-    type: 'bar',
+    type: esHora ? 'line' : 'bar',
     data: {
       labels,
-      datasets: [{
+      datasets: [esHora ? {
+        // Hora de reloj: puntos unidos por una línea fina; las noches sin dato se saltan en vez de caer a 0.
+        data, spanGaps: true, borderColor: metric.color + '99', borderWidth: 1.5, tension: 0,
+        pointRadius: 4, pointHoverRadius: 6, pointBackgroundColor: metric.color, pointBorderColor: metric.color
+      } : {
         data,
         backgroundColor: data.map((_, i) => i === data.length - 1 ? metric.color : metric.color + '57'),
         hoverBackgroundColor: metric.color,
@@ -4466,8 +4505,10 @@ function renderBienestarHistory() {
       scales: {
         x: { grid: { display: false }, border: { display: false },
              ticks: { color: '#8BA5C0', font: { size: _f(11.5) }, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } },
-        y: { min: 0, max: metric.unit === '/5' ? 5 : undefined, grid: { color: 'rgba(255,255,255,.06)' }, border: { display: false },
-             ticks: { color: '#8BA5C0', font: { size: _f(11.5) }, maxTicksLimit: 4, callback: v => v + (metric.unit === 'h' ? 'h' : '') } }
+        y: { min: esHora ? undefined : 0, max: metric.unit === '/5' ? 5 : undefined, grace: esHora ? 30 : undefined, grid: { color: 'rgba(255,255,255,.06)' }, border: { display: false },
+             ticks: esHora
+               ? { color: '#8BA5C0', font: { size: _f(11.5) }, maxTicksLimit: 5, stepSize: 60, callback: v => _wbHm(v) }
+               : { color: '#8BA5C0', font: { size: _f(11.5) }, maxTicksLimit: 4, callback: v => v + (metric.unit === 'h' ? 'h' : '') } }
       }
     }
   });

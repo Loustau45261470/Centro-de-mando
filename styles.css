@@ -1562,6 +1562,29 @@ button.goal-hora-vacio:hover { color: var(--tp); background: rgba(255,255,255,.0
   .wstrip-cell { height: 15px; }
 }
 
+/* ── Bienestar · horarios de sueño (CMSueno): fichas chicas + selector 7/30 a la derecha ── */
+.sstats-wrap { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
+.sstats-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px;
+  font-size: var(--fs-12-5); color: var(--tt);
+}
+.sstats-seg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 8px; border: 1px solid var(--border); }
+.sstats-seg button {
+  border: none; background: none; cursor: pointer; padding: 3px 9px; border-radius: 6px;
+  font-family: var(--mono); font-size: var(--fs-12-5); font-weight: 700; color: var(--tt);
+}
+.sstats-seg button.active { color: var(--tp); background: rgba(124,142,232,.22); }
+.sstats-seg button:focus-visible { outline: 2px solid var(--pa); outline-offset: 2px; }
+.sstats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.sstat { padding: 7px 8px; border-radius: 8px; border: 1px solid var(--border); background: rgba(120,150,220,.05); min-width: 0; }
+.sstat-l { font-size: var(--fs-12-5); color: var(--tt); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sstat-v { font-weight: 700; color: var(--tp); font-variant-numeric: tabular-nums; font-size: var(--fs-14, 14px); overflow-wrap: anywhere; }
+.sstat-v.is-nulo { color: var(--tt); }
+.sstat-s { font-size: var(--fs-12-5); color: var(--tt); }
+.sstats-vacio { font-size: var(--fs-12-5); color: var(--tt); }
+@media (max-width: 520px) { .sstats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+#ov-bienestar-hist-host .wb-day-hm { font-weight: 400; color: #8BA5C0; margin-right: 4px; }
+
 /* ── Law Tables ── */
 .law-tbl { width:100%; border-collapse:collapse; }
 .law-tbl th { background:rgba(107,227,164,.13); color:var(--ok); font-weight:700; text-align:left;

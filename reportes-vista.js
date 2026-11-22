@@ -64,10 +64,12 @@ function _rvDatos(rango, rangoAnt, hoy) {
 // ── Comparaciones y fichas ──
 const _rvClaseTono = { verde: 'rv-ok', azul: 'rv-eq', rojo: 'rv-bad' };
 // Siempre signo y número (el color nunca es la única señal). Con pct null (o conPct falso) solo el absoluto; sin cambio: "= 0" (empate, en azul).
-function _rvChip(comp, valor, fmt, conPct) {
+// palabras = [texto si baja, texto si sube] (ej. horas de reloj: ['más temprano', 'más tarde']); reemplaza al porcentaje.
+function _rvChip(comp, valor, fmt, conPct, palabras) {
   if (!comp || comp.abs == null) return '';
   let t;
   if (comp.abs === 0) t = '= ' + fmt(0);
+  else if (palabras) t = (comp.abs > 0 ? '+' : '−') + fmt(Math.abs(comp.abs)) + ' · ' + palabras[comp.abs > 0 ? 1 : 0];
   else t = (comp.abs > 0 ? '+' : '−') + fmt(Math.abs(comp.abs)) + (conPct !== false && comp.pct != null ? ' · ' + (comp.pct > 0 ? '+' : comp.pct < 0 ? '−' : '') + Math.abs(comp.pct) + '%' : '');
   return '<span class="rv-chip ' + (_rvClaseTono[comp.tono] || 'rv-eq') + '">' + _rvEsc(t) + '</span>';
 }
@@ -81,7 +83,7 @@ function _rvFicha(titulo, k, fmt, o) {
   h += '<div class="rv-fv' + (nulo ? ' rv-nulo' : '') + '">' + (nulo ? '—' : _rvEsc(fmt(k.valor)) + (o.unidad ? ' <small>' + _rvEsc(o.unidad) + '</small>' : '')) + '</div>';
   if (!nulo) {
     const comp = k.comparacion || (k.anterior != null && o.comparar !== false ? CMReportes.repComparar(k.valor, k.anterior, o.opts) : null);
-    if (comp) h += '<div class="rv-fc">' + _rvChip(comp, k.valor, o.fmtAbs || fmt, o.conPct) + '</div>';
+    if (comp) h += '<div class="rv-fc">' + _rvChip(comp, k.valor, o.fmtAbs || fmt, o.conPct, o.palabras) + '</div>';
     else if (k.anterior === null) h += '<div class="rv-fm">' + _rvEsc(k.motivoAnterior ? 'Período anterior: ' + _rvMotivo(k.motivoAnterior).toLowerCase() : 'Sin dato del período anterior') + '</div>';
   }
   (o.subs || []).forEach(s => { if (s) h += '<div class="rv-fs">' + _rvEsc(s) + '</div>'; });
@@ -208,7 +210,20 @@ function _rvKpisConocimiento(c) {
   if (c.horasPorExamen) fichas.push(f('Horas por examen', c.horasPorExamen, _rvHoras, { unidad: 'cronometradas' }));
   return _rvFichas(fichas);
 }
-function _rvKpisFoco(fo, eco) {
+// Sueño (reportes.js → repKpiSueno): horas de reloj en HH:MM; la comparación es en minutos (más temprano / más tarde), no en %.
+function _rvKpisSueno(su) {
+  const f = _rvFicha, hm = v => CMSueno.fmtHora(v), min = v => _rvN(v, 0) + ' min', pal = ['más temprano', 'más tarde'];
+  const hayAlgo = [su.horas, su.acostarse, su.levantarse, su.noches].some(k => k.valor != null);
+  if (!hayAlgo) return '<div class="rv-card"><div class="rv-fm">Sin registros de sueño en este período</div></div>';
+  return _rvFichas([
+    f('Horas promedio', su.horas, v => _rvN(v, 1), { unidad: 'h', fmtAbs: _rvHoras, conPct: false }),
+    f('Hora de acostarse', su.acostarse, hm, { fmtAbs: min, palabras: pal }),
+    f('Hora de levantarse', su.levantarse, hm, { fmtAbs: min, palabras: pal }),
+    f('Regularidad', su.regularidad, v => '±' + _rvN(v, 0) + ' min', { fmtAbs: min, palabras: ['más regular', 'menos regular'], subs: su.regularidad.valor == null ? [] : [_rvCap(su.regularidad.texto)] }),
+    f('Noches registradas', su.noches, _rvCant, { conPct: false }),
+  ]);
+}
+function _rvKpisFoco(fo, eco, su) {
   const f = _rvFicha;
   const par = (t, k) => f(t, k, v => _rvN(v, 1) + ' / 5', { subs: k.valor == null ? [] : [k.dias + ' día' + (k.dias === 1 ? '' : 's') + ' con cierre'] });
   let h = _rvFichas([par('Atención promedio', fo.atencion), par('Energía promedio', fo.energia),
@@ -217,6 +232,7 @@ function _rvKpisFoco(fo, eco) {
   h += _rvCard('¿Dónde estuvo el tiempo? (chequeos)', ch.valor == null ? '<div class="rv-fm">' + _rvEsc(_rvMotivo(ch.motivo)) + '</div>'
     : ch.filas.map(x => '<div class="rv-row"><span>' + _rvEsc(_rvCap(x.categoria)) + '</span><span class="rv-rn">' + x.pct + '% <small>(' + x.n + ')</small></span></div>').join('') + '<div class="rv-fm">' + _rvEsc(_rvMotivo(ch.motivo)) + '</div>');
   if (fo.cruces && fo.cruces.length) h += _rvCard('Cruce con sueño, entrenamiento y comida', fo.cruces.map(c => '<div class="rv-cruce"><b>' + _rvEsc(c.titulo) + '</b><div class="rv-fs">' + _rvEsc(c.texto) + '</div></div>').join(''));
+  if (su) h += '<div class="rv-sec">Sueño</div>' + _rvKpisSueno(su);
   h += _rvGastosCat(eco && eco.gastos, 5, 'Dónde fue el dinero');   // top 5 de lo que ya devuelve repKpiEconomia para este rango
   return h;
 }
@@ -341,13 +357,14 @@ function _rvConstruir(periodo, clave) {
   const foco = R.repFoco(datos, rango, comp, { foArmarCruces: typeof foArmarCruces === 'function' ? foArmarCruces : null });
   const eco = R.repKpiEconomia(datos, rango, comp);
   const it = _rvItemActual();
-  const paginas = [_rvPagina('Foco', _rvKpisFoco(foco, eco))];
+  const sueno = R.repKpiSueno(datos, rango, comp);
+  const paginas = [_rvPagina('Foco', _rvKpisFoco(foco, eco, periodo === 'semanal' ? sueno : null))];   // semanal: el sueño va en la página de Foco; los demás períodos lo traen en Salud
   if (periodo === 'semanal') {
     paginas.push(_rvPagina('Hábitos', _rvLeyenda() + RV_SECCIONES.map(s => { const h = _rvHabitosDe(s[0], ctx, true); return h ? '<div class="rv-sec">' + _rvEsc(s[1]) + '</div>' + h : ''; }).join('')));
     paginas.push(_rvPagina('Gastos', _rvKpisEconomia(eco, true)));
     paginas.push(_rvPagina('Textos de la semana', R.REP_SECCIONES.map(s => _rvCamposSec(it, s, true)).join('') + '<div class="rv-sec">Aprendizajes</div>' + _rvAprHtml(it) + _rvTextosGlobalesHtml(it) + _rvVeredictoHtml(it)));
   } else {
-    const kpis = { conocimiento: () => _rvKpisConocimiento(R.repKpiConocimiento(datos, rango, comp)), finanzas: () => _rvKpisEconomia(eco, false) };
+    const kpis = { salud: () => '<div class="rv-sec">Sueño</div>' + _rvKpisSueno(sueno), conocimiento: () => _rvKpisConocimiento(R.repKpiConocimiento(datos, rango, comp)), finanzas: () => _rvKpisEconomia(eco, false) };
     RV_SECCIONES.forEach(s => {
       paginas.push(_rvPagina(s[1], (ctx.habitos.some(h => h.seccion === s[0]) ? _rvLeyenda() : '') + _rvHabitosDe(s[0], ctx, false) + _rvObjetivos(s[0], s[2], ctx) + (kpis[s[0]] ? kpis[s[0]]() : '') + _rvCamposSec(it, s[2], false)));
     });

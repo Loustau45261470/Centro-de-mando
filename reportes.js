@@ -531,6 +531,33 @@ function repFoco(datos, rango, rangoAnt, deps) {
   };
 }
 
+// ── Sueño: horas, horarios y regularidad (cálculo en sueno-stats.js / CMSueno) ──
+// datos = { sleepLog }. Las horas de reloj viajan en MINUTOS DEL DÍA (acostarse: día corrido desde el mediodía, 00:30 = 1470; ver sueno-stats.js)
+// para que la comparación sea una resta de minutos (negativo = más temprano). `hora` = 'HH:MM' del valor, para mostrar.
+// Acostarse más temprano = mejora (verde); levantarse más temprano o más tarde no es ni bueno ni malo: siempre azul.
+// Sin registros → valor null con motivo 'Sin registros' (nunca ceros engañosos).
+function repKpiSueno(datos, rango, rangoAnt) {
+  const SU = typeof CMSueno !== 'undefined' ? CMSueno : require('./sueno-stats.js');
+  const log = (datos && datos.sleepLog) || {};
+  const res = rg => SU.resumen(log, rg);
+  const kpi = (fn, opts) => _repPar(r => { const v = fn(res(r)); return v == null ? _repNulo('Sin registros') : { valor: v }; }, rango, rangoAnt, opts);
+  const conHora = k => { if (k.valor != null) k.hora = SU.fmtHora(k.valor); if (k.anterior != null) k.horaAnterior = SU.fmtHora(k.anterior); return k; };
+  const bed = conHora(kpi(s => s.bedMin, { menosEsMejor: true }));
+  const wake = conHora(kpi(s => s.wakeMin));
+  if (wake.comparacion) wake.comparacion.tono = 'azul';
+  const reg = kpi(s => s.desvio, { menosEsMejor: true });
+  if (reg.valor != null) reg.texto = SU.textoRegularidad(reg.valor);
+  if (reg.valor == null) {
+    const c = res(rango);
+    if (c.bedN || c.wakeN) reg.motivo = 'Faltan datos: hacen falta al menos ' + SU.MIN_REGULARIDAD + ' noches con horario';
+  }
+  return {
+    horas: kpi(s => s.horasProm),
+    acostarse: bed, levantarse: wake, regularidad: reg,
+    noches: kpi(s => s.noches || null),
+  };
+}
+
 // ── Textos del reporte, veredicto e historial (Etapa B, T3) ──
 // S.reportes.items['<periodo>:<clave>'] se crea SOLO cuando el usuario escribe algo (ver reportes-vista.js). Todo lo de acá es puro.
 const REP_SECCIONES = ['Vida', 'Salud', 'Conocimiento', 'Economía', 'IA'];
@@ -599,6 +626,6 @@ function repConvertirFila(data, item, fila, tipo, fuente, nuevoId) {
   return { creado: true, tipo, id };
 }
 
-const CMReportes = { repFecha, repParse, repSumarDias, repDiasEntre, repRango, repClaveDe, repAnterior, repMeses, repParcial, repRangoComparable, repComparar, repHabitos, repHabitosComparados, repObjetivosPorCategoria, repMetasMensuales, repExamenesPorMes, repKpiEconomia, repGastos: _repGastos, repPresupuesto: _repPresupuesto, repKpiConocimiento, repFoco, REP_SECCIONES, repItemKey, repItemNuevo, repItemCompletar, repItemTieneContenido, repResumenItem, repHistorial, repHayConflicto, repHorizonteDe, repPrincipioDeFila, repObjetivoDeFila, repBuscarConversion, repConvertirFila };
+const CMReportes = { repFecha, repParse, repSumarDias, repDiasEntre, repRango, repClaveDe, repAnterior, repMeses, repParcial, repRangoComparable, repComparar, repHabitos, repHabitosComparados, repObjetivosPorCategoria, repMetasMensuales, repExamenesPorMes, repKpiEconomia, repGastos: _repGastos, repPresupuesto: _repPresupuesto, repKpiConocimiento, repFoco, repKpiSueno, REP_SECCIONES, repItemKey, repItemNuevo, repItemCompletar, repItemTieneContenido, repResumenItem, repHistorial, repHayConflicto, repHorizonteDe, repPrincipioDeFila, repObjetivoDeFila, repBuscarConversion, repConvertirFila };
 if (typeof window !== 'undefined') window.CMReportes = CMReportes;
 if (typeof module !== 'undefined' && module.exports) module.exports = CMReportes;

@@ -125,8 +125,8 @@
   function serieSleepFeeling() {
     var out = {}, log = ST().sleepLog || {};
     Object.keys(log).forEach(function (d) {
-      var f = log[d] && log[d].feeling;
-      if (f != null && isFinite(+f)) out[d] = +f;
+      var f = log[d] && log[d].wellness && log[d].wellness.sleepQuality;   // 1-5; 0 = sin marcar
+      if (f != null && isFinite(+f) && +f > 0) out[d] = +f;
     });
     return out;
   }
@@ -341,7 +341,7 @@
     // aparte para que esas ediciones también invaliden la caché.
     var hoy = _hoy();
     var sl = (st.sleepLog || {})[hoy];
-    if (sl) n += Math.round((sl.hours || 0) * 10) + (sl.feeling || 0) * 37;
+    if (sl) n += Math.round((sl.hours || 0) * 10) + ((sl.wellness && sl.wellness.sleepQuality) || 0) * 37;
     var dp = (st.dayPlan || {})[hoy];
     if (dp && dp.tasks) n += dp.tasks.filter(function (t) { return t && t.done; }).length * 41;
     var gs = (st.goals || {})[hoy];
