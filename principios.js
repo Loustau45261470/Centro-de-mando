@@ -155,16 +155,21 @@ function prFiltrarPrincipios(lista, q, seccion, tipo) {
 //   habito_sin_cumplir {habito:'seccion|id', dias}  S.habitTrackers[sec][].days[fecha]==='done'
 //   sin_entrenar       {dias}                       S.workoutLog (foEntrenoDelDia de foco.js: serie con reps o peso)
 //   sueno_menos        {horas}                      S.sleepLog[hoy].hours (se guarda bajo el día en que te levantás)
+//   levantarse_fuera   {desde,hasta,dias}           S.sleepLog[f].waketime: los últimos N días CON hora de levantarse registrada, todos fuera de la franja (el último, de hoy o ayer; días sin registro no cuentan ni cumplen ni rompen)
+//   acostarse_tarde    {hora,dias}                  S.sleepLog[f].bedtime: igual, las últimas N noches con hora de acostarse, todas después de `hora` (00:10 es antes de 00:30; 23:50 también)
 //   gasto_dia          {monto}                      S.transactions: gastos ARS de hoy netos de reintegros, sin cuotas de tarjeta del día 1
 //   presupuesto_mes    {}                           S.budgets[mes] (+ fondos del mes) contra el gasto neto del mes: misma regla que _repPresupuesto de reportes.js
 //   energia_baja       {nivel}                      S.foco.dias[hoy|ayer].energia (el cierre más reciente de esos dos días)
 const PR_DISPAROS = [['ninguno', 'Ninguno'], ['horario', 'Por horario'], ['diario', 'Diario'], ['datos', 'Por mis datos']];
 const PR_PLANTILLAS = [['habito_sin_cumplir', 'Pasaron N días sin cumplir un hábito'], ['sin_entrenar', 'Pasaron N días sin entrenar'], ['sueno_menos', 'Dormí menos de X horas anoche'],
+  ['levantarse_fuera', 'Me levanto fuera de mi franja N días seguidos'], ['acostarse_tarde', 'Me acuesto tarde N noches seguidas'],
   ['gasto_dia', 'Gasté más de $X hoy'], ['presupuesto_mes', 'Me pasé del presupuesto del mes'], ['energia_baja', 'Mi energía del cierre fue N o menos']];
 const _PR_FECHA = /^\d{4}-\d{2}-\d{2}$/;
 const _prDiasEntre = (a, b) => { const [y1, m1, d1] = a.split('-').map(Number), [y2, m2, d2] = b.split('-').map(Number); return Math.round((Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / 86400000); };
 function prSumarDias(ds, n) { const [y, m, d] = ds.split('-').map(Number), x = new Date(y, m - 1, d + n), q = k => String(k).padStart(2, '0'); return x.getFullYear() + '-' + q(x.getMonth() + 1) + '-' + q(x.getDate()); }
 const _prNDias = n => n + (n === 1 ? ' día' : ' días');
+const _prNoches = n => n + (n === 1 ? ' noche' : ' noches');
+function _prSueno() { return (typeof window !== 'undefined' && window.CMSueno) || require('./sueno-stats.js'); }
 const _prNum = n => String(n).replace('.', ',');
 const _prPeso = n => '$' + Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 // Pospuesto por fecha (silenciadoHasta, 'YYYY-MM-DD') o por tiempo corto (silenciadoHastaTs, ms: 15 min / 1 h / 3 h). `ahora` (ms) por defecto Date.now().
@@ -183,6 +188,8 @@ function prNormalizarRegla(r) {
   if (pl === 'habito_sin_cumplir') { const d = num(r.dias, 1, 365, true); return d && /^[^|]+\|[^|]+$/.test(r.habito || '') ? { plantilla: pl, habito: r.habito, dias: d } : null; }
   if (pl === 'sin_entrenar') { const d = num(r.dias, 1, 365, true); return d ? { plantilla: pl, dias: d } : null; }
   if (pl === 'sueno_menos') { const h = num(r.horas, 1, 12); return h ? { plantilla: pl, horas: h } : null; }
+  if (pl === 'levantarse_fuera') { const d = num(r.dias, 1, 30, true), h = /^([01]\d|2[0-3]):[0-5]\d$/; return d && h.test(r.desde || '') && h.test(r.hasta || '') ? { plantilla: pl, desde: r.desde, hasta: r.hasta, dias: d } : null; }
+  if (pl === 'acostarse_tarde') { const d = num(r.dias, 1, 30, true); return d && /^([01]\d|2[0-3]):[0-5]\d$/.test(r.hora || '') ? { plantilla: pl, hora: r.hora, dias: d } : null; }
   if (pl === 'gasto_dia') { const m = num(r.monto, 1, 1e12); return m ? { plantilla: pl, monto: m } : null; }
   if (pl === 'presupuesto_mes') return { plantilla: pl };
   if (pl === 'energia_baja') { const n = num(r.nivel, 1, 5, true); return n ? { plantilla: pl, nivel: n } : null; }
@@ -201,6 +208,8 @@ function prTextoRegla(r, habLabel) {
   if (r.plantilla === 'habito_sin_cumplir') return 'Pasaron ' + _prNDias(r.dias) + ' sin cumplir ' + (habLabel || 'un hábito');
   if (r.plantilla === 'sin_entrenar') return 'Pasaron ' + _prNDias(r.dias) + ' sin entrenar';
   if (r.plantilla === 'sueno_menos') return 'Dormí menos de ' + _prNum(r.horas) + ' horas anoche';
+  if (r.plantilla === 'levantarse_fuera') return 'Me levanté fuera de ' + r.desde + '–' + r.hasta + ' ' + _prNDias(r.dias) + ' seguidos';
+  if (r.plantilla === 'acostarse_tarde') return 'Me acosté después de las ' + r.hora + ' ' + _prNoches(r.dias) + ' seguidas';
   if (r.plantilla === 'gasto_dia') return 'Gasté más de ' + _prPeso(r.monto) + ' en el día';
   if (r.plantilla === 'presupuesto_mes') return 'Me pasé del presupuesto del mes';
   return 'Mi energía del cierre fue ' + r.nivel + ' o menos';
@@ -233,6 +242,15 @@ function prEvaluarRegla(regla, datos, hoy) {
   if (r.plantilla === 'sueno_menos') {
     const e = (datos.sleepLog || {})[hoy], h = e && e.hours;
     return typeof h === 'number' && h > 0 && h < r.horas ? { activa: true, detalle: 'Anoche dormiste ' + _prNum(h) + ' horas' } : no;
+  }
+  if (r.plantilla === 'levantarse_fuera' || r.plantilla === 'acostarse_tarde') {
+    const SU = _prSueno(), wake = r.plantilla === 'levantarse_fuera', log = datos.sleepLog || {}, ayer = prSumarDias(hoy, -1);
+    const dias = Object.keys(log).filter(f => f <= hoy && _PR_FECHA.test(f) && log[f] && SU.horaAMin(wake ? log[f].waketime : log[f].bedtime) != null).sort();
+    if (dias.length < r.dias || dias[dias.length - 1] < ayer) return no;   // faltan registros, o el último ya es viejo (dejaste de cargar: no seguir avisando)
+    const ult = dias.slice(-r.dias);
+    const fuera = wake ? ult.every(f => !SU.enFranja(SU.horaAMin(log[f].waketime), SU.horaAMin(r.desde), SU.horaAMin(r.hasta))) : ult.every(f => SU.acostarseAMin(log[f].bedtime) > SU.acostarseAMin(r.hora));
+    if (!fuera) return no;
+    return { activa: true, detalle: wake ? 'Hace ' + _prNDias(r.dias) + ' que te levantás fuera de ' + r.desde + '–' + r.hasta : 'Hace ' + _prNoches(r.dias) + ' que te acostás después de las ' + r.hora };
   }
   if (r.plantilla === 'gasto_dia') {
     const g = _prRep().repGastos(datos, { desde: hoy, hasta: hoy }, true).total;
@@ -485,6 +503,8 @@ function _prFormDisparo(p) {
     if (pl === 'habito_sin_cumplir') h += '<label class="pr-l">Hábito</label>' + _prSelect('prf-hab', _prHabitos().map(x => [x.ref, x.label + ' · ' + x.seccion]), r.habito || '') + num('prf-dias', 'Días sin cumplirlo', def(r.dias, 3), 1, 365, 1);
     else if (pl === 'sin_entrenar') h += num('prf-dias', 'Días sin entrenar', def(r.dias, 3), 1, 365, 1);
     else if (pl === 'sueno_menos') h += num('prf-horas', 'Horas de sueño (avisa si dormiste menos)', def(r.horas, 6), 1, 12, 0.5);
+    else if (pl === 'levantarse_fuera') h += '<label class="pr-l">Mi franja para levantarme (avisa si te levantás fuera)</label><div class="pr-fila"><input id="prf-desde" class="pr-in fo-hora" type="time" value="' + _prEsc(def(r.desde, '06:45')) + '"><input id="prf-hasta" class="pr-in fo-hora" type="time" value="' + _prEsc(def(r.hasta, '07:15')) + '"></div>' + num('prf-dias', 'Días seguidos fuera de la franja', def(r.dias, 3), 1, 30, 1) + '<div class="pr-nota">Cuentan los días en que cargaste la hora de levantarte; los que no cargaste no suman ni cortan la racha.</div>';
+    else if (pl === 'acostarse_tarde') h += '<label class="pr-l">Hora límite para acostarme (avisa si te acostás después)</label><input id="prf-hora-ac" class="pr-in fo-hora" type="time" value="' + _prEsc(def(r.hora, '00:30')) + '">' + num('prf-dias', 'Noches seguidas tarde', def(r.dias, 3), 1, 30, 1) + '<div class="pr-nota">Cuentan las noches en que cargaste la hora de acostarte; las que no cargaste no suman ni cortan la racha.</div>';
     else if (pl === 'gasto_dia') h += num('prf-monto', 'Monto en pesos (avisa si gastaste más hoy)', r.monto, 1, 1000000000, 1);
     else if (pl === 'energia_baja') h += '<label class="pr-l">Energía del cierre (avisa si fue esta o menos)</label>' + _prSelect('prf-nivel', [1, 2, 3, 4, 5].map(n => [n, String(n)]), def(r.nivel, 2));
     else h += '<div class="pr-nota">Compara lo gastado en el mes con el presupuesto que cargaste.</div>';
@@ -495,7 +515,7 @@ function _prFormDisparo(p) {
 function _prLeerDisparo() {   // lo tipeado en el formulario, sin limpiar (prNormalizarDisparo valida)
   const tipo = _prVal('prf-disp') || 'ninguno';
   if (tipo === 'horario') return { tipo, hora: _prVal('prf-hora') };
-  if (tipo === 'datos') return { tipo, regla: { plantilla: _prVal('prf-pl') || PR_PLANTILLAS[0][0], habito: _prVal('prf-hab'), dias: _prVal('prf-dias'), horas: _prVal('prf-horas'), monto: _prVal('prf-monto'), nivel: _prVal('prf-nivel') } };
+  if (tipo === 'datos') return { tipo, regla: { plantilla: _prVal('prf-pl') || PR_PLANTILLAS[0][0], habito: _prVal('prf-hab'), dias: _prVal('prf-dias'), horas: _prVal('prf-horas'), monto: _prVal('prf-monto'), desde: _prVal('prf-desde'), hasta: _prVal('prf-hasta'), hora: _prVal('prf-hora-ac'), nivel: _prVal('prf-nivel') } };
   return { tipo };
 }
 

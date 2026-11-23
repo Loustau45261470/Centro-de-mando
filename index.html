@@ -21,7 +21,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-<link rel="stylesheet" href="styles.css?v=285">
+<link rel="stylesheet" href="styles.css?v=286">
 <script>try{if(localStorage.getItem('cm_rail_off')==='1')document.documentElement.classList.add('rail-off')}catch(e){}</script>
 <link rel="stylesheet" href="gamemode.css">
 <link rel="stylesheet" href="overlay-core.css">
@@ -1858,6 +1858,20 @@
     <input type="hidden" id="habitId">
     <div class="field"><label>Nombre</label><input class="inp" id="habitName" placeholder="Ej: Lectura, Meditación, Idioma…"></div>
     <div class="field"><label>Emoji / ícono</label><input class="inp" id="habitEmoji" placeholder="📖" maxlength="4"></div>
+    <div class="field habit-auto">
+      <div class="habit-auto-row"><label for="habitAutoOn">Marcar solo con el sueño</label><input type="checkbox" id="habitAutoOn" onchange="habitAutoToggle()"></div>
+      <div class="habit-auto-body" id="habitAutoBody" style="display:none">
+        <select class="inp" id="habitAutoMetric" onchange="habitAutoToggle()">
+          <option value="wake_in">Levantarme dentro de una franja</option>
+          <option value="bed_before">Acostarme antes de una hora</option>
+          <option value="hours_min">Dormir al menos X horas</option>
+        </select>
+        <div class="habit-auto-vals" data-m="wake_in"><span>entre</span><input class="inp" type="time" id="habitAutoDesde" value="06:45"><span>y</span><input class="inp" type="time" id="habitAutoHasta" value="07:15"></div>
+        <div class="habit-auto-vals" data-m="bed_before" style="display:none"><span>antes de las</span><input class="inp" type="time" id="habitAutoHora" value="00:30"></div>
+        <div class="habit-auto-vals" data-m="hours_min" style="display:none"><span>al menos</span><input class="inp" type="number" id="habitAutoHoras" value="7" min="1" max="14" step="0.5"><span>horas</span></div>
+        <div class="habit-auto-nota">Se tilda solo al guardar tus horarios de sueño del día, y se destilda si dejás de cumplirlo. No pisa lo que marques a mano como parcial, descanso o fallado.</div>
+      </div>
+    </div>
     <div class="modal-actions" style="flex-wrap:wrap;gap:8px">
       <button class="btn btn-danger btn-sm" id="habitDeleteBtn" onclick="deleteHabit(document.getElementById('habitId').value)" style="display:none">Eliminar</button>
       <div style="flex:1;display:flex;gap:8px;justify-content:flex-end">
@@ -1949,7 +1963,7 @@
 <script src="errores.js?v=1"></script>
 <script src="deadlines.js?v=12"></script>
 <script src="motion.js?v=1"></script>
-<script src="app.js?v=234"></script>
+<script src="app.js?v=235"></script>
 <script src="datos-privados.js?v=2"></script>
 <script src="sync-diagnostico.js?v=2"></script>
 <script src="historial-versiones.js?v=3"></script>
@@ -1958,15 +1972,15 @@
 <script src="workspace.js?v=200"></script>
 <script src="abogacia.js?v=9"></script>
 <script src="correlativas.js?v=6"></script>
-<script src="habitos.js?v=10"></script>
+<script src="habitos.js?v=11"></script>
 <script src="rutinas.js"></script>
 <script src="tarjetas-motor.js?v=8"></script>
 <script src="finanzas.js?v=43"></script>
 <script src="recordatorios.js?v=14"></script>
 <script src="objetivos.js"></script>
-<script src="principios.js?v=17"></script>
+<script src="principios.js?v=18"></script>
 <script src="foco.js?v=4"></script>
-<script src="sueno-stats.js?v=1"></script>
+<script src="sueno-stats.js?v=2"></script>
 <script src="reportes.js?v=11"></script>
 <script src="reportes-vista.js?v=15"></script>
 <script src="consejero.js?v=2"></script>

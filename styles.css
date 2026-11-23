@@ -6993,3 +6993,14 @@ body:has(#rs-nudge) #fo-nudge { bottom: calc(max(12px, env(safe-area-inset-botto
 .pr-av-sugs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .pr-av-sug { min-height: 44px; flex: 1 1 100%; min-width: 0; padding: 8px 10px; white-space: normal; text-align: left; line-height: 1.3; overflow-wrap: anywhere; }
 .pr-dia { position: fixed; top: calc(var(--ticker) + 10px); left: 50%; transform: translateX(-50%); z-index: 125; width: min(420px, calc(100vw - 20px)); box-sizing: border-box; background: rgba(10,16,30,.96); border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 8px 28px rgba(0,0,0,.35); }
+
+/* Hábito que se marca solo con el sueño (modal de hábito + aviso en el calendario) */
+.habit-auto-row { padding-right: 34px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.habit-auto-row label { margin-bottom: 0; }
+.habit-auto-row input[type=checkbox] { width: 18px; height: 18px; flex: none; margin: 0; }
+.habit-auto-body { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
+.habit-auto-vals { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: var(--fs-13); color: var(--ts); }
+.habit-auto-vals .inp { width: auto; min-width: 0; flex: 0 1 110px; }
+.habit-auto-nota { font-size: var(--fs-13); color: var(--ts); opacity: .8; line-height: 1.35; }
+.habit-auto-tag { font-size: var(--fs-13); color: var(--ts); margin: 6px 0 2px; }
+.pr-fila { display: flex; gap: 8px; } .pr-fila .pr-in { flex: 1 1 0; min-width: 0; }

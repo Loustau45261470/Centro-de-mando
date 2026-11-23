@@ -4152,6 +4152,7 @@ function saveSleepTimes() {
   entry.waketime = document.getElementById('sleepWaketime').value;
   const h = _sleepCalcHours(entry.bedtime, entry.waketime);
   if (h !== null) entry.hours = h;
+  if (typeof _habitSleepSyncAll === 'function' && _habitSleepSyncAll(null, 1)) ['vida', 'salud', 'conocimiento'].forEach(sec => { if (typeof renderHabitsCard === 'function') renderHabitsCard(sec); });
   saveState();
   renderSleepTracker();
 }

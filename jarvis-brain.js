@@ -770,6 +770,7 @@
           if (a.hours != null) { const h = parseFloat(a.hours); if (!isNaN(h)) S.sleepLog[date].hours = h; }
           if (a.bedtime) S.sleepLog[date].bedtime = a.bedtime;
           if (a.waketime) S.sleepLog[date].waketime = a.waketime;
+          if (typeof _habitSleepSyncAll === 'function' && _habitSleepSyncAll(null, 1) && typeof renderHabitsCard === 'function') ['vida', 'salud', 'conocimiento'].forEach(sec => renderHabitsCard(sec));
           saveState(); if (typeof renderSleepTracker === 'function') renderSleepTracker();
           _logAudit(a, action, `Registró sueño (${date})`, null);
           return { ok: true };

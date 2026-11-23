@@ -49,6 +49,28 @@ test.describe('prEvaluarRegla: cada plantilla, activa e inactiva', () => {
     expect(ev({ plantilla: 'sueno_menos', horas: 6 }, { sleepLog: { '2026-11-11': { hours: 3 } } }).activa).toBe(false);
   });
 
+  test('levantarse fuera de la franja / acostarse tarde: últimos N registros; días sin registro no cuentan', () => {
+    const lv = { plantilla: 'levantarse_fuera', desde: '06:45', hasta: '07:15', dias: 3 };
+    const w = (o) => ({ sleepLog: Object.fromEntries(Object.entries(o).map(([k, v]) => [k, { waketime: v }])) });
+    // 3 registros fuera (el 11-10 sin registro no corta ni suma); el último es ayer
+    expect(ev(lv, w({ '2026-11-08': '08:00', '2026-11-09': '08:30', '2026-11-11': '06:00' }))).toEqual({ activa: true, detalle: 'Hace 3 días que te levantás fuera de 06:45–07:15' });
+    expect(ev(lv, w({ '2026-11-08': '08:00', '2026-11-09': '07:00', '2026-11-11': '06:00' })).activa).toBe(false);   // uno dentro
+    expect(ev(lv, w({ '2026-11-09': '08:30', '2026-11-11': '06:00' })).activa).toBe(false);                          // solo 2 registros
+    expect(ev(lv, w({ '2026-11-05': '08:00', '2026-11-06': '08:30', '2026-11-07': '06:00' })).activa).toBe(false);   // el último registro es viejo
+    expect(ev(lv, { sleepLog: {} }).activa).toBe(false);
+    expect(ev({ plantilla: 'levantarse_fuera', desde: '23:00', hasta: '01:00', dias: 1 }, w({ [HOY]: '12:00' })).activa).toBe(true);   // franja que cruza medianoche
+    const ac = { plantilla: 'acostarse_tarde', hora: '00:30', dias: 2 };
+    const b = (o) => ({ sleepLog: Object.fromEntries(Object.entries(o).map(([k, v]) => [k, { bedtime: v }])) });
+    expect(ev(ac, b({ '2026-11-11': '01:15', [HOY]: '02:00' }))).toEqual({ activa: true, detalle: 'Hace 2 noches que te acostás después de las 00:30' });
+    expect(ev(ac, b({ '2026-11-11': '01:15', [HOY]: '00:10' })).activa).toBe(false);   // 00:10 es antes de 00:30
+    expect(ev(ac, b({ '2026-11-11': '23:50', [HOY]: '02:00' })).activa).toBe(false);
+    expect(ev(ac, b({ [HOY]: '02:00' })).activa).toBe(false);                           // 1 registro < 2
+    expect(ev(Object.assign({}, ac, { dias: 1 }), b({ [HOY]: '00:30' })).activa).toBe(false);   // justo en la hora no es tarde
+    expect(P.prNormalizarRegla({ plantilla: 'acostarse_tarde', hora: '25:00', dias: 2 })).toBeNull();
+    expect(P.prNormalizarRegla({ plantilla: 'levantarse_fuera', desde: '06:45', hasta: '', dias: 2 })).toBeNull();
+    expect(P.prTextoRegla(lv)).toBe('Me levanté fuera de 06:45–07:15 3 días seguidos');
+  });
+
   test('gasto del día: neto de reintegros; sin invest, sin USD, sin cuotas de tarjeta del día 1', () => {
     const tx = [
       { type: 'expense', amount: 8000, date: HOY, category: 'food' }, { type: 'expense', amount: 3000, date: HOY, category: 'invest' },
@@ -236,6 +258,8 @@ test.describe('Recordatorios de principios en el Centro', () => {
       ['habito_sin_cumplir', async () => { await ov.locator('#prf-hab').selectOption('salud|h1'); await ov.locator('#prf-dias').fill('4'); }, { plantilla: 'habito_sin_cumplir', habito: 'salud|h1', dias: 4 }],
       ['sin_entrenar', async () => { await ov.locator('#prf-dias').fill('3'); }, { plantilla: 'sin_entrenar', dias: 3 }],
       ['sueno_menos', async () => { await ov.locator('#prf-horas').fill('6.5'); }, { plantilla: 'sueno_menos', horas: 6.5 }],
+      ['levantarse_fuera', async () => { await ov.locator('#prf-desde').fill('06:30'); await ov.locator('#prf-hasta').fill('07:00'); await ov.locator('#prf-dias').fill('4'); }, { plantilla: 'levantarse_fuera', desde: '06:30', hasta: '07:00', dias: 4 }],
+      ['acostarse_tarde', async () => { await ov.locator('#prf-hora-ac').fill('00:15'); await ov.locator('#prf-dias').fill('2'); }, { plantilla: 'acostarse_tarde', hora: '00:15', dias: 2 }],
       ['gasto_dia', async () => { await ov.locator('#prf-monto').fill('20000'); }, { plantilla: 'gasto_dia', monto: 20000 }],
       ['presupuesto_mes', async () => {}, { plantilla: 'presupuesto_mes' }],
       ['energia_baja', async () => { await ov.locator('#prf-nivel').selectOption('2'); }, { plantilla: 'energia_baja', nivel: 2 }],

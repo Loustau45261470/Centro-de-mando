@@ -107,7 +107,27 @@
     return _r1(hs.filter(x => x >= +horas).length * 100 / hs.length);
   }
 
-  const CMSueno = { horaAMin, fmtHora, acostarseAMin, calcHoras, noches, resumen, textoRegularidad, pctDiasLevantarEnFranja, pctNochesAcostarseAntes, pctNochesHorasMin, MIN_REGULARIDAD };
+  // ¿Este registro de sueño (un día) cumple el criterio? true / false / null (sin el dato que ese criterio necesita: no se juzga).
+  // auto = { metric:'wake_in', desde, hasta } | { metric:'bed_before', hora } | { metric:'hours_min', horas }. Mismas reglas que los pct* de arriba.
+  function cumpleCriterio(e, auto) {
+    if (!e || typeof e !== 'object' || !auto) return null;
+    if (auto.metric === 'wake_in') {
+      const w = horaAMin(e.waketime), a = horaAMin(auto.desde), b = horaAMin(auto.hasta);
+      return w == null || a == null || b == null ? null : _enFranja(w, a, b);
+    }
+    if (auto.metric === 'bed_before') {
+      const bd = acostarseAMin(e.bedtime), h = acostarseAMin(auto.hora);
+      return bd == null || h == null ? null : bd <= h;
+    }
+    if (auto.metric === 'hours_min') {
+      let hs = e.hours != null && isFinite(+e.hours) && +e.hours > 0 ? +e.hours : null;
+      const c = calcHoras(e.bedtime, e.waketime); if (c !== null) hs = c;
+      return hs == null || auto.horas == null || !isFinite(+auto.horas) ? null : hs >= +auto.horas;
+    }
+    return null;
+  }
+
+  const CMSueno = { horaAMin, fmtHora, acostarseAMin, calcHoras, noches, resumen, textoRegularidad, pctDiasLevantarEnFranja, pctNochesAcostarseAntes, pctNochesHorasMin, cumpleCriterio, enFranja: _enFranja, MIN_REGULARIDAD };
   global.CMSueno = CMSueno;
   if (typeof module !== 'undefined' && module.exports) module.exports = CMSueno;
 })(typeof window !== 'undefined' ? window : globalThis);

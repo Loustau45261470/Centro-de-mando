@@ -313,6 +313,7 @@ function renderHabitsCard(section) {
       </div>
     </div>
     <div class="habit-tabs">${tabsHTML}</div>
+    ${(() => { const ah = habits.find(h => h.id === _habitActiveId[section]); return ah && ah.auto ? `<div class="habit-auto-tag">🌙 ${habitAutoTexto(ah.auto)}</div>` : ''; })()}
     <div id="habit-stats-${section}"></div>
     <div id="habit-cal-${section}"></div>
     <div id="habit-chart-wrap-${section}" style="height:120px;margin:12px 0 4px;display:none">
@@ -852,6 +853,7 @@ function openAddHabitFor(section) {
   document.getElementById('habitName').value    = '';
   document.getElementById('habitEmoji').value   = '';
   document.getElementById('habitDeleteBtn').style.display = 'none';
+  _habitAutoCargar(null);
   openModal('modal-habit');
 }
 
@@ -865,7 +867,76 @@ function openEditHabitFor(section, id) {
   document.getElementById('habitName').value    = habit.name;
   document.getElementById('habitEmoji').value   = habit.emoji||'';
   document.getElementById('habitDeleteBtn').style.display = '';
+  _habitAutoCargar(habit.auto);
   openModal('modal-habit');
+}
+
+// ── Hábito que se marca solo con el sueño: habit.auto = { type:'sleep', metric:'wake_in'|'bed_before'|'hours_min', desde?, hasta?, hora?, horas? } (ausente = apagado)
+function _habitAutoCargar(a) {
+  const on = !!(a && a.type === 'sleep');
+  const $ = id => document.getElementById(id);
+  $('habitAutoOn').checked = on;
+  $('habitAutoMetric').value = on ? a.metric : 'wake_in';
+  $('habitAutoDesde').value = (on && a.desde) || '06:45';
+  $('habitAutoHasta').value = (on && a.hasta) || '07:15';
+  $('habitAutoHora').value  = (on && a.hora)  || '00:30';
+  $('habitAutoHoras').value = (on && a.horas) || 7;
+  habitAutoToggle();
+}
+function habitAutoToggle() {
+  const $ = id => document.getElementById(id);
+  $('habitAutoBody').style.display = $('habitAutoOn').checked ? '' : 'none';
+  const m = $('habitAutoMetric').value;
+  document.querySelectorAll('#habitAutoBody .habit-auto-vals').forEach(el => { el.style.display = el.dataset.m === m ? '' : 'none'; });
+}
+// Lee el formulario → objeto `auto` limpio, null si está apagado, o undefined si hay un valor inválido (ya avisó con un toast).
+function _habitAutoLeer() {
+  const v = id => document.getElementById(id).value;
+  if (!document.getElementById('habitAutoOn').checked) return null;
+  const C = window.CMSueno, m = v('habitAutoMetric');
+  if (m === 'wake_in') {
+    if (C.horaAMin(v('habitAutoDesde')) == null || C.horaAMin(v('habitAutoHasta')) == null) { showToast('Completá las dos horas de la franja'); return undefined; }
+    return { type: 'sleep', metric: m, desde: v('habitAutoDesde'), hasta: v('habitAutoHasta') };
+  }
+  if (m === 'bed_before') {
+    if (C.horaAMin(v('habitAutoHora')) == null) { showToast('Completá la hora de acostarte'); return undefined; }
+    return { type: 'sleep', metric: m, hora: v('habitAutoHora') };
+  }
+  const hs = Number(String(v('habitAutoHoras')).replace(',', '.'));
+  if (!(hs >= 1 && hs <= 14)) { showToast('Poné las horas de sueño (entre 1 y 14)'); return undefined; }
+  return { type: 'sleep', metric: 'hours_min', horas: hs };
+}
+function habitAutoTexto(a) {
+  if (!a || a.type !== 'sleep') return '';
+  const n = x => String(x).replace('.', ',');
+  if (a.metric === 'wake_in') return 'Se marca solo si te levantás entre ' + a.desde + ' y ' + a.hasta;
+  if (a.metric === 'bed_before') return 'Se marca solo si te acostás antes de las ' + a.hora;
+  return 'Se marca solo si dormís al menos ' + n(a.horas) + ' horas';
+}
+// Misma regla que _dietaSyncHabit: 'done' si ese día cumple, y lo saca si dejó de cumplir. Nunca pisa 'partial', 'rest' ni 'missed' puestos a mano;
+// sin el dato que el criterio necesita no toca nada. Devuelve true si cambió algo (no guarda: lo hace quien llama, una sola vez).
+function _habitSleepSyncDia(h, ds) {
+  if (!h || !h.auto || h.auto.type !== 'sleep' || !window.CMSueno) return false;
+  const ok = window.CMSueno.cumpleCriterio((S.sleepLog || {})[ds], h.auto);
+  if (ok === null) return false;
+  if (!h.days) h.days = {};
+  if (ok && !h.days[ds]) { h.days[ds] = 'done'; return true; }
+  if (!ok && h.days[ds] === 'done') { delete h.days[ds]; return true; }
+  return false;
+}
+// Recalcula los últimos `dias` días (por defecto 60) de un hábito, o de todos los hábitos auto si `solo` es null. Devuelve true si cambió algo.
+function _habitSleepSyncAll(solo, dias) {
+  const hoy = getActiveDate(); let cambio = false;
+  const hs = solo ? [solo] : Object.keys(S.habitTrackers || {}).reduce((a, sec) => a.concat(S.habitTrackers[sec] || []), []);
+  hs.forEach(h => {
+    if (!h || !h.auto || h.auto.type !== 'sleep') return;
+    for (let i = 0; i < (dias || 60); i++) {
+      const d = new Date(hoy + 'T12:00:00'); d.setDate(d.getDate() - i);
+      const ds = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      if (_habitSleepSyncDia(h, ds)) cambio = true;
+    }
+  });
+  return cambio;
 }
 
 function saveHabit() {
@@ -876,14 +947,20 @@ function saveHabit() {
   if (!name) { showToast('Escribe el nombre del hábito'); return; }
   const arr = S.habitTrackers[section];
   if (!arr) return;
+  const auto = _habitAutoLeer();
+  if (auto === undefined) return;
+  let hab;
   if (id) {
     const h = arr.find(h => h.id===id);
-    if (h) { h.name=name; h.emoji=emoji; }
+    if (h) { h.name=name; h.emoji=emoji; if (auto) h.auto = auto; else delete h.auto; hab = h; }
   } else {
     const newH = { id:uid(), name, emoji, days:{} };
+    if (auto) newH.auto = auto;
     arr.push(newH);
     _habitActiveId[section] = newH.id;
+    hab = newH;
   }
+  if (hab && hab.auto) _habitSleepSyncAll(hab, 60);
   saveState(); closeModal('modal-habit'); renderHabitsCard(section);
 }
 
