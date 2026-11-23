@@ -46,8 +46,11 @@ test('2) el estado inicial no trae las claves y la búsqueda global ignora los d
   const r = await cmPage.evaluate((fijos) => {
     S.fixedExpenses = JSON.parse(JSON.stringify(fijos));
     CMBuscar.reindexar();
+    // el fixture tiene un movimiento real llamado "Alquiler": solo cuenta lo que venga de S.fixedExpenses (mismo título que un gasto fijo)
+    const nombres = fijos.map((f) => f.name);
+    const deFijos = (q) => CMBuscar.buscar(q, 30).filter((x) => x.tipo === 'gastoFijo' || nombres.includes(x.titulo));
     return {
-      alquiler: CMBuscar.buscar('Alquiler', 30), expensas: CMBuscar.buscar('Expensas', 30),
+      alquiler: deFijos('Alquiler'), expensas: deFijos('Expensas'),
       tipos: CMBuscar.buscar('a', 300).map((x) => x.tipo),
       enDefault: Object.keys(JSON.parse(JSON.stringify(DEFAULT_STATE))).filter((k) => /fixedExpense/.test(k)),
     };
