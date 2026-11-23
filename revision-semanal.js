@@ -152,10 +152,15 @@
   }
   function _rsMoverMeta(date, id) {
     const found = _rsFindGoal(date, id); if (!found) return;
-    const newDate = _addDays(date, 7);
+    // Va al primer día de la semana que arranca (el lunes siguiente al domingo de cierre), o a hoy si ese lunes ya pasó.
+    // Antes sumaba 7 días: la del sábado iba al sábado siguiente y no aparecía en la semana nueva.
+    const lunes = _addDays(_lastSunday(_rsInfo.today), 1);
+    const newDate = lunes > _rsInfo.today ? lunes : _rsInfo.today;
     found.arr.splice(found.idx, 1);
     if (!Array.isArray(S.goals[newDate])) S.goals[newDate] = [];
-    S.goals[newDate].push(found.goal);
+    // La misma tarea repetida en varios días de la semana (o ya presente ese día) entra una sola vez.
+    const norm = t => (t || '').trim().toLowerCase();
+    if (!S.goals[newDate].some(g => g && norm(g.text) === norm(found.goal.text))) S.goals[newDate].push(found.goal);
     const entry = _rsEntry(_rsInfo.entryWeekKey, true);
     entry.movidas.push({ id, text: found.goal.text || '', from: date, to: newDate });
     saveState();
