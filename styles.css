@@ -7004,3 +7004,18 @@ body:has(#rs-nudge) #fo-nudge { bottom: calc(max(12px, env(safe-area-inset-botto
 .habit-auto-nota { font-size: var(--fs-13); color: var(--ts); opacity: .8; line-height: 1.35; }
 .habit-auto-tag { font-size: var(--fs-13); color: var(--ts); margin: 6px 0 2px; }
 .pr-fila { display: flex; gap: 8px; } .pr-fila .pr-in { flex: 1 1 0; min-width: 0; }
+
+/* Gasto repartido en meses (reparto-gastos.js): opción en el formulario, etiqueta en Actividad y bloque "Ya comprometido" */
+.rep-opt { display: flex !important; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; letter-spacing: 0 !important; }
+.rep-opt span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.rep-opt input { width: 16px; height: 16px; flex: none; margin: 0; accent-color: var(--accent); }
+.rep-box { margin: 0 0 12px; }
+.rep-box > label { display: block; margin-top: 10px; }
+.rep-desde { display: flex; gap: 8px; align-items: center; }
+.rep-desde .inp { min-width: 0; flex: 1; }
+.rep-badge { font: inherit; font-size: var(--fs-12-5); font-weight: 700; padding: 1px 7px; margin-left: 4px; border-radius: 99px; cursor: pointer; color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+.rep-comp { margin: 8px 0 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; }
+.rep-comp-t { font-weight: 700; margin-bottom: 6px; }
+.rep-comp-d summary { display: flex; justify-content: space-between; gap: 10px; cursor: pointer; padding: 4px 0; }
+.rep-comp-d ul { list-style: none; margin: 4px 0 6px; padding: 0 0 0 8px; }
+.rep-comp-d li { display: flex; justify-content: space-between; gap: 10px; font-size: var(--fs-13); color: var(--ts); padding: 2px 0; }

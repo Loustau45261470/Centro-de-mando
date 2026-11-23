@@ -157,8 +157,11 @@ const CMTarjetas = (() => {
     if (!p || charge.mode === 'advance') return [];
     if (charge.mode === 'deferred') {
       const n = charge.consumeMonths == null ? 1 : charge.consumeMonths;
+      // consumeFrom (opcional, 'YYYY-MM'): mes en que arranca el gasto; sin él, el mes de la compra.
+      const cf = /^(\d{4})-(\d{2})$/.exec(typeof charge.consumeFrom === 'string' ? charge.consumeFrom : '');
+      const sy = cf ? +cf[1] : p.y, sm = cf ? +cf[2] : p.m;
       return splitCents(charge.amount, n).map((amount, i) => {
-        const mo = addMonths(p.y, p.m, i);
+        const mo = addMonths(sy, sm, i);
         return { month: `${mo.y}-${pad(mo.m)}`, amount };
       });
     }
@@ -305,6 +308,11 @@ const CMTarjetas = (() => {
     if (c.mode === 'deferred') {
       const m = c.consumeMonths;
       if (!isInt(m) || m < 1 || m > MAX_N) return `Los meses de consumo tienen que ser un entero entre 1 y ${MAX_N}.`;
+      if (c.consumeFrom != null) {
+        const cf = /^(\d{4})-(\d{2})$/.exec(typeof c.consumeFrom === 'string' ? c.consumeFrom : '');
+        if (!cf || +cf[2] < 1 || +cf[2] > 12) return 'El mes de inicio del gasto es inválido.';
+        if (c.consumeFrom < String(c.date).slice(0, 7)) return 'El gasto no puede empezar antes del mes de la compra.';
+      }
     }
     if (c.mode === 'advance' && !c.toAccountId) return 'Elegí la cuenta donde entra la plata.';
     if (c.z != null && typeof c.z !== 'boolean') return 'Plan Z inválido.';
@@ -351,7 +359,7 @@ const CMTarjetas = (() => {
     return { ok: true, error: null };
   }
 
-  return { hasReset, resetDayOf, idTs, chargeCounts, paymentCounts, used, statementFor, installmentSchedule, expenseSchedule, chargeEffects, dueTotals, pendingDues, upcomingDueDates, validateCharge, validateCard, validateDue };
+  return { splitCents, hasReset, resetDayOf, idTs, chargeCounts, paymentCounts, used, statementFor, installmentSchedule, expenseSchedule, chargeEffects, dueTotals, pendingDues, upcomingDueDates, validateCharge, validateCard, validateDue };
 })();
 
 if (typeof window !== 'undefined') window.CMTarjetas = CMTarjetas;

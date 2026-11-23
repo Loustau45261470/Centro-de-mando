@@ -376,6 +376,7 @@ function cardsCatchUp() {
     S.ccSetAtRepair1 = true; saveState();
   }
   materializeCardExpenses();
+  if (typeof materializeRepartos === 'function') materializeRepartos();   // partes de gastos repartidos (reparto-gastos.js)
   applyCardAutoPayments();
 }
 
@@ -948,10 +949,12 @@ function initTxnForm() {
   g('ccChMode').value = 'now1';
   g('ccChInst').value = '3';
   g('ccChMonths').value = '3';
+  g('ccChFrom').value = 'cur'; g('ccChFromMes').value = ''; onCcFromChange(true);
   g('ccChZ').checked = false;
   g('ccChToAcc').innerHTML = _ccAccountOptions('', '— Elegí una cuenta —');
   g('ccChErr').textContent = '';
   _coverReset();
+  if (typeof repUiReset === 'function') repUiReset('txnRep');   // "Repartir en meses" arranca destildado
   setTxnDiscount(0);   // el formulario siempre arranca en "Sin descuento"
   onTxnPaymentChange();
 }
@@ -1180,6 +1183,7 @@ function syncTxnDiscount() {
   const ok = _txnDiscountAllowed();
   document.getElementById('txnDiscountRow').style.display = ok ? '' : 'none';
   if (!ok) setTxnDiscount(0); else { syncTxnRefundUi(); updateTxnDiscountPreview(); }
+  if (typeof repUiSync === 'function') repUiSync('txnRep');
 }
 function onTxnAmountInput() { updateTxnDiscountPreview(); updateCardChargePreview(); }
 // Etiqueta chica "reintegro 25%" junto al gasto (compra con tarjeta o gasto común que tiene reintegro).
@@ -1231,6 +1235,11 @@ function _ccZSync() {
   document.getElementById('ccChZRow').style.display = show ? '' : 'none';
   document.getElementById('ccChInstLbl').textContent = show && z.checked ? 'Cantidad de partes (Plan Z)' : 'Cantidad de cuotas';
 }
+// "Desde" del gasto diferido: este mes / mes siguiente / un mes a elección.
+function onCcFromChange(quiet) {
+  document.getElementById('ccChFromMes').style.display = document.getElementById('ccChFrom').value === 'pick' ? '' : 'none';
+  if (!quiet) updateCardChargePreview();
+}
 function onCardChargeZChange() { _ccZSync(); updateCardChargePreview(); }
 
 function onCardChargeModeChange() {
@@ -1239,6 +1248,7 @@ function onCardChargeModeChange() {
   show('ccChInstRow', mode !== 'now1');
   _ccZSync();
   show('ccChMonthsRow', mode === 'deferred');
+  show('ccChFromRow', mode === 'deferred');
   show('ccChToAccRow', mode === 'advance');
   show('txnCategoryRow', mode !== 'advance');
   document.getElementById('ccChModeHint').textContent = _CC_MODE_HINTS[mode] || '';
@@ -1261,7 +1271,14 @@ function _ccReadCharge() {
     installments: mode === 'now1' ? 1 : Number(v('ccChInst')),
     category: mode === 'advance' ? '' : v('txnCategory'), name: v('txnName').trim(),
   };
-  if (mode === 'deferred') ch.consumeMonths = Number(v('ccChMonths'));
+  if (mode === 'deferred') {
+    ch.consumeMonths = Number(v('ccChMonths'));
+    // Mes en que arranca el gasto (opcional): sin él cuenta desde el mes de la compra, como siempre.
+    const base = String(ch.date).slice(0, 7), from = v('ccChFrom');
+    const cf = from === 'next' && /^\d{4}-\d{2}$/.test(base) ? _repAddMonths(base, 1) : from === 'pick' ? v('ccChFromMes') : '';
+    if (from === 'pick' && !cf) ch.consumeFrom = 'invalid';
+    else if (cf && cf !== base) ch.consumeFrom = cf;
+  }
   if (document.getElementById('ccChZ').checked && document.getElementById('ccChZRow').style.display !== 'none') ch.z = true;
   if (mode === 'advance') ch.toAccountId = v('ccChToAcc');
   if (disc && !refund) { ch.discountPct = pct; ch.amountOriginal = total; }
@@ -1405,6 +1422,7 @@ function openEditCardCharge(id) {
   g('ccChMode').value = ch.mode;
   g('ccChInst').value = ch.installments || 3;
   g('ccChMonths').value = ch.consumeMonths || 3;
+  g('ccChFrom').value = ch.consumeFrom ? 'pick' : 'cur'; g('ccChFromMes').value = ch.consumeFrom || ''; onCcFromChange(true);
   g('ccChZ').checked = !!ch.z;
   g('ccChToAcc').innerHTML = _ccAccountOptions(ch.toAccountId || '', '— Elegí una cuenta —');
   _coverLoad(ch);
@@ -3212,6 +3230,9 @@ function renderBudget() {
       realByCat[c] = (realByCat[c] || 0) + (+t.amount || 0);
     }
   });
+  // Mes futuro: lo ya comprometido por categoría suma como usado (reparto-gastos.js)
+  const comprom = typeof comprometidoDelMes === 'function' ? comprometidoDelMes(budgetActiveMonth) : null;
+  if (comprom) Object.keys(comprom.porCategoria).forEach(c => { realByCat[c] = Math.round(((realByCat[c] || 0) + comprom.porCategoria[c]) * 100) / 100; });
   const budByCat = {};
   b.fixed.forEach(it => { if (it.category) budByCat[it.category] = (budByCat[it.category] || 0) + _budgetItemTotal(it); });
   b.reserved.forEach(it => { if (it.category) budByCat[it.category] = (budByCat[it.category] || 0) + (+it.amount || 0); });
@@ -3231,7 +3252,7 @@ function renderBudget() {
   }).join('');
   const comparison = allCats.length ? `
     <div class="budget-cmp-hdr"><span>Categoría</span><span>Plan</span><span>Real</span><span>Saldo</span></div>
-    ${compRows}` : '<p class="empty-state">Sin datos para comparar</p>';
+    ${compRows}${comprom && comprom.gasto ? `<p class="budget-prov" id="budgetComprometido">En "Real" ya están ${fmtMoney(comprom.gasto, 'ARS')} comprometidos para este mes (gastos repartidos y compras con tarjeta en cuotas).</p>` : ''}` : '<p class="empty-state">Sin datos para comparar</p>';
 
   // Controles de vista (orden + categoría). Las categorías ofrecidas son las que
   // realmente aparecen en este mes: un desplegable con opciones vacías no sirve.
@@ -3296,8 +3317,10 @@ function _budgetMonthTotal(mk) {
   return t;
 }
 function _spentMonth(mk) {
-  return (S.transactions || []).filter(t => t.type === 'expense' && t.currency === 'ARS' && t.date && t.date.slice(0, 7) === mk)
+  const real = (S.transactions || []).filter(t => t.type === 'expense' && t.currency === 'ARS' && t.date && t.date.slice(0, 7) === mk)
     .reduce((s, t) => s + (+t.amount || 0), 0);
+  // Mes futuro: lo ya comprometido (repartos y tarjeta diferida) cuenta como usado; en el mes actual y los pasados ya son movimientos.
+  return typeof comprometidoDelMes === 'function' ? Math.round((real + comprometidoDelMes(mk).gasto) * 100) / 100 : real;
 }
 function renderBudgetSummary() {
   const body = document.getElementById('budgetSummaryBody'); if (!body) return;
@@ -3926,7 +3949,7 @@ function renderActivity() {
       return `<div class="activity-row">
         <div class="act-icon" style="background:${t.type==='income'?'rgba(107,227,164,.1)':'rgba(255,107,107,.1)'}">${escHtml(cat.icon||(t.type==='income'?'💚':'🔴'))}</div>
         <div class="act-info">
-          <div class="act-name" style="display:flex;align-items:center;flex-wrap:wrap;gap:2px">${escHtml(t.name)}${catBadge}${pendingBadge}</div>
+          <div class="act-name" style="display:flex;align-items:center;flex-wrap:wrap;gap:2px">${escHtml(t.name)}${catBadge}${pendingBadge}${typeof repBadgeHtml === 'function' ? repBadgeHtml(t) : ''}</div>
           <div class="act-date">${fmtDate(t.date)}${src?` <span style="color:var(--ts)">· ${src}</span>`:''}</div>
         </div>
         <div style="display:flex;align-items:center;gap:6px">
@@ -3941,6 +3964,7 @@ function renderActivity() {
   // Expense chart
   renderTxnChart(filtered);
   renderGastoAcumulado();
+  if (typeof renderComprometido === 'function') renderComprometido();   // "Ya comprometido" en meses futuros (reparto-gastos.js)
 
   // "Ver historial →" en la sección (abre el overlay que aloja la lista)
   const verHistBtn = document.getElementById('verHistorialBtn');
@@ -4135,16 +4159,24 @@ function renderMonthBalanceList() {
     if (t.type==='income') monthData[mk].inc += t.amount;
     else monthData[mk].exp += t.amount;
   });
+  // Meses futuros con gasto ya comprometido (repartos y tarjeta diferida): se muestran aparte, rotulados
+  if (typeof comprometidoDelMes === 'function') {
+    const cur = getActiveDate().slice(0, 7);
+    for (let i = 1; i <= 24; i++) {
+      const mk = _repAddMonths(cur, i), comp = comprometidoDelMes(mk).gasto;
+      if (comp > 0) { if (!monthData[mk]) monthData[mk] = { inc: 0, exp: 0 }; monthData[mk].comp = comp; }
+    }
+  }
   const months = Object.keys(monthData).sort().reverse();
   if (!months.length) { el.innerHTML='<div class="empty-state" style="padding:16px 0">Sin historial aún</div>'; return; }
   el.innerHTML = months.map(mk => {
-    const { inc, exp } = monthData[mk];
-    const bal = inc - exp;
+    const { inc, exp } = monthData[mk], comp = monthData[mk].comp || 0;
+    const bal = inc - exp - comp;
     const [y,m] = mk.split('-');
     return `<div class="month-balance-row">
       <div>
         <div class="month-balance-label">${CAL_MONTHS[+m-1]} ${y}</div>
-        <div class="month-balance-sub">Ingr: +${fmtMoney(inc,'ARS')} · Gast: -${fmtMoney(exp,'ARS')}</div>
+        <div class="month-balance-sub">Ingr: +${fmtMoney(inc,'ARS')} · Gast: -${fmtMoney(exp,'ARS')}${comp ? ` · Ya comprometido: -${fmtMoney(comp,'ARS')}` : ''}</div>
       </div>
       <div class="month-balance-val ${bal>=0?'text-ok':'text-danger'}">${bal>=0?'+':''}${fmtMoney(Math.abs(bal),'ARS')}</div>
     </div>`;
@@ -4172,6 +4204,7 @@ function openEditTxn(id) {
     showToast(_CC_EDIT_BLOCK_MSG, 4500); return;
   }
   if (txn.refundOf) { _openRefundOrigin(txn); return; }   // el ingreso del reintegro se cambia editando su compra o gasto
+  if (txn.repartoId) { openReparto(txn.repartoId); return; }   // una parte de un gasto repartido: se edita el reparto
   document.getElementById('editTxnId').value = txn.id;
   document.getElementById('editTxnName').value = txn.name;
   document.getElementById('editTxnType').value = txn.type;
@@ -4187,6 +4220,7 @@ function openEditTxn(id) {
   sel.value = txn.accountId || '';
   populateTxnMonthSelect('editTxnMonth', txn.date ? txn.date.slice(0,7) : null);
   toggleTxnMonthField('editTxnMonth', txn.type);
+  if (typeof repUiOpenEdit === 'function') repUiOpenEdit(txn);
   openModal('modal-edit-txn');
 }
 
@@ -4196,6 +4230,8 @@ function saveEditTxn() {
   if (!txn) return;
   if (txn.cardChargeId) { showToast(_CC_EDIT_BLOCK_MSG, 4500); return; }
   if (txn.refundOf) { showToast('Este reintegro viene de una compra o gasto: cambialo desde ahí', 4500); return; }
+  if (txn.repartoId) { closeModal('modal-edit-txn'); openReparto(txn.repartoId); return; }
+  if (typeof repUiOn === 'function' && repUiOn('editRep')) return repConvertTxn(txn);   // "Repartir en meses": reemplaza el gasto por un reparto
   // Un gasto con reintegro no cambia de monto, tipo ni mes (el reintegro quedaría descuadrado): se borra y se carga de nuevo.
   if (txn.refund && (document.getElementById('editTxnType').value !== txn.type
       || (+document.getElementById('editTxnAmount').value || txn.amount) !== txn.amount
@@ -4257,6 +4293,7 @@ function deleteTransaction(id) {
   const linked = S.transactions.find(t => t.id === id);
   if (linked && linked.cardChargeId) { showToast('Este gasto viene de una compra con tarjeta. Borralo desde la compra en Tarjetas.', 4500); return; }
   if (linked && linked.refundOf) { _openRefundOrigin(linked); return; }   // el reintegro se quita desde su compra o gasto
+  if (linked && linked.repartoId) { closeModal('modal-edit-txn'); openReparto(linked.repartoId); return; }   // una parte se borra borrando el reparto
   const rfNote = _refundNote(id);
   if (!confirm('¿Eliminar este movimiento?' + (rfNote ? `\n\n${rfNote}` : ''))) return;
   const removedRefunds = _removeRefundOf(id);   // antes de ubicar el gasto: así el índice del deshacer es el real
@@ -4305,6 +4342,8 @@ function addTransaction(forcedDate) {
   const currency=document.getElementById('txnCurrency').value;
   const accountId=document.getElementById('txnAccount').value;
   const category=document.getElementById('txnCategory').value;
+  // "Repartir en meses": la cuenta se debita ya por el total y el gasto cuenta repartido (reparto-gastos.js)
+  if (!forcedDate && typeof repUiOn === 'function' && repUiOn('txnRep')) return _repAddFromTxnForm({ name, amount, accountId, category });
 
   // Mes destino: viene de la pestaña activa de Actividad (txnActiveMonth), no de un selector
   // dentro del modal (ver revisión 2026-07-22 del spec). "pending" solo aplica a gastos: si el
