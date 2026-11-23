@@ -6984,6 +6984,12 @@ body:has(#rs-nudge) #fo-nudge { bottom: calc(max(12px, env(safe-area-inset-botto
 .cm-frase-body { min-width: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .cm-frase-t { font-style: italic; color: var(--ts); }
 .cm-frase-a { color: var(--tt); font-size: .92em; }
+.cm-frase-body { flex: 1 1 auto; }
+.cm-frase-add { flex: 0 0 auto; margin-left: auto; width: 24px; height: 24px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 50%; background: transparent; color: var(--tt); font-size: 16px; line-height: 1; cursor: pointer; position: relative; }
+.cm-frase-add::after { content: ''; position: absolute; inset: -10px; } /* zona de toque de 44px sin agrandar el botón */
+.cm-frase-add:hover { color: var(--tp); border-color: var(--accent, #7C8EE8); }
+.fp-fav-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.fp-fav-row input[type="checkbox"] { width: 18px; height: 18px; flex: 0 0 auto; margin: 0; }
 .cm-frase.flash .cm-frase-body { animation: cm-frase-in .5s ease; }
 @keyframes cm-frase-in { from { opacity: 0; } to { opacity: 1; } }
 .cov-star { color: #F5B84B; font-style: normal; }

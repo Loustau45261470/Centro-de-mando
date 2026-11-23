@@ -96,6 +96,10 @@
 .lb-q::before { content: '«'; } .lb-q::after { content: '»'; }
 .lb-q-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
 .lb-q-pag { font-family: var(--mono); font-size: var(--fs-12-5); color: var(--tt); }
+.lb-sueltas { margin-top: 28px; }
+.lb-sueltas-vacio { padding: 10px 2px; font-size: var(--fs-13-5); color: var(--tt); }
+.lb-sueltas-ttl { margin-bottom: 10px; font-family: var(--mono); font-size: var(--fs-12-5); letter-spacing: .08em; text-transform: uppercase; color: var(--tt); }
+.lb-sueltas .lb-q-pag { overflow-wrap: anywhere; font-family: inherit; }
 .lb-fav.on { color: var(--warn); border-color: color-mix(in oklab, var(--warn) 55%, var(--border)); }
 .lb-fav.on svg { fill: currentColor; }
 

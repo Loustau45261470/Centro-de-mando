@@ -154,6 +154,7 @@ const DEFAULT_STATE = {
   historicalDataLoaded: false,
   negocios: { items: [], sueltas: [] },   // overlay Negocios (negocios.js): modelo documentado arriba de ese archivo
   libros: { items: [] },   // overlay Libros (libros.js): modelo documentado arriba de ese archivo
+  frasesPropias: [],       // frases sueltas (frases.js / Biblioteca): [{ id, texto, autor?, fav?, creada:'YYYY-MM-DD' }]
   radar: { items: [] },    // pestaña Radar de Cartera (radar.js): modelo documentado arriba de ese archivo
   achievementLog: {},  // { [achievementId]: 'YYYY-MM-DD' (unlock date) }
   quarterlyObjectives: {
@@ -700,7 +701,7 @@ function _rescueLocal(cloudObj, localObj) {
   // Arrays con ID
   ['transactions','moves','cards','accounts','cardCharges','cardPayments','coverCollections','cardDues','subscriptions','orders','wishlist','repartos',
    'photos','finObjectives','lawMilestones','routines','exerciseLibrary',
-   'bodyWeight','exercises','seasonals','carteraTx','goalRepeats'
+   'bodyWeight','exercises','seasonals','carteraTx','goalRepeats','frasesPropias'
   ].forEach(key => {
     const c = Array.isArray(cloudObj[key]) ? cloudObj[key] : [];
     const l = Array.isArray(localObj[key]) ? localObj[key] : [];

@@ -58,6 +58,10 @@
         if (f && f.texto) out.push({ id: 'l' + l.id + ':' + f.id, t: String(f.texto), a: [l.autor, l.titulo].filter(Boolean).join(', '), fav: !!f.fav });
       }));
     } catch (e) { /* sin libros: queda el respaldo */ }
+    try {   // frases sueltas cargadas a mano (S.frasesPropias): sin autor figuran como «Propia»
+      const pr = (typeof S !== 'undefined' && S && Array.isArray(S.frasesPropias)) ? S.frasesPropias : [];
+      pr.forEach(f => { if (f && f.texto && f.id != null) out.push({ id: 'p' + f.id, t: String(f.texto), a: f.autor ? String(f.autor) : 'Propia', fav: !!f.fav }); });
+    } catch (e) { /* sin propias */ }
     return out.concat(RESPALDO);
   }
 
@@ -103,15 +107,37 @@
       if (!p || p.querySelector(':scope > .cm-frase')) return;
       const el = document.createElement('div');
       el.className = 'cm-frase'; el.setAttribute('role', 'button'); el.tabIndex = 0; el.setAttribute('aria-label', 'Siguiente frase'); el.hidden = true;
-      el.innerHTML = '<span class="cm-frase-star" aria-label="Favorita" hidden>★</span><span class="cm-frase-body"><span class="cm-frase-t"></span> <span class="cm-frase-a"></span></span>';
-      el.addEventListener('click', siguiente);
-      el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); siguiente(); } });
+      el.innerHTML = '<span class="cm-frase-star" aria-label="Favorita" hidden>★</span><span class="cm-frase-body"><span class="cm-frase-t"></span> <span class="cm-frase-a"></span></span><button type="button" class="cm-frase-add" aria-label="Agregar frase" title="Agregar frase">+</button>';
+      el.addEventListener('click', e => { if (e.target.closest('.cm-frase-add')) { e.stopPropagation(); abrirAgregar(); return; } siguiente(); });
+      el.addEventListener('keydown', e => { if (e.target !== el) return; if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); siguiente(); } });
       p.insertBefore(el, p.firstChild);
     });
   }
   function refrescar() { _html = ''; _render(); }
 
-  Object.assign(api, { actual, siguiente, onCambio, refrescar });
+  // Alta rápida de una frase suelta (modal #modal-frase-propia en index.html). La edición/borrado vive en Biblioteca (libros.js).
+  function abrirAgregar() {
+    ['fp-texto', 'fp-autor'].forEach(id => { const x = document.getElementById(id); if (x) x.value = ''; });
+    const c = document.getElementById('fp-fav'); if (c) c.checked = false;
+    openModal('modal-frase-propia');
+    const t = document.getElementById('fp-texto'); if (t) t.focus();
+  }
+  function guardarPropia() {
+    const texto = (document.getElementById('fp-texto').value || '').trim();
+    if (!texto) { if (typeof showToast === 'function') showToast('Escribí la frase'); document.getElementById('fp-texto').focus(); return; }
+    const autor = (document.getElementById('fp-autor').value || '').trim();
+    if (!Array.isArray(S.frasesPropias)) S.frasesPropias = [];
+    const f = { id: (typeof uid === 'function') ? uid() : Date.now().toString(36), texto, creada: (typeof getActiveDate === 'function') ? getActiveDate() : new Date().toISOString().slice(0, 10) };
+    if (autor) f.autor = autor;
+    if (document.getElementById('fp-fav').checked) f.fav = 1;
+    S.frasesPropias.push(f);
+    closeModal('modal-frase-propia');
+    if (typeof saveState === 'function') saveState();
+    refrescar();
+    if (typeof showToast === 'function') showToast('Frase guardada');
+  }
+
+  Object.assign(api, { actual, siguiente, onCambio, refrescar, abrirAgregar, guardarPropia });
   root.CMFrases = api;
 
   function _arrancar() {

@@ -41,4 +41,14 @@ const ciclo = new Set(); for (let t = 0; t < 6; t++) ciclo.add(elegir(mk(6, true
 assert.strictEqual(ciclo.size, 6);
 const solo = [{ id: 'a', t: 'x', fav: true }];
 assert.strictEqual(elegir(solo, 9).id, 'a');
+
+// pool(): frases propias (id 'p'+id; autor vacío = «Propia»; fav), sin tocar la regla 3:1
+global.S = { libros: { items: [] }, frasesPropias: [{ id: 'a', texto: 'Mía', fav: 1 }, { id: 'b', texto: 'Ajena', autor: 'Yo' }, { id: 'c' }] };
+const { pool, RESPALDO } = require('../frases.js');
+const pp = pool().filter(x => x.id[0] === 'p');
+assert.deepStrictEqual(pp, [{ id: 'pa', t: 'Mía', a: 'Propia', fav: true }, { id: 'pb', t: 'Ajena', a: 'Yo', fav: false }]);
+assert.strictEqual(pool().length, RESPALDO.length + 2);
+delete global.S.frasesPropias;
+assert.strictEqual(pool().length, RESPALDO.length);
+delete global.S;
 console.log('frases-elegir: OK');

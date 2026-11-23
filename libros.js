@@ -42,7 +42,7 @@ const _LB_IC = {
 };
 
 // ── Estado de la vista (solo en memoria) ───────────────────────────────────
-function _lbViewNew() { return { screen: 'list', id: null, tab: 'ideas', fEstado: '', fCat: '', orden: 'recientes', q: '', nuevo: false, nota: null, frase: null, aplEd: null, conv: null }; }
+function _lbViewNew() { return { screen: 'list', id: null, tab: 'ideas', fEstado: '', fCat: '', orden: 'recientes', q: '', nuevo: false, nota: null, frase: null, fp: null, aplEd: null, conv: null }; }
 let _lbV = _lbViewNew();
 
 // ── Datos ──────────────────────────────────────────────────────────────────
@@ -217,7 +217,35 @@ function _lbList() {
     </div>
     ${form}
     <div class="lb-filtrosw" id="lb-filtros"${buscando ? ' hidden' : ''}>${chips}${selects}</div>
-    <div id="lb-lista">${_lbResultados()}</div>`;
+    <div id="lb-lista">${_lbResultados()}</div>
+    ${_lbSueltas()}`;
+}
+// ── Frases sueltas (S.frasesPropias, las que se cargan con el «+» de la franja de frases) ──
+function _lbPropias() { return (typeof S !== 'undefined' && S && Array.isArray(S.frasesPropias)) ? S.frasesPropias : []; }
+function _lbSueltas() {
+  const todas = _lbPropias().slice().sort((a, b) => (b.fav ? 1 : 0) - (a.fav ? 1 : 0));
+  const ed = _lbV.fp && _lbV.fp.id ? todas.find(x => x.id === _lbV.fp.id) : null;
+  const rows = todas.map(f => ed && ed.id === f.id ? `<div class="nt-form lb-form lb-formcard">
+      <label class="nt-flbl" for="lb-fp-texto">Frase</label>
+      <textarea class="nt-input nt-ta" id="lb-fp-texto" rows="4" maxlength="800">${_lbEsc(f.texto)}</textarea>
+      <label class="nt-flbl" for="lb-fp-autor">Autor (opcional)</label>
+      <input class="nt-input" id="lb-fp-autor" type="text" maxlength="80" value="${_lbEsc(f.autor || '')}" placeholder="Vacío = propia" data-enter="fp-guardar">
+      <div class="nt-form-acts"><button class="nt-btn nt-add" data-act="fp-guardar">Guardar</button><button class="nt-btn" data-act="fp-cancelar">Cancelar</button></div>
+    </div>` : `<div class="lb-frase-row${f.fav ? ' is-fav' : ''}" data-id="${_lbEsc(f.id)}">
+      <blockquote class="lb-q">${_lbEsc(f.texto)}</blockquote>
+      <div class="lb-q-foot">
+        <span class="lb-q-pag">${_lbEsc(f.autor || 'Propia')}</span>
+        <span class="nt-note-acts">
+          <button class="nt-ico lb-fav${f.fav ? ' on' : ''}" data-act="fp-fav" data-id="${_lbEsc(f.id)}" title="${f.fav ? 'Quitar de favoritas' : 'Marcar como favorita'}" aria-label="${f.fav ? 'Quitar de favoritas' : 'Marcar como favorita'}" aria-pressed="${!!f.fav}">${_LB_IC.star}</button>
+          <button class="nt-ico" data-act="fp-editar" data-id="${_lbEsc(f.id)}" title="Editar" aria-label="Editar frase suelta">${_LB_IC.edit}</button>
+          <button class="nt-ico nt-del" data-act="fp-borrar" data-id="${_lbEsc(f.id)}" title="Borrar" aria-label="Borrar frase suelta">${_LB_IC.del}</button>
+        </span>
+      </div>
+    </div>`).join('');
+  return `<section class="lb-sueltas" id="lb-sueltas" aria-label="Frases sueltas">
+    <div class="lb-sueltas-ttl">Frases sueltas${todas.length ? ` <span class="lb-tn">${todas.length}</span>` : ''}</div>
+    ${todas.length ? `<div class="lb-frases">${rows}</div>` : '<div class="lb-sueltas-vacio">Las frases que sumes con el «+» de la franja de frases aparecen acá.</div>'}
+  </section>`;
 }
 // Sugeridas (lista fija) + las que ya usaste, sin repetir.
 function _lbCatSugeridas() {
@@ -518,6 +546,24 @@ function _lbAct(a, el) {
     case 'frase-borrar':
       if (!l || !confirm('¿Seguro que querés borrar esta frase?')) return;
       l.frases = (l.frases || []).filter(x => x.id !== el.dataset.id); _lbSave(); _lbRender(); break;
+    // Frases sueltas (pantalla de la lista)
+    case 'fp-editar': _lbV.fp = { id: el.dataset.id }; _lbRender(); _lbFocus('lb-fp-texto'); break;
+    case 'fp-cancelar': _lbV.fp = null; _lbRender(); break;
+    case 'fp-guardar': {
+      const f = _lbV.fp && _lbPropias().find(x => x.id === _lbV.fp.id); if (!f) return;
+      const ta = document.getElementById('lb-fp-texto'), texto = ta ? ta.value.trim() : '', autor = _lbVal('lb-fp-autor');
+      if (!texto) { _lbToast('Escribí la frase'); _lbFocus('lb-fp-texto'); return; }
+      f.texto = texto; if (autor) f.autor = autor; else delete f.autor;
+      _lbSave(); _lbV.fp = null; _lbRender(); break;
+    }
+    case 'fp-fav': {
+      const f = _lbPropias().find(x => x.id === el.dataset.id); if (!f) return;
+      if (f.fav) delete f.fav; else f.fav = 1;
+      _lbSave(); _lbRender(); break;
+    }
+    case 'fp-borrar':
+      if (!confirm('¿Seguro que querés borrar esta frase?')) return;
+      S.frasesPropias = _lbPropias().filter(x => x.id !== el.dataset.id); _lbSave(); _lbRender(); break;
     // Para aplicar
     case 'apl-nuevo': {
       const txt = _lbVal('lb-a-nuevo'); if (!l) return;
