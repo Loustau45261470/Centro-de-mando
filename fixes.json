@@ -2,6 +2,13 @@
   "_doc": "Registro witness de fixes (idea adaptada de ruflo-core/witness, sin criptografía). Cada entrada tiene un marker: una substring distintiva que DEBE seguir presente en el archivo. Si un marker desaparece, el fix pudo haber sido revertido — alertar antes de asumir que 'ya estaba arreglado'. Se chequea con grep en cada verificación y en /mantenimiento.",
   "fixes": [
     {
+      "id": "proy-detalle-100-marca-done",
+      "fecha": "2026-11-23",
+      "desc": "El modal de detalle de una tarea de Proyectos al poner 100% solo escribia node.progress y nunca node.done, por lo que la tarea seguia en Recordatorios/Vencimientos (deadlines.js filtra por !n.done). Ahora 100% => done=true (advances una vez, refresca recordatorios/goals, JARVIS.onTaskDone) y <100 => done=false.",
+      "file": "workspace.js",
+      "marker": "100% = tarea hecha (igual que setDone)"
+    },
+    {
       "id": "speed-dial-items-eat-clicks",
       "fecha": "2026-08-16",
       "desc": "El abanico CERRADO del speed-dial se comia los clicks de una franja del borde derecho (medido: 202x394 px, x[1698-1900] y[494-888] a 1920x1030), en TODAS las secciones. Los .cm-sd-item apagados solo tienen opacity:0 y siguen ocupando lugar, asi que el contenedor .cm-sd-items conservaba su caja sobre el FAB con pointer-events:auto. Ahora el contenedor es pointer-events:none y cada item se rehabilita con .cm-sd.open .cm-sd-item. NO quitar el pointer-events:none del contenedor.",

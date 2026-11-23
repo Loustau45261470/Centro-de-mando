@@ -21,7 +21,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-<link rel="stylesheet" href="styles.css?v=288">
+<link rel="stylesheet" href="styles.css?v=289">
 <script>try{if(localStorage.getItem('cm_rail_off')==='1')document.documentElement.classList.add('rail-off')}catch(e){}</script>
 <link rel="stylesheet" href="gamemode.css">
 <link rel="stylesheet" href="overlay-core.css">
@@ -1536,6 +1536,10 @@
     </div>
     <input type="hidden" id="proyDetailTab">
     <input type="hidden" id="proyDetailId">
+    <div class="pd-links">
+      <button type="button" class="pd-link" id="proyDetailOpen" onclick="proyDetailGo(false)">Abrir en Proyectos ›</button>
+      <button type="button" class="pd-link" id="proyDetailUp" onclick="proyDetailGo(true)" hidden></button>
+    </div>
     <div class="pd-meta">
       <select class="inp" id="proyDetailPriority" aria-label="Prioridad">
         <option value="">Sin prioridad</option>
@@ -2011,7 +2015,7 @@
 <script src="historial-versiones.js?v=3"></script>
 <script src="archivo.js?v=2"></script>
 <script src="undo.js?v=2"></script>
-<script src="workspace.js?v=200"></script>
+<script src="workspace.js?v=201"></script>
 <script src="abogacia.js?v=9"></script>
 <script src="correlativas.js?v=6"></script>
 <script src="habitos.js?v=11"></script>

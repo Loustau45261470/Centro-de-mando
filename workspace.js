@@ -403,6 +403,10 @@
     const _dp = node.done ? 100 : (+node.progress || 0);
     _pdSetProg(Math.round(_dp / 25) * 25);
     _pdProgTouched = false;
+    const _par = _pdParent(trees[tab] || [], node.id, null);
+    const _pu = document.getElementById('proyDetailUp');
+    _pu.hidden = !_par;
+    _pu.textContent = _par ? 'Ir al proyecto: ' + _par.label : '';
     document.getElementById('proyDetailStatus').textContent = 'Se guarda solo';
     openModal('modal-proy-detail');
     document.querySelectorAll('#modal-proy-detail textarea').forEach(_pdGrow);
@@ -429,16 +433,43 @@
     if (newPriority === '1' && node.priority !== '1' && window.JARVIS) JARVIS.onPrioritySet();
     node.priority    = newPriority;
     node.dueDate     = document.getElementById('proyDetailDue').value;
+    let _justDone = false;
     if (_pdProgTouched) {
       const _newP = _pdProg();
-      const _oldP = node.done ? 100 : (+node.progress || 0);
+      const _wasDone = !!node.done;
+      const _oldP = _wasDone ? 100 : (+node.progress || 0);
       node.progress = _newP;
-      if (_newP > _oldP) { node.advances = node.advances || []; node.advances.push(getActiveDate()); }
+      // 100% = tarea hecha (igual que setDone): si no, sigue en Recordatorios/Vencimientos (filtran por !n.done).
+      node.done = _newP === 100;
+      _justDone = node.done && !_wasDone;
+      if (_justDone || (_newP > _oldP && _newP < 100)) { node.advances = node.advances || []; node.advances.push(getActiveDate()); }
     }
     saveTree(tab, trees[tab]);
     document.getElementById('proyDetailStatus').textContent = 'Guardado ✓';
     renderProyectos(tab);
     if (typeof renderReminders === 'function') renderReminders(tab);
+    if (_pdProgTouched && typeof renderGoals === 'function') try { renderGoals(); } catch (e) {}
+    if (_justDone && window.JARVIS) try { JARVIS.onTaskDone(); } catch (e) {}
+  };
+
+  // Accesos del modal: abre la vista inmersiva de Proyectos en la tarea / en su proyecto padre.
+  function _pdParent(nodes, id, parent) {
+    for (const n of nodes || []) {
+      if (n.id === id) return parent;
+      const r = _pdParent(n.children, id, n);
+      if (r !== undefined) return r;
+    }
+    return undefined;
+  }
+  window.proyDetailGo = function(up) {
+    const tab = document.getElementById('proyDetailTab').value;
+    const id  = document.getElementById('proyDetailId').value;
+    const par = _pdParent(trees[tab] || [], id, null);
+    const target = up ? (par && par.id) : id;
+    if (!target) return;
+    proyDetailClose();
+    const b = document.querySelector('.nav-btn[data-tab="' + tab + '"]'); if (b) b.click();
+    if (window.ProyectosOverlay) ProyectosOverlay.openNode(tab, target);
   };
 
   // ── Modal "Mover a…" ──────────────────────────────────────
