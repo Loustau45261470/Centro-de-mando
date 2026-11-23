@@ -63,7 +63,7 @@
       "fecha": "2026-07-14",
       "desc": "Fallo de ElevenLabs (401/429/red) dejaba a JARVIS mudo con solo console.warn. Ahora cae a voz del navegador y avisa por toast (max 1/dia por tipo).",
       "file": "jarvis-voice.js",
-      "marker": "_speakBrowser(prepped)"
+      "marker": "_speakBrowser(prepped, lang)"
     },
     {
       "id": "ears-honest-wake-state",
