@@ -79,7 +79,10 @@ Rehacer la INTERFAZ de la sección Entrenamiento (rutinas.js, pestaña Salud) si
 
 - Las actividades se marcan HECHAS CON UN TOQUE; opcionalmente, en cada entrenamiento en particular (actividad o sesión de gimnasio) se puede cargar: duración, intensidad, concentración y propósito/finalidad (usuario: "se marcan hechas con un toque, pero me gustaría poder cargar duración, intensidad, concentración y propósito o finalidad de cada entrenamiento en particular"). Registro nuevo de actividades hechas (por fecha, con uid para merge sin pérdida) que alimenta `hechas(fecha)` de PlanEntreno.pendienteDe.
 
+- Intensidad y concentración: escala de 1 a 10. Propósito: texto libre.
+- Corrida al final de la semana: lo del domingo (y cualquier pendiente que cruce de semana) pasa normalmente al LUNES siguiente, sumándose a lo de ese día, sin aviso ("que se pase normalmente al lunes, sin ningun aviso ni nada raro").
+- Botón "Limpiar semana": deshace todos los cambios de esta semana (corridas, movimientos "solo esta semana" y pendientes) y la semana vuelve al plan fijo. [interpretación del lead, a confirmar en la maqueta]
+- Botón "Descansar esta semana": la semana entera queda sin ítems (descanso) y no genera pendientes; la semana siguiente vuelve al plan fijo.
+
 ## Open Questions
-- ¿"Duración típica" se calcula del historial o la carga el usuario? (default propuesto: del historial)
-- Corrida y fin de semana: el ítem del último día (domingo) ¿se pierde con aviso, pasa al lunes siguiente o se suma al domingo?
-- Escalas de intensidad y concentración (¿1-5 como Registros/Foco?) y si propósito es texto libre o lista sugerida.
+- ¿"Duración típica" se calcula del historial o la carga el usuario? (default: del historial)
