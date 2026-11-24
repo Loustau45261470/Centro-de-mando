@@ -2162,11 +2162,23 @@ button.goal-hora-vacio:hover { color: var(--tp); background: rgba(255,255,255,.0
 .nw-hero { display: flex; flex-direction: column; align-items: stretch; gap: 10px; padding: 4px 0 0; }
 .nw-hero-text { min-width: 0; }
 .nw-hero-text .nw-total { white-space: nowrap; }
-.nw-dona { position: relative; align-self: center; width: clamp(216px, 68%, 250px); aspect-ratio: 1; margin: 6px 0 23px; }   /* +19px (0,5 cm) hasta las categorías */
-.nw-dona canvas { max-width: 100%; cursor: default; }
-.nw-dona-centro { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; text-align: center; padding: 0 17%; }
-.nw-dona-centro-lbl { font-size: var(--fs-12); text-transform: uppercase; letter-spacing: .12em; color: var(--ts); }
-.nw-dona-centro-num { font-size: var(--fs-13); font-weight: 700; color: #BBF7D0; text-shadow: 0 0 15px rgba(34,197,94,0.5); letter-spacing: -.03em; max-width: 100%; overflow-wrap: anywhere; }
+.nw-dona { position: relative; align-self: stretch; width: 100%; border-radius: 12px; overflow: hidden; clip-path: inset(calc(var(--nw-top, 0px) + 3px) 0 0 0);
+  /* --nw-top (la pone dona-holograma.js) = lo que hay del borde del lienzo al anillo giratorio más externo. Arriba: ese anillo queda 3px por encima del fin del bloque del total
+     (antes el aro de marcas estaba a 16px: 19px = 0,5 cm menos). Abajo: el aire visible hasta las categorías se mantiene (23px de margen + 10 de la leyenda, menos lo que ya aporta el lienzo). */
+  margin: calc(-13px - var(--nw-top, 0px)) 0 calc(23px - var(--nw-top, 0px)); }
+.nw-dona canvas { display: block; width: 100%; touch-action: pan-y; cursor: default; }
+/* Holograma: líneas de escaneo y una banda de luz que baja (solo adorno: no recibe toques) */
+.nw-dona::after { content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none; border-radius: 12px; background: repeating-linear-gradient(0deg, rgba(0,0,0,.30) 0 1px, transparent 1px 3px); }
+.nw-dona::before { content: ""; position: absolute; left: 0; right: 0; height: 22%; top: -25%; z-index: 2; pointer-events: none; background: linear-gradient(180deg, transparent, rgba(61,232,255,.14), transparent); animation: nwScanBand 4.5s linear infinite; }
+@keyframes nwScanBand { to { top: 105%; } }
+.nw-dona-centro { position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; text-align: center; }
+.nw-dona-centro-lbl { font-size: clamp(9px, calc(var(--nw-d, 200px) * .036), 12px); text-transform: uppercase; letter-spacing: .12em; color: var(--ts); max-width: calc(var(--nw-d, 200px) * .68); }
+.nw-dona-centro-num { font-size: clamp(13px, calc(var(--nw-d, 200px) * .075), 24px); font-weight: 700; color: #BBF7D0; text-shadow: 0 0 15px rgba(34,197,94,0.5); letter-spacing: -.03em; max-width: calc(var(--nw-d, 200px) * .68); overflow-wrap: anywhere; transition: color .2s; }
+.nw-dona-centro-sub { font-size: clamp(9px, calc(var(--nw-d, 200px) * .032), 11px); color: var(--ts); }
+.nw-dona-centro-sub:empty { display: none; }
+.nw-dona.sel .nw-dona-centro-num { color: var(--cc); text-shadow: 0 0 15px var(--cc); }
+.nw-dona-tip { display: none; position: absolute; z-index: 4; transform: translate(-50%, -100%); pointer-events: none; white-space: nowrap; font-size: var(--fs-12); color: var(--tp); background: rgba(2,5,8,.92); border: 1px solid var(--border); border-radius: 8px; padding: 4px 8px; }
+@media (prefers-reduced-motion: reduce) { .nw-dona::before { display: none; animation: none; } .nw-dona-centro-num { transition: none; } }
 .nw-leg { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 8px; padding: 10px 16px 18px; }
 .nw-leg-item { display: inline-flex; align-items: center; gap: 6px; font-family: var(--sans); font-size: var(--fs-12-5); font-weight: 600; line-height: 1; color: var(--ts); background: var(--card); border: 1px solid var(--border); border-radius: 999px; padding: 6px 10px; cursor: pointer; transition: border-color .12s, color .12s, background .12s; }
 .nw-leg-item:hover { color: var(--tp); }

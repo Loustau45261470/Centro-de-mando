@@ -3968,27 +3968,6 @@ function setNWRange(r) {
   updateNWCharts();
 }
 
-// Marco HUD de la dona de patrimonio: aro fino con marcas tipo dial por fuera y círculo fino por dentro. Estático (sin animación).
-const _nwDialPlugin = {
-  id: 'nwDial',
-  afterDatasetsDraw(chart) {
-    try {
-      const arc = chart.getDatasetMeta(0).data[0]; if (!arc) return;
-      const ctx = chart.ctx, x = arc.x, y = arc.y, R = arc.outerRadius + 7, r = arc.innerRadius - 7, TAU = Math.PI * 2;
-      ctx.save(); ctx.shadowBlur = 0; ctx.lineCap = 'butt'; ctx.lineWidth = 1;
-      ctx.strokeStyle = 'rgba(125,211,252,.42)';
-      ctx.beginPath(); ctx.arc(x, y, R, 0, TAU); ctx.stroke();
-      ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.stroke();
-      for (let i = 0; i < 72; i++) {
-        const major = i % 6 === 0, ang = i / 72 * TAU - Math.PI / 2, c = Math.cos(ang), s = Math.sin(ang), len = major ? 5 : 2.5;
-        ctx.strokeStyle = major ? 'rgba(125,211,252,.85)' : 'rgba(125,211,252,.42)';
-        ctx.beginPath(); ctx.moveTo(x + c * (R + 1), y + s * (R + 1)); ctx.lineTo(x + c * (R + 1 + len), y + s * (R + 1 + len)); ctx.stroke();
-      }
-      ctx.restore();
-    } catch (e) {}
-  }
-};
-
 // Escalas del gráfico de líneas: el eje Y se ajusta solo a la serie elegida (no arranca en cero).
 function _nwLineScales() {
   return {
@@ -4004,17 +3983,10 @@ function _nwLineDataset(info, hist) {
 }
 
 function initNWCharts() {
-  // Dona: una porción por categoría con cuentas; tocar una porción elige esa serie en el gráfico de evolución.
-  const pieCtx=document.getElementById('nwPieChart').getContext('2d');
-  nwPieInst=new Chart(pieCtx,{
-    type:'doughnut',
-    data:{ labels:[], datasets:[{ data:[], backgroundColor:[], borderWidth:0, hoverOffset:4, spacing:3, borderRadius:3 }] },
-    plugins:[_nwDialPlugin],
-    options:{ responsive:true, maintainAspectRatio:false, cutout:'74%', layout:{ padding:13 }, _noCrosshair:true, interaction:{ mode:'nearest', intersect:true },
-      animation:{ animateRotate:true, animateScale:true, duration:900, easing:'easeOutQuart' },
-      onClick:(e, els) => { if (els.length) { const c = _nwCats()[els[0].index]; if (c) setNWSeries('t:' + c.t.id); } },
-      onHover:(e, els) => { if (e.native && e.native.target) e.native.target.style.cursor = els.length ? 'pointer' : ''; },
-      plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label: c => ` ${c.label}: ${fmtMoney(c.raw, 'USD')}` } } } }
+  // Dona holograma (dona-holograma.js, canvas propio): una porción por categoría con cuentas; tocar una elige esa serie en el gráfico de evolución.
+  nwPieInst=DonaHolograma.create({
+    canvas:document.getElementById('nwPieChart'), centroLbl:document.getElementById('nwDonaLbl'), centroNum:document.getElementById('nwDonaNum'), centroSub:document.getElementById('nwDonaSub'),
+    fmt:v => fmtMoney(v, 'USD'), pct:f => fmtNum(f * 100, 1) + '%', onSelect:id => setNWSeries('t:' + id)
   });
   // Línea: una sola serie
   const lineCtx=document.getElementById('nwLineChart').getContext('2d');
@@ -4030,13 +4002,7 @@ function initNWCharts() {
 function updateNWCharts() {
   if (!nwPieInst||!nwLineInst) return;
   const cats = _nwCats();
-  const ds = nwPieInst.data.datasets[0];
-  nwPieInst.data.labels = cats.map(c => c.t.label);
-  ds.data = cats.map(c => Math.max(0, c.sum));
-  ds.backgroundColor = cats.map(c => _hexA(c.t.color, .7));
-  nwPieInst.update('none');
-  const num = document.getElementById('nwDonaNum');
-  if (num) num.textContent = fmtMoney(calcNetWorth(), 'USD');
+  nwPieInst.setData(cats.map(c => ({ id: c.t.id, label: c.t.label, value: Math.max(0, c.sum), color: c.t.color })), { totalText: fmtMoney(calcNetWorth(), 'USD') });
   renderNWLegend();
   renderNWSeriesSelect();
   const hist = _nwHist(), info = _nwSeriesInfo();

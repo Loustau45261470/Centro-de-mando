@@ -1,4 +1,4 @@
-// Card PATRIMONIO de Finanzas, segunda versión: dona con el total adentro (formato argentino), gráfico de evolución con una sola
+// Card PATRIMONIO de Finanzas, segunda versión: dona holograma (canvas propio, dona-holograma.js) con el total adentro (formato argentino), gráfico de evolución con una sola
 // serie elegible, categorías de cuentas propias, deudas cobradas (saldo 0) fuera de las listas y deshacer un cobro sin la cuenta.
 // Los datos de ejemplo viven acá; el código de producción no trae ninguna cuenta.
 'use strict';
@@ -9,6 +9,11 @@ const ANTES = { altoGrafico: 148 };
 // Medido antes del pedido «dona más grande + 19 px + 2 cm de gráfico + números verdes» (mismo viewport): dona 210 px a 1280 y ~199 a 390,
 // aro 198 px, 14 px entre la dona y los chips, gráfico de 186 px.
 const PREVIO = { canvas1280: 210, canvas390: 199, aro: 198, aire: 14, grafico: 186 };
+// Medido con la dona Chart.js anterior (mismo viewport): el aro de marcas (lo más externo de la dona) quedaba 16 px por debajo del bloque del total
+// (10 de separación del bloque + 6 de margen). Pedido: 19 px (0,5 cm) menos entre la dona y el bloque del total de arriba.
+const DIAL_TOP_PREVIO = 16;
+// Variante A del prototipo: anillo de .785 del lado de su lienzo (R .34 + grosor .105 / 2), lienzo tope de 440 px.
+const aroA = (ancho) => .785 * Math.min(ancho, 440);
 
 const CUENTAS = [
   { id: 'a1', name: 'Ualá', type: 'bank', balance: 2150000, currency: 'ARS', icon: '🏦' },
@@ -48,27 +53,44 @@ const card = (page) => page.locator('#nwTotal').locator('xpath=ancestor::div[con
 const serie = (page) => page.evaluate(() => ({ n: nwLineInst.data.datasets.length, label: nwLineInst.data.datasets[0].label, data: nwLineInst.data.datasets[0].data.filter((v) => v != null),
   min: nwLineInst.scales.y.min, max: nwLineInst.scales.y.max }));
 const toastTxt = (page) => page.locator('#toast').innerText();
+const donaSt = (page) => page.evaluate(() => { const s = nwPieInst.estado; return { W: s.W, H: s.H, D: s.D, RO: s.RO, RT: s.RT, top: s.top, wide: s.wide }; });
+// Punto (en px del canvas) sobre el aro, en el medio de la porción de una categoría: ahí hay que tocar para elegirla.
+const puntoDe = (page, id) => page.evaluate((id) => { const s = nwPieInst.estado, it = s.items.find((x) => x.id === id), a = (it.a0 + it.a1) / 2 - Math.PI / 2, r = s.RO - s.RT * .4; return { x: s.W / 2 + Math.cos(a) * r, y: s.H / 2 + Math.sin(a) * r }; }, id);
+const frames = (page) => page.evaluate(() => nwPieInst.frames);
 
 test.describe('Patrimonio v2', () => {
-  test('dona: grande, centrada debajo del total y con el total del patrimonio adentro en formato argentino', async ({ cmPage: page, consoleErrors }) => {
+  test('dona holograma: canvas propio (no Chart.js), del tamaño de la variante A, con el total del patrimonio adentro en formato argentino', async ({ cmPage: page, consoleErrors }) => {
     await preparar(page);
     const total = await page.evaluate(() => fmtMoney(calcNetWorth(), 'USD'));
     expect(total).toBe('$7.985.408');   // 2.150.000 + 180.000 + 4.900.000 + 655.408 + 100.000
     await expect(page.locator('#nwTotal')).toHaveText('$7.985.408');
     await expect(page.locator('#nwDonaNum')).toHaveText('$7.985.408');
+    await expect(page.locator('#nwDonaLbl')).toHaveText('Patrimonio');
     const m = await page.evaluate(() => {
-      const c = document.getElementById('nwTotal').closest('.card').getBoundingClientRect();
-      const cv = document.getElementById('nwPieChart').getBoundingClientRect();
-      const ce = document.querySelector('.nw-dona-centro').getBoundingClientRect();
-      const arc = nwPieInst.getDatasetMeta(0).data[0];
-      return { w: cv.width, ring: arc.outerRadius * 2, cx: ce.left + ce.width / 2 - (cv.left + cv.width / 2), cy: ce.top + ce.height / 2 - (cv.top + cv.height / 2),
-        inside: ce.left >= cv.left - 1 && ce.right <= cv.right + 1 && ce.top >= cv.top - 1 && ce.bottom <= cv.bottom + 1 };
+      const cv = document.getElementById('nwPieChart'), r = cv.getBoundingClientRect(), ce = document.querySelector('.nw-dona-centro').getBoundingClientRect(), s = nwPieInst.estado;
+      return { tag: cv.tagName, propio: !Chart.getChart(cv), dial: typeof _nwDialPlugin, w: r.width, h: r.height, D: s.D, RT: s.RT, wide: s.wide,
+        cx: ce.left + ce.width / 2 - (r.left + r.width / 2), cy: ce.top + ce.height / 2 - (r.top + r.height / 2),
+        inside: ce.left >= r.left - 1 && ce.right <= r.right + 1 && ce.top >= r.top - 1 && ce.bottom <= r.bottom + 1, bitmap: cv.width > 0 && cv.height > 0 };
     });
-    expect(m.w, 'al menos ~15% más grande que antes').toBeGreaterThanOrEqual(Math.round(PREVIO.canvas1280 * 1.15));
-    expect(m.ring, 'el aro de colores también crece').toBeGreaterThan(PREVIO.aro);
+    expect(m.tag).toBe('CANVAS');
+    expect(m.propio, 'la dona ya no es una instancia de Chart.js').toBe(true);
+    expect(m.dial, 'el plugin del dial de Chart.js se quitó').toBe('undefined');
+    expect(m.bitmap).toBe(true);
+    // el anillo tiene el diámetro y el grosor de A (R .34, grosor .105 de un lienzo de 440): 345 px de diámetro como máximo
+    expect(m.D, 'el diámetro del anillo es el de A (>= 98%)').toBeGreaterThanOrEqual(aroA(m.w) * .98);
+    expect(m.D, 'y mucho más grande que el aro anterior').toBeGreaterThan(PREVIO.aro * 1.5);
+    expect(m.RT / m.D).toBeCloseTo(.105 / .785, 3);
+    expect(m.wide, 'a 1280 las etiquetas con línea guía entran afuera del anillo').toBe(true);
     expect(m.inside).toBe(true);
     expect(Math.abs(m.cx)).toBeLessThan(2);
     expect(Math.abs(m.cy)).toBeLessThan(2);
+    // accesibilidad: role="img" y aria-label con los montos
+    const lab = await page.getAttribute('#nwPieChart', 'aria-label'), role = await page.getAttribute('#nwPieChart', 'role');
+    expect(role).toBe('img');
+    expect(lab).toContain('Patrimonio $7.985.408');
+    expect(lab).toContain('Cuentas $2.150.000 (26,9%)');
+    expect(lab).toContain('Inversión $4.900.000 (61,4%)');
+    expect(lab).not.toContain('Mamá');
     // la deuda en 0 no es una porción ni un chip de la leyenda; "Otros" sí (tiene "Fondo")
     const leyenda = await page.$$eval('#nwLegend .nw-leg-item:not(.nw-leg-edit)', (els) => els.map((e) => e.textContent.trim()));
     expect(leyenda).toEqual(['Cuentas', 'Efectivo', 'Inversión', 'Préstamo', 'Otros']);
@@ -81,7 +103,6 @@ test.describe('Patrimonio v2', () => {
       a: fmtMoney(7985408, 'USD'), b: fmtMoney(1234.5, 'ARS', 2), c: fmtMoney(-5000, 'ARS'), d: fmtMoney(0.2, 'USD'), e: fmtMoney(-0.2, 'USD'), n: fmtNum(1234567.891, 1),
       ticks: nwLineInst.scales.y.ticks.map((t) => t.label),
       tip: nwLineInst.options.plugins.tooltip.callbacks.label({ dataset: { label: 'Total' }, parsed: { y: 5797041.02 } }),
-      pieTip: nwPieInst.options.plugins.tooltip.callbacks.label({ label: 'Cuentas', raw: 2150000 }),
       loc: Chart.defaults.locale,
     }));
     expect(r.a).toBe('$7.985.408');
@@ -93,7 +114,6 @@ test.describe('Patrimonio v2', () => {
     expect(r.ticks.length).toBeGreaterThan(2);
     for (const t of r.ticks) expect(t).toMatch(/^\$\d{1,3}(\.\d{3})*$/);
     expect(r.tip).toBe(' Total: $5.797.041');
-    expect(r.pieTip).toBe(' Cuentas: $2.150.000');
     expect(r.loc).toBe('es-AR');
     expect(consoleErrors).toEqual([]);
   });
@@ -136,8 +156,7 @@ test.describe('Patrimonio v2', () => {
 
   test('tocar una porción de la dona elige esa serie; la leyenda también', async ({ cmPage: page, consoleErrors }) => {
     await preparar(page);
-    const idx = await page.evaluate(() => _nwCats().findIndex((c) => c.t.id === 'invest'));
-    const pt = await page.evaluate((i) => { const p = nwPieInst.getDatasetMeta(0).data[i].getCenterPoint(); return { x: p.x, y: p.y }; }, idx);
+    const pt = await puntoDe(page, 'invest');
     await page.locator('#nwPieChart').click({ position: pt });
     await expect(page.locator('#nwSeriesSel')).toHaveValue('t:invest');
     expect((await serie(page)).label).toBe('Inversión');
@@ -145,6 +164,27 @@ test.describe('Patrimonio v2', () => {
     await page.locator('#nwLegend .nw-leg-item', { hasText: 'Efectivo' }).click();
     await expect(page.locator('#nwSeriesSel')).toHaveValue('t:cash');
     expect((await serie(page)).label).toBe('Efectivo');
+    // tocar otra porción (Cuentas) también la elige, y tocar el hueco del centro no cambia nada
+    await page.locator('#nwPieChart').click({ position: await puntoDe(page, 'bank') });
+    await expect(page.locator('#nwSeriesSel')).toHaveValue('t:bank');
+    const st = await donaSt(page);
+    await page.locator('#nwPieChart').click({ position: { x: st.W / 2, y: st.H / 2 } });
+    await expect(page.locator('#nwSeriesSel')).toHaveValue('t:bank');
+    expect(consoleErrors).toEqual([]);
+  });
+
+  test('pasar el mouse por una porción muestra la categoría en el centro y un tooltip; al salir vuelve el total', async ({ cmPage: page, consoleErrors }) => {
+    await preparar(page);
+    await page.locator('#nwPieChart').hover({ position: await puntoDe(page, 'invest') });
+    await expect(page.locator('#nwDonaLbl')).toHaveText('Inversión');
+    await expect(page.locator('#nwDonaNum')).toHaveText('$4.900.000');
+    await expect(page.locator('#nwDonaSub')).toHaveText('61,4% del total');
+    await expect(page.locator('.nw-dona-tip')).toHaveText('Inversión: $4.900.000 · 61,4%');
+    await expect(page.locator('.nw-dona-tip')).toBeVisible();
+    await page.mouse.move(2, 2);   // afuera de la dona
+    await expect(page.locator('#nwDonaLbl')).toHaveText('Patrimonio');
+    await expect(page.locator('#nwDonaNum')).toHaveText('$7.985.408');
+    await expect(page.locator('.nw-dona-tip')).toBeHidden();
     expect(consoleErrors).toEqual([]);
   });
 
@@ -182,27 +222,77 @@ test.describe('Patrimonio v2', () => {
     expect(consoleErrors).toEqual([]);
   });
 
-  test('dona con aspecto tecnológico: porciones separadas, marco tipo dial y círculo interior (tocar una porción sigue eligiendo la serie: ver el test de arriba)', async ({ cmPage: page, consoleErrors }) => {
+  test('dona con aspecto holograma: bloques LED con la paleta de las categorías, escaneo y anillos; con movimiento reducido queda quieta', async ({ cmPage: page, consoleErrors }) => {
     await preparar(page);
-    const r = await page.evaluate(() => ({ plugin: nwPieInst.config.plugins.some((p) => p.id === 'nwDial'), spacing: nwPieInst.data.datasets[0].spacing, pad: nwPieInst.options.layout.padding }));
-    expect(r.plugin).toBe(true);
-    expect(r.spacing).toBeGreaterThan(0);
-    expect(r.pad).toBeGreaterThan(8);
-    // el canvas tiene trazos del marco fuera del aro de colores (celdas con el celeste del dial a ~7 px del borde del aro)
-    const marco = await page.evaluate(() => {
-      const cv = document.getElementById('nwPieChart'), a = nwPieInst.getDatasetMeta(0).data[0], k = cv.width / cv.getBoundingClientRect().width;
-      const px = cv.getContext('2d').getImageData(Math.round((a.x) * k), Math.round((a.y - a.outerRadius - 7) * k) - 2, 1, 5).data;
-      let max = 0; for (let i = 3; i < px.length; i += 4) max = Math.max(max, px[i]);
-      return max;
+    // 72 bloques de colores sobre el aro (con el color de neón de cada categoría): hay píxeles pintados y del tono de cada categoría
+    await page.evaluate(() => { nwPieInst.estado.t = 9.3; nwPieInst.draw(); });
+    const px = await page.evaluate(() => {
+      const cv = document.getElementById('nwPieChart'), s = nwPieInst.estado, k = cv.width / s.W, ctx = cv.getContext('2d');
+      const en = (ang, r) => Array.from(ctx.getImageData(Math.round((s.W / 2 + Math.cos(ang) * r) * k), Math.round((s.H / 2 + Math.sin(ang) * r) * k), 1, 1).data);
+      const it = (id) => s.items.find((x) => x.id === id), mid = (x) => (x.a0 + x.a1) / 2 - Math.PI / 2;
+      return { inv: en(mid(it('invest')), s.RO - s.RT * .2), bank: en(mid(it('bank')), s.RO - s.RT * .2) };
     });
-    expect(marco, 'hay trazo del dial arriba del aro').toBeGreaterThan(30);
+    expect(px.inv[3], 'bloque de Inversión pintado').toBeGreaterThan(120);
+    expect(px.inv[2], 'Inversión es azul/violeta').toBeGreaterThan(px.inv[1]);
+    expect(px.bank[3]).toBeGreaterThan(120);
+    expect(px.bank[1], 'Cuentas es verde').toBeGreaterThan(px.bank[0]);
+    expect(await page.evaluate(() => getComputedStyle(document.querySelector('.nw-dona'), '::after').backgroundImage)).toContain('repeating-linear-gradient');
+    // movimiento reducido: sin cuadros nuevos, sin banda de escaneo, y sigue dibujada
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await expect.poll(() => page.evaluate(() => nwPieInst.corriendo)).toBe(false);
+    const f0 = await frames(page);
+    await page.waitForTimeout(600);
+    expect(await frames(page)).toBe(f0);
+    expect(await page.evaluate(() => getComputedStyle(document.querySelector('.nw-dona'), '::before').display)).toBe('none');
+    expect(await page.evaluate(() => { const cv = document.getElementById('nwPieChart'), s = nwPieInst.estado, k = cv.width / s.W; return cv.getContext('2d').getImageData(Math.round((s.W / 2 + s.RO - s.RT * .2) * k), Math.round(s.H / 2 * k), 1, 1).data[3]; })).toBeGreaterThan(0);
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await expect.poll(() => page.evaluate(() => nwPieInst.corriendo)).toBe(true);
     expect(consoleErrors).toEqual([]);
   });
 
-  test('categorías: al menos 19 px más de aire debajo de la dona que antes', async ({ cmPage: page, consoleErrors }) => {
+  test('un solo requestAnimationFrame: se pausa con la página oculta y con otra pestaña, y retoma al volver', async ({ cmPage: page, consoleErrors }) => {
     await preparar(page);
-    const aire = await page.evaluate(() => document.querySelector('#nwLegend .nw-leg-item').getBoundingClientRect().top - document.querySelector('.nw-dona').getBoundingClientRect().bottom);
-    expect(aire).toBeGreaterThanOrEqual(PREVIO.aire + 19);
+    await expect.poll(() => page.evaluate(() => nwPieInst.corriendo)).toBe(true);
+    await expect.poll(() => frames(page), { timeout: 15000 }).toBeGreaterThan(1);
+    // página oculta (visibilitychange)
+    await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => true }); document.dispatchEvent(new Event('visibilitychange')); });
+    expect(await page.evaluate(() => nwPieInst.corriendo)).toBe(false);
+    const f0 = await frames(page);
+    await page.waitForTimeout(800);
+    expect(await frames(page), 'sin cuadros con la página oculta').toBe(f0);
+    await page.evaluate(() => { delete document.hidden; document.dispatchEvent(new Event('visibilitychange')); });
+    await expect.poll(() => frames(page), { timeout: 15000 }).toBeGreaterThan(f0);
+    // pestaña Finanzas cerrada (otra pestaña activa): también se detiene
+    await page.click('.nav-btn[data-tab="vida"]');
+    await expect.poll(() => page.evaluate(() => nwPieInst.corriendo)).toBe(false);
+    const f1 = await frames(page);
+    await page.waitForTimeout(800);
+    expect(await frames(page), 'sin cuadros con la pestaña Finanzas cerrada').toBe(f1);
+    await page.click('.nav-btn[data-tab="finanzas"]');
+    await expect.poll(() => page.evaluate(() => nwPieInst.corriendo)).toBe(true);
+    expect(consoleErrors).toEqual([]);
+  });
+
+  test('separación con el bloque del total: 19 px (0,5 cm) menos que antes entre la dona y el total de arriba', async ({ cmPage: page, consoleErrors }) => {
+    for (const ancho of [1280, 390]) {
+      await preparar(page, { ancho });
+      const d = await page.evaluate(() => {
+        const cv = document.getElementById('nwPieChart').getBoundingClientRect(), hero = document.querySelector('.nw-hero-text').getBoundingClientRect(), s = nwPieInst.estado;
+        return { visible: cv.top + s.top - hero.bottom, anillo: cv.top + s.H / 2 - s.RO - hero.bottom };
+      });
+      // lo más externo de la dona (anillo giratorio) respecto del fin del bloque del total: antes +16 px, ahora -3 (19 px menos)
+      expect(d.visible, `a ${ancho}px`).toBeLessThanOrEqual(DIAL_TOP_PREVIO - 19 + 1);
+      expect(d.visible).toBeGreaterThanOrEqual(DIAL_TOP_PREVIO - 19 - 2);
+      // y los bloques de color (antes a 29 px del total) quedan bastante más cerca
+      expect(d.anillo).toBeLessThan(29 - 19 + 14);
+    }
+    expect(consoleErrors).toEqual([]);
+  });
+
+  test('categorías: al menos 19 px más de aire debajo de la dona que antes (el aire visible no se achicó)', async ({ cmPage: page, consoleErrors }) => {
+    await preparar(page);
+    const aire = await page.evaluate(() => { const cv = document.getElementById('nwPieChart').getBoundingClientRect(); return document.querySelector('#nwLegend .nw-leg-item').getBoundingClientRect().top - (cv.bottom - nwPieInst.estado.top); });
+    expect(aire).toBeGreaterThanOrEqual(PREVIO.aire + 19 - 1);
     expect(consoleErrors).toEqual([]);
   });
 
@@ -283,7 +373,7 @@ test.describe('Patrimonio v2', () => {
     // con todas las deudas en 0, "Préstamo" desaparece de la dona y de la leyenda
     await page.evaluate(() => { S.accounts.find((a) => a.id === 'a4').balance = 0; renderFinanzasTab(); });
     expect(await page.$$eval('#nwLegend .nw-leg-item:not(.nw-leg-edit)', (els) => els.map((e) => e.textContent.trim()))).not.toContain('Préstamo');
-    expect(await page.evaluate(() => nwPieInst.data.labels)).not.toContain('Préstamo');
+    expect(await page.evaluate(() => nwPieInst.estado.items.map((i) => i.label))).not.toContain('Préstamo');
     // la serie elegida sobre una deuda que se salda vuelve a Total
     await page.evaluate(() => { S.accounts.find((a) => a.id === 'a4').balance = 500; renderFinanzasTab(); });
     await page.selectOption('#nwSeriesSel', 'a:a4');
@@ -324,7 +414,8 @@ test.describe('Patrimonio v2', () => {
         const R = (e) => { const b = e.getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom }; };
         const card = document.getElementById('nwTotal').closest('.card');
         const chips = [...document.querySelectorAll('#nwLegend .nw-leg-item:not(.nw-leg-edit)')].map(R);
-        return { card: R(card), total: R(document.getElementById('nwTotal')), cash: R(document.getElementById('nwCash')), dona: R(document.querySelector('.nw-dona')),
+        const dv = R(document.querySelector('.nw-dona')), top = nwPieInst.estado.top;   // la dona "visible" = hasta el anillo giratorio más externo
+        return { card: R(card), total: R(document.getElementById('nwTotal')), cash: R(document.getElementById('nwCash')), dona: { l: dv.l, r: dv.r, t: dv.t + top, b: dv.b - top },
           canvas: R(document.getElementById('nwPieChart')), centro: R(document.querySelector('.nw-dona-centro')), chips, edit: R(document.querySelector('#nwLegend .nw-leg-edit')),
           ctl: R(document.querySelector('.nw-ctl')), graf: R(document.querySelector('.chart-wrap')), scrollW: document.documentElement.scrollWidth, innerW: window.innerWidth,
           cardOverflow: card.scrollWidth - card.clientWidth };
@@ -335,6 +426,8 @@ test.describe('Patrimonio v2', () => {
       expect(g.canvas.r - g.canvas.l).toBeGreaterThanOrEqual(Math.round((ancho === 1280 ? PREVIO.canvas1280 : PREVIO.canvas390) * 1.15));
       expect(g.dona.t).toBeGreaterThanOrEqual(g.total.b);
       expect(g.dona.t).toBeGreaterThanOrEqual(g.cash.b);
+      // la dona (A: anillo de .785 del lienzo con tope de 440) no baja de ese tamaño a ningún ancho
+      expect(await page.evaluate(() => nwPieInst.estado.D)).toBeGreaterThanOrEqual(aroA(g.canvas.r - g.canvas.l) * .98);
       // categorías debajo de la dona, y el selector/gráfico debajo de las categorías
       for (const c of [...g.chips, g.edit]) expect(c.t).toBeGreaterThanOrEqual(g.dona.b);
       expect(g.ctl.t).toBeGreaterThanOrEqual(Math.max(...g.chips.map((c) => c.b), g.edit.b));
@@ -364,7 +457,8 @@ test.describe('Patrimonio v2', () => {
     await page.selectOption('#nwSeriesSel', 't:bank');
     expect((await serie(page)).label).toBe('Cuentas');
     // el total queda arriba, la dona debajo y nada se corta
-    const caben = await page.evaluate(() => { const t = document.getElementById('nwTotal').getBoundingClientRect(), d = document.querySelector('.nw-dona').getBoundingClientRect(); return t.bottom <= d.top + 1 && t.right <= innerWidth; });
+    const caben = await page.evaluate(() => { const t = document.getElementById('nwTotal').getBoundingClientRect(), d = document.querySelector('.nw-dona').getBoundingClientRect(), top = nwPieInst.estado.top; return t.bottom <= d.top + top + 1 && t.right <= innerWidth; });
+    expect(await page.evaluate(() => { const s = nwPieInst.estado; return !s.wide && s.D >= .785 * s.W * .99; }), 'a 390 el anillo conserva el tamaño de A y el % va adentro del aro').toBe(true);
     expect(caben).toBe(true);
     await page.evaluate(() => openAcctTypes());
     await expect(page.locator('#modal-acct-types')).toHaveClass(/open/);
