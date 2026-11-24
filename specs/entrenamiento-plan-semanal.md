@@ -80,7 +80,7 @@ Rehacer la INTERFAZ de la sección Entrenamiento (rutinas.js, pestaña Salud) si
 - Las actividades se marcan HECHAS CON UN TOQUE; opcionalmente, en cada entrenamiento en particular (actividad o sesión de gimnasio) se puede cargar: duración, intensidad, concentración y propósito/finalidad (usuario: "se marcan hechas con un toque, pero me gustaría poder cargar duración, intensidad, concentración y propósito o finalidad de cada entrenamiento en particular"). Registro nuevo de actividades hechas (por fecha, con uid para merge sin pérdida) que alimenta `hechas(fecha)` de PlanEntreno.pendienteDe.
 
 - Intensidad y concentración: escala de 1 a 10. Propósito: texto libre.
-- Corrida al final de la semana: lo del domingo (y cualquier pendiente que cruce de semana) pasa normalmente al LUNES siguiente, sumándose a lo de ese día, sin aviso ("que se pase normalmente al lunes, sin ningun aviso ni nada raro").
+- Corrida = DESPLAZAMIENTO EN CADENA, sin acumular: "No se suma a lo que toca ese día, si se pasa una actividad un día todas se pasan al día siguiente". Si se corre un día, toda la secuencia del plan se corre un día hacia adelante, cruzando de semana sin aviso (lo del domingo pasa al lunes, lo del lunes al martes, etc.). Modelo propuesto: cada corrida suma +1 a un desfase que aplica desde esa fecha en adelante (itemsDelDia(f) = plan fijo de f − desfase); "Limpiar semana" vuelve el desfase a 0 desde esa semana.
 - Botón "Limpiar semana": deshace todos los cambios de esta semana (corridas, movimientos "solo esta semana" y pendientes) y la semana vuelve al plan fijo. [interpretación del lead, a confirmar en la maqueta]
 - Botón "Descansar esta semana": la semana entera queda sin ítems (descanso) y no genera pendientes; la semana siguiente vuelve al plan fijo.
 
