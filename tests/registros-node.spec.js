@@ -145,6 +145,29 @@ test.describe('registros: historial, «sin respuesta», filtros y resumen (puro)
     expect(R.rgFiltrar(todas, { registroId: 'otro' })).toHaveLength(0);
   });
 
+  test('varias categorías: rgCats lee lista o categoria vieja; el filtro encuentra por cualquiera; el resumen cuenta menciones y suma 100', () => {
+    expect(R.rgCats({ categoria: 'gym' })).toEqual(['gym']);
+    expect(R.rgCats({ categorias: ['estudio', 'Lectura  libre', 'ESTUDIO'], categoria: 'estudio' })).toEqual(['estudio', 'Lectura libre']);
+    expect(R.rgCats({ categorias: [], categoria: 'gym' })).toEqual(['gym']);
+    expect(R.rgCats({})).toEqual([]);
+    const rs = [
+      resp({ id: 'a', slot: '2026-11-24T09:00', categoria: 'estudio', categorias: ['estudio', 'gym'] }),
+      resp({ id: 'b', slot: '2026-11-24T09:30', categoria: 'Charla', categorias: ['Charla', 'estudio'] }),
+      resp({ id: 'c', slot: '2026-11-24T10:00', categoria: 'gym' }),   // guardado viejo: solo categoria
+    ];
+    const ents = R.rgEntradas(estado([reg()], rs), '2026-11-24', '2026-11-24', '');
+    const ids = (f) => R.rgFiltrar(ents, f).map((e) => e.id).sort();
+    expect(ids({ categoria: 'estudio' })).toEqual(['a', 'b']);
+    expect(ids({ categoria: 'gym' })).toEqual(['a', 'c']);
+    expect(ids({ categoria: 'charla' })).toEqual(['b']);
+    expect(ids({ texto: 'charla' })).toEqual(['b']);
+    const res = R.rgResumen(ents);
+    expect(res.nCategorias).toBe(3);
+    expect(res.nMenciones).toBe(5);
+    expect(res.categorias.map((c) => [c.id, c.n, c.pct])).toEqual([['estudio', 2, 40], ['gym', 2, 40], ['Charla', 1, 20]]);
+    expect(res.categorias.reduce((s, c) => s + c.pct, 0)).toBe(100);
+  });
+
   test('resumen: reparto por categoría, energía por momento del día y 👍/👎', () => {
     const rs = [
       resp({ id: 'a', slot: '2026-11-24T09:00', actividad: 'Estudié', categoria: 'estudio', valAct: 1, energia: 4 }),

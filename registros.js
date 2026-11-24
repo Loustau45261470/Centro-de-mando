@@ -52,14 +52,25 @@ function rgCategoriaCanon(t) {
   return c ? c[0] : s;
 }
 const rgCatClave = c => rgNorm(rgCategoriaLimpia(c));   // para agrupar y comparar categorías
+// Categorías de una respuesta: "categorias" (lista) y, por compatibilidad con lo ya guardado y otros dispositivos, "categoria" (= la primera).
+// TODA lectura pasa por acá. Sin repetidas (misma clave normalizada).
+const RG_CATS_MAX = 6;
+function rgCats(e) {
+  if (!e) return [];
+  const l = (Array.isArray(e.categorias) && e.categorias.length) ? e.categorias : (e.categoria ? [e.categoria] : []);
+  const vistos = new Set();
+  return l.map(x => rgCategoriaCanon(x)).filter(x => { const k = rgCatClave(x); if (!k || vistos.has(k)) return false; vistos.add(k); return true; });
+}
+const rgCatsNombres = e => rgCats(e).map(rgCategoriaNombre);
 // Categorías propias usadas (no fijas) en las respuestas: [{ clave, nombre (la forma más usada), n, ult }], por uso y recencia.
 function rgCategoriasPropias(resps) {
   const m = {};
   (Array.isArray(resps) ? resps : []).forEach(r => {
-    if (!r || !r.categoria) return;
-    const cn = rgCategoriaCanon(r.categoria); if (!cn || RG_CATEGORIAS.some(x => x[0] === cn)) return;
-    const k = rgCatClave(cn), o = m[k] || (m[k] = { clave: k, n: 0, ult: '', formas: {} });
-    o.n++; o.formas[cn] = (o.formas[cn] || 0) + 1; const cu = rgCuando(r); if (cu > o.ult) o.ult = cu;
+    rgCats(r).forEach(cn => {
+      if (RG_CATEGORIAS.some(x => x[0] === cn)) return;
+      const k = rgCatClave(cn), o = m[k] || (m[k] = { clave: k, n: 0, ult: '', formas: {} });
+      o.n++; o.formas[cn] = (o.formas[cn] || 0) + 1; const cu = rgCuando(r); if (cu > o.ult) o.ult = cu;
+    });
   });
   return Object.values(m).map(o => ({ clave: o.clave, n: o.n, ult: o.ult, nombre: Object.keys(o.formas).sort((a, b) => o.formas[b] - o.formas[a])[0] }))
     .sort((a, b) => b.n - a.n || b.ult.localeCompare(a.ult));
@@ -130,13 +141,13 @@ function rgEntradas(state, desde, hasta, ahora) {
     if (fecha < desde || fecha > hasta) return;
     const reg = regs.find(x => x && x.id === r.registroId);
     out.push({ tipo: 'respuesta', id: r.id, cuando, fecha, hora: cuando.slice(11, 16), registroId: r.registroId, registro: nombre(r.registroId), principal: !!(reg && reg.principal) || r.registroId === RG_PRINCIPAL_ID,
-      actividad: r.actividad || '', categoria: r.categoria || '', pensamiento: r.pensamiento || '', energia: r.energia || null,
+      actividad: r.actividad || '', categoria: rgCats(r)[0] || '', categorias: rgCats(r), pensamiento: r.pensamiento || '', energia: r.energia || null,
       valAct: r.valAct || 0, valPen: r.valPen || 0, extras: Array.isArray(r.extras) ? r.extras : [], aprendizajes: aprs.filter(a => a && a.respuestaId === r.id) });
   });
   ((S_.foco && Array.isArray(S_.foco.chequeos)) ? S_.foco.chequeos : []).forEach((c, i) => {
     if (!c || !c.fecha || c.fecha < desde || c.fecha > hasta) return;
     out.push({ tipo: 'foco', id: 'foco_' + i, cuando: c.fecha + 'T' + (c.hora || '00:00'), fecha: c.fecha, hora: c.hora || '', registroId: '', registro: 'Chequeo de Foco (anterior)',
-      actividad: '', categoria: c.categoria || '', pensamiento: '', energia: c.energia || null, valAct: 0, valPen: 0, extras: [], aprendizajes: [] });
+      actividad: '', categoria: c.categoria || '', categorias: c.categoria ? [c.categoria] : [], pensamiento: '', energia: c.energia || null, valAct: 0, valPen: 0, extras: [], aprendizajes: [] });
   });
   if (ahora) regs.forEach(reg => {
     if (!reg || !reg.id) return;
@@ -159,12 +170,12 @@ function rgFiltrar(entradas, f) {
   return (entradas || []).filter(e => {
     if (f.registroId && e.registroId !== f.registroId) return false;
     if (e.tipo === 'sin_respuesta' || e.tipo === 'pendiente') return !contenido;
-    if (f.sobre === 'actividad' && !(e.actividad || e.categoria)) return false;
+    if (f.sobre === 'actividad' && !(e.actividad || rgCats(e).length)) return false;
     if (f.sobre === 'pensamiento' && !e.pensamiento) return false;
     if (v && !((f.sobre !== 'pensamiento' && e.valAct === v) || (f.sobre !== 'actividad' && e.valPen === v))) return false;
-    if (f.categoria && rgCatClave(e.categoria) !== rgCatClave(f.categoria)) return false;
+    if (f.categoria && !rgCats(e).some(c => rgCatClave(c) === rgCatClave(f.categoria))) return false;
     if (q) {
-      const pajar = rgNorm([e.actividad, e.pensamiento, rgCategoriaNombre(e.categoria), e.registro].concat(e.extras.map(x => x.valor), e.aprendizajes.map(a => (a.queHago || '') + ' ' + (a.etiquetas || []).join(' '))).join(' '));
+      const pajar = rgNorm([e.actividad, e.pensamiento, rgCatsNombres(e).join(' '), e.registro].concat(e.extras.map(x => x.valor), e.aprendizajes.map(a => (a.queHago || '') + ' ' + (a.etiquetas || []).join(' '))).join(' '));
       if (!pajar.includes(q)) return false;
     }
     return true;
@@ -175,11 +186,12 @@ function rgFiltrar(entradas, f) {
 function rgResumen(entradas) {
   const resp = (entradas || []).filter(e => e.tipo === 'respuesta' || e.tipo === 'foco');
   const sin = (entradas || []).filter(e => e.tipo === 'sin_respuesta').length;
-  const conCat = resp.filter(e => rgCategoriaCanon(e.categoria));
+  const conCat = resp.filter(e => rgCats(e).length);
   const grupos = {};   // fijas y propias agrupadas por la misma clave normalizada
-  conCat.forEach(e => { const cn = rgCategoriaCanon(e.categoria), k = rgCatClave(cn), g = grupos[k] || (grupos[k] = { n: 0, formas: {} }), fm = g.formas[cn] || (g.formas[cn] = { n: 0, t: e.cuando }); g.n++; fm.n++; if (e.cuando < fm.t) fm.t = e.cuando; });
+  let menciones = 0;   // una respuesta con varias categorías cuenta en cada una; el % se calcula sobre las menciones (suma 100)
+  conCat.forEach(e => rgCats(e).forEach(cn => { menciones++; const k = rgCatClave(cn), g = grupos[k] || (grupos[k] = { n: 0, formas: {} }), fm = g.formas[cn] || (g.formas[cn] = { n: 0, t: e.cuando }); g.n++; fm.n++; if (e.cuando < fm.t) fm.t = e.cuando; }));
   const ix = id => { const i = RG_CATEGORIAS.findIndex(c => c[0] === id); return i < 0 ? 999 : i; };
-  const categorias = Object.values(grupos).map(g => { const id = Object.keys(g.formas).sort((a, b) => g.formas[b].n - g.formas[a].n || g.formas[a].t.localeCompare(g.formas[b].t))[0]; return { id, nombre: rgCategoriaNombre(id) || id, n: g.n, pct: conCat.length ? Math.round(g.n * 100 / conCat.length) : 0 }; })
+  const categorias = Object.values(grupos).map(g => { const id = Object.keys(g.formas).sort((a, b) => g.formas[b].n - g.formas[a].n || g.formas[a].t.localeCompare(g.formas[b].t))[0]; return { id, nombre: rgCategoriaNombre(id) || id, n: g.n, pct: menciones ? Math.round(g.n * 100 / menciones) : 0 }; })
     .sort((a, b) => b.n - a.n || ix(a.id) - ix(b.id) || a.nombre.localeCompare(b.nombre));   // empate: fijas en su orden, luego propias
   const franjas = RG_FRANJAS.map(([nombre, a, b]) => {
     const l = resp.filter(e => e.energia >= 1 && e.energia <= 5 && /^\d{2}:/.test(e.hora) && +e.hora.slice(0, 2) >= a && +e.hora.slice(0, 2) < b).map(e => e.energia);
@@ -187,7 +199,7 @@ function rgResumen(entradas) {
   }).filter(f => f.n > 0);
   const cuenta = (k, v) => resp.filter(e => e[k] === v).length;
   const items = (k, v, campo) => resp.filter(e => e[k] === v && e[campo]).slice(0, 3).map(e => ({ fecha: e.fecha, hora: e.hora, texto: e[campo] }));
-  return { respuestas: resp.length, sinRespuesta: sin, categorias, nCategorias: conCat.length, franjas,
+  return { respuestas: resp.length, sinRespuesta: sin, categorias, nCategorias: conCat.length, nMenciones: menciones, franjas,
     upAct: cuenta('valAct', 1), downAct: cuenta('valAct', -1), upPen: cuenta('valPen', 1), downPen: cuenta('valPen', -1),
     bien: items('valAct', 1, 'actividad').concat(items('valPen', 1, 'pensamiento')).slice(0, 4),
     mal: items('valAct', -1, 'actividad').concat(items('valPen', -1, 'pensamiento')).slice(0, 4) };
@@ -273,7 +285,7 @@ function _rgBorrador(reg, slot, resp) {
   const aprs = resp ? _rgAprs().filter(a => a.respuestaId === resp.id) : [];
   const lado = s => { const a = aprs.find(x => x.sobre === s); return { id: a ? a.id : '', queHago: a ? a.queHago : '', etiq: a ? (a.etiquetas || []).join(', ') : '', principioId: a ? a.principioId || '' : '' }; };
   const ex = {}; if (resp) (resp.extras || []).forEach(x => { ex[x.pid] = x.valor; });
-  return { regId: reg.id, slot: slot || '', editId: resp ? resp.id : '', actividad: resp ? resp.actividad || '' : '', categoria: resp ? resp.categoria || '' : '',
+  return { regId: reg.id, slot: slot || '', editId: resp ? resp.id : '', actividad: resp ? resp.actividad || '' : '', cats: resp ? rgCats(resp) : [],
     pensamiento: resp ? resp.pensamiento || '' : '', energia: resp ? resp.energia || null : null, valAct: resp ? resp.valAct || 0 : 0, valPen: resp ? resp.valPen || 0 : 0,
     otra: '', extras: ex, apr: { actividad: lado('actividad'), pensamiento: lado('pensamiento') } };
 }
@@ -284,7 +296,7 @@ function _rgTh(lado, val) {
 }
 function _rgSugHtml(lado) {
   const f = _rgF; if (!f) return '';
-  const a = f.apr[lado], texto = lado === 'actividad' ? f.actividad + ' ' + rgCategoriaNombre(f.categoria) : f.pensamiento;
+  const a = f.apr[lado], texto = lado === 'actividad' ? f.actividad + ' ' + f.cats.map(rgCategoriaNombre).join(' ') : f.pensamiento;
   const propios = _rgAprs().filter(x => x.respuestaId === f.editId && f.editId).map(x => x.id);
   const l = rgBuscarAprendizajes(_rgAprs(), { etiquetas: a.etiq, texto }, propios);
   if (!l.length) return '';
@@ -304,14 +316,23 @@ function _rgAprHtml(lado) {
     + (usadas.length ? '<div class="rg-tags">' + usadas.map(t => '<button type="button" class="rg-tag-b" onclick="Registros.etiq(\'' + lado + '\',\'' + _rgEsc(t).replace(/'/g, '') + '\')">#' + _rgEsc(t) + '</button>').join('') + '</div>' : '')
     + '<div id="rg-sug-' + lado + '">' + _rgSugHtml(lado) + '</div></div>';
 }
+const _rgTiene = id => !!_rgF && _rgF.cats.some(c => rgCatClave(c) === rgCatClave(id));
+// Propias a mostrar en el formulario: las ya usadas (sugeridas) + las elegidas ahora que todavía no están guardadas.
+function _rgPropiasForm() {
+  const l = rgCategoriasPropias(_rgResps()).slice(0, 8);
+  _rgF.cats.forEach(c => { if (RG_CATEGORIAS.some(x => x[0] === c)) return; const k = rgCatClave(c); if (!l.some(x => x.clave === k)) l.push({ clave: k, nombre: c }); });
+  return l;
+}
 function _rgFormHtml() {
   const f = _rgF, reg = _rgReg(f.regId); if (!reg) return '<div class="pr-vacio">Este registro ya no existe.</div>';
   let h = '<div class="pr-nota">' + (f.editId ? 'Estás corrigiendo una respuesta.' : (f.slot ? 'Aviso de las ' + _rgEsc(f.slot.slice(11, 16)) + '.' : 'Respuesta a mano, ahora.')) + ' Contestá lo que quieras: se guarda lo que completes.</div>';
   if (reg.principal) {
     h += '<label class="pr-l" for="rg-act">¿Qué estuviste haciendo?</label><input id="rg-act" class="pr-in" maxlength="200" placeholder="Una línea" value="' + _rgEsc(f.actividad) + '" oninput="Registros.f(\'actividad\',this.value)">'
-      + '<div class="fo-cats rg-cats">' + RG_CATEGORIAS.map(c => '<button type="button" class="fo-cat' + (f.categoria === c[0] ? ' on' : '') + '" data-cat="' + c[0] + '" onclick="Registros.cat(\'' + c[0] + '\')">' + _rgEsc(c[1]) + '</button>').join('')
-      + rgCategoriasPropias(_rgResps()).slice(0, 8).map(c => '<button type="button" class="fo-cat rg-cat-propia' + (rgCatClave(f.categoria) === c.clave ? ' on' : '') + '" data-propia="' + _rgEsc(c.clave) + '" data-n="' + _rgEsc(c.nombre) + '" onclick="Registros.catPropia(this.dataset.n)">' + _rgEsc(c.nombre) + '</button>').join('') + '</div>'
-      + '<input id="rg-cat-otra" class="pr-in rg-cat-otra" maxlength="' + RG_CAT_MAX + '" placeholder="Otra categoría… (escribila)" aria-label="Otra categoría" value="' + _rgEsc(f.otra) + '" oninput="Registros.otra(this.value)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}">'
+      + '<div class="fo-cats rg-cats">' + RG_CATEGORIAS.map(c => '<button type="button" class="fo-cat' + (_rgTiene(c[0]) ? ' on' : '') + '" data-cat="' + c[0] + '" onclick="Registros.cat(\'' + c[0] + '\')">' + _rgEsc(c[1]) + '</button>').join('')
+      + _rgPropiasForm().map(c => '<button type="button" class="fo-cat rg-cat-propia' + (_rgTiene(c.clave) ? ' on' : '') + '" data-propia="' + _rgEsc(c.clave) + '" data-n="' + _rgEsc(c.nombre) + '" onclick="Registros.catPropia(this.dataset.n)">' + _rgEsc(c.nombre) + '</button>').join('') + '</div>'
+      + '<div class="rg-cat-add"><input id="rg-cat-otra" class="pr-in rg-cat-otra" maxlength="' + RG_CAT_MAX + '" placeholder="Otra categoría… (escribila y tocá +)" aria-label="Otra categoría" value="' + _rgEsc(f.otra) + '" oninput="Registros.otra(this.value)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();Registros.agregarOtra();}">'
+      + '<button type="button" id="rg-cat-mas" class="pr-btn rg-cat-mas" aria-label="Agregar categoría" onclick="Registros.agregarOtra()">+</button></div>'
+      + '<div class="pr-nota rg-cat-ayuda">Podés elegir varias (hasta ' + RG_CATS_MAX + ').</div>'
       + '<div class="rg-valor"><span>¿Salió bien?</span>' + _rgTh('actividad', f.valAct) + '</div>' + _rgAprHtml('actividad')
       + '<label class="pr-l" for="rg-pen">¿En qué estuviste pensando?</label><textarea id="rg-pen" class="pr-in" rows="2" maxlength="300" placeholder="Lo que te daba vueltas" oninput="Registros.f(\'pensamiento\',this.value)">' + _rgEsc(f.pensamiento) + '</textarea>'
       + '<div class="rg-valor"><span>¿Fue un buen pensamiento?</span>' + _rgTh('pensamiento', f.valPen) + '</div>' + _rgAprHtml('pensamiento')
@@ -413,7 +434,7 @@ function _rgEntradaHtml(e) {
   if (e.tipo === 'sin_respuesta') return '<div class="rg-ent rg-sin">' + hh + '<span class="rg-sin-t">Sin respuesta</span></div></div>';
   if (e.tipo === 'pendiente') return '<div class="rg-ent rg-sin">' + hh + '<span class="rg-sin-t">Esperando tu respuesta</span><button type="button" class="pr-btn pr-btn-p rg-resp-h" onclick="Registros.abrirOcurrencia(\'' + _rgEsc(e.registroId) + '\',\'' + _rgEsc(e.slot) + '\')">Responder</button></div></div>';
   let b = '';
-  if (e.actividad || e.categoria) b += '<div class="rg-l"><span class="rg-lbl">Hacía</span> ' + _rgEsc(e.actividad) + (e.categoria ? ' <span class="rg-chip rg-cat">' + _rgEsc(rgCategoriaNombre(e.categoria) || e.categoria) + '</span>' : '') + ' ' + _rgIcono(e.valAct) + '</div>';
+  if (e.actividad || rgCats(e).length) b += '<div class="rg-l"><span class="rg-lbl">Hacía</span> ' + _rgEsc(e.actividad) + rgCats(e).map(c => ' <span class="rg-chip rg-cat">' + _rgEsc(rgCategoriaNombre(c) || c) + '</span>').join('') + ' ' + _rgIcono(e.valAct) + '</div>';
   if (e.pensamiento) b += '<div class="rg-l"><span class="rg-lbl">Pensaba</span> ' + _rgEsc(e.pensamiento) + ' ' + _rgIcono(e.valPen) + '</div>';
   if (e.energia) b += '<div class="rg-l"><span class="rg-lbl">Energía</span> ' + _rgEsc(e.energia) + ' de 5</div>';
   e.extras.forEach(x => { if (x.valor !== undefined && x.valor !== '') b += '<div class="rg-l"><span class="rg-lbl">' + _rgEsc(x.texto) + '</span> ' + _rgEsc(x.valor) + '</div>'; });
@@ -429,7 +450,7 @@ function _rgResumenHtml(res) {
   if (!res.respuestas && !res.sinRespuesta) return '<div class="pr-vacio">Todavía no hay respuestas en este período.</div>';
   let h = '<div class="rg-res-t">' + res.respuestas + ' respuesta' + (res.respuestas === 1 ? '' : 's') + (res.sinRespuesta ? ' · ' + res.sinRespuesta + ' sin respuesta' : '') + '</div>';
   if (res.categorias.length) h += '<div class="rg-res-s">En qué se fue el tiempo</div>' + res.categorias.map(c => '<div class="pr-cat fo-rep"><span>' + _rgEsc(c.nombre) + '</span><b>' + c.n + ' · ' + c.pct + '%</b></div>').join('')
-    + '<div class="pr-nota">Sobre ' + res.nCategorias + ' respuestas con categoría. Es una muestra, no un cronómetro.</div>';
+    + '<div class="pr-nota">Sobre ' + res.nCategorias + ' respuestas con categoría. Un registro con varias actividades cuenta en cada una. Es una muestra, no un cronómetro.</div>';
   if (res.franjas.length) h += '<div class="rg-res-s">Energía por momento del día</div>' + res.franjas.map(f => '<div class="pr-cat fo-rep"><span>' + _rgEsc(f.nombre) + (f.n < 3 ? ' <small class="pr-meta">pocos datos</small>' : '') + '</span><b>' + (Math.round(f.energia * 10) / 10).toFixed(1).replace('.', ',') + ' · ' + f.n + ' resp.</b></div>').join('');
   h += '<div class="rg-res-s">Qué salió bien y qué mal</div><div class="pr-cat fo-rep"><span>Actividades</span><b>👍 ' + res.upAct + ' · 👎 ' + res.downAct + '</b></div><div class="pr-cat fo-rep"><span>Pensamientos</span><b>👍 ' + res.upPen + ' · 👎 ' + res.downPen + '</b></div>';
   const lista = (t, l) => l.length ? '<div class="pr-nota"><b>' + t + ':</b> ' + l.map(x => _rgEsc(x.texto)).join(' · ') + '</div>' : '';
@@ -487,12 +508,26 @@ const Registros = {
   },
   editarRespuesta(id) { const x = _rgResps().find(r => r && r.id === id), r = x && _rgReg(x.registroId); if (!r) { _rgToast('No se puede editar: el registro ya no existe'); return; } _rgAbrirForm(r, x.slot, x); },
   f(campo, v) { if (!_rgF) return; _rgF[campo] = v; if (campo === 'actividad') Registros._sug('actividad'); if (campo === 'pensamiento') Registros._sug('pensamiento'); },
-  cat(c) { if (!_rgF) return; _rgF.categoria = _rgF.categoria === c ? '' : c; _rgF.otra = ''; _rgFormRender(); },
-  catPropia(n) { if (!_rgF) return; _rgF.categoria = rgCatClave(_rgF.categoria) === rgCatClave(n) ? '' : rgCategoriaCanon(n); _rgF.otra = ''; _rgFormRender(); },
-  // Texto libre: fija la categoría y solo reacomoda los chips (sin redibujar, para no perder el foco del campo).
-  otra(v) {
-    if (!_rgF) return; _rgF.otra = v; _rgF.categoria = rgCategoriaCanon(v);
-    document.querySelectorAll('#rg-form-host .rg-cats .fo-cat').forEach(b => { b.classList.toggle('on', b.dataset.cat ? b.dataset.cat === _rgF.categoria : rgCatClave(_rgF.categoria) === b.dataset.propia); });
+  // Multi-selección: tocar enciende/apaga. Tope RG_CATS_MAX.
+  _toggleCat(c) {
+    const k = rgCatClave(c), i = _rgF.cats.findIndex(x => rgCatClave(x) === k);
+    if (i >= 0) _rgF.cats.splice(i, 1);
+    else if (_rgF.cats.length >= RG_CATS_MAX) { _rgToast('Máximo ' + RG_CATS_MAX + ' categorías'); return; }
+    else _rgF.cats.push(c);
+    _rgFormRender();
+  },
+  cat(c) { if (_rgF) Registros._toggleCat(c); },
+  catPropia(n) { if (_rgF) Registros._toggleCat(rgCategoriaCanon(n)); },
+  otra(v) { if (_rgF) _rgF.otra = v; },
+  // Agrega lo escrito como una categoría elegida más (Enter o +). silencio=true: sin avisos (se usa al guardar).
+  agregarOtra(silencio) {
+    if (!_rgF) return; const c = rgCategoriaCanon(_rgF.otra); if (!c) return;
+    const k = rgCatClave(c);
+    if (!_rgF.cats.some(x => rgCatClave(x) === k)) {
+      if (_rgF.cats.length >= RG_CATS_MAX) { if (!silencio) _rgToast('Máximo ' + RG_CATS_MAX + ' categorías'); return; }
+      _rgF.cats.push(c);
+    }
+    _rgF.otra = ''; if (!silencio) { _rgFormRender(); const i = document.getElementById('rg-cat-otra'); if (i) i.focus(); }
   },
   en(n) { if (!_rgF) return; _rgF.energia = _rgF.energia === n ? null : n; _rgFormRender(); },
   th(lado, v) {
@@ -506,13 +541,15 @@ const Registros = {
   cerrarForm() { if (typeof CMOverlay !== 'undefined') CMOverlay.close('ov-registro-resp'); _rgF = null; },
   guardar() {
     const f = _rgF, reg = f && _rgReg(f.regId); if (!reg) return;
-    const hay = (reg.principal && (f.actividad.trim() || f.categoria || f.pensamiento.trim() || f.energia)) || (reg.preguntas || []).some(p => f.extras[p.id] !== undefined && String(f.extras[p.id]).trim() !== '');
+    const hay = (reg.principal && (f.actividad.trim() || f.cats.length || f.otra.trim() || f.pensamiento.trim() || f.energia)) || (reg.preguntas || []).some(p => f.extras[p.id] !== undefined && String(f.extras[p.id]).trim() !== '');
     if (!hay) { _rgToast('Contestá al menos una pregunta'); return; }
     const ahora = new Date(), resps = _rgResps();
     let r = f.editId ? resps.find(x => x.id === f.editId) : null;
     if (!r && f.slot) r = resps.find(x => x.registroId === reg.id && x.slot === f.slot) || null;   // un solo registro por aviso
     if (!r) { r = { id: _rgUid(), registroId: reg.id, fecha: rgFechaDe(ahora), hora: _rgP2(ahora.getHours()) + ':' + _rgP2(ahora.getMinutes()), slot: f.slot || '' }; resps.push(r); }
-    if (reg.principal) Object.assign(r, { actividad: f.actividad.trim(), categoria: f.categoria, pensamiento: f.pensamiento.trim(), energia: f.energia, valAct: f.valAct, valPen: f.valPen });
+    if (reg.principal) Registros.agregarOtra(true);   // lo escrito y no confirmado con + también entra
+    const cats = f.cats.slice(0, RG_CATS_MAX);
+    if (reg.principal) Object.assign(r, { actividad: f.actividad.trim(), categoria: cats[0] || '', categorias: cats.slice(), pensamiento: f.pensamiento.trim(), energia: f.energia, valAct: f.valAct, valPen: f.valPen });
     r.extras = (reg.preguntas || []).filter(p => f.extras[p.id] !== undefined && String(f.extras[p.id]).trim() !== '').map(p => ({ pid: p.id, texto: p.texto, valor: f.extras[p.id] }));
     // Aprendizajes de los 👎: uno por lado. Si ya no aplica (pulgar cambiado o vacío) se borra, salvo que ya sea un principio.
     const aprs = _rgAprs();
@@ -520,7 +557,7 @@ const Registros = {
       const val = lado === 'actividad' ? f.valAct : f.valPen, a = f.apr[lado], et = rgEtiquetas(a.etiq), que = String(a.queHago || '').trim();
       const i = aprs.findIndex(x => x.respuestaId === r.id && x.sobre === lado);
       if (val === -1 && (que || et.length)) {
-        const contexto = (lado === 'actividad' ? [r.actividad, rgCategoriaNombre(r.categoria)].filter(Boolean).join(' · ') : r.pensamiento).slice(0, 200);
+        const contexto = (lado === 'actividad' ? [r.actividad, rgCatsNombres(r).join(', ')].filter(Boolean).join(' · ') : r.pensamiento).slice(0, 200);
         const nuevo = { id: i >= 0 ? aprs[i].id : _rgUid(), fecha: (rgCuando(r)).slice(0, 10), registroId: reg.id, respuestaId: r.id, sobre: lado, contexto, etiquetas: et, queHago: que, principioId: i >= 0 ? aprs[i].principioId || '' : '' };
         if (i >= 0) aprs[i] = nuevo; else aprs.push(nuevo);
       } else if (i >= 0 && !aprs[i].principioId) aprs.splice(i, 1);
@@ -642,5 +679,5 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { rgFechaDe, rgAhoraStr, rgSumarDias, rgLunes, rgNorm, rgPalabras, rgEtiquetas, rgBuscarAprendizajes, rgFrecuenciaTexto, rgValidarRegistro, rgPrincipalNuevo,
-    rgSlotsRango, rgEntradas, rgFiltrar, rgResumen, rgConteoSemana, rgCuando, rgCategoriaNombre, rgCategoriaCanon, rgCategoriasPropias, RG_PRINCIPAL_ID };
+    rgSlotsRango, rgEntradas, rgFiltrar, rgResumen, rgConteoSemana, rgCuando, rgCategoriaNombre, rgCategoriaCanon, rgCategoriasPropias, rgCats, RG_PRINCIPAL_ID };
 }

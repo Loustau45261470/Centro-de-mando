@@ -259,78 +259,122 @@ test.describe('Registros', () => {
     await expect(page.locator('#fo-reparto')).toContainText('Estudio');
   });
 
-  test('categoría propia: se escribe, se guarda, sale en historial, filtro, resumen y como sugerencia; un chip fijo limpia el texto', async ({ cmPage: page, consoleErrors }) => {
-    test.setTimeout(90000);
-    const SHOTS = 'C:/Users/Tobias/AppData/Local/Temp/claude/5d52610f902b8d2c/0ee1a2f9-6695-4db7-81d3-bffab298c7c8/scratchpad/rg-cat-propia/';
+  test('varias categorías: se eligen 2 fijas + 1 propia, se guarda, historial, filtros, resumen por menciones, registro viejo y recarga', async ({ cmPage: page, consoleErrors }) => {
+    test.setTimeout(120000);
+    const SHOTS = 'C:/Users/Tobias/AppData/Local/Temp/claude/5d52610f902b8d2c/0ee1a2f9-6695-4db7-81d3-bffab298c7c8/scratchpad/rg-multicat/';
     await page.setViewportSize({ width: 390, height: 844 });
     await a(page, 11, 2);
     await irAVida(page);
     await antiguar(page);
     const abrir = async () => { await page.evaluate(() => Registros.responder('reg_principal')); await expect(page.locator('#ov-registro-resp.show #rg-cat-otra')).toBeVisible(); };
+    const on = page.locator('#ov-registro-resp .fo-cat.on');
+    const cats = () => page.evaluate(() => S.registroRespuestas.map((r) => ({ categoria: r.categoria, categorias: r.categorias })));
 
-    // Escribir una propia: se deselecciona el chip fijo; Enter no guarda el registro.
+    // 1) Dos fijas + una propia (Enter la agrega como chip elegido; Enter no guarda el registro).
     await abrir();
-    await page.fill('#rg-act', 'Armando un banco de preguntas');
+    await page.fill('#rg-act', 'Comí, leí y resolví un pendiente');
     await page.locator('#ov-registro-resp .fo-cat[data-cat="estudio"]').click();
-    await expect(page.locator('#ov-registro-resp .fo-cat[data-cat="estudio"]')).toHaveClass(/on/);
+    await page.locator('#ov-registro-resp .fo-cat[data-cat="gym"]').click();
+    await expect(on).toHaveCount(2);
     await page.fill('#rg-cat-otra', '  Lectura   de   papers  ');
-    await expect(page.locator('#ov-registro-resp .fo-cat.on')).toHaveCount(0);
+    await expect(on).toHaveCount(2);   // escribir sola no elige: hace falta Enter o +
     await page.press('#rg-cat-otra', 'Enter');
+    await expect(on).toHaveCount(3);
+    await expect(page.locator('#ov-registro-resp .rg-cat-propia.on')).toHaveText('Lectura de papers');
+    await expect(page.locator('#rg-cat-otra')).toHaveValue('');
     await expect(page.locator('#ov-registro-resp.show')).toBeVisible();
     expect(await page.evaluate(() => S.registroRespuestas.length)).toBe(0);
     expect(await sinScrollH(page)).toBe(true);
     await page.screenshot({ path: SHOTS + 'form-390.png' });
+    // Tocar una elegida la quita; volver a tocarla la pone.
+    await page.locator('#ov-registro-resp .fo-cat[data-cat="gym"]').click();
+    await expect(on).toHaveCount(2);
+    await page.locator('#ov-registro-resp .fo-cat[data-cat="gym"]').click();
+    await expect(on).toHaveCount(3);
     await page.click('#rg-guardar');
-    expect(await page.evaluate(() => S.registroRespuestas.map((r) => r.categoria))).toEqual(['Lectura de papers']);
+    expect(await cats()).toEqual([{ categoria: 'estudio', categorias: ['estudio', 'Lectura de papers', 'gym'] }]);   // orden de elección (gym se quitó y se volvió a poner)
 
-    // Segundo registro con la misma categoría en otra forma + una fija: tope de 40 y mayúsculas/acentos agrupados.
+    // 2) Misma propia en otra forma: se agrupa (no duplica); el botón + también agrega.
     await abrir();
     await expect(page.locator('#ov-registro-resp .rg-cat-propia')).toHaveText(['Lectura de papers']);   // sugerida
     await page.locator('#ov-registro-resp .rg-cat-propia').click();
-    await expect(page.locator('#ov-registro-resp .rg-cat-propia')).toHaveClass(/on/);
-    await page.fill('#rg-cat-otra', 'x'.repeat(60));
-    expect(await page.evaluate(() => _rgF.categoria.length)).toBe(40);
     await page.fill('#rg-cat-otra', 'LECTURA DE PAPERS');
-    await expect(page.locator('#ov-registro-resp .rg-cat-propia')).toHaveClass(/on/);   // misma clave: el chip sugerido se enciende
+    await page.click('#rg-cat-mas');
+    await expect(on).toHaveCount(1);
+    expect(await page.evaluate(() => _rgF.cats)).toEqual(['Lectura de papers']);
+    await page.fill('#rg-cat-otra', 'x'.repeat(60));
+    await page.click('#rg-cat-mas');
+    expect(await page.evaluate(() => _rgF.cats.map((c) => c.length))).toEqual([17, 40]);
+    await page.locator('#ov-registro-resp .rg-cat-propia.on').last().click();   // la quita: desaparece (no estaba guardada)
+    await expect(on).toHaveCount(1);
     await page.fill('#rg-act', 'Más lectura');
     await page.click('#rg-guardar');
-    // Tocar un chip fijo limpia el texto; escribir el nombre de una fija usa la fija.
+
+    // 3) Lo escrito y no confirmado con + igual entra al guardar.
     await abrir();
-    await page.fill('#rg-cat-otra', 'algo');
     await page.locator('#ov-registro-resp .fo-cat[data-cat="gym"]').click();
-    await expect(page.locator('#rg-cat-otra')).toHaveValue('');
-    expect(await page.evaluate(() => _rgF.categoria)).toBe('gym');
-    await page.fill('#rg-cat-otra', 'estudio');
-    expect(await page.evaluate(() => _rgF.categoria)).toBe('estudio');
-    await page.fill('#rg-act', 'Repaso');
+    await page.fill('#rg-cat-otra', 'Charla');
+    await page.fill('#rg-act', 'Hablé con alguien');
     await page.click('#rg-guardar');
-    const cats = await page.evaluate(() => S.registroRespuestas.map((r) => r.categoria));
-    expect(cats).toEqual(['Lectura de papers', 'LECTURA DE PAPERS', 'estudio']);   // se guarda el texto tal cual, limpio
+
+    // Tope: no se pasa de 6.
+    await abrir();
+    for (const c of ['estudio', 'gym', 'trabajo', 'pantalla', 'social', 'descanso']) await page.locator('#ov-registro-resp .fo-cat[data-cat="' + c + '"]').click();
+    await page.fill('#rg-cat-otra', 'Séptima'); await page.press('#rg-cat-otra', 'Enter');
+    expect(await page.evaluate(() => _rgF.cats.length)).toBe(6);
+    await page.evaluate(() => Registros.cerrarForm());
+
+    // 4) Registro viejo con solo `categoria`: se edita, aparece seleccionada y al guardar escribe ambos campos.
+    await page.evaluate(() => { S.registroRespuestas.push({ id: 'old1', registroId: 'reg_principal', fecha: '2026-11-24', hora: '08:05', slot: '', actividad: 'Repaso viejo', categoria: 'estudio', pensamiento: '', energia: null, valAct: 0, valPen: 0, extras: [] }); });
+    await page.evaluate(() => Registros.editarRespuesta('old1'));
+    await expect(page.locator('#ov-registro-resp.show #rg-cat-otra')).toBeVisible();
+    await expect(on).toHaveCount(1);
+    await expect(page.locator('#ov-registro-resp .fo-cat[data-cat="estudio"]')).toHaveClass(/on/);
+    await page.locator('#ov-registro-resp .fo-cat[data-cat="gym"]').click();
+    await page.click('#rg-guardar');
+    const old = await page.evaluate(() => S.registroRespuestas.find((r) => r.id === 'old1'));
+    expect(old.categoria).toBe('estudio');
+    expect(old.categorias).toEqual(['estudio', 'gym']);
+
+    // 5) Historial: todos los chips, filtro por cada categoría, búsqueda y resumen por menciones.
     await page.evaluate(() => { _rgH.preset = 'hoy'; });
     await page.evaluate(() => Registros.abrirHistorial());
     await expect(page.locator('#ov-registros-hist.show')).toBeVisible();
     const ents = page.locator('#rg-h-res .rg-ent:not(.rg-sin)');
-    await expect(ents.filter({ hasText: /Lectura de papers/ })).toHaveCount(1);
-    await expect(ents.filter({ hasText: /LECTURA DE PAPERS/ })).toHaveCount(1);
-    await expect(page.locator('#rg-h-cat option', { hasText: 'Lectura de papers' })).toHaveCount(1);   // una sola opción: mismas mayúsculas/acentos agrupados
-    await page.selectOption('#rg-h-cat', { label: 'Lectura de papers' });
-    await expect(ents).toHaveCount(2);
-    await page.selectOption('#rg-h-cat', 'estudio');
-    await expect(ents).toHaveCount(1);
-    await page.selectOption('#rg-h-cat', '');
-    await page.fill('#rg-h-texto', 'lectura de PAPERS');
-    await expect(ents).toHaveCount(2);
+    await expect(ents).toHaveCount(4);
+    await expect(ents.filter({ hasText: 'Comí, leí y resolví un pendiente' }).locator('.rg-chip.rg-cat')).toHaveText(['Estudio', 'Lectura de papers', 'Gym']);
+    const filtro = async (v) => { await page.selectOption('#rg-h-cat', v); };
+    await filtro('estudio'); await expect(ents).toHaveCount(2);
+    await filtro('gym'); await expect(ents).toHaveCount(3);
+    await filtro('lectura de papers'); await expect(ents).toHaveCount(2);
+    await filtro({ label: 'Charla' }); await expect(ents).toHaveCount(1);
+    await filtro(''); await expect(ents).toHaveCount(4);
+    await page.fill('#rg-h-texto', 'charla'); await expect(ents).toHaveCount(1);
     await page.fill('#rg-h-texto', '');
     const res = page.locator('#rg-h-res .pr-card').first();
-    await expect(res).toContainText('En qué se fue el tiempo');
-    await expect(res).toContainText('Lectura de papers · 2'.replace(' · 2', ''));
-    await expect(res.locator('.fo-rep', { hasText: 'Lectura de papers' })).toContainText('2 · 67%');
-    await expect(res.locator('.fo-rep', { hasText: 'Estudio' })).toContainText('1 · 33%');
+    // Menciones: estudio 2, gym 3, Lectura 2, Charla 1 = 8.
+    await expect(res.locator('.fo-rep', { hasText: 'Gym' })).toContainText('3 · 38%');
+    await expect(res.locator('.fo-rep', { hasText: 'Estudio' })).toContainText('2 · 25%');
+    await expect(res.locator('.fo-rep', { hasText: 'Lectura de papers' })).toContainText('2 · 25%');
+    await expect(res.locator('.fo-rep', { hasText: 'Charla' })).toContainText('1 · 13%');
+    await expect(res).toContainText('Un registro con varias actividades cuenta en cada una');
     await page.screenshot({ path: SHOTS + 'historial-390.png' });
     await page.evaluate(() => CMOverlay.close('ov-registros-hist'));
     await page.setViewportSize({ width: 1280, height: 800 });
     await abrir();
+    await page.locator('#ov-registro-resp .fo-cat[data-cat="estudio"]').click();
+    await page.locator('#ov-registro-resp .fo-cat[data-cat="social"]').click();
     await page.screenshot({ path: SHOTS + 'form-1280.png' });
+    await page.evaluate(() => Registros.cerrarForm());
+
+    // 6) Recarga real: persiste.
+    const antes = await page.evaluate(() => S.registroRespuestas.map((r) => [r.id, r.categoria, r.categorias]));
+    await page.evaluate(() => saveState());
+    await page.reload();
+    await waitForBoot(page); await completeLoginOverlay(page);
+    const despues = await page.evaluate(() => S.registroRespuestas.map((r) => [r.id, r.categoria, r.categorias]));
+    expect(despues).toEqual(antes);
+    expect(despues.find((x) => x[0] === 'old1')[2]).toEqual(['estudio', 'gym']);
     expect(consoleErrors).toEqual([]);
   });
 });

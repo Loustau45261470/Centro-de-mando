@@ -1978,11 +1978,11 @@ button.goal-hora-vacio:hover { color: var(--tp); background: rgba(255,255,255,.0
 .qobj-link-progress.led-mid  { --led:#FF7A2A; }
 .qobj-link-progress.led-near { --led:#F5B323; }
 /* Salud: su color de sección es rojo → debajo de la meta, rojos oscuros y fuertes; en meta, rojo claro e iluminado (pedido del usuario 24/11) */
-#tab-salud .qobj-link-progress.led-low  { --led:#8E0A1F; }
-#tab-salud .qobj-link-progress.led-mid  { --led:#A8122A; }
-#tab-salud .qobj-link-progress.led-near { --led:#C41A35; }
-#tab-salud .qobj-link-progress:not(.led-low):not(.led-mid):not(.led-near) { --led:#FF8FA3; }
-#tab-salud .qobj-link-progress:not(.led-low):not(.led-mid):not(.led-near) .qobj-link-bar { box-shadow:0 0 10px #FF8FA3; filter:brightness(1.15); }
+#tab-salud .qobj-link-progress.led-low  { --led:#A8001E; }
+#tab-salud .qobj-link-progress.led-mid  { --led:#C70A2C; }
+#tab-salud .qobj-link-progress.led-near { --led:#E31B3F; }
+#tab-salud .qobj-link-progress.led-ok   { --led:#FF8FA3; }
+#tab-salud .qobj-link-progress.led-ok .qobj-link-bar { box-shadow:0 0 10px #FF8FA3; filter:brightness(1.15); }
 .qobj-link-bar-wrap { flex:1 1 84px; min-width:84px; max-width:140px; height:8px; position:relative; flex-shrink:0; }
 .qobj-link-bar-wrap::before { content:''; position:absolute; inset:0; background:color-mix(in srgb,var(--led) 20%,var(--border)); -webkit-mask:var(--led-seg); mask:var(--led-seg); }
 .qobj-link-meta { position:absolute; top:-3px; width:2px; height:14px; z-index:1; margin-left:-1px; background:var(--tp); border-radius:1px; opacity:.85; }
@@ -7222,3 +7222,7 @@ html.mo-in .tab-panel.active .card:nth-child(n+4) { animation-delay: .12s; }
 .rg-ov-acc { display: flex; justify-content: flex-end; margin: 4px 0 8px; }
 .rg-cat-otra { max-width: 260px; margin: -2px 0 10px; padding: 6px 10px; font-size: 13px; }
 .rg-cat-propia { border-style: dashed; }
+.rg-cat-add { display: flex; gap: 6px; align-items: center; margin: -2px 0 6px; }
+.rg-cat-add .rg-cat-otra { flex: 1; min-width: 0; max-width: 260px; margin: 0; }
+.rg-cat-mas { min-width: 36px; padding: 6px 10px; font-size: 16px; line-height: 1; }
+.rg-cat-ayuda { margin: 0 0 10px; }
