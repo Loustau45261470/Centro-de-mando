@@ -221,10 +221,17 @@ function _rgProxima(reg) {
   return o.proxima || null;
 }
 
-// ── Tarjeta de la pestaña Vida ─────────────────────────────────────────────
+// ── Lista de registros (ventana #ov-registros) y pulso del botón #rg-btn ─────────────────────────────────────────────
+function _rgPulso(regs) {
+  const b = document.getElementById('rg-btn'); if (!b) return;
+  const n = regs.filter(r => !r.pausado && _rgPendiente(r)).length;
+  b.classList.toggle('tiene', n > 0);
+  b.setAttribute('aria-label', n ? 'Registros: ' + n + ' sin responder' : 'Registros');
+}
 function rgRenderCard() {
-  const host = document.getElementById('registros-body'); if (!host) return;
   const regs = _rgRegs().filter(r => r && r.id);
+  _rgPulso(regs);
+  const host = document.getElementById('registros-body'); if (!host) return;
   if (!regs.length) { host.innerHTML = '<div class="empty-state">Todavía no hay registros</div>'; return; }
   host.innerHTML = regs.map(r => {
     const pen = _rgPendiente(r), prox = _rgProxima(r);
@@ -433,6 +440,15 @@ function _rgHRender() {
 // ── API ────────────────────────────────────────────────────────────────────
 const Registros = {
   render: rgRenderCard,
+  // Ventana principal (antes era una tarjeta de Vida): lista de registros + historial + configuración.
+  abrir() {
+    if (typeof CMOverlay === 'undefined') return;
+    const { overlay, body } = CMOverlay.build({ id: 'ov-registros', accent: '#0FB9D6', onClose: () => { const b = document.getElementById('rg-btn'); if (b) b.focus(); } });
+    if (!document.getElementById('registros-body')) body.innerHTML = '<div class="cm-ov-head"><div class="cm-ov-eyebrow">VIDA</div><div class="cm-ov-title">📝 Registros</div></div>'
+      + '<div class="rg-ov-acc"><button type="button" class="btn btn-ghost btn-sm" id="rg-nuevo" onclick="Registros.nuevo()">+ Registro</button></div><div id="registros-body"></div>';
+    document.body.appendChild(overlay); rgRenderCard(); CMOverlay.open(overlay);
+    const c = overlay.querySelector('.cm-ov-close'); if (c) c.focus();
+  },
   semana: rgConteoSemana,
   // Respuesta
   responder(id) { const r = _rgReg(id); if (!r) return; const p = _rgPendiente(r); if (p) Registros.abrirOcurrencia(id, p.slot); else _rgAbrirForm(r, '', null); },
@@ -547,7 +563,7 @@ const Registros = {
   },
   sincDesdeFoco: rgSincDesdeFoco,
   asegurarPrincipal: rgAsegurarPrincipal,
-  abrirDestino(id, slot) { Registros.abrirOcurrencia(id, slot); },
+  abrirDestino(id, slot) { Registros.abrir(); Registros.abrirOcurrencia(id, slot); },
 };
 if (typeof window !== 'undefined') window.Registros = Registros;
 

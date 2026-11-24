@@ -6,7 +6,7 @@ const { test, expect, waitForBoot, completeLoginOverlay } = require('./support/f
 
 const sinScrollH = (page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
 const a = (page, h, m = 0, dia = 24) => page.clock.setFixedTime(new Date(2026, 10, dia, h, m));
-const irAVida = async (page) => { await page.click('.nav-btn[data-tab="vida"]'); await expect(page.locator('#registros-card')).toBeVisible(); };
+const irAVida = async (page) => { await page.click('#rg-btn'); await expect(page.locator('#ov-registros.show #registros-body')).toBeVisible(); };
 const NOTIF = (page) => page.evaluate(() => {
   Object.defineProperty(Notification, 'permission', { get: () => 'granted', configurable: true });
   localStorage.removeItem('cdm_avisosVistos');
@@ -219,7 +219,7 @@ test.describe('Registros', () => {
     await expect(page.locator('#registros-body .rg-row')).toHaveCount(2);
     expect(await page.evaluate(() => S.registros.filter((r) => r.principal).length)).toBe(1);   // no se vuelve a crear
     expect(await page.evaluate(() => S.principios.principios.filter((p) => p.fuente === 'Registros').length)).toBe(1);
-    await page.locator('#registros-card').scrollIntoViewIfNeeded(); await page.locator('#registros-card').screenshot({ path: testInfo.outputPath('tarjeta.png') });
+    await page.locator('#ov-registros .cm-panel').screenshot({ path: testInfo.outputPath('tarjeta.png') });
     expect(await sinScrollH(page)).toBe(true);
     expect(consoleErrors).toEqual([]);
   });
