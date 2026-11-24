@@ -426,18 +426,14 @@ function renderHabitCal(section) {
 
   // ── Summary stats (estilos finanzas) ────────────────
   if (statsEl) {
-    const R = 28, C = 2 * Math.PI * R;
     const pctClamped = monthPct === null ? 0 : Math.max(0, Math.min(100, monthPct));
-    const off = C * (1 - pctClamped / 100);
+    // Anillo "Reactor" (reactor-habitos.js): canvas + el % como texto encima (el texto queda legible para lectores y tests).
     statsEl.innerHTML = `
     <div class="habit-ring-row" style="margin:10px 0 6px">
-      <svg class="habit-ring" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="${pctTxt} del mes">
-        <circle cx="32" cy="32" r="${R}" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="6"/>
-        <circle class="habit-ring-prog" cx="32" cy="32" r="${R}" fill="none" stroke="var(--accent)" stroke-width="6"
-          stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"
-          transform="rotate(-90 32 32)"/>
-        <text x="32" y="32" text-anchor="middle" dominant-baseline="central" class="habit-ring-txt">${pctTxt}</text>
-      </svg>
+      <div class="habit-reactor">
+        <canvas class="habit-reactor-cv" role="img" aria-label="${pctTxt} del mes · racha ${curStreak} · mejor racha ${bestStreak}"></canvas>
+        <span class="habit-ring-txt">${pctTxt}</span>
+      </div>
       <div class="fin-summary-row" style="flex:1;margin:0">
         <div class="fin-summary-stat">
           <div class="fin-summary-num" style="color:var(--ok)">${curStreak}</div>
@@ -453,6 +449,7 @@ function renderHabitCal(section) {
         </div>
       </div>
     </div>`;
+    if (window.ReactorHabitos) ReactorHabitos.mount(statsEl.querySelector('.habit-reactor-cv'), { key: section, pct: pctClamped, racha: curStreak, mejor: bestStreak, dim });
   }
 
   // ── Calendar grid ────────────────────────────────────

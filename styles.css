@@ -1796,6 +1796,12 @@ button.goal-hora-vacio:hover { color: var(--tp); background: rgba(255,255,255,.0
 .habit-ring { flex-shrink:0; }
 .habit-ring-prog { transition:stroke-dashoffset .6s cubic-bezier(.16,1,.3,1); }
 .habit-ring-txt { fill:var(--accent); font-size:var(--fs-15); font-weight:800; font-family:var(--mono); }
+/* Reactor (reactor-habitos.js): canvas + % encima; el número toma el mismo color que el anillo (--cc lo pone el JS) */
+.habit-reactor { position:relative; flex-shrink:0; width:96px; height:96px; }
+.habit-reactor-cv { display:block; width:96px; height:96px; }
+@media (max-width:480px) { .habit-reactor, .habit-reactor-cv { width:64px; height:64px; } .habit-reactor .habit-ring-txt { font-size:10px; letter-spacing:-.05em; } .habit-ring-row { gap:8px; } }
+.habit-reactor .habit-ring-txt { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none;
+  font-size:13px; letter-spacing:-.03em; color:var(--cc, var(--accent)); text-shadow:0 0 8px rgba(2,5,8,.9), 0 0 12px var(--cc, var(--accent)); }
 
 .study-cal-num {
   font-size:var(--fs-12-5); font-weight:600; color:var(--tt);
