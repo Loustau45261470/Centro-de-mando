@@ -1748,6 +1748,7 @@ function renderTabHeader(metaId) {
 }
 
 function switchTab(tab, btn) {
+  if (window.CMMotion) { const _old = document.querySelector('.tab-panel.active'); if (_old && _old.id !== 'tab-' + tab) CMMotion.leavePanel(_old); }   // salida rápida de la sección vieja (HUD C2, motion.js)
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   const _panel = document.getElementById('tab-' + tab);

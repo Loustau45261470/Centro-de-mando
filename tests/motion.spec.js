@@ -42,8 +42,9 @@ test.describe('motion · con movimiento', () => {
     expect(entrada.length, 'tarjetas animadas al entrar').toBeGreaterThan(0);
     expect(entrada.length, 'tope de tarjetas animadas').toBeLessThanOrEqual(8);
     const delays = entrada.map((a) => a.delay);
-    expect(delays[0]).toBe(0);
-    for (let i = 1; i < delays.length; i++) expect(delays[i] - delays[i - 1], 'escalonado <= 30 ms').toBeLessThanOrEqual(30);
+    expect(delays[0], 'cascada C2: arranca tras la salida de la sección vieja').toBeGreaterThanOrEqual(120);
+    for (let i = 1; i < delays.length; i++) expect(delays[i] - delays[i - 1], 'escalonado C2 <= 110 ms (tope 480 ms)').toBeLessThanOrEqual(110);
+    expect(Math.max(...delays)).toBeLessThanOrEqual(480);
     for (const a of entrada) {
       expect(a.dur, 'duración de entrada').toBeLessThanOrEqual(300);
       expect(a.kf).toContain('translateY');
@@ -110,13 +111,16 @@ test.describe('motion · con movimiento', () => {
       const el = document.getElementById('nwTotal');
       cmDescifrar(el, '$1,000'); await new Promise((ok) => setTimeout(ok, 450));   // valor "anterior"
       const visto = new Set();
+      const rnd0 = Math.random; Math.random = () => 0.99;   // los dígitos "al azar" salen siempre 9: nunca coinciden con el 5 final (sin azar en el test)
       cmDescifrar(el, '$1,500');           // solo cambia el 5: el resto queda quieto
       const t0 = performance.now();
       await new Promise((ok) => { (function f() { visto.add(el.textContent); if (performance.now() - t0 > 700) ok(); else requestAnimationFrame(f); })(); });
+      Math.random = rnd0;
       return { final: el.textContent, vistos: [...visto] };
     });
     expect(r.final).toBe('$1,500');
-    expect(r.vistos.length, 'hubo valores intermedios').toBeGreaterThan(2);
+    // Una escritura por cuadro: headless sin GPU corre a ~8-10 fps, así que se pide solo ver el valor intermedio ($1,900) y el final, no una cantidad de cuadros.
+    expect(r.vistos, 'hubo valores intermedios').toContain('$1,900');
     for (const v of r.vistos) expect(v).toMatch(/^[$]1,[0-9]00$/);   // ancho y dígitos sin cambio fijos
     expect(consoleErrors).toEqual([]);
   });

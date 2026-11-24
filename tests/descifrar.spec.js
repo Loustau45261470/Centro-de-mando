@@ -41,7 +41,9 @@ test.describe('descifrar · con movimiento', () => {
       const v = m[sel];
       expect(v[v.length - 1].t, `${sel} termina en el valor real`).toBe(final);
       const raros = v.filter((x) => x.t !== final);
-      expect(raros.length, `${sel} pasó por valores descifrándose`).toBeGreaterThan(3);
+      // El descifrado escribe una vez por cuadro de animación; Chromium headless (sin GPU) corre a ~8-10 fps, así que en 600 ms caben ~5 escrituras.
+      // Contar cuadros es frágil: alcanza con que haya pasado por al menos un valor descifrándose (la forma, el aria y el final se verifican abajo).
+      expect(raros.length, `${sel} pasó por valores descifrándose`).toBeGreaterThanOrEqual(1);
       for (const x of raros) expect(mismaForma(x.t, final), `${sel} "${x.t}" conserva $ . , y el ancho`).toBe(true);
       for (const x of raros) { expect(x.role).toBe('img'); expect(x.label, 'lector de pantalla: valor real').toBe(final); }
       const fin = v[v.length - 1];
@@ -135,10 +137,11 @@ test.describe('descifrar · con movimiento', () => {
     // un cambio chico: solo rotan los últimos dígitos; los primeros quedan quietos
     const r = await cmPage.evaluate(() => new Promise((ok) => {
       const el = document.getElementById('nwTotal'), prev = el.textContent, vistos = [];
+      const rnd0 = Math.random; Math.random = () => 0.99;                         // dígitos "al azar" siempre 9 (el final termina en 3): sin azar en el test
       S.accounts.find((a) => a.id === 'efe').balance += 3;                          // 700000 -> 700003
       renderAccounts();
       const fin = fmtMoney(calcNetWorth(), 'USD'), t0 = performance.now();
-      (function f() { vistos.push(el.textContent); if (performance.now() - t0 > 700) ok({ prev, fin, vistos, ultimo: el.textContent }); else requestAnimationFrame(f); })();
+      (function f() { vistos.push(el.textContent); if (performance.now() - t0 > 700) { Math.random = rnd0; ok({ prev, fin, vistos, ultimo: el.textContent }); } else requestAnimationFrame(f); })();
     }));
     expect(r.ultimo).toBe(r.fin);
     expect(r.fin).not.toBe(r.prev);
