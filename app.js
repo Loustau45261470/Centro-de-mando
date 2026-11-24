@@ -4349,8 +4349,8 @@ function achTotalSurplusMonths() {
     const mk = _mStr(d.getFullYear(), d.getMonth());
     const tx = (S.transactions||[]).filter(t => t.date?.startsWith(mk));
     if (!tx.length) continue;
-    const inc = tx.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
-    const exp = tx.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+    const inc = tx.filter(t=>t.type==='income' && !t.refundOf).reduce((s,t)=>s+t.amount,0);   // un reintegro no es ingreso (reintegros.js)
+    const exp = tx.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0) - (window.CMReintegros ? CMReintegros.restarMes(S, mk) : 0);
     if (inc > exp) count++;
   }
   return count;

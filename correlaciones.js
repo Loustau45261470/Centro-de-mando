@@ -217,13 +217,18 @@
   function serieGastoDia() {
     var out = {};
     (ST().transactions || []).forEach(function (t) {
-      if (!t || !t.date || t.currency !== 'ARS') return;
+      if (!t || !t.date || t.currency !== 'ARS' || t.refundOf) return;   // un reintegro no es actividad ni ingreso: resta del gasto de su compra (reintegros.js)
       if (out[t.date] == null) out[t.date] = 0;
       if (t.type === 'expense') {
         var a = +t.amount;
         if (isFinite(a)) out[t.date] += a;
       }
     });
+    if (window.CMReintegros) {
+      var st = ST(), vivas = {};
+      (st.transactions || []).forEach(function (t) { if (t) vivas[t.id] = 1; });
+      CMReintegros.partes(st).forEach(function (p) { if (vivas[p.txnId] && out[p.date] != null) out[p.date] = Math.round((out[p.date] - p.cents / 100) * 100) / 100; });
+    }
     return out;
   }
 

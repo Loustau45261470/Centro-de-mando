@@ -667,7 +667,7 @@ function dfIncomeAverage(today) {
   const win = _dfClosedMonths(today, 3);
   const byMonth = {};
   (Array.isArray(S.transactions) ? S.transactions : []).forEach(t => {
-    if (!t || t.type !== 'income' || !t.date || !_dfIsPeso(t)) return;
+    if (!t || t.type !== 'income' || t.refundOf || !t.date || !_dfIsPeso(t)) return;   // un reintegro no es ingreso (reintegros.js)
     const mk = String(t.date).slice(0, 7);
     if (win.includes(mk)) byMonth[mk] = (byMonth[mk] || 0) + (+t.amount || 0);
   });
@@ -682,10 +682,15 @@ function dfMonthFlow(today) {
   const res = { day, income: { ...side }, expense: { ...side } };
   (Array.isArray(S.transactions) ? S.transactions : []).forEach(t => {
     if (!t || !t.date || !_dfIsPeso(t) || String(t.date).slice(0, 7) !== mk || t.date > today) return;
+    if (t.refundOf) return;   // un reintegro no es ingreso: resta del gasto de su compra (abajo)
     const bucket = t.type === 'income' ? res.income : t.type === 'expense' ? res.expense : null;
     if (!bucket) return;
     bucket.count++; bucket.total += (+t.amount || 0);
   });
+  if (window.CMReintegros) {
+    const vivas = new Set((S.transactions || []).map(t => t && t.id));
+    CMReintegros.partes(S).forEach(p => { if (vivas.has(p.txnId) && p.month === mk && p.date <= today) res.expense.total -= p.cents / 100; });
+  }
   res.income.total = _ccRound(res.income.total); res.expense.total = _ccRound(res.expense.total);
   return res;
 }
@@ -3230,6 +3235,7 @@ function renderBudget() {
       realByCat[c] = (realByCat[c] || 0) + (+t.amount || 0);
     }
   });
+  _reintRestar(realByCat, budgetActiveMonth);   // el reintegro resta del gasto de su categoría (reintegros.js)
   // Mes futuro: lo ya comprometido por categoría suma como usado (reparto-gastos.js)
   const comprom = typeof comprometidoDelMes === 'function' ? comprometidoDelMes(budgetActiveMonth) : null;
   if (comprom) Object.keys(comprom.porCategoria).forEach(c => { realByCat[c] = Math.round(((realByCat[c] || 0) + comprom.porCategoria[c]) * 100) / 100; });
@@ -3316,9 +3322,15 @@ function _budgetMonthTotal(mk) {
   (b.seasonal || []).forEach(it => t += (+it.amount || 0));
   return t;
 }
+// Reintegros (reintegros.js): lo que hay que restar del gasto real (movimientos ya existentes) de un mes, y por categoría.
+function _reintMes(mk) { return window.CMReintegros ? CMReintegros.delMes(S, mk, { soloExistentes: true }) : { total: 0, porCategoria: {} }; }
+function _reintRestar(porCat, mk) {
+  const r = _reintMes(mk).porCategoria;
+  Object.keys(r).forEach(c => { porCat[c] = Math.round(((porCat[c] || 0) - r[c]) * 100) / 100; });
+}
 function _spentMonth(mk) {
-  const real = (S.transactions || []).filter(t => t.type === 'expense' && t.currency === 'ARS' && t.date && t.date.slice(0, 7) === mk)
-    .reduce((s, t) => s + (+t.amount || 0), 0);
+  const real = Math.round(((S.transactions || []).filter(t => t.type === 'expense' && t.currency === 'ARS' && t.date && t.date.slice(0, 7) === mk)
+    .reduce((s, t) => s + (+t.amount || 0), 0) - _reintMes(mk).total) * 100) / 100;   // neto de reintegros (reintegros.js)
   // Mes futuro: lo ya comprometido (repartos y tarjeta diferida) cuenta como usado; en el mes actual y los pasados ya son movimientos.
   return typeof comprometidoDelMes === 'function' ? Math.round((real + comprometidoDelMes(mk).gasto) * 100) / 100 : real;
 }
@@ -3337,6 +3349,7 @@ function renderBudgetSummary() {
       const c = t.category || 'other'; realByCat[c] = (realByCat[c] || 0) + (+t.amount || 0);
     }
   });
+  _reintRestar(realByCat, mk);
   const b = S.budgets[mk];
   if (b) {
     (b.fixed || []).forEach(it => { if (it.category) budByCat[it.category] = (budByCat[it.category] || 0) + _budgetItemTotal(it); });
@@ -3872,7 +3885,9 @@ function renderActivity() {
 
   // Summary
   let totalInc = 0, totalExp = 0;
-  filtered.forEach(t => { if (t.type==='income') totalInc+=t.amount; else totalExp+=t.amount; });
+  // Un reintegro nunca es ingreso: el gasto de su compra suma neto (reintegros.js). El movimiento sigue en la lista (es plata que entró a la cuenta).
+  filtered.forEach(t => { if (t.refundOf) return; if (t.type==='income') totalInc+=t.amount; else totalExp+=t.amount; });
+  totalExp = Math.round((totalExp - _reintMes(txnActiveMonth).total) * 100) / 100;
   const bal = totalInc - totalExp;
   const sumRow = document.getElementById('txnSummaryRow');
   sumRow.style.display = filtered.length ? '' : 'none';
@@ -3939,7 +3954,8 @@ function renderActivity() {
       const catBadge = t.category
         ? `<span style="font-size:var(--fs-12-5);padding:1px 7px;border-radius:99px;font-weight:700;background:${cat.color};border:1px solid ${cat.border};color:var(--ts);margin-left:4px">${escHtml(cat.icon)} ${escHtml(cat.label)}</span>`
         : '';
-      const pendingBadge = t.pending ? `<span class="txn-pending-badge">⏳ Pendiente</span>` : '';
+      const pendingBadge = (t.pending ? `<span class="txn-pending-badge">⏳ Pendiente</span>` : '')
+        + (t.refundOf ? `<span style="font-size:var(--fs-12-5);padding:1px 7px;border-radius:99px;font-weight:700;background:rgba(107,227,164,.1);border:1px solid rgba(107,227,164,.3);color:var(--ts);margin-left:4px">↩ Reintegro</span>` : '');
       const verdictBtns = t.type === 'expense'
         ? `<div class="txn-verdict">
             <button class="txn-verdict-btn${t.verdict==='good'?' on':''}" onclick="toggleTxnVerdict('${t.id}','good')" title="Gasto que vale la pena" aria-label="Marcar como gasto que vale la pena" aria-pressed="${t.verdict==='good'}">👍</button>
@@ -3998,9 +4014,10 @@ function renderTxnChart(transactions) {
     const k = t.category || 'other';
     byCat[k] = (byCat[k] || 0) + t.amount;
   });
+  _reintRestar(byCat, txnActiveMonth);   // el reintegro resta del gasto de su categoría (reintegros.js)
 
   // Sort by amount descending
-  const sorted = Object.entries(byCat).sort((a,b) => b[1]-a[1]);
+  const sorted = Object.entries(byCat).filter(([,v]) => v > 0).sort((a,b) => b[1]-a[1]);
   const labels  = sorted.map(([k]) => { const c = TXN_CATEGORIES[k]; return c ? c.icon+' '+c.label : k; });
   const data    = sorted.map(([,v]) => v);
   const colors  = sorted.map(([k]) => (TXN_CATEGORIES[k]?.chartColor || 'rgba(255,255,255,.4)'));
@@ -4081,6 +4098,15 @@ function renderGastoAcumulado() {
     if (k === '__none') sinCat.push(t);
     (byMonthCat[mk] = byMonthCat[mk] || {})[k] = ((byMonthCat[mk] || {})[k] || 0) + (+t.amount || 0);
   });
+  if (window.CMReintegros) {   // el reintegro resta del gasto de su categoría y mes (reintegros.js)
+    const vivas = new Map(S.transactions.map(t => [t && t.id, t]));
+    CMReintegros.partes(S).forEach(p => {
+      const tx = vivas.get(p.txnId);
+      if (!tx || tx.pending || tx.type !== 'expense') return;
+      const k = TXN_CATEGORIES[p.category] ? p.category : '__none', o = byMonthCat[p.month] = byMonthCat[p.month] || {};
+      o[k] = Math.round(((o[k] || 0) - p.cents / 100) * 100) / 100;
+    });
+  }
   const sumCats = keys => { const o = {}; keys.forEach(mk => Object.entries(byMonthCat[mk] || {}).forEach(([k, v]) => { o[k] = (o[k] || 0) + v; })); return o; };
   const sum = o => Object.values(o).reduce((a, b) => a + b, 0);
   const keys = _gaccKeys(gaccPeriod);
@@ -4153,12 +4179,16 @@ function renderMonthBalanceList() {
   if (!el) return;
   const monthData = {};
   S.transactions.forEach(t => {
-    if (!t.date) return;
+    if (!t.date || t.refundOf) return;   // un reintegro no es ingreso: resta del gasto de su compra (abajo)
     const mk = t.date.slice(0,7);
     if (!monthData[mk]) monthData[mk] = { inc:0, exp:0 };
     if (t.type==='income') monthData[mk].inc += t.amount;
     else monthData[mk].exp += t.amount;
   });
+  if (window.CMReintegros) {
+    const rm = CMReintegros.porMes(S, { soloExistentes: true });
+    Object.keys(rm).forEach(mk => { if (monthData[mk]) monthData[mk].exp = Math.round((monthData[mk].exp - rm[mk].total) * 100) / 100; });
+  }
   // Meses futuros con gasto ya comprometido (repartos y tarjeta diferida): se muestran aparte, rotulados
   if (typeof comprometidoDelMes === 'function') {
     const cur = getActiveDate().slice(0, 7);

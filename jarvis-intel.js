@@ -88,6 +88,7 @@
     try {
       const bm = {};
       (S.transactions||[]).forEach(t => { if (t.type!=='expense') return; const m = (t.date||'').slice(0,7); if (m) bm[m] = (bm[m]||0)+(+t.amount||0); });
+      if (window.CMReintegros) Object.keys(bm).forEach(m => { bm[m] -= CMReintegros.restarMes(S, m); });   // gasto neto de reintegros
       const ms = Object.keys(bm).sort(); const cur = bm[_today().slice(0,7)]; if (cur == null) return null;
       const prev = ms.filter(m => m < _today().slice(0,7)).slice(-3); if (!prev.length) return null;
       const avg = prev.reduce((s,m)=>s+bm[m],0)/prev.length; if (avg <= 0) return null;
@@ -96,7 +97,8 @@
   }
   function _monthlyFin(mk, maxDay){
     let inc = 0, exp = 0;
-    (S.transactions||[]).forEach(t => { if (!_inMonthUpToDay(t.date||'', mk, maxDay)) return; const a = +t.amount||0; if (t.type==='expense') exp+=a; else if (t.type==='income') inc+=a; });
+    (S.transactions||[]).forEach(t => { if (!_inMonthUpToDay(t.date||'', mk, maxDay)) return; const a = +t.amount||0; if (t.refundOf) return; if (t.type==='expense') exp+=a; else if (t.type==='income') inc+=a; });
+    if (window.CMReintegros) exp -= CMReintegros.partes(S).filter(p => (S.transactions||[]).some(t => t && t.id === p.txnId) && _inMonthUpToDay(p.date, mk, maxDay)).reduce((s,p) => s + p.cents, 0) / 100;   // gasto neto de reintegros
     return { inc, exp, bal: inc-exp };
   }
   function _monthBalance(){ try { return _monthlyFin(_today().slice(0,7)); } catch(e) { return null; } }

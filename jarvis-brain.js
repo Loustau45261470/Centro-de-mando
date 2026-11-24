@@ -129,10 +129,12 @@
       const pmk = py + '-' + String(pm).padStart(2, '0');
       let inc = 0, exp = 0, pinc = 0, pexp = 0;
       (S.transactions || []).forEach(t => {
+        if (t.refundOf) return;   // un reintegro no es ingreso: resta del gasto de su compra (reintegros.js)
         const tm = (t.date || '').slice(0, 7), amt = +t.amount || 0;
         if (tm === mk) { if (t.type === 'income') inc += amt; else exp += amt; }
         else if (tm === pmk) { if (t.type === 'income') pinc += amt; else pexp += amt; }
       });
+      if (window.CMReintegros) { exp -= CMReintegros.restarMes(S, mk); pexp -= CMReintegros.restarMes(S, pmk); }
       if (inc || exp || pinc || pexp) {
         const pct = (cur, prev) => prev ? (Math.round((cur - prev) / prev * 100) + '%') : (cur ? '+100%' : '0%');
         T.push(`Finanzas mes: ingresos ${inc} (Δ${pct(inc, pinc)}) · gastos ${exp} (Δ${pct(exp, pexp)}) vs mes ant.`);
@@ -218,6 +220,7 @@
         if (tm === mk) exp += (+t.amount || 0);
         else if (tm === pmk) pexp += (+t.amount || 0);
       });
+      if (window.CMReintegros) { exp -= CMReintegros.restarMes(S, mk); pexp -= CMReintegros.restarMes(S, pmk); }   // gasto neto de reintegros
       if (pexp > 0 && exp > pexp * 1.3) out.push('⚠ Gastos del mes 30%+ arriba del anterior');
     } catch (e) {}
 
@@ -304,7 +307,8 @@
       S.accounts.forEach(ac => L.push(`  ${ac.name}: ${ac.balance} ${ac.currency || ''}`));
     }
     let inc = 0, exp = 0;
-    (S.transactions || []).forEach(t => { if ((t.date || '').slice(0, 7) === mk) { if (t.type === 'income') inc += (+t.amount || 0); else exp += (+t.amount || 0); } });
+    (S.transactions || []).forEach(t => { if (t.refundOf) return; if ((t.date || '').slice(0, 7) === mk) { if (t.type === 'income') inc += (+t.amount || 0); else exp += (+t.amount || 0); } });
+    if (window.CMReintegros) exp -= CMReintegros.restarMes(S, mk);   // un reintegro no es ingreso: resta del gasto de su compra (reintegros.js)
     L.push('MOVIMIENTOS DEL MES: ingresos ' + inc + ' · gastos ' + exp);
     if (S.wishlist && S.wishlist.length) L.push('OBJETIVOS DE ADQUISICIÓN: ' + S.wishlist.map(w => `${w.name} (${w.amount} ${w.currency || ''})`).join(', '));
 
@@ -1057,9 +1061,14 @@
           (st.transactions || []).forEach(t => {
             if (!_inRange(t.date)) return;
             if (!_qMatch(t.name, q)) return;
-            if (t.type === 'income') total_income += (+t.amount || 0); else total_expense += (+t.amount || 0);
-            items.push({ date: t.date, name: t.name, type: t.type, amount: t.amount });
+            if (!t.refundOf) { if (t.type === 'income') total_income += (+t.amount || 0); else total_expense += (+t.amount || 0); }   // reintegro: ni ingreso ni gasto (se resta abajo)
+            items.push(t.refundOf ? { date: t.date, name: t.name, type: t.type, amount: t.amount, reintegro: true } : { date: t.date, name: t.name, type: t.type, amount: t.amount });
           });
+          if (window.CMReintegros) {   // el reintegro resta del gasto de su compra (reintegros.js)
+            const vivas = new Map((st.transactions || []).map(t => [t && t.id, t]));
+            CMReintegros.partes(st).forEach(p => { const tx = vivas.get(p.txnId); if (tx && _inRange(p.date) && _qMatch(tx.name, q)) total_expense -= p.cents / 100; });
+            total_expense = Math.round(total_expense * 100) / 100;
+          }
           return { total_income, total_expense, count: items.length, items: items.slice(0, limit) };
         }
         case 'goals': {

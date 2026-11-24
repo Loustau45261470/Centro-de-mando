@@ -202,8 +202,10 @@ const _repEsCuotaDia1 = (t, datos) => {
 };
 const _repSemanal = r => repDiasEntre(r.desde, r.hasta) + 1 <= 7;
 
-// Gasto NETO: cada reintegro (income con refundOf) se resta del gasto de la categoría de su compra/gasto, en el mes del reintegro
-// (criterio económico: lo reintegrado no se gastó). Los reintegros siguen fuera de ingresos. Si no se encuentra el origen → 'other'.
+// Gasto NETO: cada reintegro (income con refundOf) se resta del gasto de su compra/gasto, en su categoría y en el/los meses en que ese
+// gasto cuenta (reintegros.js: regla única, la misma que usan Finanzas, presupuesto, objetivos y Jarvis). Los reintegros siguen fuera de
+// ingresos. Reintegro sin origen (huérfano) → ni ingreso ni gasto.
+const _repRe = () => (typeof window !== 'undefined' && window.CMReintegros) || (typeof require === 'function' ? require('./reintegros.js') : null);
 function _repGastos(datos, r, sinCuotasDia1) {
   let total = 0, cuotasDia1 = 0; const porCat = {};
   const txs = datos.transactions || [];
@@ -213,12 +215,12 @@ function _repGastos(datos, r, sinCuotasDia1) {
     if (sinCuotasDia1 && _repEsCuotaDia1(t, datos)) { cuotasDia1 += m; return; }
     total += m; const c = t.category || 'other'; porCat[c] = (porCat[c] || 0) + m;
   });
-  txs.forEach(t => {
-    if (!t || t.type !== 'income' || !t.refundOf || !_repEsArs(t) || !_repEn(t.date, r)) return;
-    const m = +t.amount || 0;
-    const o = (datos.cardCharges || []).find(c => c && c.id === t.refundOf) || txs.find(x => x && x.id === t.refundOf);
-    const c = (o && o.category) || 'other';
-    total -= m; porCat[c] = (porCat[c] || 0) - m;
+  const RE = _repRe(), vivas = new Set(txs.map(t => t && t.id));
+  if (RE) RE.partes({ transactions: txs, cardCharges: datos.cardCharges }).forEach(p => {
+    if (!vivas.has(p.txnId) || !_repEn(p.date, r)) return;   // solo la parte cuyo gasto ya es un movimiento dentro del rango
+    const m = p.cents / 100;
+    if (sinCuotasDia1 && p.cuotaDia1) { cuotasDia1 -= m; return; }
+    total -= m; const c = p.category || 'other'; porCat[c] = (porCat[c] || 0) - m;
   });
   return { total: _repRedondeo(total), porCat, cuotasDia1: _repRedondeo(cuotasDia1) };
 }

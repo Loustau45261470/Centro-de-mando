@@ -140,16 +140,24 @@ function _financeLinkProgress(link, periodId) {
   }
   const range = _periodDateRange(periodId);
   const inRange = t => !range || (t.date >= range[0] && t.date <= range[1]);
+  // Reintegros (reintegros.js): nunca son ingreso; restan del gasto de su compra, en su categoría y mes. Devuelve lo que hay que restar.
+  const reint = pred => {
+    if (!window.CMReintegros) return 0;
+    const vivas = new Set((S.transactions || []).map(t => t && t.id));
+    return CMReintegros.partes(S).filter(p => vivas.has(p.txnId) && pred(p)).reduce((s, p) => s + p.cents, 0) / 100;
+  };
   if (link.metric === 'gasto') {
-    const spent = (S.transactions || [])
+    const spent = Math.round(((S.transactions || [])
       .filter(t => t.type === 'expense' && t.category === link.category && t.currency === 'ARS' && inRange(t))
-      .reduce((s, t) => s + (+t.amount || 0), 0);
+      .reduce((s, t) => s + (+t.amount || 0), 0) - reint(p => p.category === link.category && inRange(p))) * 100) / 100;
     const target = +link.target || 0;
     const pct = target ? Math.round(spent / target * 100) : 0;
     return { label: `${_qobjCatLabel(link.category)} · ${fmtMoney(spent,'ARS')}/${fmtMoney(target,'ARS')} tope`, pct: Math.min(100, pct), exceeded: pct > 100 };
   }
   if (link.metric === 'gasto_total' || link.metric === 'superavit') {
-    const sum = type => (S.transactions || []).filter(t => t.type === type && t.currency === 'ARS' && inRange(t)).reduce((s, t) => s + (+t.amount || 0), 0);
+    // Ingreso sin reintegros; gasto neto de reintegros.
+    const sum = type => Math.round(((S.transactions || []).filter(t => t.type === type && !t.refundOf && t.currency === 'ARS' && inRange(t)).reduce((s, t) => s + (+t.amount || 0), 0)
+      - (type === 'expense' ? reint(inRange) : 0)) * 100) / 100;
     const target = +link.target || 0;
     if (link.metric === 'gasto_total') {
       const spent = sum('expense'), pct = target ? Math.round(spent / target * 100) : 0;
@@ -163,7 +171,7 @@ function _financeLinkProgress(link, periodId) {
   }
   if (link.metric === 'ingreso') {
     const total = (S.transactions || [])
-      .filter(t => t.type === 'income' && t.currency === 'ARS' && inRange(t))
+      .filter(t => t.type === 'income' && !t.refundOf && t.currency === 'ARS' && inRange(t))
       .reduce((s, t) => s + (+t.amount || 0), 0);
     const target = +link.target || 0;
     const pct = target ? Math.round(total / target * 100) : 0;
@@ -180,9 +188,9 @@ function _financeLinkProgress(link, periodId) {
       (b.reserved || []).forEach(it => { if (it.category === link.category) budgeted += (+it.amount || 0); });
       (b.seasonal || []).forEach(it => { if (it.category === link.category) budgeted += (+it.amount || 0); });
     });
-    const real = (S.transactions || [])
+    const real = Math.round(((S.transactions || [])
       .filter(t => t.type === 'expense' && t.category === link.category && t.currency === 'ARS' && monthKeys.includes((t.date || '').slice(0,7)))
-      .reduce((s, t) => s + (+t.amount || 0), 0);
+      .reduce((s, t) => s + (+t.amount || 0), 0) - reint(p => p.category === link.category && monthKeys.includes(p.month))) * 100) / 100;
     const pct = budgeted ? Math.round(real / budgeted * 100) : 0;
     return { label: `${_qobjCatLabel(link.category)} · ${fmtMoney(real,'ARS')}/${fmtMoney(budgeted,'ARS')} presup.`, pct: Math.min(100, pct), exceeded: pct > 100 };
   }

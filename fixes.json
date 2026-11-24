@@ -582,6 +582,13 @@
       "desc": "Un error no de red (permisos/sesion) mataba el listener para siempre hasta recargar. Ahora se reconecta solo al volver a la app (_reanudarListener). Cubierto por tests/sync-pendientes-finales.spec.js.",
       "file": "app.js",
       "marker": "function _reanudarListener("
+    },
+    {
+      "id": "reintegros-netos",
+      "fecha": "2026-11-23",
+      "desc": "Un reintegro (income con refundOf) contaba como ingreso y el gasto de su compra sumaba bruto. Regla unica en reintegros.js: nunca es ingreso y resta del gasto de su compra en los meses en que ese gasto cuenta. Cubierto por tests/reintegros-netos.spec.js.",
+      "file": "reintegros.js",
+      "marker": "const CMReintegros = ("
     }
   ]
 }

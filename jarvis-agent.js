@@ -241,9 +241,11 @@
     (S.transactions || []).forEach(t => {
       if (!(t.date || '').startsWith(ym)) return;
       if (t.currency && t.currency !== 'ARS') return;
+      if (t.refundOf) return;   // un reintegro no es ingreso: resta del gasto de su compra (reintegros.js)
       const a = +t.amount || 0;
       if (t.type === 'income') inc += a; else exp += a;
     });
+    if (window.CMReintegros) exp -= CMReintegros.restarMes(S, ym);
     // Último peso registrado
     const bw = (S.bodyWeight || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1))[0];
     // Objetivos del trimestre activo

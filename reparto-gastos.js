@@ -61,7 +61,7 @@ function materializeRepartos() {
 
 // ── Ya comprometido ──
 // Para un mes futuro (> mes actual): gasto = partes de repartos sin materializar + gasto diferido de tarjeta (sin las
-// compras `cover`), por categoría y en total; pagos = cuotas de tarjeta que se pagan ese mes. Mes actual o pasado: ya está
+// compras `cover`) NETO de reintegros, por categoría y en total; pagos = cuotas de tarjeta que se pagan ese mes. Mes actual o pasado: ya está
 // materializado, así que no hay nada comprometido (evita contar doble).
 function comprometidoDelMes(mk) {
   const out = { mes: mk, gasto: 0, gastoReparto: 0, gastoTarjeta: 0, porCategoria: {}, items: [], pagos: 0, pagosItems: [] };
@@ -78,10 +78,17 @@ function comprometidoDelMes(mk) {
     repartoSchedule(r).forEach(p => { if (p.month === mk) add('reparto', _repPartName(r, p), r.category, p.amount); });
   });
   if (window.CMTarjetas) {
+    const reint = {};   // reintegro (en centavos) que resta cada parte de compra con tarjeta
+    if (window.CMReintegros) CMReintegros.partes(S).forEach(p => { reint[p.txnId] = (reint[p.txnId] || 0) + p.cents; });
     (Array.isArray(S.cardCharges) ? S.cardCharges : []).forEach(ch => {
       if (!ch || ch.cover) return;   // la que cubre otra persona no es gasto
       const sched = CMTarjetas.expenseSchedule(ch);
-      sched.forEach((e, i) => { if (e.month === mk) add('tarjeta', sched.length > 1 ? `${ch.name || 'Compra con tarjeta'} (${i + 1}/${sched.length})` : (ch.name || 'Compra con tarjeta'), ch.category, e.amount); });
+      sched.forEach((e, i) => {
+        if (e.month !== mk) return;
+        // Neto de reintegro (reintegros.js): lo que realmente se paga de esta parte, no el monto bruto.
+        const net = (Math.round(e.amount * 100) - (reint[`cc:${ch.id}:${e.month}`] || 0)) / 100;
+        add('tarjeta', sched.length > 1 ? `${ch.name || 'Compra con tarjeta'} (${i + 1}/${sched.length})` : (ch.name || 'Compra con tarjeta'), ch.category, net);
+      });
     });
     const charges = Array.isArray(S.cardCharges) ? S.cardCharges : [], dues = Array.isArray(S.cardDues) ? S.cardDues : [];
     const [y, m] = mk.split('-').map(Number);

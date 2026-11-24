@@ -73,8 +73,8 @@ test.describe('prEvaluarRegla: cada plantilla, activa e inactiva', () => {
 
   test('gasto del día: neto de reintegros; sin invest, sin USD, sin cuotas de tarjeta del día 1', () => {
     const tx = [
-      { type: 'expense', amount: 8000, date: HOY, category: 'food' }, { type: 'expense', amount: 3000, date: HOY, category: 'invest' },
-      { type: 'expense', amount: 5000, date: HOY, currency: 'USD' }, { type: 'income', amount: 1000, date: HOY, refundOf: 'x' },
+      { id: 'x', type: 'expense', amount: 8000, date: HOY, category: 'food' }, { type: 'expense', amount: 3000, date: HOY, category: 'invest' },
+      { type: 'expense', amount: 5000, date: HOY, currency: 'USD' }, { type: 'income', amount: 1000, date: HOY, refundOf: 'x' },   // el reintegro necesita su gasto de origen (id 'x'): sin origen no resta nada (reintegros.js)
       { type: 'expense', amount: 99999, date: '2026-11-11' }, { type: 'income', amount: 70000, date: HOY },
     ];
     const r = ev({ plantilla: 'gasto_dia', monto: 6000 }, { transactions: tx });
