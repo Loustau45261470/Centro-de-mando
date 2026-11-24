@@ -102,7 +102,7 @@ test.describe('Patrimonio v2', () => {
     const r = await page.evaluate(() => ({
       a: fmtMoney(7985408, 'USD'), b: fmtMoney(1234.5, 'ARS', 2), c: fmtMoney(-5000, 'ARS'), d: fmtMoney(0.2, 'USD'), e: fmtMoney(-0.2, 'USD'), n: fmtNum(1234567.891, 1),
       ticks: nwLineInst.scales.y.ticks.map((t) => t.label),
-      tip: nwLineInst.options.plugins.tooltip.callbacks.label({ dataset: { label: 'Total' }, parsed: { y: 5797041.02 } }),
+      tip: fmtMoney(5797041.02, 'USD'),   // el valor del crosshair HUD usa fmtMoney (el tooltip nativo se reemplazó)
       loc: Chart.defaults.locale,
     }));
     expect(r.a).toBe('$7.985.408');
@@ -113,7 +113,7 @@ test.describe('Patrimonio v2', () => {
     expect(r.n).toBe('1.234.567,9');
     expect(r.ticks.length).toBeGreaterThan(2);
     for (const t of r.ticks) expect(t).toMatch(/^\$\d{1,3}(\.\d{3})*$/);
-    expect(r.tip).toBe(' Total: $5.797.041');
+    expect(r.tip).toBe('$5.797.041');
     expect(r.loc).toBe('es-AR');
     expect(consoleErrors).toEqual([]);
   });

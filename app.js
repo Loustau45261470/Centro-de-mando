@@ -3929,7 +3929,7 @@ function renderNWLegend() {
 // ── Rango del gráfico de patrimonio (1M/3M/6M/9M/12M/Todo) ──
 // Preferencia por dispositivo en localStorage (no va a Firestore). Default: Todo.
 const _NW_RANGE_KEY = 'cm_nw_range';
-const _NW_RANGES = { '1M': 30, '3M': 90, '6M': 180, '9M': 270, '12M': 365, 'all': 0 };
+const _NW_RANGES = { '1S': 7, '1M': 30, '3M': 90, '6M': 180, '9M': 270, '12M': 365, 'all': 0 };
 function _nwRangeGet() {
   try { const v = localStorage.getItem(_NW_RANGE_KEY); return v in _NW_RANGES ? v : 'all'; } catch (e) { return 'all'; }
 }
@@ -3982,6 +3982,81 @@ function _nwLineDataset(info, hist) {
   return { label: info.label, data: _nwSeriesData(info, hist), borderColor: _hexA(info.color, .85), backgroundColor: _hexA(info.color, .08), tension: .3, pointRadius: 3, fill: true, spanGaps: true };
 }
 
+// ── Crosshair HUD del gráfico de evolución ──
+// Se engancha solo a puntos de la granularidad del rango: 1S = cada día, 1M = 1 por semana,
+// 3M/6M/9M/12M/Todo = 1 por mes. Cada ancla es el ÚLTIMO punto con dato de su período
+// (cierre semanal / mensual); la línea dibujada no cambia, el crosshair solo elige dónde pararse.
+const _NW_DIAS = ['dom','lun','mar','mié','jue','vie','sáb'];
+function _nwGran() { const r = _nwRangeGet(); return r === '1S' ? 'd' : r === '1M' ? 'w' : 'm'; }
+function _nwWeekStart(d) {   // lunes de la semana de 'YYYY-MM-DD'
+  const t = new Date(d + 'T00:00:00Z');
+  t.setUTCDate(t.getUTCDate() - ((t.getUTCDay() + 6) % 7));
+  return t.toISOString().slice(0, 10);
+}
+function _nwAnchors(dates, data, gran) {
+  const out = [], seen = {};
+  for (let i = 0; i < dates.length; i++) {
+    if (data[i] == null) continue;
+    const k = gran === 'd' ? dates[i] : gran === 'w' ? _nwWeekStart(dates[i]) : dates[i].slice(0, 7);
+    if (k in seen) out[seen[k]] = { i, k }; else { seen[k] = out.length; out.push({ i, k }); }   // pisa: queda el último del período
+  }
+  return out;
+}
+function _nwXhLabel(a, gran) {
+  if (gran === 'm') return _NW_MESES[+a.k.slice(5, 7) - 1] + ' ' + a.k.slice(0, 4);
+  const d = new Date(a.k + 'T00:00:00Z'), dm = String(d.getUTCDate()).padStart(2, '0') + '/' + String(d.getUTCMonth() + 1).padStart(2, '0');
+  return gran === 'd' ? _NW_DIAS[d.getUTCDay()] + ' ' + dm : 'sem. del ' + dm;
+}
+const _nwCrosshair = {
+  id: 'nwCrosshair',
+  afterInit(chart) {
+    const cv = chart.canvas;
+    cv.style.touchAction = 'pan-y';   // arrastre horizontal mueve el crosshair; el vertical sigue haciendo scroll
+    const set = (e, on) => {
+      const m = chart._nwXh; if (!m) return;
+      if (!on) { m.sel = null; chart.draw(); return; }
+      const r = cv.getBoundingClientRect(), x = e.clientX - r.left, xs = chart.scales.x;
+      if (!xs || !m.anchors.length) return;
+      let best = 0, bd = Infinity;
+      m.anchors.forEach((a, j) => { const d = Math.abs(xs.getPixelForValue(a.i) - x); if (d < bd) { bd = d; best = j; } });
+      if (m.sel !== best) { m.sel = best; chart.draw(); }
+    };
+    chart._nwHandlers = [
+      ['pointermove', e => set(e, e.pointerType === 'mouse' || e.buttons > 0 || chart._nwTouch)],
+      ['pointerdown', e => { chart._nwTouch = e.pointerType !== 'mouse'; set(e, true); }],
+      ['pointerup', e => { chart._nwTouch = false; if (e.pointerType !== 'mouse') set(e, false); }],   // touch: al soltar desaparece
+      ['pointercancel', e => { chart._nwTouch = false; set(e, false); }],
+      ['pointerleave', e => { if (!chart._nwTouch) set(e, false); }],
+    ];
+    chart._nwHandlers.forEach(([n, f]) => cv.addEventListener(n, f));
+  },
+  beforeDestroy(chart) { (chart._nwHandlers || []).forEach(([n, f]) => chart.canvas.removeEventListener(n, f)); },
+  afterDatasetsDraw(chart) {
+    const m = chart._nwXh; if (!m || m.sel == null) return;
+    const a = m.anchors[m.sel]; if (!a) return;
+    const ds = chart.data.datasets[0], v = ds && ds.data[a.i]; if (v == null) return;
+    const c = chart.ctx, area = chart.chartArea, x = chart.scales.x.getPixelForValue(a.i), y = chart.scales.y.getPixelForValue(v);
+    const col = getComputedStyle(chart.canvas).getPropertyValue('--accent').trim() || '#38BDF8';
+    c.save();
+    c.setLineDash([4, 4]); c.strokeStyle = _hexA(col, .65); c.lineWidth = 1;
+    c.beginPath(); c.moveTo(x, area.top); c.lineTo(x, area.bottom); c.stroke(); c.setLineDash([]);
+    c.shadowColor = '#fff'; c.shadowBlur = 14; c.fillStyle = '#fff';
+    c.beginPath(); c.arc(x, y, 3.6, 0, Math.PI * 2); c.fill(); c.shadowBlur = 0;
+    c.strokeStyle = _hexA(col, .9); c.lineWidth = 1.4; c.beginPath(); c.arc(x, y, 7, 0, Math.PI * 2); c.stroke();
+    const t1 = fmtMoney(v, 'USD'), t2 = _nwXhLabel(a, m.gran), fs = 11;
+    c.font = `600 ${fs}px ui-monospace, Menlo, Consolas, monospace`;
+    const w = Math.max(c.measureText(t1).width, c.measureText(t2).width) + 14, h = fs * 2 + 12;
+    let bx = x - w / 2; bx = Math.max(2, Math.min(chart.width - w - 2, bx));
+    let by = y - h - 12; if (by < 2) by = Math.min(chart.height - h - 2, y + 12);
+    c.fillStyle = 'rgba(8,14,26,.94)'; c.strokeStyle = _hexA(col, .85); c.lineWidth = 1;
+    c.beginPath(); c.roundRect(bx, by, w, h, 5); c.fill(); c.stroke();
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillStyle = '#fff'; c.fillText(t1, bx + w / 2, by + 6 + fs / 2);
+    c.fillStyle = _hexA(col, 1); c.fillText(t2, bx + w / 2, by + 6 + fs * 1.5 + 2);
+    c.restore();
+  },
+};
+
 function initNWCharts() {
   // Dona holograma (dona-holograma.js, canvas propio): una porción por categoría con cuentas; tocar una elige esa serie en el gráfico de evolución.
   nwPieInst=DonaHolograma.create({
@@ -3993,8 +4068,10 @@ function initNWCharts() {
   nwLineInst=new Chart(lineCtx,{
     type:'line',
     data:{ labels:[], datasets:[{ data:[] }] },
-    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label: c => ` ${c.dataset.label}: ${fmtMoney(c.parsed.y, 'USD')}` } } }, scales:_nwLineScales() }
+    options:{ responsive:true, maintainAspectRatio:false, events:[], plugins:{ legend:{ display:false }, tooltip:{ enabled:false } }, scales:_nwLineScales() },   // events:[] → hover/tooltip nativos fuera; el crosshair HUD (_nwCrosshair) maneja sus propios eventos
+    plugins:[_nwCrosshair]
   });
+  nwLineInst._nwXh = { anchors:[], sel:null, gran:'m' };
   _renderNWRange();
   updateNWCharts();
 }
@@ -4009,6 +4086,8 @@ function updateNWCharts() {
   nwLineInst.data.labels = _nwLabels(hist);
   nwLineInst.data.datasets = [_nwLineDataset(info, hist)];
   nwLineInst.options.scales = _nwLineScales();
+  const gran = _nwGran();
+  nwLineInst._nwXh = { anchors:_nwAnchors(hist.map(h => h.date), nwLineInst.data.datasets[0].data, gran), sel:null, gran };
   nwLineInst.update('none');
 }
 
