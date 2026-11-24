@@ -4,8 +4,8 @@
 'use strict';
 const { test, expect } = require('./support/fixtures');
 
-// Medido en HEAD (antes del cambio), mismo viewport 1280: canvas de la dona a 168 px del borde de la card; gráfico de línea en un contenedor de 148 px.
-const ANTES = { donaTop: 168, altoGrafico: 148 };
+// Medido en HEAD (antes de la v2), mismo viewport 1280: gráfico de línea en un contenedor de 148 px.
+const ANTES = { altoGrafico: 148 };
 
 const CUENTAS = [
   { id: 'a1', name: 'Ualá', type: 'bank', balance: 2150000, currency: 'ARS', icon: '🏦' },
@@ -47,7 +47,7 @@ const serie = (page) => page.evaluate(() => ({ n: nwLineInst.data.datasets.lengt
 const toastTxt = (page) => page.locator('#toast').innerText();
 
 test.describe('Patrimonio v2', () => {
-  test('dona: más arriba, más grande y con el total del patrimonio adentro en formato argentino', async ({ cmPage: page, consoleErrors }) => {
+  test('dona: grande, centrada debajo del total y con el total del patrimonio adentro en formato argentino', async ({ cmPage: page, consoleErrors }) => {
     await preparar(page);
     const total = await page.evaluate(() => fmtMoney(calcNetWorth(), 'USD'));
     expect(total).toBe('$7.985.408');   // 2.150.000 + 180.000 + 4.900.000 + 655.408 + 100.000
@@ -58,10 +58,10 @@ test.describe('Patrimonio v2', () => {
       const cv = document.getElementById('nwPieChart').getBoundingClientRect();
       const ce = document.querySelector('.nw-dona-centro').getBoundingClientRect();
       const arc = nwPieInst.getDatasetMeta(0).data[0];
-      return { top: cv.top - c.top, w: cv.width, ring: arc.outerRadius * 2, cx: ce.left + ce.width / 2 - (cv.left + cv.width / 2), cy: ce.top + ce.height / 2 - (cv.top + cv.height / 2),
+      return { w: cv.width, ring: arc.outerRadius * 2, cx: ce.left + ce.width / 2 - (cv.left + cv.width / 2), cy: ce.top + ce.height / 2 - (cv.top + cv.height / 2),
         inside: ce.left >= cv.left - 1 && ce.right <= cv.right + 1 && ce.top >= cv.top - 1 && ce.bottom <= cv.bottom + 1 };
     });
-    expect(m.top, 'más de 57 px más arriba que antes').toBeLessThanOrEqual(ANTES.donaTop - 57);
+    expect(m.w, 'conserva el tamaño nuevo').toBeGreaterThanOrEqual(184);
     expect(m.ring, 'más grande que los ~137 px de antes').toBeGreaterThan(160);
     expect(m.inside).toBe(true);
     expect(Math.abs(m.cx)).toBeLessThan(2);
@@ -261,6 +261,46 @@ test.describe('Patrimonio v2', () => {
     expect(consoleErrors).toEqual([]);
   });
 
+  // Orden vertical: total -> dona (centrada en la card) -> chips y botón de categorías -> selector, rango y gráfico. Sin cajas que se pisen.
+  for (const ancho of [1280, 390]) {
+    test(`acomodo a ${ancho} px: dona centrada debajo del total, categorías debajo de la dona y sin superposiciones`, async ({ cmPage: page, consoleErrors }) => {
+      await preparar(page, { ancho });
+      await page.waitForTimeout(300);
+      const g = await page.evaluate(() => {
+        const R = (e) => { const b = e.getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom }; };
+        const card = document.getElementById('nwTotal').closest('.card');
+        const chips = [...document.querySelectorAll('#nwLegend .nw-leg-item:not(.nw-leg-edit)')].map(R);
+        return { card: R(card), total: R(document.getElementById('nwTotal')), cash: R(document.getElementById('nwCash')), dona: R(document.querySelector('.nw-dona')),
+          canvas: R(document.getElementById('nwPieChart')), centro: R(document.querySelector('.nw-dona-centro')), chips, edit: R(document.querySelector('#nwLegend .nw-leg-edit')),
+          ctl: R(document.querySelector('.nw-ctl')), graf: R(document.querySelector('.chart-wrap')), scrollW: document.documentElement.scrollWidth, innerW: window.innerWidth,
+          cardOverflow: card.scrollWidth - card.clientWidth };
+      });
+      const sep = (a, b) => a.b <= b.t + 1 || b.b <= a.t + 1 || a.r <= b.l + 1 || b.r <= a.l + 1;
+      // dona centrada horizontalmente en la card, debajo del total
+      expect(Math.abs((g.dona.l + g.dona.r) / 2 - (g.card.l + g.card.r) / 2)).toBeLessThan(2);
+      expect(g.canvas.r - g.canvas.l).toBeGreaterThanOrEqual(184);
+      expect(g.dona.t).toBeGreaterThanOrEqual(g.total.b);
+      expect(g.dona.t).toBeGreaterThanOrEqual(g.cash.b);
+      // categorías debajo de la dona, y el selector/gráfico debajo de las categorías
+      for (const c of [...g.chips, g.edit]) expect(c.t).toBeGreaterThanOrEqual(g.dona.b);
+      expect(g.ctl.t).toBeGreaterThanOrEqual(Math.max(...g.chips.map((c) => c.b), g.edit.b));
+      expect(g.graf.t).toBeGreaterThanOrEqual(g.ctl.b);
+      // con aire: el botón de categorías no toca el borde de la card
+      expect(g.card.r - g.edit.r).toBeGreaterThanOrEqual(12);
+      expect(g.edit.l - g.card.l).toBeGreaterThanOrEqual(12);
+      // ninguna caja pisa a otra: total, dona, chips y botón
+      const cajas = [g.total, g.cash, g.dona, ...g.chips, g.edit];
+      for (let i = 0; i < cajas.length; i++) for (let j = i + 1; j < cajas.length; j++) expect(sep(cajas[i], cajas[j]), `cajas ${i} y ${j} se pisan`).toBe(true);
+      // el total de adentro queda dentro de la dona
+      expect(g.centro.l).toBeGreaterThanOrEqual(g.canvas.l - 1);
+      expect(g.centro.r).toBeLessThanOrEqual(g.canvas.r + 1);
+      // sin scroll horizontal
+      expect(g.scrollW).toBeLessThanOrEqual(g.innerW + 1);
+      expect(g.cardOverflow).toBeLessThanOrEqual(1);
+      expect(consoleErrors).toEqual([]);
+    });
+  }
+
   test('390 px: sin scroll horizontal, con el modal de categorías y el selector', async ({ cmPage: page, consoleErrors }) => {
     await preparar(page, { ancho: 390 });
     const sinScroll = () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
@@ -269,8 +309,8 @@ test.describe('Patrimonio v2', () => {
     expect(c).toBe(true);
     await page.selectOption('#nwSeriesSel', 't:bank');
     expect((await serie(page)).label).toBe('Cuentas');
-    // el total entra al lado de la dona sin cortarse
-    const caben = await page.evaluate(() => { const t = document.getElementById('nwTotal').getBoundingClientRect(), d = document.querySelector('.nw-dona').getBoundingClientRect(); return t.right <= d.left + 1 || t.bottom <= d.top + 1; });
+    // el total queda arriba, la dona debajo y nada se corta
+    const caben = await page.evaluate(() => { const t = document.getElementById('nwTotal').getBoundingClientRect(), d = document.querySelector('.nw-dona').getBoundingClientRect(); return t.bottom <= d.top + 1 && t.right <= innerWidth; });
     expect(caben).toBe(true);
     await page.evaluate(() => openAcctTypes());
     await expect(page.locator('#modal-acct-types')).toHaveClass(/open/);

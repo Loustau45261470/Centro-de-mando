@@ -55,6 +55,24 @@ test.describe('avisos con la app abierta', () => {
     await expect(cmPage.locator('#av-resumen')).toContainText('Hace 25');
   });
 
+  test('8: cada fila del resumen muestra el nombre del ítem como título y, debajo, el tipo y la hora', async ({ cmPage, consoleErrors }) => {
+    await preparar(cmPage);
+    await ponerRec(cmPage, 'rec_av8f', 'Pagar patente XYZ', -30);
+    await cmPage.evaluate(() => avisosAlVolver());
+    const fila = cmPage.locator('#av-resumen .av-row').first();
+    await expect(fila).toBeVisible();
+    await expect(fila.locator('b')).toHaveText('Pagar patente XYZ');
+    await expect(fila.locator('b')).not.toContainText('Centro de Mando');
+    const sub = await fila.locator('span').innerText();
+    expect(sub).toMatch(/^Recordatorio · \d{2}:\d{2}$/);
+    // dos ítems distintos no se ven iguales
+    await cmPage.evaluate(() => _avisoResumen([{ key: 'x', title: '🔔 Recordatorio — Centro de Mando', body: 'b', item: { title: 'Otro ítem', kindLabel: 'Final', date: '2026-12-01', allDay: true } }]));
+    const filas = await cmPage.locator('#av-resumen .av-row-txt').evaluateAll(els => els.map(e => [e.querySelector('b').textContent, e.querySelector('span').textContent]));
+    expect(filas[1]).toEqual(['Otro ítem', 'Final · 01/12']);
+    expect(new Set(filas.map(f => f[0])).size).toBe(2);
+    expect(consoleErrors).toEqual([]);
+  });
+
   test('9: un aviso ya mostrado no vuelve tras recargar la página', async ({ cmPage, consoleErrors }) => {
     await preparar(cmPage);
     await ponerRec(cmPage, 'rec_av9', 'Aviso persistente', -1);
@@ -165,6 +183,30 @@ test.describe('avisos con la app abierta', () => {
     await expect(cmPage.locator('#av-permiso')).toBeVisible();                            // otro día: vuelve
     expect(consoleErrors).toEqual([]);
   });
+
+  for (const ancho of [390, 1280]) {
+    test(`12: a ${ancho} px la tarjeta de permiso no tapa los botones de la barra de arriba ni el «+» de frases`, async ({ cmPage }) => {
+      await cmPage.setViewportSize({ width: ancho, height: 800 });
+      await preparar(cmPage, 'denied');
+      await cmPage.evaluate(() => {
+        document.querySelectorAll('.cm-frase').forEach(e => { e.hidden = false; e.querySelector('.cm-frase-t').textContent = 'Una frase de prueba'; });
+        checkReminderNotifications();
+      });
+      await expect(cmPage.locator('#av-permiso')).toBeVisible();
+      const r = await cmPage.evaluate(() => {
+        const bots = [document.getElementById('trophy-btn'), ...[...document.querySelectorAll('.cm-frase-add')].filter(b => b.getBoundingClientRect().width > 0), ...[...document.querySelectorAll('.pr-bell')].filter(b => b.getBoundingClientRect().width > 0)];
+        const out = bots.map(e => {
+          const b = e.getBoundingClientRect();
+          const libre = [[.5, .5], [.2, .2], [.8, .8]].every(([x, y]) => { const t = document.elementFromPoint(b.left + b.width * x, b.top + b.height * y); return !!t && (t === e || e.contains(t)); });
+          return { n: e.id || e.className, libre };
+        });
+        return { out, cardTop: document.getElementById('av-permiso').getBoundingClientRect().top };
+      });
+      expect(r.out.length).toBeGreaterThanOrEqual(2);   // 🎮 y el «+» de frases (y la campanita si está)
+      for (const b of r.out) expect(b.libre, b.n + ' tapado por el aviso').toBe(true);
+      expect(r.cardTop).toBeGreaterThanOrEqual(34);      // debajo de la barra de arriba
+    });
+  }
 
   test('12: iPhone sin la app instalada — pide agregarla a la pantalla de inicio', async ({ cmPage }) => {
     await preparar(cmPage, 'denied');

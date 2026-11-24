@@ -2150,24 +2150,24 @@ button.goal-hora-vacio:hover { color: var(--tp); background: rgba(255,255,255,.0
 .nw-range { padding: 0; gap: 4px; flex: 0 0 auto; }
 .nw-range button { padding: 4px 8px; font-size: var(--fs-12-5); }
 /* Selector de la serie (Total / categoría / cuenta) junto al rango: en el celular el selector pasa arriba y el rango abajo. */
-.nw-ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 0 14px 8px; }
+.nw-ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 0 14px 12px; }
 .nw-series-sel { flex: 1 1 150px; min-width: 0; max-width: 230px; padding: 5px 8px; font-size: var(--fs-12-5); }
 
-/* ══ DONA DE PATRIMONIO: arriba a la derecha del total, con el total adentro (mismo patrón que la dona de Cartera) ══ */
-.nw-hero { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px 0 0; }
-.nw-hero-text { flex: 1 1 auto; min-width: 0; }
+/* ══ DONA DE PATRIMONIO: el total arriba a la izquierda, la dona centrada debajo (con el total adentro) y las categorías debajo de ella ══ */
+.nw-hero { display: flex; flex-direction: column; align-items: stretch; gap: 10px; padding: 4px 0 0; }
+.nw-hero-text { min-width: 0; }
 .nw-hero-text .nw-total { white-space: nowrap; }
-.nw-dona { position: relative; flex: 0 1 auto; width: clamp(150px, 46%, 190px); aspect-ratio: 1; margin: 0; }
+.nw-dona { position: relative; align-self: center; width: clamp(184px, 56%, 210px); aspect-ratio: 1; margin: 6px 0 4px; }
 .nw-dona canvas { max-width: 100%; cursor: default; }
 .nw-dona-centro { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; text-align: center; padding: 0 17%; }
 .nw-dona-centro-lbl { font-size: var(--fs-12); text-transform: uppercase; letter-spacing: .12em; color: var(--ts); }
 .nw-dona-centro-num { font-size: var(--fs-13); font-weight: 800; color: var(--tp); letter-spacing: -.02em; max-width: 100%; overflow-wrap: anywhere; }
-.nw-leg { display: flex; flex-wrap: wrap; gap: 6px 8px; padding: 2px 14px 12px; }
+.nw-leg { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 8px; padding: 10px 16px 18px; }
 .nw-leg-item { display: inline-flex; align-items: center; gap: 6px; font-family: var(--sans); font-size: var(--fs-12-5); font-weight: 600; line-height: 1; color: var(--ts); background: var(--card); border: 1px solid var(--border); border-radius: 999px; padding: 6px 10px; cursor: pointer; transition: border-color .12s, color .12s, background .12s; }
 .nw-leg-item:hover { color: var(--tp); }
 .nw-leg-item.on { color: var(--tp); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .nw-leg-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
-.nw-leg-edit { margin-left: auto; border-style: dashed; }
+.nw-leg-edit { border-style: dashed; }
 
 /* ══ MODAL DE CATEGORÍAS DE CUENTAS ══ */
 .at-list { display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; }
@@ -6810,9 +6810,9 @@ input:focus, select:focus, textarea:focus {
   font-size:var(--fs-13);font-weight:600;color:var(--tp)}
 
 /* Avisos dentro de la app: «Mientras no estabas», permiso de notificaciones y versión nueva (recordatorios.js · _avisoCard) */
-#avisos-app{position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top,0px) + 10px);z-index:8785;max-width:440px;margin:0 auto;
+#avisos-app{position:fixed;left:12px;right:12px;top:var(--av-top,calc(env(safe-area-inset-top,0px) + var(--ticker) + 8px));z-index:8785;max-width:440px;margin:0 auto;
   display:flex;flex-direction:column;gap:8px;pointer-events:none}
-body:has(#pushdead-banner) #avisos-app{top:calc(env(safe-area-inset-top,0px) + 74px)}
+body:has(#pushdead-banner) #avisos-app{top:max(var(--av-top,0px),calc(env(safe-area-inset-top,0px) + 74px))}
 .av-card{position:relative;pointer-events:auto;padding:11px 36px 11px 13px;border-radius:11px;line-height:1.4;
   background:linear-gradient(180deg,rgba(14,18,28,.97),rgba(8,10,16,.98));border:1px solid var(--border);
   box-shadow:0 10px 34px rgba(0,0,0,.5);font-size:var(--fs-13);color:var(--tp)}

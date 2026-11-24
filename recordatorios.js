@@ -407,6 +407,11 @@ function checkReminderNotifications() {
 function _avisoCard(id, build) {
   let c = document.getElementById('avisos-app');
   if (!c) { c = document.createElement('div'); c.id = 'avisos-app'; c.setAttribute('role', 'region'); c.setAttribute('aria-label', 'Avisos'); document.body.appendChild(c); }
+  // Las tarjetas arrancan debajo de la barra de arriba (🎮, campanita) y de la franja de frases con su «+»: no tapan ningún botón.
+  let top = 0;
+  // También los botones fijos de arriba: sin franja de frases visible (antes del arranque o sin frase) la tarjeta tapaba 🎮.
+  document.querySelectorAll('.cm-frase, #trophy-btn, .pr-avisos').forEach(f => { const b = f.getBoundingClientRect(); if (b.height > 0 && b.bottom > top) top = b.bottom; });
+  c.style.setProperty('--av-top', Math.round(top + 8) + 'px');
   let el = document.getElementById(id);
   if (!el) { el = document.createElement('div'); el.id = id; el.className = 'av-card'; c.appendChild(el); }
   el.textContent = '';
@@ -428,7 +433,13 @@ function _avBtnCerrar(el, id) {
 // Aviso «Mientras no estabas»: un único resumen; si llegan más ítems con el resumen abierto, se suman.
 let _avResumenItems = [];
 function _avisoResumen(lista) {
-  _avResumenItems = _avResumenItems.concat(lista.map(a => ({ title: a.title, body: a.body || '', url: a.url || '' })));
+  // Cada fila: el nombre del ítem como título y, debajo, el tipo y la hora (el título del aviso es genérico: «Recordatorio — Centro de Mando»).
+  _avResumenItems = _avResumenItems.concat(lista.map(a => {
+    const it = a.item;
+    if (!it || !it.title) return { title: a.title, body: a.body || '', url: a.url || '' };
+    const cuando = it.allDay ? String(it.date).slice(8, 10) + '/' + String(it.date).slice(5, 7) : (it.cuandoTxt || it.time || '');
+    return { title: it.title, body: [it.kindLabel, it.sub, cuando].filter(Boolean).join(' · '), url: a.url || '' };
+  }));
   _avisoCard('av-resumen', el => {
     _avBtnCerrar(el, 'av-resumen');
     const h = document.createElement('div'); h.className = 'av-tit'; h.textContent = 'Mientras no estabas:'; el.appendChild(h);
