@@ -103,23 +103,21 @@ test.describe('motion · con movimiento', () => {
     expect(consoleErrors).toEqual([]);
   });
 
-  test('(c2) un total que cambia cuenta desde el valor anterior y termina en el texto nuevo', async ({ cmPage, consoleErrors }) => {
+  test('(c2) un total que cambia se descifra (solo los dígitos que cambiaron) y termina en el texto nuevo', async ({ cmPage, consoleErrors }) => {
     await irA(cmPage, 'finanzas');
     await cmPage.waitForTimeout(900);
     const r = await cmPage.evaluate(async () => {
       const el = document.getElementById('nwTotal');
-      el.textContent = '$1,000';           // valor "anterior"
-      await new Promise((ok) => setTimeout(ok, 450));
-      const visto = new Set(); let fin = false;
-      el.textContent = '$5,000';           // valor nuevo (como lo escribe renderAccounts)
+      cmDescifrar(el, '$1,000'); await new Promise((ok) => setTimeout(ok, 450));   // valor "anterior"
+      const visto = new Set();
+      cmDescifrar(el, '$1,500');           // solo cambia el 5: el resto queda quieto
       const t0 = performance.now();
       await new Promise((ok) => { (function f() { visto.add(el.textContent); if (performance.now() - t0 > 700) ok(); else requestAnimationFrame(f); })(); });
       return { final: el.textContent, vistos: [...visto] };
     });
-    expect(r.final).toBe('$5,000');
+    expect(r.final).toBe('$1,500');
     expect(r.vistos.length, 'hubo valores intermedios').toBeGreaterThan(2);
-    for (const v of r.vistos) { const n = +v.replace(/[$,]/g, ''); expect(n).toBeGreaterThanOrEqual(0); expect(n).toBeLessThanOrEqual(5000); }
-    expect(r.vistos.some((v) => { const n = +v.replace(/[$,]/g, ''); return n > 1000 && n < 5000; }), 'pasa por valores entre el anterior y el nuevo').toBe(true);
+    for (const v of r.vistos) expect(v).toMatch(/^[$]1,[0-9]00$/);   // ancho y dígitos sin cambio fijos
     expect(consoleErrors).toEqual([]);
   });
 

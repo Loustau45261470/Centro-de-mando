@@ -273,20 +273,19 @@
       + `<circle cx="${last[0]}" cy="${last[1]}" r="2" fill="${color}"/></svg>`;
   }
 
-  // Count-up con el helper único de motion.js (≤400 ms, mismo formato, termina en el texto exacto).
-  // Primera pintura de la sección: pop + cuenta desde 0. Re-render posterior: solo si el valor CAMBIÓ
-  // (flash + cuenta desde el valor anterior); si no cambió, no se anima nada.
+  // Descifrado con el helper único de descifrar.js (termina en el texto exacto).
+  // Primera pintura de la sección: pop + descifrado completo. Re-render posterior: solo si el valor CAMBIÓ
+  // (flash + descifrado corto de los dígitos que cambiaron); si no cambió, no se anima nada.
   function _animateKVals(container, firstPaint, prevVals){
-    const M = window.CMMotion;
     container.querySelectorAll('.k-val').forEach((el,i)=>{
       if (!firstPaint){
         if (!prevVals || prevVals[i] === el.textContent) return;
         el.classList.remove('k-flash'); void el.offsetWidth; el.classList.add('k-flash');
-        if (M){ const pv = M.numFrom(prevVals[i]); if (pv != null) M.countUp(el, { from: pv }); }
+        if (window.cmDescifrar) cmDescifrar(el, el.textContent, { from: prevVals[i] });
         return;
       }
       el.classList.add('k-pop');
-      if (M) M.countUp(el, { from: 0 });
+      if (window.cmDescifrar) cmDescifrar(el, el.textContent, { full: true });
     });
   }
 
@@ -320,7 +319,7 @@
       const ts = taskStats(sec);
       html = hb + tile(ts.pending,'Tareas',null) + tile(ts.overdue,'Vencidas',null) + ms;
     }
-    const prevVals = firstPaint ? null : Array.from(el.querySelectorAll('.k-val'), x => x.textContent);
+    const prevVals = firstPaint ? null : Array.from(el.querySelectorAll('.k-val'), x => x._dx ? x._dx.final : x.textContent);
     el.innerHTML = html;
     el.classList.toggle('kpi-enter', firstPaint);   // spark/barra solo se dibujan al entrar a la sección, no en cada render
     try { _animateKVals(el, firstPaint, prevVals); } catch(e){}

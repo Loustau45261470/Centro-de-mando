@@ -69,7 +69,7 @@
     function centro() {
       const i = target(), it = i >= 0 ? st.items[i] : null;
       if (o.centroLbl) o.centroLbl.textContent = it ? it.label : 'Patrimonio';
-      if (o.centroNum) o.centroNum.textContent = it ? fmt(it.value) : st.totalText;
+      if (o.centroNum) { const tx = it ? fmt(it.value) : st.totalText; if (window.cmDescifrar) cmDescifrar(o.centroNum, tx); else o.centroNum.textContent = tx; }
       if (o.centroSub) o.centroSub.textContent = it ? pct(it.f) + ' del total' : '';
       root.classList.toggle('sel', !!it);
       if (it) root.style.setProperty('--cc', rgba(it.rgb, 1)); else root.style.removeProperty('--cc');

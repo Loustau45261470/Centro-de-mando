@@ -119,8 +119,8 @@ window.addEventListener('resize', _fitNwTotal);
 function renderAccounts() {
   const coverAccs = new Set((S.cardCharges || []).filter(c => c && c.cover).map(c => c.cover.accountId));   // cuentas "A cobrar · <nombre>"
   const nw = calcNetWorth();
-  document.getElementById('nwTotal').textContent = fmtMoney(nw, 'USD');
-  document.getElementById('nwCash').textContent = fmtMoney(calcCash(), 'USD');
+  cmDescifrar(document.getElementById('nwTotal'), fmtMoney(nw, 'USD'));
+  cmDescifrar(document.getElementById('nwCash'), fmtMoney(calcCash(), 'USD'));
   _fitNwTotal();
   document.getElementById('nw1pct').textContent = `1% = ${fmtMoney(nw*0.01,'USD')}`;
   const list = document.getElementById('accountList');
@@ -4038,10 +4038,10 @@ function renderActivity() {
   const bal = totalInc - totalExp;
   const sumRow = document.getElementById('txnSummaryRow');
   sumRow.style.display = filtered.length ? '' : 'none';
-  document.getElementById('txnSumIncome').textContent = '+'+fmtMoney(totalInc, filtered[0]?.currency||'ARS');
-  document.getElementById('txnSumExpense').textContent = '-'+fmtMoney(totalExp, filtered[0]?.currency||'ARS');
+  cmDescifrar(document.getElementById('txnSumIncome'), '+'+fmtMoney(totalInc, filtered[0]?.currency||'ARS'));
+  cmDescifrar(document.getElementById('txnSumExpense'), '-'+fmtMoney(totalExp, filtered[0]?.currency||'ARS'));
   const balEl = document.getElementById('txnSumBalance');
-  balEl.textContent = (bal>=0?'+':'')+fmtMoney(Math.abs(bal), filtered[0]?.currency||'ARS');
+  cmDescifrar(balEl, (bal>=0?'+':'')+fmtMoney(Math.abs(bal), filtered[0]?.currency||'ARS'));
   balEl.className = 'fin-summary-num '+(bal>=0?'text-ok':'text-danger');
 
   // Transaction list — el filtro de categoría solo aplica acá (overlay de historial);

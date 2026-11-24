@@ -9,7 +9,7 @@
 //   CMMotion.countUp(el, {from}) count-up corto (≤400 ms) de un número; termina en el texto exacto original
 //   CMMotion.numFrom(texto)      valor numérico del primer número del texto (o null)
 //   CMMotion.quiet(ms)           ventana en la que las listas no animan altas (render masivo de sección/overlay)
-//   (automático) marcar casilla → pop · alta de 1-2 filas en una lista → entrada de la fila · totales → count-up al cambiar
+//   (automático) marcar casilla → pop · alta de 1-2 filas en una lista → entrada de la fila · totales → descifrado (descifrar.js)
 // ════════════════════════════════════════════════════════════════════════
 const CMMotion = (() => {
   const mq = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
@@ -63,8 +63,8 @@ const CMMotion = (() => {
         { duration: t.base, delay: i * t.stagger, easing: t.ease, fill: 'backwards' }
       );
     });
-    // Totales con count-up al entrar (los k-val del kpi-strip los maneja jarvis-intel con el mismo helper).
-    for (const el of panel.querySelectorAll(NUM_SEL)) if (el.getClientRects().length) countUp(el, { from: 0 });
+    // Totales: descifrado completo al entrar (descifrar.js; los k-val del kpi-strip los maneja jarvis-intel con el mismo helper).
+    for (const el of panel.querySelectorAll(NUM_SEL)) if (el.getClientRects().length) { if (window.cmDescifrar) cmDescifrar(el, el.textContent, { full: true }); else countUp(el, { from: 0 }); }
     return els.length;
   }
 
@@ -123,19 +123,8 @@ const CMMotion = (() => {
     return true;
   }
 
-  // Totales con id fijo: cuando el valor cambia, cuenta desde el anterior.
+  // Totales con id fijo: al entrar a la sección se descifran; sus cambios los escribe cada render con cmDescifrar.
   const NUM_SEL = '#nwTotal, #nwCash, #txnSumIncome, #txnSumExpense, #txnSumBalance';
-  function watchNumber(el) {
-    if (el._cmW) return; el._cmW = true; el._cmSeen = el.textContent;
-    new MutationObserver(() => {
-      const now = el.textContent;
-      if (now === el._cmSeen) return;
-      if (el._cmCU && now === el._cmCU.last) return; // escritura intermedia propia
-      const prev = numFrom(el._cmSeen); el._cmSeen = now;
-      if (prev == null || isQuiet() || !el.getClientRects().length) return;
-      countUp(el, { from: prev });
-    }).observe(el, { childList: true, characterData: true, subtree: true });
-  }
 
   // ── 3. Marcar como hecho: pop de la casilla (transform, no mueve el layout) ──
   const CHECK_SEL = '.check-box, .law-check, .mrd-check, .po-check, .rn-todo-check, .ng-check, .gm-check, .rtn-set-check, input[type="checkbox"]';
@@ -200,7 +189,6 @@ const CMMotion = (() => {
   }
 
   function init() {
-    document.querySelectorAll(NUM_SEL).forEach(watchNumber);
     document.addEventListener('click', onCheckClick, true);
     // cambiar de pestaña (nav, pestañas internas, hábitos) re-renderiza listas enteras: no son altas
     document.addEventListener('click', e => { if (e.target.closest && e.target.closest('.nav-btn, .plov-tab, .habit-tab-btn, .rail-btn')) quiet(600); }, true);
