@@ -239,18 +239,12 @@ function _foNudgeToca() {   // de 20:00 a 04:00, sin registro de ese día y sin 
   try { if (localStorage.getItem('cm_fo_dismiss_' + hoy) === '1') return false; } catch (e) {}
   return true;
 }
-function _foHideNudge() { const el = document.getElementById('fo-nudge'); if (el) el.remove(); }
-function _foDismissNudge() { try { localStorage.setItem('cm_fo_dismiss_' + _foHoy(), '1'); } catch (e) {} _foHideNudge(); }
-function foCheckNudge() {
-  if (!_foNudgeToca()) { _foHideNudge(); return; }
-  if (document.getElementById('fo-nudge')) return;
-  const el = document.createElement('div');
-  el.id = 'fo-nudge'; el.className = 'rs-nudge'; el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite');
-  el.innerHTML = '<div class="rs-nudge-txt"><div class="rs-nudge-title">Cerrá el día</div><div class="rs-nudge-sub">Todavía no hiciste el cierre de hoy</div></div>'
-    + '<button class="btn btn-primary btn-sm" onclick="Foco.abrirCierre()">Cerrar</button>'
-    + '<button class="icon-btn" aria-label="Descartar aviso" onclick="Foco.descartarAviso()">✕</button>';
-  document.body.appendChild(el);
-}
+// El aviso ya no es un cartel flotante: vive como ítem «Para hacer» en el panel de la campanita (principios.js, CMRituales).
+function _foRefrescarAviso() { if (typeof prChequearAvisos === 'function') prChequearAvisos(); }
+function _foDismissNudge() { try { localStorage.setItem('cm_fo_dismiss_' + _foHoy(), '1'); } catch (e) {} _foRefrescarAviso(); }
+function foCheckNudge() { _foRefrescarAviso(); }
+if (typeof window !== 'undefined') (window.CMRituales = window.CMRituales || []).push(() => _foNudgeToca()
+  ? { k: 'ritual:cierre', titulo: 'Cerrá el día', sub: 'Todavía no hiciste el cierre de hoy', label: 'Cerrar', abrir: foAbrirCierre, descartar: _foDismissNudge } : null);
 
 function foHtml() {
   const d = _foData(), hoy = _foHoy(), reg = d.dias[hoy];
@@ -326,7 +320,7 @@ const Foco = {
     const dr = _foDraftHoy(), nota = document.getElementById('fo-nota');
     if (dr.atencion == null || dr.energia == null) { _foToast('Elegí atención y energía'); return; }
     foGuardarDia(_foData(), dr.ds, dr.atencion, dr.energia, nota ? nota.value : '');
-    dr.notaTmp = null; _foSave(); _foHideNudge();
+    dr.notaTmp = null; _foSave(); _foRefrescarAviso();
     if (typeof CMOverlay !== 'undefined') CMOverlay.close('ov-foco-cierre');
     if (typeof prRender === 'function') prRender(); _foToast('Cierre guardado');
   },

@@ -20,8 +20,6 @@ const CARGOS = [
 
 async function preparar(page, { hoy = '2026-10-15', pagarDesde = null, cards = [NARANJA], cargos = CARGOS } = {}) {
   await cerrarTarjetas(page);
-  // El aviso de "revisión semanal" (domingo y lunes) tapa la barra de navegación.
-  await page.evaluate(() => { const n = document.getElementById('rs-nudge'); if (n) n.remove(); });
   await page.click('.nav-btn[data-tab="finanzas"]');
   await expect(page.locator('#tab-finanzas')).toHaveClass(/active/);
   await page.evaluate(({ hoy, pagarDesde, cards, cargos }) => {

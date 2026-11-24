@@ -787,6 +787,7 @@ if (typeof window !== 'undefined') { Principios.abrir = prAbrir; window.openPrin
 // una sola tarjeta con «y N más». El panel lista todos con sus acciones. Se evalúa al abrir la app (enganche a renderGoals, igual que foco.js) y cada 5 minutos
 // (único intervalo; un posponer corto programa además un setTimeout al vencimiento más próximo). «Visto» del diario y «Ocultar» son por dispositivo.
 const PR_AV_CARD_MS = 8000;
+let _prAvRit = [];   // rituales «Para hacer» (cierre del día, revisión semanal): ítems del panel, sin tarjeta grande
 let _prAvSig = '', _prAvItems = [], _prAvAbierto = false, _prAvCard = [];
 let _prAvTimer = null, _prAvTsTimer = null;
 const _prAvMostrados = new Set();   // avisos que ya se desplegaron en esta sesión (se olvidan al desaparecer: si vuelven, son nuevos)
@@ -803,7 +804,7 @@ function _prDatosEval(hoy) {
 function _prQuitarAvisos() {
   const el = document.getElementById('pr-avisos'); if (el) el.remove();
   clearTimeout(_prAvTimer); clearTimeout(_prAvTsTimer);
-  _prAvSig = ''; _prAvItems = []; _prAvAbierto = false; _prAvCard = [];
+  _prAvSig = ''; _prAvItems = []; _prAvRit = []; _prAvAbierto = false; _prAvCard = [];
 }
 function _prAvBtn(txt, label, onclick, id, cls) {
   return '<button type="button" class="pr-btn' + (cls ? ' ' + cls : '') + '" aria-label="' + _prEsc(label) + '"' + (id ? ' data-id="' + _prEsc(id) + '"' : '') + ' onclick="' + onclick + '">' + txt + '</button>';
@@ -831,20 +832,32 @@ function _prAvItemPanel(it) {
     + pos('7 días', 'Silenciar 7 días', 'Principios.silenciar(this.dataset.id)') + '</div>'
     + '<div class="pr-av-fin">' + (it.diario ? _prAvBtn('Visto', 'Visto por hoy', 'Principios.visto(this.dataset.id)', id, 'pr-btn-p') : _prAvBtn('Ocultar', 'Ocultar este aviso', 'Principios.ocultar(this.dataset.id)', id)) + '</div></div>';
 }
+// Fuentes de rituales: cada módulo (foco.js, revision-semanal.js) agrega una función a window.CMRituales que devuelve
+// { k, titulo, sub, label, abrir, descartar } cuando toca, o null.
+function _prRituales() {
+  const out = [];
+  ((typeof window !== 'undefined' && window.CMRituales) || []).forEach(f => { try { const r = f(); if (r) out.push(r); } catch (e) {} });
+  return out;
+}
+function _prAvItemRitual(r) {
+  return '<div class="pr-av-item pr-av-rit"><div class="pr-av-t">' + _prEsc(r.titulo) + '</div><div class="pr-av-por">' + _prEsc(r.sub) + '</div>'
+    + '<div class="pr-av-fin">' + _prAvBtn(_prEsc(r.label), r.titulo, "Principios.ritual(this.dataset.id,'abrir')", r.k, 'pr-btn-p')
+    + _prAvBtn('Descartar', 'Descartar: ' + r.titulo, "Principios.ritual(this.dataset.id,'descartar')", r.k) + '</div></div>';
+}
 function _prAvPintar() {
   let el = document.getElementById('pr-avisos');
   if (!el) { el = document.createElement('div'); el.id = 'pr-avisos'; el.className = 'pr-avisos'; document.body.appendChild(el); }
-  const n = _prAvItems.length, ab = _prAvAbierto, enPanel = !!el.querySelector('#pr-av-panel:focus-within, #pr-av-panel:focus');
+  const n = _prAvItems.length + _prAvRit.length, ab = _prAvAbierto, enPanel = !!el.querySelector('#pr-av-panel:focus-within, #pr-av-panel:focus');
   const card = ab ? [] : _prAvCard.map(k => _prAvItems.find(i => i.k === k)).filter(Boolean);
-  let h = '<button type="button" class="pr-bell' + (n ? ' tiene' : '') + '" aria-label="Avisos de principios' + (n ? ': ' + n + (n === 1 ? ' pendiente' : ' pendientes') : ': ninguno') + '" aria-expanded="' + ab + '" aria-controls="pr-av-panel" onclick="Principios.campana()">'
+  let h = '<button type="button" class="pr-bell' + (n ? ' tiene' : '') + '" aria-label="Avisos' + (n ? ': ' + n + (n === 1 ? ' pendiente' : ' pendientes') : ': ninguno') + '" aria-expanded="' + ab + '" aria-controls="pr-av-panel" onclick="Principios.campana()">'
     + _PR_BELL_SVG + (n ? '<span class="pr-bell-n" aria-hidden="true">' + (n > 9 ? '9+' : n) + '</span>' : '') + '</button>';
   if (card.length) {
     h += '<div class="pr-av-card" role="status" aria-live="polite">' + _prAvTexto(card[0]) + _prSugsHtml(card[0].p, false)
       + '<div class="pr-av-fin">' + _prAvBtn(card.length > 1 ? 'y ' + (card.length - 1) + ' más' : 'Posponer…', card.length > 1 ? 'Ver los demás avisos' : 'Ver opciones para posponer', 'Principios.campana()', '', 'pr-btn-p')
       + _prAvBtn('Cerrar', 'Cerrar la tarjeta', 'Principios.cerrarTarjeta()', '') + '</div></div>';
   }
-  if (ab) h += '<div class="pr-av-panel" id="pr-av-panel" role="region" aria-label="Avisos de principios" tabindex="-1"><div class="pr-av-ph">Avisos (' + n + ')</div>'
-    + (n ? _prAvItems.map(_prAvItemPanel).join('') : '<div class="pr-av-vacio">No tenés avisos por ahora.</div>') + '</div>';
+  if (ab) h += '<div class="pr-av-panel" id="pr-av-panel" role="region" aria-label="Avisos" tabindex="-1"><div class="pr-av-ph">Avisos (' + n + ')</div>'
+    + (n ? _prAvRit.map(_prAvItemRitual).join('') + _prAvItems.map(_prAvItemPanel).join('') : '<div class="pr-av-vacio">No tenés avisos por ahora.</div>') + '</div>';
   el.innerHTML = h;
   const c = el.querySelector('.pr-av-card');
   if (c) {
@@ -900,8 +913,9 @@ function _prAgendar(p) {
 function _prQuitarDia() { const e = document.getElementById('pr-dia'); if (e) e.remove(); clearTimeout(_prDiaTimer); }
 let _prDiaTimer = null;
 function prChequearAvisos() {
-  if (typeof S === 'undefined' || !S || !S.principios || !Array.isArray(S.principios.principios)) { _prQuitarAvisos(); return; }   // lectura pura: no crea S.principios
-  const lista = S.principios.principios, ahora = Date.now(), hoy = _prHoyLocal(), av = prAvisosDePrincipios(lista, _prDatosEval(hoy), hoy, ahora);
+  const hayP = typeof S !== 'undefined' && S && S.principios && Array.isArray(S.principios.principios), rit = _prRituales();
+  if (!hayP && !rit.length) { _prQuitarAvisos(); return; }   // lectura pura: no crea S.principios
+  const lista = hayP ? S.principios.principios : [], ahora = Date.now(), hoy = _prHoyLocal(), av = prAvisosDePrincipios(lista, _prDatosEval(hoy), hoy, ahora);
   _prAvProgramarTs(lista, ahora);
   const sigD = x => JSON.stringify([x.p.enunciado, x.p.porque, x.detalle]), vivos = {};
   av.datos.forEach(x => { vivos[x.p.id] = sigD(x); });
@@ -909,13 +923,13 @@ function prChequearAvisos() {
   const items = av.datos.filter(x => !_prOcultos[x.p.id]).map(x => ({ k: 'd:' + x.p.id, p: x.p, detalle: x.detalle, diario: false }))
     .concat(av.diarios.filter(p => !_prVistoHoy(hoy, p.id)).map(p => ({ k: 'h:' + p.id, p, diario: true })));
   const clave = i => i.k + (i.diario ? '@' + hoy : '');
-  const sig = JSON.stringify(items.map(i => [clave(i), i.p.enunciado, i.p.porque, i.detalle]));
+  const sig = JSON.stringify([items.map(i => [clave(i), i.p.enunciado, i.p.porque, i.detalle]), rit.map(r => [r.k, r.titulo, r.sub])]);
   if (sig === _prAvSig && document.getElementById('pr-avisos')) return;
   const vigentes = new Set(items.map(clave));
   [..._prAvMostrados].forEach(k => { if (!vigentes.has(k)) _prAvMostrados.delete(k); });
   const nuevos = items.filter(i => !_prAvMostrados.has(clave(i)));
   nuevos.forEach(i => _prAvMostrados.add(clave(i)));
-  _prAvItems = items; _prAvSig = sig;
+  _prAvItems = items; _prAvRit = rit; _prAvSig = sig;
   _prAvCard = _prAvCard.filter(k => items.some(i => i.k === k));
   if (nuevos.length && !_prAvAbierto) { _prAvCard = nuevos.map(i => i.k); _prAvIniciarTimer(); _prAvDecir(nuevos[0], hoy); }
   if (!_prAvCard.length) clearTimeout(_prAvTimer);
@@ -960,6 +974,12 @@ Object.assign(Principios, {
     prChequearAvisos();
   },
   campana() { _prAvAbrir(!_prAvAbierto); },
+  // Acción de un ítem «Para hacer»: abre su formulario (y cierra el panel) o lo descarta.
+  ritual(k, accion) {
+    const r = _prAvRit.find(x => x.k === k); if (!r) return;
+    if (accion === 'descartar') { r.descartar(); return; }
+    _prAvAbrir(false, true); r.abrir();
+  },
   // Jarvis: principio del día → { p, aviso, texto, sugerencias, k } o null.
   delDia: _prDelDia,
   // Resumen compacto para el chat con IA (máx. 10, primero los que tienen aviso activo hoy): [{ enunciado, haz?, aviso? }].

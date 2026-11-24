@@ -18,7 +18,6 @@ const DUES3 = [
 
 async function preparar(page, { hoy = '2026-10-26', pagarDesde = null, cards = [NARANJA], cargos = [], dues = [], pagos = [], tab = 'tarjetas' } = {}) {
   // El aviso de la revisión semanal (domingo/lunes reales) tapa la barra de navegación en pantallas angostas.
-  await page.evaluate(() => { const n = document.getElementById('rs-nudge'); if (n) n.remove(); });
   await page.click('.nav-btn[data-tab="finanzas"]');
   await expect(page.locator('#tab-finanzas')).toHaveClass(/active/);
   await page.evaluate(({ hoy, pagarDesde, cards, cargos, dues, pagos }) => {
@@ -130,7 +129,6 @@ test.describe('deadlines (avisos)', () => {
   });
 
   test('en Recordatorios y en el ticker aparece el total con la deuda cargada', async ({ cmPage, consoleErrors }) => {
-    await cmPage.evaluate(() => { const n = document.getElementById('rs-nudge'); if (n) n.remove(); });
     await cmPage.click('.nav-btn[data-tab="finanzas"]');
     // deadlines.js usa la hora real: el primer vencimiento a partir de hoy lleva una deuda cargada de $123.000.
     const res = await cmPage.evaluate(() => {

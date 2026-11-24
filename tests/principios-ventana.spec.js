@@ -1,9 +1,11 @@
-// Principios como ventana (ya no es una pestaña del menú) + cierre del día con el mismo aviso que la Revisión semanal.
+// Principios como ventana (ya no es una pestaña del menú) + cierre del día como ítem «Para hacer» de la campanita (ya no hay cartel flotante).
 'use strict';
 const { test, expect, waitForBoot, completeLoginOverlay } = require('./support/fixtures');
 
 const sinScrollH = (page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
-const mostrarAviso = (page) => page.addStyleTag({ content: '#fo-nudge{display:flex!important}' });   // el fixture lo oculta
+// El cierre del día vive en el panel de la campanita: se abre el panel y se busca el ítem.
+const abrirPanel = async (page) => { if (!(await page.locator('#pr-av-panel').count())) await page.locator('#pr-avisos .pr-bell').click(); };
+const itemCierre = (page) => page.locator('#pr-av-panel .pr-av-rit', { hasText: 'Cerrá el día' });
 // Reloj local simulado (la hora se arma en la zona del propio equipo, igual que la app)
 const a = (page, h, m = 0, dia = 12) => page.clock.setFixedTime(new Date(2026, 10, dia, h, m));
 const limpiar = (page) => page.evaluate(() => { S.foco = undefined; localStorage.clear(); });
@@ -85,58 +87,60 @@ test.describe('Principios en ventana', () => {
   });
 });
 
-test.describe('Cierre del día como la Revisión semanal', () => {
-  test('21:00 sin registro: aparece; cerrar no pierde lo tipeado; guardar cierra y no reaparece', async ({ cmPage, consoleErrors }, testInfo) => {
+test.describe('Cierre del día en la campanita', () => {
+  test('21:00 sin registro: aparece en la campanita; cerrar no pierde lo tipeado; guardar cierra y no reaparece', async ({ cmPage, consoleErrors }, testInfo) => {
     await limpiar(cmPage);
-    await mostrarAviso(cmPage);
     await a(cmPage, 21);
     await cmPage.evaluate(() => Foco.chequearAviso());
-    await expect(cmPage.locator('#fo-nudge')).toBeVisible();
-    expect(await cmPage.locator('#fo-nudge .btn').evaluate((e) => e.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);
+    await expect(cmPage.locator('#fo-nudge')).toHaveCount(0);
+    await abrirPanel(cmPage);
+    await expect(itemCierre(cmPage)).toBeVisible();
+    expect(await itemCierre(cmPage).locator('.pr-btn-p').evaluate((e) => e.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);
     await cmPage.screenshot({ path: testInfo.outputPath('cierre-aviso.png') });
-    await cmPage.locator('#fo-nudge .btn').click();
+    await itemCierre(cmPage).locator('.pr-btn-p').click();
     await expect(cmPage.locator('#ov-foco-cierre.show')).toBeVisible();
     expect(await sinScrollH(cmPage)).toBe(true);
     await cmPage.locator('#ov-foco-cierre .fo-n').nth(3).click();   // atención 4
     await cmPage.fill('#fo-nota', 'Redes y mails');
     await cmPage.screenshot({ path: testInfo.outputPath('cierre-ventana.png') });
     await cmPage.locator('#ov-foco-cierre .cm-ov-close').click();      // cerrar sin guardar
-    await expect(cmPage.locator('#fo-nudge')).toBeVisible();            // sigue el aviso
-    await cmPage.locator('#fo-nudge .btn').click();
+    await abrirPanel(cmPage);
+    await expect(itemCierre(cmPage)).toBeVisible();                     // sigue el aviso
+    await itemCierre(cmPage).locator('.pr-btn-p').click();
     await expect(cmPage.locator('#fo-nota')).toHaveValue('Redes y mails');
     await expect(cmPage.locator('#ov-foco-cierre .fo-n.on')).toHaveCount(1);
     await cmPage.locator('#ov-foco-cierre .fo-n').nth(5).click();       // energía 1 (segunda escala, primer botón)
     await expect(cmPage.locator('#fo-nota')).toHaveValue('Redes y mails');
     await cmPage.locator('#ov-foco-cierre .pr-btn-p', { hasText: 'Guardar' }).click();
     await expect(cmPage.locator('#ov-foco-cierre.show')).toHaveCount(0);
-    await expect(cmPage.locator('#fo-nudge')).toHaveCount(0);
+    await expect(itemCierre(cmPage)).toHaveCount(0);
     const r = await cmPage.evaluate(() => ({ d: S.foco.dias, hoy: foHoyCierre() }));
     expect(r.d[r.hoy]).toMatchObject({ atencion: 4, energia: 1, nota: 'Redes y mails' });
     await cmPage.evaluate(() => Foco.chequearAviso());
-    await expect(cmPage.locator('#fo-nudge')).toHaveCount(0);           // no reaparece
+    await expect(itemCierre(cmPage)).toHaveCount(0);                    // no reaparece
     expect(consoleErrors).toEqual([]);
   });
 
-  test('descartar con la X: no vuelve ese día', async ({ cmPage }) => {
+  test('descartar: no vuelve ese día', async ({ cmPage }) => {
     await limpiar(cmPage);
-    await mostrarAviso(cmPage);
     await a(cmPage, 22);
     await cmPage.evaluate(() => Foco.chequearAviso());
-    await cmPage.locator('#fo-nudge .icon-btn').click();
+    await abrirPanel(cmPage);
+    await itemCierre(cmPage).locator('.pr-btn', { hasText: 'Descartar' }).click();
     await cmPage.evaluate(() => Foco.chequearAviso());
-    await expect(cmPage.locator('#fo-nudge')).toHaveCount(0);
+    await expect(itemCierre(cmPage)).toHaveCount(0);
   });
 
   test('15:00 no aparece; 02:00 aparece y guarda para el día anterior', async ({ cmPage }) => {
     await limpiar(cmPage);
-    await mostrarAviso(cmPage);
     await a(cmPage, 15);
     await cmPage.evaluate(() => Foco.chequearAviso());
-    await expect(cmPage.locator('#fo-nudge')).toHaveCount(0);
+    expect(await cmPage.evaluate(() => window.CMRituales.map((f) => f()).filter(Boolean).length)).toBe(0);
     await a(cmPage, 2, 0, 13);
     await cmPage.evaluate(() => Foco.chequearAviso());
-    await expect(cmPage.locator('#fo-nudge')).toBeVisible();
-    await cmPage.locator('#fo-nudge .btn').click();
+    await abrirPanel(cmPage);
+    await expect(itemCierre(cmPage)).toBeVisible();
+    await itemCierre(cmPage).locator('.pr-btn-p').click();
     await cmPage.locator('#ov-foco-cierre .fo-n').nth(2).click();
     await cmPage.locator('#ov-foco-cierre .fo-n').nth(7).click();
     await cmPage.locator('#ov-foco-cierre .pr-btn-p', { hasText: 'Guardar' }).click();
@@ -150,6 +154,6 @@ test.describe('Cierre del día como la Revisión semanal', () => {
     await expect(cmPage.locator('#ov-principios .fo-n')).toHaveCount(0);
     await cmPage.locator('#ov-principios .fo-btn', { hasText: 'Hacer el cierre de hoy' }).click();
     await expect(cmPage.locator('#ov-foco-cierre.show #fo-nota')).toBeVisible();
-    await expect(cmPage.locator('#fo-nudge')).toHaveCount(0);   // a las 15:00 el aviso no corre, el acceso sí
+    expect(await cmPage.evaluate(() => window.CMRituales.map((f) => f()).filter(Boolean).length)).toBe(0);   // a las 15:00 el aviso no corre, el acceso sí
   });
 });

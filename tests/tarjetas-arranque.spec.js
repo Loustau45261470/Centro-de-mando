@@ -15,7 +15,6 @@ const HOY = '2026-11-05';
 // Estado de antes del arranque: compras y pagos viejos (con ids de 10 y 20 días atrás) que NO tienen que sumar después.
 // Los ids con forma de uid() llevan el momento de registro; así se distingue lo anterior de lo posterior al arranque.
 async function preparar(page, { hoy = HOY, cards = [NARANJA], pagarDesde = null, tab = 'calendario' } = {}) {
-  await page.evaluate(() => { const n = document.getElementById('rs-nudge'); if (n) n.remove(); });
   await page.click('.nav-btn[data-tab="finanzas"]');
   await expect(page.locator('#tab-finanzas')).toHaveClass(/active/);
   await page.evaluate(({ hoy, cards, pagarDesde }) => {

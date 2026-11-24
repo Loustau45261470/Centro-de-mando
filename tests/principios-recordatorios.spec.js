@@ -217,7 +217,6 @@ test.describe('push-reminders.js: principio por horario', () => {
 // ── En el navegador ────────────────────────────────────────────────────────
 const sinScrollH = (page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
 const a = (page, h, m = 0, dia = 12) => page.clock.setFixedTime(new Date(2026, 10, dia, h, m));
-const mostrarAvisos = (page) => page.addStyleTag({ content: '#fo-nudge,#rs-nudge{display:flex!important}' });   // el fixture los oculta
 const poner = (page, ps, extra) => page.evaluate(([ps, extra]) => {
   S.principios = { principios: ps, categorias: [], objetivos: [], extras: {}, sembrado: true };
   S.foco = { dias: {}, pantalla: {}, chequeos: [], config: { horas: [] } };
@@ -565,19 +564,17 @@ test.describe('Recordatorios de principios en el Centro', () => {
     expect(consoleErrors).toEqual([]);
   });
 
-  test('con el cierre del día y la revisión semanal visibles, la campanita sigue a la vista y el panel no se sale de la pantalla (domingo 21:00)', async ({ cmPage, consoleErrors }) => {
+  test('con el cierre del día y la revisión semanal en el panel, la campanita sigue a la vista y el panel no se sale de la pantalla (domingo 21:00)', async ({ cmPage, consoleErrors }) => {
     await poner(cmPage, [prin({ disparo: { tipo: 'diario' } }), prin({ id: 'p2', enunciado: 'Dormir', disparo: DD })], { sleepLog: { '2026-11-15': { hours: 5 } } });
-    await mostrarAvisos(cmPage);
     await a(cmPage, 21, 0, 15);
     await cmPage.evaluate(() => { window.renderGoals(); });
-    await expect(cmPage.locator('#rs-nudge')).toBeVisible();
-    await expect(cmPage.locator('#fo-nudge')).toBeVisible();
+    await expect(cmPage.locator('#rs-nudge, #fo-nudge')).toHaveCount(0);   // ya no hay carteles flotantes
     await expect(bell(cmPage)).toBeVisible();
-    const sol = await cmPage.evaluate(() => { const b = document.querySelector('#pr-avisos .pr-bell').getBoundingClientRect();
-      return ['#rs-nudge', '#fo-nudge'].map((s) => { const o = document.querySelector(s).getBoundingClientRect(); return b.left < o.right && b.right > o.left && b.top < o.bottom && b.bottom > o.top; }); });
-    expect(sol).toEqual([false, false]);
     await bell(cmPage).click();
     await expect(panel(cmPage)).toBeVisible();
+    await expect(panel(cmPage).locator('.pr-av-rit')).toHaveCount(2);
+    const dentro = await cmPage.evaluate(() => { const r = document.querySelector('#pr-av-panel').getBoundingClientRect(); return r.left >= 0 && r.right <= window.innerWidth && r.top >= 0; });
+    expect(dentro).toBe(true);
     expect(await sinScrollH(cmPage)).toBe(true);
     expect(consoleErrors).toEqual([]);
   });

@@ -6988,14 +6988,8 @@ textarea.pr-in { resize: vertical; min-height: 60px; }
 .fo-rep { flex-wrap: nowrap; }
 .pr-in.fo-hora { width: 120px; }
 
-/* Aviso nocturno del cierre del día (foco.js): mismo aviso que la Revisión semanal (.rs-nudge); si ambos coinciden, se apila arriba. */
-#fo-nudge .btn, #fo-nudge .icon-btn { min-height: 44px; min-width: 44px; }
-body:has(#rs-nudge) #fo-nudge { bottom: calc(max(12px, env(safe-area-inset-bottom, 0px)) + 76px); }
-/* Celular (barra #nav abajo): los avisos van por encima de la barra y del botón flotante .cm-sd */
-@media (max-width: 979px) {
-  #rs-nudge, #fo-nudge { bottom: calc(var(--nav) + var(--safe-b) + 76px); }
-  body:has(#rs-nudge) #fo-nudge { bottom: calc(var(--nav) + var(--safe-b) + 152px); }
-}
+/* Cierre del día y Revisión semanal: ítems «Para hacer» dentro del panel de la campanita (ya no hay carteles flotantes). */
+.pr-av-rit .pr-av-t { color: var(--tp); font-size: var(--fs-14); }
 
 /* Avisos de principios (principios.js): campanita en la franja del ticker, a la izquierda del botón de Game Mode (#trophy-btn); tarjeta grande 8 s al llegar uno nuevo y panel con todos. */
 .pr-avisos { position: fixed; top: calc((var(--ticker) - 26px) / 2); right: 42px; width: 26px; height: 26px; z-index: 120; pointer-events: none; }

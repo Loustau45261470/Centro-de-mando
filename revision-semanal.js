@@ -15,21 +15,6 @@
   // ── Estilos propios ────────────────────────────────────────────────
   const style = document.createElement('style');
   style.textContent = `
-    .rs-nudge {
-      position: fixed; left: 12px; right: 12px; bottom: max(12px, env(safe-area-inset-bottom, 0px));
-      z-index: 500; margin: 0 auto; max-width: 440px;
-      display: flex; align-items: center; gap: 10px;
-      background: rgba(10,16,30,.94); border: 1px solid var(--border); border-radius: 14px;
-      padding: 11px 12px; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-      box-shadow: 0 8px 28px rgba(0,0,0,.35);
-      animation: rs-nudge-in .32s var(--ease-out-quart) both;
-    }
-    @keyframes rs-nudge-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-    .rs-nudge-txt { flex: 1; min-width: 0; }
-    .rs-nudge-title { font-size: var(--fs-14); font-weight: 700; color: var(--tp); }
-    .rs-nudge-sub { font-size: var(--fs-12-5); color: var(--ts); margin-top: 1px; }
-    @media (prefers-reduced-motion: reduce) { .rs-nudge { animation: none !important; } }
-
     .rs-steps { display: flex; align-items: center; gap: 6px; margin: 2px 4px 16px; }
     .rs-step-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); }
     .rs-step-dot.on { background: var(--c-vida, var(--hud)); box-shadow: 0 0 8px color-mix(in oklab, var(--c-vida, var(--hud)) 70%, transparent); }
@@ -287,7 +272,7 @@
     saveState();
     if (typeof showToast === 'function') showToast('Revisión semanal guardada');
     CMOverlay.close('ov-revision-semanal');
-    _rsHideNudge();
+    _rsCheckNudge();
   }
 
   function _rsUpdateNav() {
@@ -352,43 +337,27 @@
     setTimeout(() => { const closeBtn = overlay.querySelector('.cm-ov-close'); if (closeBtn) closeBtn.focus(); }, 0);
   }
 
-  // ── Aviso discreto (domingo/lunes, si la revisión de la semana que cierra
-  // todavía no se hizo) — banner descartable, nunca un modal. ─────────────
-  function _rsShowNudge() {
-    if (document.getElementById('rs-nudge')) return;
-    const el = document.createElement('div');
-    el.id = 'rs-nudge';
-    el.className = 'rs-nudge';
-    el.setAttribute('role', 'status');
-    el.setAttribute('aria-live', 'polite');
-    el.innerHTML = `
-      <div class="rs-nudge-txt">
-        <div class="rs-nudge-title">Cerrá la semana</div>
-        <div class="rs-nudge-sub">Todavía no hiciste la revisión semanal</div>
-      </div>
-      <button class="btn btn-primary btn-sm" onclick="abrirRevisionSemanal()">Revisar</button>
-      <button class="icon-btn" aria-label="Descartar aviso" onclick="_rsDismissNudge()">✕</button>`;
-    document.body.appendChild(el);
-  }
-  function _rsHideNudge() { const el = document.getElementById('rs-nudge'); if (el) el.remove(); }
+  // ── Aviso (domingo/lunes, si la revisión de la semana que cierra todavía no se hizo).
+  // Ya no es un cartel flotante: es un ítem «Para hacer» en el panel de la campanita (principios.js, CMRituales).
   function _rsDismissNudge() {
     const info = _rsComputeInfo();
     try { localStorage.setItem('cm_rs_dismiss_' + info.entryWeekKey, '1'); } catch (e) {}
-    _rsHideNudge();
+    _rsCheckNudge();
   }
-  function _rsCheckNudge() {
+  function _rsToca() {
     _rsEnsureState();
     const today = getActiveDate();
     const dow = new Date(today + 'T12:00:00').getDay(); // 0 = domingo, 1 = lunes
-    if (dow !== 0 && dow !== 1) { _rsHideNudge(); return; }
+    if (dow !== 0 && dow !== 1) return false;
     const info = _rsComputeInfo();
     const entry = S.revisionSemanal[info.entryWeekKey];
-    if (entry && entry.hechaEl) { _rsHideNudge(); return; }
-    let dismissed = false;
-    try { dismissed = localStorage.getItem('cm_rs_dismiss_' + info.entryWeekKey) === '1'; } catch (e) {}
-    if (dismissed) { _rsHideNudge(); return; }
-    _rsShowNudge();
+    if (entry && entry.hechaEl) return false;
+    try { if (localStorage.getItem('cm_rs_dismiss_' + info.entryWeekKey) === '1') return false; } catch (e) {}
+    return true;
   }
+  function _rsCheckNudge() { if (typeof prChequearAvisos === 'function') prChequearAvisos(); }
+  (window.CMRituales = window.CMRituales || []).push(() => _rsToca()
+    ? { k: 'ritual:semana', titulo: 'Cerrá la semana', sub: 'Todavía no hiciste la revisión semanal', label: 'Revisar', abrir: abrir, descartar: _rsDismissNudge } : null);
   // El boot real (post-login) llama renderGoals() apenas loadState() resuelve
   // (ver _initApp en app.js) — no hay evento "app lista", así que se engancha
   // ahí (mismo patrón que telemetry.js con switchTab).
