@@ -112,6 +112,30 @@ body::after {
   box-shadow: 0 0 16px rgba(56,189,248,0.45);
   animation: hud-scan 8s cubic-bezier(0.4,0,0.6,1) infinite;
 }
+/* ── Fondo A1 "degradé quieto" (solo tema por defecto; bloomberg/amber/radar/infrared conservan el suyo).
+   Reemplaza scanlines/radiales de body, la grilla (body::before) y el canvas de partículas (#hud-ambient).
+   Luz suave arriba del color de la sección activa que respira lento. Solo CSS: sin JS por frame. */
+@property --a1-c { syntax: '<color>'; inherits: true; initial-value: #5CF6FF; }
+body:not([class*="theme-"]) {
+  --a1-c: var(--c-jarvis);
+  transition: --a1-c .9s ease;
+  background: linear-gradient(165deg, #050A12, #08111D 55%, #050B14);
+}
+body:not([class*="theme-"]):has(#tab-vida.active)         { --a1-c: var(--c-vida); }
+body:not([class*="theme-"]):has(#tab-finanzas.active)     { --a1-c: var(--c-finanzas); }
+body:not([class*="theme-"]):has(#tab-salud.active)        { --a1-c: var(--c-salud); }
+body:not([class*="theme-"]):has(#tab-conocimiento.active) { --a1-c: var(--c-conocimiento); }
+body:not([class*="theme-"]):has(#tab-ia.active)           { --a1-c: var(--c-ia); }
+body:not([class*="theme-"])::before {
+  background: radial-gradient(70% 55% at 50% -5%, color-mix(in srgb, var(--a1-c) 22%, transparent), transparent 70%);
+  -webkit-mask-image: none; mask-image: none;
+  animation: a1-breathe 14s ease-in-out infinite alternate;
+}
+body:not([class*="theme-"]) #hud-ambient { display: none; }
+@keyframes a1-breathe { from { opacity: .45; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  body:not([class*="theme-"])::before { animation: none; opacity: .75; }
+}
 @keyframes hud-scan {
   0%   { transform: translateY(0);    opacity: 0; }
   10%  { opacity: 0.32; }

@@ -63,6 +63,8 @@
   let last = 0, hidden = false, frame = 0;
   function draw(ts){
     if (hidden) return;
+    // Canvas oculto (tema por defecto, fondo A1: display:none) → no pintar ni pedir más frames; se revisa cada 1 s.
+    if (!cv.offsetWidth){ pollT = setTimeout(poll, 1000); return; }
     requestAnimationFrame(draw);
     if (ts - last < 22) return;        // ~45fps cap
     last = ts;
@@ -123,8 +125,10 @@
     }
   }
 
-  function start(){ hidden = false; last = 0; requestAnimationFrame(draw); }
-  function stop(){ hidden = true; }
+  let pollT = 0;
+  function poll(){ if (hidden) return; if (cv.offsetWidth) requestAnimationFrame(draw); else pollT = setTimeout(poll, 1000); }
+  function start(){ hidden = false; last = 0; clearTimeout(pollT); requestAnimationFrame(draw); }
+  function stop(){ hidden = true; clearTimeout(pollT); }
 
   addEventListener('resize', () => { clearTimeout(cv._rt); cv._rt = setTimeout(resize, 180); }, { passive: true });
   document.addEventListener('visibilitychange', () => { document.hidden ? stop() : start(); });
