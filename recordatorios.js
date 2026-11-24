@@ -313,7 +313,35 @@ function deleteReminder(tab, id) {
 }
 
 // ── Reminder Notifications ──
-const _notifiedSet = new Set();
+// Avisos ya mostrados: persisten en localStorage (podados a 3 días), se comparten entre pestañas (mismo localStorage) y se
+// suman a lo que el push ya avisó en la nube (notifiedReminders, solo lectura). Misma forma de clave que deadlines.js (con fecha).
+const _AV_LS = 'cdm_avisosVistos', _AV_TTL = 3 * 86400000;
+const _avTab = Math.random().toString(36).slice(2);
+const _avMem = {};            // respaldo si localStorage no está disponible
+const _avisosNube = {};       // espejo de notifiedReminders del documento
+function avisosNubeSet(m) {
+  Object.keys(_avisosNube).forEach(k => delete _avisosNube[k]);
+  if (m && typeof m === 'object') Object.keys(m).forEach(k => { if (m[k]) _avisosNube[k] = true; });
+}
+function _avLeer() {
+  try { const o = JSON.parse(localStorage.getItem(_AV_LS) || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return Object.assign({}, _avMem); }
+}
+function _avEscribir(o) {
+  const lim = Date.now() - _AV_TTL;
+  Object.keys(o).forEach(k => { if (!o[k] || o[k][0] < lim) delete o[k]; });
+  Object.keys(_avMem).forEach(k => delete _avMem[k]); Object.assign(_avMem, o);
+  try { localStorage.setItem(_AV_LS, JSON.stringify(o)); } catch (e) {}
+}
+const _notifiedSet = {
+  has(k) { return !!_avisosNube[k] || !!_avLeer()[k]; },
+  // Reserva la clave: true si esta pestaña es la que debe mostrar el aviso (otra pestaña o el push ya lo tomó → false).
+  claim(k) {
+    if (this.has(k)) return false;
+    const o = _avLeer(); o[k] = [Date.now(), _avTab]; _avEscribir(o);
+    const v = _avLeer()[k];
+    return !v || v[1] === _avTab;
+  },
+};
 
 function initNotifications() {
   if (!('Notification' in window)) { showToast('Este navegador no soporta notificaciones'); return; }
@@ -355,14 +383,15 @@ function _showNotif(title, opts) {
 
 // Notifica TODO lo que vence (recordatorios, proyectos, finales, cursada, metas,
 // actividades, proyecciones, pedidos). Los avisos los calcula
-// CMDeadlines; acá solo se disparan los que cayeron en los últimos 5 min.
+// CMDeadlines; acá solo se disparan los que cayeron en los últimos 20 min.
 // Corre cada 60 s con la app abierta; con la app cerrada lo cubre push-reminders.js.
+// Lo que venció hace más (PC suspendida, pestaña dormida) lo junta avisosAlVolver() en un solo resumen.
 function checkReminderNotifications() {
-  if (!('Notification' in window) || Notification.permission !== 'granted') return;
   if (typeof CMDeadlines === 'undefined') return;
-  CMDeadlines.dueAlerts(S, { now: Date.now(), windowMs: 5 * 60000, seen: _notifiedSet })
+  if (!('Notification' in window) || Notification.permission !== 'granted') { avisoPermisoNotif(); return; }
+  CMDeadlines.dueAlerts(S, { now: Date.now(), windowMs: 20 * 60000, seen: _notifiedSet })
     .forEach(a => {
-      _notifiedSet.add(a.key);
+      if (!_notifiedSet.claim(a.key)) return;
       const o = {
         body: a.body,
         tag: a.key,
@@ -372,6 +401,102 @@ function checkReminderNotifications() {
       if (a.url) o.data = { url: a.url };
       _showNotif(a.title, o);
     });
+}
+
+// ── Avisos dentro de la app (tarjetas arriba a la derecha) ──
+function _avisoCard(id, build) {
+  let c = document.getElementById('avisos-app');
+  if (!c) { c = document.createElement('div'); c.id = 'avisos-app'; c.setAttribute('role', 'region'); c.setAttribute('aria-label', 'Avisos'); document.body.appendChild(c); }
+  let el = document.getElementById(id);
+  if (!el) { el = document.createElement('div'); el.id = id; el.className = 'av-card'; c.appendChild(el); }
+  el.textContent = '';
+  build(el);
+  return el;
+}
+function _avisoCerrar(id) {
+  const el = document.getElementById(id); if (el) el.remove();
+  const c = document.getElementById('avisos-app'); if (c && !c.children.length) c.remove();
+  if (id === 'av-resumen') _avResumenItems = [];
+}
+function _avBtnCerrar(el, id) {
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'av-x'; b.setAttribute('aria-label', 'Cerrar aviso'); b.textContent = '×';
+  b.onclick = () => _avisoCerrar(id);
+  el.appendChild(b);
+}
+
+// Aviso «Mientras no estabas»: un único resumen; si llegan más ítems con el resumen abierto, se suman.
+let _avResumenItems = [];
+function _avisoResumen(lista) {
+  _avResumenItems = _avResumenItems.concat(lista.map(a => ({ title: a.title, body: a.body || '', url: a.url || '' })));
+  _avisoCard('av-resumen', el => {
+    _avBtnCerrar(el, 'av-resumen');
+    const h = document.createElement('div'); h.className = 'av-tit'; h.textContent = 'Mientras no estabas:'; el.appendChild(h);
+    _avResumenItems.slice(0, 6).forEach(it => {
+      const r = document.createElement('div'); r.className = 'av-row';
+      const t = document.createElement('div'); t.className = 'av-row-txt';
+      const b = document.createElement('b'); b.textContent = it.title; t.appendChild(b);
+      if (it.body) { const sp = document.createElement('span'); sp.textContent = it.body; t.appendChild(sp); }
+      r.appendChild(t);
+      if (it.url) {
+        const v = document.createElement('button'); v.type = 'button'; v.className = 'av-ver'; v.textContent = 'Ver';
+        v.onclick = () => { try { navigator.serviceWorker.dispatchEvent(new MessageEvent('message', { data: { tipo: 'abrir-destino', url: String(it.url) } })); } catch (e) {} _avisoCerrar('av-resumen'); };
+        r.appendChild(v);
+      }
+      el.appendChild(r);
+    });
+    if (_avResumenItems.length > 6) { const m = document.createElement('div'); m.className = 'av-mas'; m.textContent = 'y ' + (_avResumenItems.length - 6) + ' más'; el.appendChild(m); }
+  });
+}
+
+// Lee notifiedReminders del servidor (solo lectura) para no repetir lo que el push ya avisó mientras la app dormía.
+async function _avisosRefrescarNube() {
+  try {
+    const snap = await Promise.race([_DOC().get({ source: 'server' }), new Promise((_, rej) => setTimeout(() => rej(new Error('t')), 3000))]);
+    const d = snap && typeof snap.data === 'function' ? snap.data() : null;
+    if (d && d.notifiedReminders) avisosNubeSet(d.notifiedReminders);
+  } catch (e) {}
+}
+// Al volver a la app (visible, foco, conexión, pageshow, resume): junta lo que venció en la última hora sin aviso.
+let _avBusy = false, _avUlt = 0;
+async function avisosAlVolver() {
+  if (_avBusy || typeof CMDeadlines === 'undefined' || typeof S === 'undefined' || !S) return;
+  if (!(typeof _auth !== 'undefined' && _auth && _auth.currentUser)) return;
+  if (Date.now() - _avUlt < 3000) return;
+  _avUlt = Date.now();
+  _avBusy = true;
+  try {
+    const opts = () => ({ now: Date.now(), windowMs: 60 * 60000, windowLeadMs: 60 * 60000, seen: _notifiedSet });
+    if (!CMDeadlines.dueAlerts(S, opts()).length) { checkReminderNotifications(); return; }
+    await _avisosRefrescarNube();
+    const lista = CMDeadlines.dueAlerts(S, opts()).filter(a => _notifiedSet.claim(a.key));
+    if (lista.length) _avisoResumen(lista);
+  } catch (e) {
+  } finally { _avBusy = false; }
+}
+['focus', 'pageshow', 'online'].forEach(ev => window.addEventListener(ev, () => { avisosAlVolver(); }));
+document.addEventListener('resume', () => { avisosAlVolver(); });
+
+// Permiso de notificaciones: si no se puede avisar en este dispositivo, se dice (una vez por día, cerrable).
+function avisoPermisoNotif() {
+  try {
+    if (!(typeof _auth !== 'undefined' && _auth && _auth.currentUser)) return;
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const instalada = navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+    const hayApi = 'Notification' in window;
+    let txt;
+    if (isIOS && !instalada && (!hayApi || Notification.permission !== 'granted')) txt = 'Para recibir avisos en el iPhone, agregá la app a la pantalla de inicio: tocá Compartir y después «Agregar a pantalla de inicio». Abrila desde ese ícono y activá las notificaciones.';
+    else if (hayApi && Notification.permission === 'denied') txt = 'Las notificaciones están bloqueadas en este dispositivo, así que no te van a llegar los avisos. Para activarlas, tocá el candado de la barra de direcciones (o los ajustes del navegador) y permití las notificaciones de este sitio.';
+    else return;
+    const hoy = new Date().toLocaleDateString('sv-SE');
+    if (localStorage.getItem('cdm_avisoNotifDia') === hoy) return;
+    localStorage.setItem('cdm_avisoNotifDia', hoy);
+    _avisoCard('av-permiso', el => {
+      _avBtnCerrar(el, 'av-permiso');
+      const h = document.createElement('div'); h.className = 'av-tit'; h.textContent = '🔕 Avisos desactivados'; el.appendChild(h);
+      const p = document.createElement('div'); p.className = 'av-txt'; p.textContent = txt; el.appendChild(p);
+    });
+  } catch (e) {}
 }
 
 // ── Aviso de avisos caídos ──

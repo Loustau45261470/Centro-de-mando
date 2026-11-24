@@ -84,6 +84,8 @@ const test = base.test.extend({
     }
 
     await page.addInitScript({ content: buildInitScript(ESTADO_BASE) });
+    // Chromium headless tiene las notificaciones denegadas: sin esto la tarjeta diaria de "avisos bloqueados" tapa clics de los demás tests.
+    await page.addInitScript(() => { try { localStorage.setItem('cdm_avisoNotifDia', new Date().toLocaleDateString('sv-SE')); } catch (e) {} });
     // El aviso de revisión semanal (domingo y lunes) y el del cierre del día (de noche) tapan la barra de navegación: los tests no dependen de él.
     await page.addInitScript(() => document.addEventListener('DOMContentLoaded', () => {
       const st = document.createElement('style');

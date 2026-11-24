@@ -659,6 +659,41 @@
       "desc": "Cuentas prestamo (A cobrar) en $0 tras cobrar todo seguian visibles; se ocultan en lectura sin borrar datos y reaparecen si cambia el saldo. Deshacer cobro sin cuenta no rompe.",
       "file": "finanzas.js",
       "marker": "function acctVisible("
+    },
+    {
+      "id": "avisos-resumen-al-volver",
+      "fecha": "2026-11-24",
+      "desc": "Lo que vencio mientras la PC dormia o la pestana estaba oculta se perdia (ventana de 5 min). Ahora la ventana local es de 20 min y al volver (visible/focus/online/pageshow/resume) se junta lo vencido en la ultima hora en un unico resumen Mientras no estabas.",
+      "file": "recordatorios.js",
+      "marker": "async function avisosAlVolver("
+    },
+    {
+      "id": "avisos-vistos-persistentes",
+      "fecha": "2026-11-24",
+      "desc": "_notifiedSet vivia solo en memoria: un aviso cerrado volvia tras recargar y cada pestana tenia el suyo. Ahora persiste en localStorage (3 dias, compartido entre pestanas con claim) y suma notifiedReminders de la nube (solo lectura).",
+      "file": "recordatorios.js",
+      "marker": "const _AV_LS = "
+    },
+    {
+      "id": "pomodoro-aviso-otros-dispositivos",
+      "fecha": "2026-11-24",
+      "desc": "Al vencer una fase en vivo se cancelaba el timer del Worker y los otros dispositivos perdian el aviso. Ahora no se cancela al vencer (solo al pausar/cortar/resetear) y fin de estudio y de descanso usan timers distintos (pomo-e / pomo-d) para que el siguiente no pise al que esta por sonar.",
+      "file": "pomodoro.js",
+      "marker": "_schedulePushAlarm('pomo-e'"
+    },
+    {
+      "id": "aviso-permiso-notificaciones",
+      "fecha": "2026-11-24",
+      "desc": "Con el permiso de notificaciones denegado (o iPhone sin instalar la PWA) no se avisaba nada. Ahora hay una tarjeta cerrable, una vez por dia, con el texto segun el caso.",
+      "file": "recordatorios.js",
+      "marker": "function avisoPermisoNotif("
+    },
+    {
+      "id": "sw-recarga-sin-cortar-edicion",
+      "fecha": "2026-11-24",
+      "desc": "controllerchange hacia location.reload() inmediato y cortaba modales/formularios. Ahora se difiere mientras haya modal/overlay abierto, foco en un campo o guardado en curso, con aviso Hay una version nueva.",
+      "file": "app.js",
+      "marker": "function _swControllerCambio("
     }
   ]
 }

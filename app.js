@@ -323,16 +323,45 @@ function _registrarEscritura(dev, savedAt) {
 // ── PWA / Web Push ────────────────────────────────────────────────────────────
 let _swReg = null;
 
-let _swRefreshing = false;
+let _swRefreshing = false, _swPendTid = null;
+// Recarga para tomar la versión nueva. Función aparte para poder reemplazarla en los tests.
+function _swRecargar() { try { if (typeof _fbFlush === 'function') _fbFlush(); } catch (e) {} location.reload(); }
+// ¿Hay algo a medio hacer? Modal u overlay abierto, escribiendo en un campo, o un guardado en curso.
+function _swOcupado() {
+  try {
+    if (document.querySelector('.modal-overlay.open, .cm-overlay.show, [id$="-overlay"].open, [id$="-overlay"].show, [id$="-overlay"].on, dialog[open]')) return true;
+    const a = document.activeElement;
+    if (a && a !== document.body && a.matches('textarea, select, [contenteditable=""], [contenteditable="true"], input:not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]):not([type=range]):not([type=file])')) return true;
+    if (_fbSaveTid || _fbSaveInProgress) return true;
+  } catch (e) {}
+  return false;
+}
+function _swIntentarRecargar() {
+  if (!_swRefreshing) return;
+  if (_swOcupado()) {
+    if (typeof _avisoCard === 'function') _avisoCard('av-update', el => {
+      const t = document.createElement('div'); t.className = 'av-txt';
+      t.textContent = 'Hay una versión nueva — se actualiza apenas termines o cierres esto.';
+      el.appendChild(t);
+    });
+    return;
+  }
+  clearInterval(_swPendTid); _swPendTid = null;
+  _swRecargar();
+}
+// Llegó un service worker nuevo: se recarga una sola vez, pero sin cortar lo que se está haciendo.
+function _swControllerCambio() {
+  if (_swRefreshing) return;
+  _swRefreshing = true;
+  _swIntentarRecargar();
+  if (_swRefreshing && !_swPendTid) _swPendTid = setInterval(_swIntentarRecargar, 1500);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) _swIntentarRecargar(); });
 async function _pwaInit() {
   if (!('serviceWorker' in navigator)) return;
   // Si ya había un SW controlando y aparece uno nuevo, recargar una vez para tomar la versión fresca.
   if (navigator.serviceWorker.controller) {
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (_swRefreshing) return;
-      _swRefreshing = true;
-      location.reload();
-    });
+    navigator.serviceWorker.addEventListener('controllerchange', _swControllerCambio);
   }
   try {
     _swReg = await navigator.serviceWorker.register('./sw.js');
@@ -1414,6 +1443,7 @@ function _startFirestoreSync() {
   _DOC().onSnapshot(snap => {
     if (snap.exists) _registrarEscritura(snap.data()._dev, snap.data()._savedAt);  // solo informativo
     if (typeof pushDeadAviso === 'function') pushDeadAviso(snap.exists ? snap.data().pushDead : null, snap.exists ? snap.data().pushHealth : null);  // solo visibilidad: aviso de avisos caídos
+    if (typeof avisosNubeSet === 'function' && snap.exists) avisosNubeSet(snap.data().notifiedReminders);  // solo lectura: lo que el push ya avisó no se repite en la app
     if (_fbSaveTid || _fbSaveInProgress) { window._snapDrops = (window._snapDrops || 0) + 1; _dgSnapDrop(snap); return; }  // save en vuelo — descarta update remoto
     if (!snap.exists || !snap.data()?.state) return;
     if (snap.data()._wid && snap.data()._wid === _lastWriteId) return;  // eco propio
@@ -4950,7 +4980,7 @@ document.addEventListener('visibilitychange', () => {
 });
 window.addEventListener('pagehide', () => _syncEv('pagehide', { timer: !!_fbSaveTid, vuelo: _fbSaveInProgress }));
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) { checkReminderNotifications(); _reanudarListener(); _syncOnFocus(); _msHub.showReminders(); }
+  if (!document.hidden) { avisosAlVolver(); _reanudarListener(); _syncOnFocus(); _msHub.showReminders(); }
   else { _fbFlush(); }   // al ocultar: subir cambios pendientes sin esperar el debounce de 2s
 });
 window.addEventListener('pagehide', _fbFlush);

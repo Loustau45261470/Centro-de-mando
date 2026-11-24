@@ -1854,7 +1854,7 @@ function _rtnTimerTick(exId, exName) {
   if (!d || !b) { clearInterval(_rtnTimers[exId]); delete _rtnTimers[exId]; return; }
   if (_rtnTimerRemaining[exId] <= 0) {
     clearInterval(_rtnTimers[exId]); delete _rtnTimers[exId];
-    if (typeof _cancelPushAlarm === 'function') _cancelPushAlarm('rtn-' + exId); // ya se anunció en vivo, no duplicar
+    // Sin _cancelPushAlarm: el aviso del Worker llega a los otros dispositivos; en este se junta con el local (mismo tag 'rtn-timer').
     d.textContent = '¡Listo!';
     b.classList.add('done');
     showToast('⏱ ¡Descansaste! Seguí con la próxima serie.');

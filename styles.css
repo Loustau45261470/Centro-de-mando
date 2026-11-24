@@ -6809,6 +6809,22 @@ input:focus, select:focus, textarea:focus {
   border:1px solid var(--danger);box-shadow:0 10px 34px rgba(0,0,0,.5);
   font-size:var(--fs-13);font-weight:600;color:var(--tp)}
 
+/* Avisos dentro de la app: «Mientras no estabas», permiso de notificaciones y versión nueva (recordatorios.js · _avisoCard) */
+#avisos-app{position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top,0px) + 10px);z-index:8785;max-width:440px;margin:0 auto;
+  display:flex;flex-direction:column;gap:8px;pointer-events:none}
+body:has(#pushdead-banner) #avisos-app{top:calc(env(safe-area-inset-top,0px) + 74px)}
+.av-card{position:relative;pointer-events:auto;padding:11px 36px 11px 13px;border-radius:11px;line-height:1.4;
+  background:linear-gradient(180deg,rgba(14,18,28,.97),rgba(8,10,16,.98));border:1px solid var(--border);
+  box-shadow:0 10px 34px rgba(0,0,0,.5);font-size:var(--fs-13);color:var(--tp)}
+.av-card .av-tit{font-weight:700;margin-bottom:6px}
+.av-card .av-txt{color:var(--ts)}
+.av-card .av-x{position:absolute;top:4px;right:6px;width:28px;height:28px;border:0;background:none;color:var(--ts);font-size:20px;line-height:1;cursor:pointer}
+.av-card .av-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 0;border-top:1px solid var(--border)}
+.av-card .av-row-txt{display:flex;flex-direction:column;min-width:0}
+.av-card .av-row-txt span{color:var(--ts);font-size:var(--fs-12-5)}
+.av-card .av-ver{flex:none;padding:5px 12px;border-radius:8px;border:1px solid var(--border);background:none;color:var(--tp);font-size:var(--fs-12-5);cursor:pointer}
+.av-card .av-mas{color:var(--ts);font-size:var(--fs-12-5);padding-top:4px}
+
 /* Progreso de carrera: próximo final de las materias que faltan del año (finales.js → proximoDe). */
 .law-next-final { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--border); font-size: var(--fs-12-5); color: var(--tt); font-family: var(--mono); }
 .law-next-final strong { color: var(--ts); font-weight: 600; }

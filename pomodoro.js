@@ -137,10 +137,13 @@ const Pomodoro = (() => {
   // el celular con otra app. Se reprograma en cada transición de fase; el aviso
   // local (announce()) ya cubre el caso con la pestaña activa, así que al completar
   // una fase EN VIVO se cancela el push pendiente para no duplicar el aviso.
+  // Dos timers distintos del Worker (fin de estudio / fin de descanso): al pasar de fase en vivo NO se cancela el que acaba
+  // de vencer — su aviso les llega igual a los otros dispositivos — y como el siguiente usa OTRO id no lo pisa.
+  // En este dispositivo el aviso del Worker (tag 'pomo') es la única notificación del sistema: no se duplica.
   function scheduleStudyPush() {
     const isLast = cycle >= cfg.cycles;
     if (typeof _schedulePushAlarm === 'function') {
-      _schedulePushAlarm('pomo', remaining,
+      _schedulePushAlarm('pomo-e', remaining,
         isLast ? '✅ Pomodoro completo' : '☕ ¡Descanso!',
         isLast ? `${cfg.cycles} ciclos completos — buen trabajo.` : `Bloque ${cycle} completo — tomate ${cfg.brk} min.`,
         'pomo');
@@ -148,10 +151,11 @@ const Pomodoro = (() => {
   }
   function scheduleBreakPush() {
     if (typeof _schedulePushAlarm === 'function') {
-      _schedulePushAlarm('pomo', remaining, '📚 ¡A estudiar!', `Descanso terminado — arrancá el ciclo ${cycle}/${cfg.cycles}.`, 'pomo');
+      _schedulePushAlarm('pomo-d', remaining, '📚 ¡A estudiar!', `Descanso terminado — arrancá el ciclo ${cycle}/${cfg.cycles}.`, 'pomo');
     }
   }
-  function cancelPush() { if (typeof _cancelPushAlarm === 'function') _cancelPushAlarm('pomo'); }
+  // Solo cuando el usuario pausa, corta o resetea a propósito (nunca al vencer la fase).
+  function cancelPush() { if (typeof _cancelPushAlarm === 'function') { _cancelPushAlarm('pomo-e'); _cancelPushAlarm('pomo-d'); } }
 
   function startTick() { stopTick(); timer = setInterval(tick, 1000); }
   function stopTick() { if (timer) { clearInterval(timer); timer = null; } }
@@ -164,7 +168,7 @@ const Pomodoro = (() => {
   }
 
   function advance() {
-    cancelPush(); // la fase que recién terminó ya se anunció localmente (announce) — no duplicar con el push
+    // Sin cancelPush(): el aviso de la fase que recién venció lo manda el Worker a los OTROS dispositivos (hallazgo 10).
     if (phase === 'study') {
       const today = typeof getActiveDate === 'function' ? getActiveDate() : new Date().toISOString().slice(0, 10);
       logSesion(today, cfg.study, true);
