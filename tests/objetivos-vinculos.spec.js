@@ -28,9 +28,9 @@ test.describe('vínculos de objetivos: cálculo', () => {
       S.sleepLog = { [a]: { waketime: '07:10' }, [b]: { waketime: '07:20' }, [c]: { waketime: '07:00' }, [d]: { waketime: '09:00' }, [e]: { waketime: '06:00' } };
     }, [1, 2, 3, 4, 5].map(dia));
     const r = await prog(cmPage, MES, { type: 'sleep', metric: 'wake_in', desde: '07:00', hasta: '07:30', target: 60 });
-    expect(r.label).toContain('30% de los días (meta 60%)');   // 3 que cumplen / 10 días transcurridos
-    expect(r.label).toContain('5 de 10 días registrados');
-    expect(r.pct).toBe(50);
+    expect(r.label).toContain('30% · meta 60%');   // 3 que cumplen / 10 días transcurridos (ahora «x% · meta y%», sin «de los días»)
+    expect([r.reg, r.D]).toEqual([5, 10]);   // los días registrados ya no van en el texto: quedan como dato
+    expect(r.pct).toBe(30);   // la barra va al % real (antes iba a val/meta); la meta es una marca aparte
     expect(r.exceeded).toBeFalsy();
   });
 
@@ -40,24 +40,24 @@ test.describe('vínculos de objetivos: cálculo', () => {
       S.sleepLog = { [a]: { bedtime: '23:00' }, [b]: { bedtime: '23:45' }, [c]: { bedtime: '00:15' }, [d]: { bedtime: '22:30' } };
     }, [1, 2, 3, 4].map(dia));
     const r = await prog(cmPage, MES, { type: 'sleep', metric: 'bed_before', hora: '23:30', target: 40 });
-    expect(r.label).toContain('20% de los días (meta 40%)');   // 2 de 10
-    expect(r.label).toContain('4 de 10 días registrados');
-    expect(r.pct).toBe(50);
+    expect(r.label).toContain('20% · meta 40%');   // 2 de 10
+    expect([r.reg, r.D]).toEqual([4, 10]);
+    expect(r.pct).toBe(20);
     const r2 = await prog(cmPage, MES, { type: 'sleep', metric: 'bed_before', hora: '00:30', target: 40 });
-    expect(r2.label).toContain('40% de los días');             // ahora entran 23:00, 23:45, 00:15, 22:30
-    expect(r2.pct).toBe(100);
+    expect(r2.label).toContain('40% · meta 40%');               // ahora entran 23:00, 23:45, 00:15, 22:30
+    expect(r2.pct).toBe(40);
   });
 
   test('sueño: mínimo de horas, y sin registros = 0%', async ({ cmPage }) => {
     await prep(cmPage);
     await cmPage.evaluate((ds) => { S.sleepLog = {}; ds.forEach((d, i) => { S.sleepLog[d] = { hours: [8, 6, 7.5, 5, 7][i] }; }); }, [1, 2, 3, 4, 5].map(dia));
     const r = await prog(cmPage, MES, { type: 'sleep', metric: 'hours_min', horas: 7, target: 30 });
-    expect(r.label).toContain('30% de los días (meta 30%)');   // 8, 7.5 y 7 → 3 de 10
-    expect(r.pct).toBe(100);
+    expect(r.label).toContain('30% · meta 30%');   // 8, 7.5 y 7 → 3 de 10
+    expect(r.pct).toBe(30);
     await cmPage.evaluate(() => { S.sleepLog = {}; });
     const v = await prog(cmPage, MES, { type: 'sleep', metric: 'hours_min', horas: 7, target: 30 });
-    expect(v.label).toContain('0% de los días');
-    expect(v.label).toContain('0 de 10 días registrados');
+    expect(v.label).toContain('0% · meta 30%');
+    expect(v.reg).toBe(0);
     expect(v.pct).toBe(0);
   });
 
@@ -65,8 +65,8 @@ test.describe('vínculos de objetivos: cálculo', () => {
     await prep(cmPage);
     await cmPage.evaluate(() => { S.sleepLog = { '2026-10-02': { waketime: '07:00' }, '2026-11-03': { waketime: '07:05' } }; });
     const r = await prog(cmPage, TRIM, { type: 'sleep', metric: 'wake_in', desde: '07:00', hasta: '07:30', target: 10 });
-    expect(r.label).toContain('2 de 41 días registrados');   // oct (31) + nov 1-10
-    expect(r.label).toContain('5% de los días');
+    expect([r.reg, r.D]).toEqual([2, 41]);   // oct (31) + nov 1-10
+    expect(r.label).toContain('5% · meta 10%');
   });
 
   test('entrenamiento: sesiones terminadas en el rango', async ({ cmPage }) => {
@@ -139,7 +139,7 @@ test.describe('vínculos de objetivos: cálculo', () => {
       S.transactions = [{ id: 'i1', type: 'income', currency: 'ARS', date: '2026-11-05', amount: 50000 }];
     }, Array.from({ length: 10 }, (_, i) => dia(i + 1)));
     const h = await prog(cmPage, MES, { type: 'habit', section: 'conocimiento', habitId: 'hc1' });
-    expect(h.label).toContain('5/10 días'); expect(h.pct).toBe(50);
+    expect(h.label).toContain('50% de los días'); expect(h.pct).toBe(50); expect(h.meta).toBe(0);   // hábito sin meta en %: solo el % (antes «5/10 días»)
     const ing = await prog(cmPage, TRIM, { type: 'finance', metric: 'ingreso', target: 100000 });
     expect(ing.pct).toBe(50);
   });
@@ -164,8 +164,8 @@ test.describe('vínculos de objetivos: UI', () => {
     expect(g.link).toEqual({ type: 'sleep', metric: 'wake_in', desde: '07:00', hasta: '07:30', target: 80 });
     expect(g.done).toBe(false);
     const item = cmPage.locator('#qobj-wrap-vida .monthly-goal-item').first();
-    await expect(item.locator('.qobj-link-label')).toContainText('40% de los días (meta 80%)');   // 4 de 10
-    await expect(item.locator('.qobj-link-bar')).toHaveAttribute('style', /width:50%/);
+    await expect(item.locator('.qobj-link-label')).toContainText('40% · meta 80%');   // 4 de 10
+    await expect(item.locator('.qobj-link-bar')).toHaveAttribute('style', /width:40%/);   // la barra va al % real; la meta es una marca
     // Editar: cambia a "dormir 7 h" y vuelve a ver el modal con el valor guardado.
     await item.locator('button[title="Editar"]').click({ force: true });
     await expect(cmPage.locator('#mgoal-link-kind')).toHaveValue('sleep');

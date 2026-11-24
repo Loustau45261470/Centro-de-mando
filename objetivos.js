@@ -54,6 +54,19 @@ function _qobjDays(rg) {
   for (let d = new Date(rg.desde + 'T00:00:00'); d.toISOString().slice(0, 10) <= rg.fin; d.setDate(d.getDate() + 1)) out.push(d.toISOString().slice(0, 10));
   return out;
 }
+// Objetivos de PORCENTAJE (hábito con meta, sueño): se muestra «79% · meta 60%», la barra va al % real y una marca señala la meta.
+// El % se calcula sobre los días que ya pasaron; el estado solo compara contra la meta (no marca nada hecho antes de que cierre el período).
+function _qobjPeriodClosed(periodId) { const r = _periodDateRange(periodId); return !!(r && r[1] < getActiveDate()); }
+function _qobjMetaDeTexto(text) { const m = /(\d{1,3})\s*%/.exec(text || ''); const n = m ? +m[1] : 0; return n >= 1 && n <= 100 ? n : 0; }
+function _qobjPctResult(que, val, meta, periodId, extra) {
+  const r = { kind: 'pct', val, meta: meta || 0, pct: Math.min(100, Math.max(0, val)), ...extra };
+  if (!meta) { r.label = `${que} · ${val}% de los días`; return r; }
+  const ok = val >= meta;
+  r.estado = _qobjPeriodClosed(periodId) ? (ok ? 'Cumplida' : 'No se cumplió') : (ok ? 'En camino' : 'Por debajo');
+  r.ok = ok;
+  r.label = `${que} · ${val}% · meta ${meta}%`;
+  return r;
+}
 function _qobjCountPct(value, target) { return target ? Math.min(100, Math.max(0, Math.round(value / target * 100))) : 0; }
 
 function _sleepLinkProgress(link, periodId) {
@@ -77,7 +90,7 @@ function _sleepLinkProgress(link, periodId) {
   } else return null;
   const ok = pctReg == null ? 0 : Math.round(pctReg * reg / 100);   // días que cumplen; un día sin registro cuenta como no cumplido
   const val = D ? Math.round(ok / D * 100) : 0;
-  return { label: `${que} · ${val}% de los días (meta ${target}%) · ${reg} de ${D} días registrados`, pct: _qobjCountPct(val, target) };
+  return _qobjPctResult(que, val, target, periodId, { reg, D });
 }
 
 function _gymLinkProgress(link, periodId) {
@@ -95,7 +108,7 @@ function _estudioLinkProgress(link, periodId) {
   return { label: `📚 Estudio · ${h}/${target} h`, pct: _qobjCountPct(h, target) };
 }
 
-function _habitLinkProgress(link) {
+function _habitLinkProgress(link, text) {
   const habit = (S.habitTrackers?.[link.section] || []).find(h => h.id === link.habitId);
   if (!habit) return null;
   const days = habit.days || {};
@@ -110,7 +123,8 @@ function _habitLinkProgress(link) {
     if (v === 'done' || v === 'studied') { done++; total++; }
     else if (v !== 'rest') total++;
   }
-  return { label: `${habit.emoji || '📌'} ${habit.name} · ${done}/${total} días`, pct: total ? Math.round(done / total * 100) : 0 };
+  const meta = (+link.target > 0 ? Math.min(100, Math.round(+link.target)) : 0) || _qobjMetaDeTexto(text);
+  return _qobjPctResult(`${habit.emoji || '📌'} ${habit.name}`, total ? Math.round(done / total * 100) : 0, meta, link.periodId, { done, total });
 }
 
 function _lawLinkProgress(link) {
@@ -197,9 +211,9 @@ function _financeLinkProgress(link, periodId) {
   return null;
 }
 
-function qobjLinkProgress(periodId, link) {
+function qobjLinkProgress(periodId, link, text) {
   if (!link) return null;
-  if (link.type === 'habit')   return _habitLinkProgress({ ...link, periodId });
+  if (link.type === 'habit')   return _habitLinkProgress({ ...link, periodId }, text);
   if (link.type === 'law')     return _lawLinkProgress(link);
   if (link.type === 'finance') return _financeLinkProgress(link, periodId);
   if (link.type === 'sleep')   return _sleepLinkProgress(link, periodId);
@@ -208,13 +222,41 @@ function qobjLinkProgress(periodId, link) {
   return null;
 }
 
-function qobjLinkHTML(periodId, link) {
-  const p = qobjLinkProgress(periodId, link);
+function qobjLinkHTML(periodId, link, text) {
+  const p = qobjLinkProgress(periodId, link, text);
   if (!p) return '';
+  if (p.kind === 'pct') {
+    const marca = p.meta ? `<span class="qobj-link-meta" style="left:${p.meta}%"></span>` : '';
+    const est = p.estado ? `<span class="qobj-link-estado ${p.ok ? 'ok' : 'low'}">${p.estado}</span>` : '';
+    return `<div class="qobj-link-progress" title="Es el % de los días que ya pasaron">
+    <span class="qobj-link-label">${p.label}</span>
+    <div class="qobj-link-bar-wrap">${marca}<div class="qobj-link-bar" style="width:${p.pct}%"></div></div>${est}
+  </div>`;
+  }
   return `<div class="qobj-link-progress">
     <span class="qobj-link-label">${p.label}</span>
     <div class="qobj-link-bar-wrap"><div class="qobj-link-bar${p.exceeded?' exceeded':''}" style="width:${p.pct}%"></div></div>
   </div>`;
+}
+
+// Al cerrar el período (mes o trimestre), una sola vez: un objetivo de % con meta queda hecho si se cumplió. Si ya estaba marcado o lo desmarcás a mano, se respeta.
+function qobjAutoCerrar() {
+  let changed = false;
+  const evalIt = (it, periodId, hasta) => {
+    if (!it || !it.link || it.autoEval || (it.link.type !== 'habit' && it.link.type !== 'sleep') || !_qobjPeriodClosed(periodId)) return;
+    const p = qobjLinkProgress(periodId, it.link, it.text);
+    if (!p || p.kind !== 'pct' || !p.meta) return;
+    it.autoEval = true; changed = true;
+    if (p.ok && !it.done) { it.done = true; if (periodId.charAt(0) === 't') it.doneAt = hasta; }
+  };
+  try {
+    Object.values(S.monthlyGoals || {}).forEach(sec => Object.entries(sec || {}).forEach(([mk, arr]) => {
+      if (!/^\d{4}-\d{2}$/.test(mk)) return;
+      (arr || []).forEach(g => evalIt(g, mk, (_periodDateRange(mk) || [])[1]));
+    }));
+    ((S.quarterlyObjectives || {}).periods || []).forEach(per => (per.objectives || []).forEach(o => evalIt(o, per.id, (_periodDateRange(per.id) || [])[1])));
+  } catch (e) {}
+  if (changed) saveState();
 }
 
 // ── Selector de enlace (un solo selector "Enlazar a" para todas las pestañas y para metas mensuales) ──
@@ -238,7 +280,8 @@ function _qobjHabitSelectHTML(idPrefix, section, link) {
   return `<select class="inp" id="${idPrefix}-habit" data-section="${sec}" style="width:100%">
     <option value="">Elegí un hábito</option>
     ${habits.map(h => `<option value="${h.id}" ${h.id===curId?'selected':''}>${h.emoji||'📌'} ${h.name}</option>`).join('')}
-  </select>`;
+  </select>
+  <div class="qobj-link-row" style="margin-top:8px"><span>Meta</span><input class="inp" type="number" min="1" max="100" id="${idPrefix}-habit-target" placeholder="%" value="${(link && link.type === 'habit' && link.target) || ''}"><span>% de los días (opcional)</span></div>`;
 }
 
 // Sub-campos según la métrica financiera elegida (cuenta/categoría/monto meta o tope)
@@ -375,7 +418,8 @@ function qobjReadLinkFromPicker(idPrefix, tabName) {
   const el = id => document.getElementById(`${idPrefix}-${id}`);
   if (kind === 'habit') {
     const sel = el('habit');
-    return (sel && sel.value) ? { type: 'habit', section: sel.dataset.section || tabName, habitId: sel.value } : null;
+    const t = Math.min(100, Math.round(+el('habit-target')?.value || 0));
+    return (sel && sel.value) ? { type: 'habit', section: sel.dataset.section || tabName, habitId: sel.value, ...(t >= 1 ? { target: t } : {}) } : null;
   }
   if (kind === 'law') {
     const subjects = [...document.querySelectorAll(`[id^="${idPrefix}-subj-"]:checked`)]
@@ -550,6 +594,7 @@ function saveNewMonthlyGoal() {
 function renderQObjForTab(tabName) {
   const wrap = document.getElementById('qobj-wrap-' + tabName);
   if (!wrap) return;
+  qobjAutoCerrar();
 
   const qo = S.quarterlyObjectives;
   const period = qo.periods.find(p => p.id === qo.activePeriod) || qo.periods[0];
@@ -652,7 +697,7 @@ function renderQObjForTab(tabName) {
 
     const goalsHTML = goals.length
       ? goals.map((g, i) => `<div class="monthly-goal-item${g.done?' done':''}">
-          <div class="mg-body"><span class="mg-text">${g.text}</span>${qobjLinkHTML(monthKey, g.link)}</div>
+          <div class="mg-body"><span class="mg-text">${g.text}</span>${qobjLinkHTML(monthKey, g.link, g.text)}</div>
           <button class="mg-del" onclick="openEditMonthlyGoal('${tabName}','${monthKey}',${i})" title="Editar">✎</button>
           <button class="mg-del" onclick="deleteMonthlyGoal('${tabName}','${monthKey}',${i})">✕</button>
           <input type="checkbox" ${g.done?'checked':''} onchange="toggleMonthlyGoal('${tabName}','${monthKey}',${i})" aria-label="Marcar meta mensual">
@@ -716,7 +761,7 @@ function qobjItemHTML(periodId, o) {
   return `<div class="qobj-item${o.done?' done':''}">
     <div class="qobj-item-body">
       <span class="qobj-item-text">${o.text}</span>
-      ${qobjLinkHTML(periodId, o.link)}
+      ${qobjLinkHTML(periodId, o.link, o.text)}
     </div>
     <div class="qobj-item-actions">
       <button class="qobj-act-btn" onclick="openEditQObj('${periodId}',${o.id})" title="Editar">✎</button>

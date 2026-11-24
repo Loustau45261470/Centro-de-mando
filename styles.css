@@ -1943,7 +1943,11 @@ button.goal-hora-vacio:hover { color: var(--tp); background: rgba(255,255,255,.0
 /* ── Enlace objetivo ↔ hábito/abogacía ── */
 .qobj-link-progress { display:flex; align-items:center; gap:4px 7px; margin-top:4px; flex-wrap:wrap; }
 .qobj-link-label { font-size:11px; color:var(--tt); font-family:var(--mono); min-width:0; overflow-wrap:anywhere; }
-.qobj-link-bar-wrap { flex:1; max-width:110px; height:4px; background:var(--border); border-radius:2px; flex-shrink:0; }
+.qobj-link-bar-wrap { flex:1; max-width:110px; height:4px; position:relative; background:var(--border); border-radius:2px; flex-shrink:0; }
+.qobj-link-meta { position:absolute; top:-3px; width:2px; height:10px; margin-left:-1px; background:var(--tp); border-radius:1px; opacity:.85; }
+.qobj-link-estado { font-size:var(--fs-12); font-weight:600; padding:1px 7px; border-radius:99px; white-space:nowrap; }
+.qobj-link-estado.ok { color:var(--ok); background:color-mix(in srgb,var(--ok) 14%,transparent); }
+.qobj-link-estado.low { color:var(--warn); background:color-mix(in srgb,var(--warn) 14%,transparent); }
 .qobj-link-bar { height:4px; background:var(--accent); border-radius:2px; transition:width .4s; }
 .qobj-link-bar.exceeded { background:var(--danger); }
 .qobj-link-picker { margin-bottom:14px; }
