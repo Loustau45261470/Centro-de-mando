@@ -7089,3 +7089,41 @@ textarea.pr-in { resize: vertical; min-height: 60px; }
 .rem-rep-actions { display: flex; gap: 2px; flex-shrink: 0; align-items: center; }   /* siempre a la vista: en el celu no hay hover */
 .rem-rep-ok { color: var(--ok); }
 .rem-rep-pausa { color: var(--tp); font-size: var(--fs-15); }
+
+/* Registros (registros.js): tarjeta de la pestaña Vida, formulario de respuesta, editor de registros e historial. Casillas chicas y a la derecha (reusa .pr-chk). */
+.rg-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 0; border-top: 1px solid var(--border); }
+.rg-row:first-child { border-top: none; }
+.rg-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 180px; color: var(--tp); font-size: var(--fs-14); overflow-wrap: anywhere; }
+.rg-info small { color: var(--tt); font-size: var(--fs-12-5); }
+.rg-pen { color: var(--warn); }
+.rg-acc { display: flex; gap: 6px; flex: none; }
+.rg-pie { margin-top: 8px; display: flex; justify-content: flex-end; }
+.rg-valor { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 8px 0 2px; color: var(--ts); font-size: var(--fs-13); }
+.rg-th { display: flex; gap: 6px; }
+.rg-th-b { width: 52px; min-height: 44px; border-radius: 10px; border: 1px solid var(--border); background: none; font-size: var(--fs-18, 18px); cursor: pointer; filter: grayscale(1); opacity: .7; }
+.rg-th-b.on { filter: none; opacity: 1; color: var(--hud-bright); border-color: var(--hud-dim); background: var(--hud-glow); }
+.rg-th-d.on { border-color: rgba(255,107,107,.5); background: rgba(255,107,107,.1); }
+.rg-apr { margin: 6px 0 4px; padding: 10px; border: 1px dashed var(--border); border-radius: 10px; }
+.rg-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.rg-tag-b { padding: 4px 10px; min-height: 32px; border-radius: 999px; border: 1px solid var(--border); background: none; color: var(--ts); font: 600 var(--fs-12) var(--sans); cursor: pointer; }
+.rg-sug { margin-top: 10px; padding: 10px; border-radius: 10px; background: var(--hud-glow); border: 1px solid var(--hud-dim); font-size: var(--fs-13); color: var(--tp); }
+.rg-sug-i { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; overflow-wrap: anywhere; }
+.rg-preg { padding: 8px 0; border-top: 1px solid var(--border); }
+.rg-ent { padding: 8px 0 2px; border-top: 1px solid var(--border); }
+.rg-ent:first-of-type { border-top: none; }
+.rg-ent-h { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--tp); }
+.rg-ed-r { margin-left: auto; min-height: 36px; }
+.rg-sin { opacity: .75; }
+.rg-sin-t { color: var(--tt); font-size: var(--fs-12-5); font-style: italic; }
+.rg-l { font-size: var(--fs-13-5); color: var(--ts); margin: 3px 0; overflow-wrap: anywhere; }
+.rg-lbl { color: var(--tt); font: 600 var(--fs-12) var(--sans); text-transform: uppercase; letter-spacing: .04em; margin-right: 4px; }
+.rg-chip { padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--ts); font: 600 var(--fs-12) var(--sans); }
+.rg-cat { color: var(--hud-bright); border-color: var(--hud-dim); }
+.rg-apr-i { margin: 6px 0; padding: 8px 10px; border-left: 3px solid var(--danger); background: rgba(255,255,255,.03); font-size: var(--fs-13); color: var(--ts); overflow-wrap: anywhere; }
+.rg-res-t { font: 700 var(--fs-14) var(--sans); color: var(--tp); margin: 4px 0 8px; }
+.rg-res-s { font: 600 var(--fs-12-5) var(--sans); color: var(--ts); margin: 12px 0 2px; text-transform: uppercase; letter-spacing: .04em; }
+.rg-filtros { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0 14px; }
+.rg-filtros #rg-h-texto { grid-column: 1 / -1; }
+.pr-in.rg-fecha { width: 140px; }
+.rg-dias .rg-dia { flex: 1 0 20%; }
+@media (max-width: 480px) { .rg-filtros { grid-template-columns: 1fr; } .rg-dias .rg-dia { flex: 1 0 22%; } }

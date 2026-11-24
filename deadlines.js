@@ -67,7 +67,7 @@ const CMDeadlines = (() => {
   // Su clave de "ya avisado" incluye fecha y hora (id@YYYY-MM-DDTHH:MM + sufijo). Las demás (meta_, act_, tarj_, foco_, prin_)
   // ya llevan la fecha en el id. `legacyKey` = la clave sin fecha de antes: dueAlerts la sigue respetando para no
   // reavisar, al desplegar, lo que ya se avisó con la fecha sin cambios.
-  const KEY_CON_FECHA = { rec: 1, proy: 1, final: 1, cursada: 1, proyeccion: 1, pedido: 1 };
+  const KEY_CON_FECHA = { rec: 1, proy: 1, final: 1, cursada: 1, proyeccion: 1, pedido: 1, registro: 1 };
 
   function buildAlerts(it, opts) {
     const tz = opts.tz, out = [];
@@ -86,6 +86,10 @@ const CMDeadlines = (() => {
       // Chequeo de Foco y principio por horario: un solo aviso "es ahora" (tarde ya no sirve), con destino dentro de la app.
       // winMs propio (60 min): si el cron de Actions se atrasa más que la ventana corta, el chequeo no se pierde.
       out.push({ key: it.id, at: it.at, title: it.title, body: it.cuerpo, lead: false, url: it.url, winMs: FOCO_WIN_MS });
+    } else if (it.kind === 'registro') {
+      // Ocurrencia de un registro (registros.js): un solo aviso "es ahora", con la clave id@YYYY-MM-DDTHH:MM de ESA ocurrencia
+      // y la url que abre su formulario. winMs propio (60 min), igual que el chequeo de Foco.
+      out.push({ key: base, at: it.at, title: it.title, body: it.cuerpo, lead: false, url: it.url, winMs: FOCO_WIN_MS });
     } else if (it.allDay) {
       // Se muestran al cierre del día pero avisan a las 09:00 (nadie quiere el aviso 23:59).
       (it.leads || LEADS[it.kind] || [1]).forEach(d => {
@@ -221,6 +225,69 @@ const CMDeadlines = (() => {
         if (rep.fin && date > rep.fin) break;
         if (dias && !dias.includes(new Date(date + 'T12:00:00').getDay())) continue;
         for (let m = a; m <= b; m += paso) { if (visitar(date, horaDeMin(m))) break fuera; }
+      }
+    }
+    return { actual, proxima };
+  }
+
+  // ── registros (registros.js) ────────────────────────────────────────────
+  // reg = { id, nombre, principal?, frecuencia:{ tipo:'cada', cada:N, unidad:'min'|'h' } | { tipo:'horas', horas:['HH:MM',..] },
+  //         desde:'HH:MM', hasta:'HH:MM' (solo 'cada'), dias:[0..6] (vacío = todos), pausado, pausadoDesde:'YYYY-MM-DDTHH:MM', inicio:'YYYY-MM-DDTHH:MM' }
+  //  · `inicio` (hora local, se compara como texto con la ocurrencia) = desde cuándo cuenta: nada ocurre antes. Se corre al cambiar el horario.
+  //  · Pausado: las ocurrencias desde `pausadoDesde` ya no existen (ni avisan ni cuentan como «sin respuesta»).
+  const REG_URL = '#registro-';
+  function regFrecValidar(reg) {
+    const f = reg && reg.frecuencia;
+    if (!f || typeof f !== 'object') return 'Falta elegir cada cuánto avisa.';
+    if (reg.dias != null && (!Array.isArray(reg.dias) || reg.dias.some(d => !Number.isInteger(d) || d < 0 || d > 6))) return 'Los días no son válidos.';
+    if (f.tipo === 'horas') {
+      if (!Array.isArray(f.horas) || !f.horas.length) return 'Agregá al menos una hora.';
+      if (f.horas.some(h => !REP_HORA.test(h || ''))) return 'Hay una hora que no es válida.';
+      return '';
+    }
+    if (f.tipo !== 'cada') return 'Falta elegir cada cuánto avisa.';
+    const n = Number(f.cada);
+    if (!Number.isInteger(n) || n < 1) return 'Poné cada cuánto avisa (un número entero).';
+    if (f.unidad !== 'min' && f.unidad !== 'h') return 'Elegí minutos u horas.';
+    if (f.unidad === 'min' && n < REP_MIN_MIN) return 'El mínimo es cada ' + REP_MIN_MIN + ' minutos.';
+    if (!REP_HORA.test(reg.desde || '') || !REP_HORA.test(reg.hasta || '')) return 'Poné el horario de inicio y de fin.';
+    if (minDeHora(reg.hasta) < minDeHora(reg.desde)) return 'El horario de fin tiene que ser posterior al de inicio.';
+    return '';
+  }
+  // Horas 'HH:MM' en las que cae el registro ese día (respeta días, inicio y pausa).
+  function regSlotsDia(reg, date) {
+    if (!reg || !isDate(date) || regFrecValidar(reg)) return [];
+    const dias = Array.isArray(reg.dias) && reg.dias.length ? reg.dias : null;
+    if (dias && !dias.includes(new Date(date + 'T12:00:00').getDay())) return [];
+    const f = reg.frecuencia;
+    let horas = [];
+    if (f.tipo === 'horas') horas = Array.from(new Set(f.horas)).sort();
+    else {
+      const paso = f.cada * (f.unidad === 'h' ? 60 : 1), b = minDeHora(reg.hasta);
+      for (let m = minDeHora(reg.desde); m <= b; m += paso) horas.push(horaDeMin(m));
+    }
+    return horas.filter(h => {
+      const dt = date + 'T' + h;
+      if (reg.inicio && dt < reg.inicio) return false;
+      if (reg.pausado && reg.pausadoDesde && dt >= reg.pausadoDesde) return false;
+      return true;
+    });
+  }
+  // → { actual, proxima } como repOcurrencias. Pausado → ambos null.
+  function regOcurrencias(reg, now, opts) {
+    const vacio = { actual: null, proxima: null };
+    if (!reg || reg.pausado || regFrecValidar(reg)) return vacio;
+    opts = opts || {};
+    const tz = opts.tz, pasMs = opts.ventanaMs != null ? opts.ventanaMs : REP_VENTANA_MS;
+    const hoy = dateStrFromMs(now, tz);
+    let actual = null, proxima = null;
+    fuera: for (let i = -1; i <= 8; i++) {
+      const date = addDays(hoy, i);
+      for (const time of regSlotsDia(reg, date)) {
+        const at = toMs(date, time, tz);
+        if (isNaN(at)) continue;
+        const o = { date, time, datetime: date + 'T' + time, at };
+        if (at <= now) { if (now - at <= pasMs) actual = o; } else { proxima = o; break fuera; }
       }
     }
     return { actual, proxima };
@@ -367,7 +434,9 @@ const CMDeadlines = (() => {
     // 11) Chequeos de Foco ("¿En qué estuviste?"): uno por cada hora de S.foco.config.horas, todos los días.
     //     Sin `tab` → no aparece en las cards de Recordatorios ni en el ticker; solo genera el aviso.
     //     Si la config no existe todavía rigen las horas por defecto; con [] no hay avisos.
-    const horas = focoHoras(S.foco);
+    //     Con el registro principal ya creado (registros.js) los avisos son los suyos (sección 13): este bloque se apaga.
+    const hayPrincipal = Array.isArray(S.registros) && S.registros.some(r => r && r.principal);
+    const horas = hayPrincipal ? [] : focoHoras(S.foco);
     const chequeos = (S.foco && Array.isArray(S.foco.chequeos)) ? S.foco.chequeos : [];
     // Aceptado: cambiar una hora que ya avisó puede avisar de nuevo si la nueva cae dentro de la ventana (clave distinta).
     for (let i = -1; i <= 0; i++) {   // ayer también: un aviso de las 23:xx puede salir pasada la medianoche
@@ -393,6 +462,23 @@ const CMDeadlines = (() => {
               title: p.tipo === 'anti' ? '⛔ A evitar' : '🧭 Tu principio',
               cuerpo: corta(p.enunciado, 120) + (p.porque ? '\nPor qué: ' + corta(p.porque, 140) : ''),
               url: '#principio-' + encodeURIComponent(p.id), priority: 'low' });
+      });
+    }
+
+    // 13) Registros (registros.js): solo la ocurrencia vigente (la última que pasó dentro de la ventana) y solo si todavía no se respondió.
+    //     Sin `tab` → solo genera el aviso. La clave es id@YYYY-MM-DDTHH:MM de esa ocurrencia; la url abre su formulario.
+    const regs = Array.isArray(S.registros) ? S.registros : [];
+    if (regs.length) {
+      const hechos = new Set((Array.isArray(S.registroRespuestas) ? S.registroRespuestas : []).filter(x => x && x.slot).map(x => x.registroId + '@' + x.slot));
+      regs.forEach(reg => {
+        if (!reg || !reg.id) return;
+        const o = regOcurrencias(reg, now, opts).actual;
+        if (!o || hechos.has(reg.id + '@' + o.datetime)) return;
+        const prin = !!reg.principal, nombre = String(reg.nombre || 'Registro');
+        add({ id: 'reg_' + reg.id, kind: 'registro', kindLabel: 'Registro', icon: '📝', date: o.date, time: o.time, allDay: false,
+              title: prin ? '¿Qué estuviste haciendo?' : '📝 ' + nombre,
+              cuerpo: prin ? 'Tocá para anotar qué hacías y en qué pensabas.' : 'Tocá para responder.',
+              url: REG_URL + encodeURIComponent(reg.id) + '@' + o.datetime, priority: 'low' });
       });
     }
 
@@ -450,7 +536,7 @@ const CMDeadlines = (() => {
     return out;
   }
 
-  return { collect, dueAlerts, focoHoras, migrarClaves, repValidar, repOcurrencias, REP_MIN_MIN };
+  return { collect, dueAlerts, focoHoras, migrarClaves, repValidar, repOcurrencias, REP_MIN_MIN, regFrecValidar, regSlotsDia, regOcurrencias, REG_URL };
 })();
 
 if (typeof window !== 'undefined') window.CMDeadlines = CMDeadlines;

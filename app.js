@@ -157,6 +157,9 @@ const DEFAULT_STATE = {
   negocios: { items: [], sueltas: [] },   // overlay Negocios (negocios.js): modelo documentado arriba de ese archivo
   libros: { items: [] },   // overlay Libros (libros.js): modelo documentado arriba de ese archivo
   frasesPropias: [],       // frases sueltas (frases.js / Biblioteca): [{ id, texto, autor?, fav?, creada:'YYYY-MM-DD' }]
+  registros: [],         // definiciones de registros (registros.js): [{ id, nombre, principal?, frecuencia, desde, hasta, dias, pausado, pausadoDesde, inicio, preguntas:[{id,texto,tipo,opciones}] }]
+  registroRespuestas: [], // una por aviso respondido: [{ id, registroId, fecha, hora, slot, actividad, categoria, pensamiento, energia, valAct, valPen, extras:{} }]
+  aprendizajes: [],      // «qué hago la próxima vez» de un 👎: [{ id, fecha, registroId, respuestaId, sobre, contexto, etiquetas:[], queHago, principioId }]
   radar: { items: [] },    // pestaña Radar de Cartera (radar.js): modelo documentado arriba de ese archivo
   achievementLog: {},  // { [achievementId]: 'YYYY-MM-DD' (unlock date) }
   quarterlyObjectives: {
@@ -782,7 +785,7 @@ function _rescueLocal(cloudObj, localObj) {
   // Arrays con ID
   ['transactions','moves','cards','accounts','accountTypes','cardCharges','cardPayments','coverCollections','cardDues','subscriptions','orders','wishlist','repartos',
    'photos','finObjectives','lawMilestones','routines','exerciseLibrary',
-   'bodyWeight','exercises','seasonals','carteraTx','goalRepeats','frasesPropias'
+   'bodyWeight','exercises','seasonals','carteraTx','goalRepeats','frasesPropias','registros','registroRespuestas','aprendizajes'
   ].forEach(key => {
     const c = Array.isArray(cloudObj[key]) ? cloudObj[key] : [];
     const l = Array.isArray(localObj[key]) ? localObj[key] : [];

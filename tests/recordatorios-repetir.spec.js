@@ -15,7 +15,7 @@ test.describe('recordatorios que se repiten', () => {
       Object.defineProperty(Notification, 'permission', { get: () => 'granted', configurable: true });
       localStorage.removeItem('cdm_avisosVistos');
       avisosNubeSet({});
-      S.reminders = { vida: [] }; S.foco = Object.assign(S.foco || {}, { config: { horas: [] } }); S.principios = null;
+      S.reminders = { vida: [] }; S.foco = Object.assign(S.foco || {}, { config: { horas: [] } }); S.registros = []; S.principios = null;   // sin registros: el principal tomó las horas de Foco y avisaría por su cuenta
       window.__notifs = []; window._showNotif = (t, o) => window.__notifs.push({ t, tag: o && o.tag, body: o && o.body });
       openAddReminder('vida');
     });

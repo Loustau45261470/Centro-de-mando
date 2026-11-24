@@ -354,6 +354,17 @@ function prPrincipioDeLibro(libro, tipo, item) {
     origen: { libroId: libro.id, tipo, itemId: item.id } };
 }
 
+// Arma el principio (sin id) a partir de un aprendizaje de Registros (registros.js): «qué hago la próxima vez» pasa a ser el enunciado.
+// `aprendizajeId` evita crearlo dos veces. Devuelve null si el aprendizaje no tiene nada que decir.
+function prPrincipioDeAprendizaje(ap) {
+  ap = ap || {};
+  const que = String(ap.queHago || '').replace(/\s+/g, ' ').trim();
+  if (!que) return null;
+  const r = prRecortarEnunciado(que, 200), ctx = String(ap.contexto || '').replace(/\s+/g, ' ').trim();
+  return { tipo: 'principio', enunciado: r.texto, porque: (r.recortado ? que + '\n' : '') + (ctx ? 'Me pasó: ' + ctx : ''), seccion: 'Vida', haz: que, noHagas: '',
+    fuente: 'Registros', habitosIds: [], aprendizajeId: ap.id || '' };
+}
+
 // Lista por libro: [{libroId, titulo, autor, items:[{tipo, itemId, grupo, titulo, texto, yaImportado}], total, pendientes}]
 function prImportCandidatos(libros, principios) {
   const usados = new Set((Array.isArray(principios) ? principios : []).filter(p => p && p.origen).map(p => p.origen.libroId + '|' + p.origen.tipo + '|' + p.origen.itemId));
@@ -385,6 +396,15 @@ function _prData() {
 }
 function _prSave() { if (typeof saveState === 'function') saveState(); }
 function _prToast(m) { if (typeof showToast === 'function') showToast(m); }
+// Convierte un aprendizaje en principio (un toque desde Registros). Devuelve { ok, id, ya } — ya=true si ese aprendizaje ya se había convertido.
+function prCrearDesdeAprendizaje(ap) {
+  const d = _prData(), previo = ap && ap.id ? d.principios.find(x => x && x.aprendizajeId === ap.id) : null;
+  if (previo) return { ok: true, id: previo.id, ya: true };
+  const p = prPrincipioDeAprendizaje(ap);
+  if (!p) return { ok: false };
+  p.id = _prUid(); d.principios.push(p); _prSave();
+  return { ok: true, id: p.id, ya: false };
+}
 function _prUid() { return (typeof uid === 'function') ? uid() : Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 function _prVista() {
   const map = {};
@@ -658,6 +678,7 @@ function _prVuelca() {   // lo tipeado en el formulario abierto pasa al borrador
 
 const Principios = {
   render: prRender,
+  crearDesdeAprendizaje: prCrearDesdeAprendizaje,
   sub(s) { _prVuelca(); _prV.sub = s; _prV.imp = null; _prV.delCat = null; _prV.renCat = null; _prV.sel = null; prRender(); },
   filtro(k, v) { _prV[k] = v; _prV.sel = null; prRender(); },
   cambioDisparo() { _prVuelca(); prRender(); },
@@ -699,6 +720,7 @@ const Principios = {
       seccion: _prVal('prf-sec'), haz: _prVal('prf-haz').trim(), noHagas: _prVal('prf-nohagas').trim(), fuente: _prVal('prf-fuente').trim(), habitosIds: _prVals('hab'),
     };
     if (p && p.origen) nuevo.origen = p.origen;
+    if (p && p.aprendizajeId) nuevo.aprendizajeId = p.aprendizajeId;
     if (p && p.silenciadoHasta) nuevo.silenciadoHasta = p.silenciadoHasta;
     if (p && p.silenciadoHastaTs) nuevo.silenciadoHastaTs = p.silenciadoHastaTs;
     const i = d.principios.findIndex(x => x.id === nuevo.id);
@@ -1072,5 +1094,5 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { prPrincipioDelDia, prSugerencias, prTextoDelDia, prProximoBloqueLibre, prNormalizarRegla, prNormalizarDisparo, prEvaluarRegla, prAvisosDePrincipios, prTextoRegla, prSilenciado, prSumarDias, PR_PLANTILLAS, prSembrarCategorias, prVistaObjetivos, prContarHijos, prCadena, prHuecos, prVinculosDePrincipio, prContarObjetivosDeCategoria,
-    prEliminarCategoria, prEliminarPrincipio, prEliminarObjetivo, prFiltrarPrincipios, prKeyTrimestral, prImportCandidatos, prPrincipioDeLibro, prSeccionDeLibro, prRecortarEnunciado };
+    prEliminarCategoria, prEliminarPrincipio, prEliminarObjetivo, prFiltrarPrincipios, prKeyTrimestral, prImportCandidatos, prPrincipioDeLibro, prSeccionDeLibro, prRecortarEnunciado, prPrincipioDeAprendizaje };
 }

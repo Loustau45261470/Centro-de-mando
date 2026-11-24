@@ -182,6 +182,16 @@ function _foCtx() {
     workoutLog: (typeof S !== 'undefined' && S.workoutLog) || {},
   };
 }
+// Chequeos para los cruces: los propios de Foco + las respuestas del registro principal (registros.js), que lo reemplazó como chequeo del día.
+function _foChequeosTodos(d) {
+  const resp = (typeof S !== 'undefined' && Array.isArray(S.registroRespuestas)) ? S.registroRespuestas : [];
+  const extra = resp.filter(r => r && r.registroId === 'reg_principal' && (r.categoria || r.energia)).map(r => {
+    const cuando = r.slot || ((r.fecha || '') + 'T' + (r.hora || '00:00'));
+    return { fecha: cuando.slice(0, 10), hora: cuando.slice(11, 16), categoria: r.categoria || '', energia: r.energia || null };
+  });
+  return d.chequeos.concat(extra);
+}
+function _foPrincipal() { return (typeof S !== 'undefined' && Array.isArray(S.registros)) ? S.registros.find(r => r && r.principal) : null; }
 function _foSave() { if (typeof saveState === 'function') saveState(); }
 function _foToast(m) { if (typeof showToast === 'function') showToast(m); }
 const _foEsc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -284,19 +294,20 @@ function foHtml() {
   else {
     h += '<div class="pr-nota">Son promedios de tus días registrados (' + n + '). Muestran qué coincide con qué, no qué causa qué.</div>';
     h += foArmarCruces(d, _foCtx()).map(c => '<div class="pr-cat fo-cruce"><b>' + _foEsc(c.titulo) + '</b><div class="fo-txt' + (c.estado === 'ok' && !/^Faltan/.test(c.texto) ? '' : ' fo-sin') + '">' + _foEsc(c.texto) + '</div></div>').join('');
-    const fr = foFranjas(d.chequeos);
+    const fr = foFranjas(_foChequeosTodos(d));
     if (fr.length) h += '<div class="pr-cat fo-cruce"><b>Horas del día</b><div class="fo-txt">' + fr.map(f => 'A las ' + f.hora + ' h tu energía promedio fue ' + foFmt(f.energia) + ' (' + f.n + ' chequeos)').map(_foEsc).join('. ') + '.</div></div>';
   }
   h += '</div>';
 
   // 2. Reparto de los últimos 7 días + horas de los avisos
-  const rp = foReparto(d.chequeos, foFecha(new Date()), 7);
+  const rp = foReparto(_foChequeosTodos(d), foFecha(new Date()), 7);
   h += '<div class="pr-card" id="fo-reparto"><div class="pr-form-t">Reparto de los últimos 7 días</div>';
   if (!rp.suficiente) h += '<div class="pr-nota">Faltan datos: llevás ' + rp.n + ' de ' + FO_MIN_CHEQUEOS + ' chequeos en los últimos 7 días.</div>';
   else h += '<div class="pr-nota">Sobre ' + rp.n + ' chequeos. Es una muestra, no un cronómetro.</div>' + rp.filas.map(f => '<div class="pr-cat fo-rep"><span>' + _foEsc(f.nombre) + '</span><b>' + f.n + ' · ' + f.pct + '%</b></div>').join('');
   h += '</div>';
-  const hs = foNormalizarHoras(d.config.horas);
-  h += '<div class="pr-card" id="fo-horas"><div class="pr-form-t">Horas de los chequeos</div><div class="pr-nota">' + (hs.length ? 'Te aviso a estas horas todos los días.' : 'Sin horas: no hay avisos.') + '</div>'
+  const hs = foNormalizarHoras(d.config.horas), prin = _foPrincipal();
+  if (prin && prin.frecuencia && prin.frecuencia.tipo !== 'horas') h += '<div class="pr-card" id="fo-horas"><div class="pr-form-t">Horas de los chequeos</div><div class="pr-nota">El chequeo ahora es el registro «' + _foEsc(prin.nombre) + '» y avisa con su propio horario. Cambialo desde Registros, en la pestaña Vida.</div></div>';
+  else h += '<div class="pr-card" id="fo-horas"><div class="pr-form-t">Horas de los chequeos</div><div class="pr-nota">' + (hs.length ? 'Te aviso a estas horas todos los días.' : 'Sin horas: no hay avisos.') + '</div>'
     + hs.map((x, i) => '<div class="pr-cat"><input class="pr-in fo-hs fo-hora" type="time" value="' + _foEsc(x) + '" onchange="Foco.cambiarHora(' + i + ',this.value)"><button type="button" class="pr-btn pr-btn-d fo-btn" onclick="Foco.quitarHora(' + i + ')">Quitar</button></div>').join('')
     + '<div class="pr-cat"><input id="fo-nueva" class="pr-in fo-hs fo-hora" type="time"><button type="button" class="pr-btn pr-btn-p fo-btn" onclick="Foco.agregarHora()">Agregar hora</button></div></div>';
 
@@ -334,7 +345,7 @@ const Foco = {
     if (!foGuardarChequeo(_foData(), foFecha(ahora), p(ahora.getHours()) + ':' + p(ahora.getMinutes()), _foCh.categoria, e)) { _foToast('No se pudo guardar el chequeo'); return; }
     _foChOpen = false; _foCh = { categoria: null }; _foSave(); if (typeof prRender === 'function') prRender(); _foToast('Chequeo guardado');
   },
-  _guardarHoras(arr) { _foData().config.horas = foNormalizarHoras(arr); _foSave(); if (typeof prRender === 'function') prRender(); },
+  _guardarHoras(arr) { _foData().config.horas = foNormalizarHoras(arr); if (window.Registros && Registros.sincDesdeFoco) Registros.sincDesdeFoco(_foData().config.horas); _foSave(); if (typeof prRender === 'function') prRender(); },
   cambiarHora(i, v) {
     const hs = foNormalizarHoras(_foData().config.horas);
     if (!foNormalizarHoras([v]).length) { _foToast('Hora inválida'); if (typeof prRender === 'function') prRender(); return; }

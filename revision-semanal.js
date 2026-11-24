@@ -229,12 +229,25 @@
     const entry = _rsEntry(_rsInfo.entryWeekKey, true);
     const promesasHTML = entry.promesas.filter(p => p.text && p.text.trim()).map(p => `<li>${escHtml(p.text)}</li>`).join('')
       || '<li class="rs-empty" style="list-style:none;margin-left:-20px">Todavía no cargaste promesas.</li>';
+    // Registros de la semana que se cierra (registros.js): 👍/👎 de actividades y pensamientos y aprendizajes nuevos. Sin respuestas ni aprendizajes no se muestra nada.
+    let regHTML = '';
+    try {
+      if (typeof Registros !== 'undefined' && Registros.semana) {
+        const c = Registros.semana(S, _rsInfo.closeDates[0], _rsInfo.closeDates[6]);
+        if (c.respuestas || c.aprendizajes) regHTML = `<div class="rs-sub">Registros de la semana</div>
+      <ul class="rs-recap" id="rs-registros">
+        <li>${c.respuestas} respuesta(s): ${c.up} 👍 y ${c.down} 👎</li>
+        <li>${c.aprendizajes} aprendizaje(s) nuevo(s)</li>
+      </ul>`;
+      }
+    } catch (e) { regHTML = ''; }
     host.innerHTML = `
       <div class="rs-sub">Resumen</div>
       <ul class="rs-recap">
         <li>${entry.movidas.length} meta(s) movida(s) a la semana que viene</li>
         <li>${entry.archivadas.length} meta(s) archivada(s)</li>
       </ul>
+      ${regHTML}
       <div class="rs-sub">Tus 3 promesas</div>
       <ul class="rs-recap">${promesasHTML}</ul>
       <div class="field">
