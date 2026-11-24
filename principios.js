@@ -900,16 +900,20 @@ function _prAvProgramarTs(lista, ahora) {
 function _prVozKey(hoy) { return 'cm_pr_voz_' + hoy; }
 function _prVozDicho(hoy, k) { try { const a = JSON.parse(localStorage.getItem(_prVozKey(hoy)) || '[]'); return Array.isArray(a) && a.indexOf(k) >= 0; } catch (e) { return false; } }
 function _prVozMarcar(hoy, k) { try { const a = JSON.parse(localStorage.getItem(_prVozKey(hoy)) || '[]'); a.push(k); localStorage.setItem(_prVozKey(hoy), JSON.stringify(a.slice(-40))); } catch (e) {} }
-function _prHablar(texto) {
+// El texto del principio (lo escribió el usuario en español) NO se traduce ni se lee: queda en pantalla. Jarvis dice en inglés
+// el aviso que lo acompaña (`en`); `lang:'es'` solo se usa si la preferencia «Voz en inglés» está apagada.
+const _PR_EN_DIARIO = 'Sir, a reminder of your principle for today.';
+const _PR_EN_DATOS = 'Sir, one of your principles applies to your recent data. The details are on screen.';
+function _prHablar(texto, en) {
   try {
     if (!texto || document.hidden || localStorage.getItem('jarvis_enabled') !== '1' || !window.JARVIS || typeof JARVIS.speak !== 'function') return false;
-    JARVIS.speak(texto, { lang: 'es' }); return true;
+    JARVIS.speak(texto, { lang: 'es', en: en || _PR_EN_DIARIO }); return true;
   } catch (e) { return false; }
 }
 function _prAvDecir(it, hoy) {
   if (!it || _prVozDicho(hoy, it.k)) return;
   const fin = s => String(s || '').trim().replace(/[.\s]+$/, '');
-  if (_prHablar(it.diario ? 'Principio de hoy: ' + fin(it.p.enunciado) + '.' : fin(it.detalle) + '. ' + fin(it.p.enunciado) + '.')) _prVozMarcar(hoy, it.k);
+  if (_prHablar(it.diario ? 'Principio de hoy: ' + fin(it.p.enunciado) + '.' : fin(it.detalle) + '. ' + fin(it.p.enunciado) + '.', it.diario ? _PR_EN_DIARIO : _PR_EN_DATOS)) _prVozMarcar(hoy, it.k);
 }
 // Qué principio recordar hoy (con la misma evaluación de avisos que la campanita, sin los vistos/ocultos).
 function _prDelDia() {
@@ -1015,11 +1019,11 @@ Object.assign(Principios, {
       const o = { enunciado: cut(p.enunciado, 140) }; if (p.tipo === 'anti') o.tipo = 'anti'; if (p.haz) o.haz = cut(p.haz, 80); if (a) o.aviso = cut(det[p.id], 100); return o;
     });
   },
-  // Lo dice en español. `soloSiNuevo`: no repite si ya sonó hoy como aviso de la campanita. Devuelve true si habló.
+  // Jarvis dice en inglés el aviso (el principio exacto queda en pantalla). `soloSiNuevo`: no repite si ya sonó hoy como aviso de la campanita. Devuelve true si habló.
   decirDelDia(dd, soloSiNuevo) {
     dd = dd || _prDelDia(); if (!dd) return false;
     if (soloSiNuevo && dd.k && _prVozDicho(dd.hoy, dd.k)) return false;
-    const ok = _prHablar(dd.texto); if (ok && dd.k) _prVozMarcar(dd.hoy, dd.k); return ok;
+    const ok = _prHablar(dd.texto, dd.aviso && dd.aviso.tipo === 'datos' ? _PR_EN_DATOS : _PR_EN_DIARIO); if (ok && dd.k) _prVozMarcar(dd.hoy, dd.k); return ok;
   },
   // Tarjeta con el principio del día y sus opciones (la usa el saludo de la mañana). No se muestra si la campanita ya tiene su tarjeta abierta.
   mostrarDelDia(dd, ms) {

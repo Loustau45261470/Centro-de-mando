@@ -78,14 +78,14 @@ const dichos = (page) => page.evaluate(() => window.__dichos);
 const reloj = (page, h, m = 0) => page.clock.setFixedTime(new Date(2026, 10, 12, h, m));
 
 test.describe('Jarvis y principios en el navegador', () => {
-  test('saludo de la mañana: dice «Principio de hoy» en español, toast con el principio y tarjeta con opciones; una vez por día', async ({ cmPage, consoleErrors }) => {
+  test('saludo de la mañana: toast en español con el principio y tarjeta con opciones, la voz dice el aviso en inglés; una vez por día', async ({ cmPage, consoleErrors }) => {
     await poner(cmPage, [prin({ id: 'a', haz: 'Escribir antes de mirar el celular' })], { goals: {}, habitTrackers: { vida: [], finanzas: [], salud: [], conocimiento: [], ia: [] } });
     await reloj(cmPage, 9);
     await mockJarvis(cmPage);
     // briefing() de Jarvis arma líneas con insights; si no hay nada que decir, el principio igual dispara el saludo.
     await cmPage.evaluate(() => { localStorage.removeItem('jarvis_last_briefing'); window.JARVIS_INTEL.maybeMorningBriefing(); });
     await expect(cmPage.locator('#toast')).toContainText('Principio de hoy: Lo más difícil primero.');
-    await expect(cmPage.locator('#toast')).toContainText('Good morning, sir.');
+    await expect(cmPage.locator('#toast')).toContainText('Buenos días, señor.');   // pantalla en español; la voz saluda en inglés (ver jarvis-voz-ingles.spec.js)
     await expect.poll(async () => (await dichos(cmPage)).filter((d) => d.lang === 'es').length, { timeout: 8000 }).toBe(1);
     const es = (await dichos(cmPage)).find((d) => d.lang === 'es');
     expect(es.t).toBe('Principio de hoy: Lo más difícil primero.');
@@ -176,14 +176,14 @@ test.describe('Jarvis y principios en el navegador', () => {
     expect((await dichos(cmPage)).length).toBe(1);
   });
 
-  test('Jarvis (voz): speak con lang es usa modelo multilingüe y voz es-AR; el comportamiento por defecto no cambia', async ({ cmPage }) => {
+  test('Jarvis (voz) con «Voz en inglés» APAGADA: speak con lang es usa modelo multilingüe y voz es-AR; el comportamiento anterior se conserva', async ({ cmPage }) => {
     const cuerpos = [];
     await cmPage.route('https://api.elevenlabs.io/v1/text-to-speech/**', async (route) => {
       cuerpos.push(JSON.parse(route.request().postData()));
       await route.fulfill({ status: 200, contentType: 'audio/mpeg', body: 'x' });
     });
     await cmPage.evaluate(() => {
-      localStorage.setItem('jarvis_el_model', 'eleven_monolingual_v1'); localStorage.setItem('jarvis_el_key', 'test');
+      localStorage.setItem('jarvis_el_model', 'eleven_monolingual_v1'); localStorage.setItem('jarvis_el_key', 'test'); localStorage.setItem('jarvis_voice_en', '0');   // preferencia apagada = comportamiento previo
       if (localStorage.getItem('jarvis_enabled') !== '1') JARVIS.toggle();
       window.__utt = []; speechSynthesis.speak = (u) => window.__utt.push(u.lang);
     });

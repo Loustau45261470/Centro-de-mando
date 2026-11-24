@@ -345,19 +345,23 @@
   // Primera vez que se abre la app cada día, entre las 07:00 y las 12:59, si JARVIS está
   // habilitado y hay algo que decir: lo saluda y le lee el briefing. Guard total: cualquier
   // pieza ausente (JARVIS, EARS, showToast) → no habla, no rompe el resto de la app.
+  // Devuelve { en, es }: la versión inglesa se habla, la española va a pantalla.
   function _pendingGoalsLine() {
     try {
       const g = (S.goals && S.goals[_today()]) || [];
       const pend = g.filter(x => !x.done).length;
-      if (!pend) return '';
-      return pend === 1 ? "You still have 1 goal left for today." : `You still have ${pend} goals left for today.`;
-    } catch(e) { return ''; }
+      if (!pend) return null;
+      return pend === 1 ? { en: 'You still have 1 goal left for today.', es: 'Te queda 1 meta para hoy.' }
+        : { en: `You still have ${pend} goals left for today.`, es: `Te quedan ${pend} metas para hoy.` };
+    } catch(e) { return null; }
   }
-  function _speakBriefingText(text) {
+  // pre/post ya están en inglés; el briefing (b, español) se traduce con JARVIS_EARS.sayEN. Sin traductor → respaldo genérico.
+  function _speakBriefingText(pre, b, post) {
     try {
-      if (window.JARVIS_EARS && typeof JARVIS_EARS.sayEN === 'function') { JARVIS_EARS.sayEN(text); return; }
-      if (typeof window.JARVIS_EARS_sayEN === 'function') { window.JARVIS_EARS_sayEN(text); return; }
-      if (window.JARVIS && typeof JARVIS.speak === 'function') JARVIS.speak(text);
+      if (!b) { if (window.JARVIS && typeof JARVIS.speak === 'function') JARVIS.speak([pre, post].filter(Boolean).join(' '), { dynamic: true }); return; }
+      if (window.JARVIS_EARS && typeof JARVIS_EARS.sayEN === 'function') { JARVIS_EARS.sayEN(b, pre, post); return; }
+      if (typeof window.JARVIS_EARS_sayEN === 'function') { window.JARVIS_EARS_sayEN(b, pre, post); return; }
+      if (window.JARVIS && typeof JARVIS.speak === 'function') JARVIS.speak(b, { dynamic: true, en: [pre, JARVIS.GENERIC_EN, post].filter(Boolean).join(' ') });
     } catch(e) {}
   }
   // El briefing se traduce y habla en inglés (async): el principio (español) espera a que Jarvis termine para no pisarlo. Tope ~40 s.
@@ -385,12 +389,12 @@
       try { dd = window.Principios && typeof Principios.delDia === 'function' ? Principios.delDia() : null; } catch(e) {}
       if (!b && !dd) return;                                             // nada que decir
       localStorage.setItem('jarvis_last_briefing', today);
-      let text = 'Good morning, sir.' + (b ? ' ' + b : '');
+      let pantalla = 'Buenos días, señor.' + (b ? ' ' + b : '');   // se ve en español; la voz dice el saludo y las metas en inglés
       const gl = _pendingGoalsLine();
-      if (gl) text += ' ' + gl;
-      _speakBriefingText(text);
+      if (gl) pantalla += ' ' + gl.es;
+      _speakBriefingText('Good morning, sir.', b, gl && gl.en);
       if (dd) _speakPrincipioTrasBriefing(dd);
-      if (typeof showToast === 'function') showToast('☀️ ' + text + (dd ? ' ' + dd.texto : ''), 15000);
+      if (typeof showToast === 'function') showToast('☀️ ' + pantalla + (dd ? ' ' + dd.texto : ''), 15000);
       if (dd) Principios.mostrarDelDia(dd, 15000);
     } catch(e) {}
   }

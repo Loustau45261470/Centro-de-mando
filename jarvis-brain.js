@@ -929,7 +929,7 @@
             const idx = _timers.findIndex(t => t.id === id);
             if (idx !== -1) _timers.splice(idx, 1);
             if (typeof showToast === 'function') showToast('⏰ ' + label + ' terminado', 10000);
-            if (window.JARVIS && JARVIS.speak) JARVIS.speak('Sir, your ' + label + ' timer is up.', { dynamic: true });
+            if (window.JARVIS && JARVIS.speak) JARVIS.speak('Sir, your timer is up.', { dynamic: true });   // sin la etiqueta: viene en español y se ve en el aviso
           }, minutes * 60000);
           _timers.push(timer);
           return { ok: true, msg: `Timer set for ${minutes} minutes, sir.` };

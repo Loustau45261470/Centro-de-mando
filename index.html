@@ -2135,7 +2135,7 @@
 <script src="reparto-gastos.js?v=2"></script>
 <script src="recordatorios.js?v=19"></script>
 <script src="objetivos.js?v=5"></script>
-<script src="principios.js?v=20"></script>
+<script src="principios.js?v=21"></script>
 <script src="foco.js?v=7"></script>
 <script src="registros.js?v=1"></script>
 <script src="sueno-stats.js?v=2"></script>
@@ -2163,7 +2163,7 @@
 <script src="jarvis-ears.js"></script>
 
 <script src="busqueda-global.js?v=4"></script>
-<script src="command-palette.js?v=8"></script>
+<script src="command-palette.js?v=9"></script>
 
 <script src="telemetry.js"></script>
 
@@ -2268,6 +2268,7 @@
     <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px">
       <button id="jarvis-toggle-btn" onclick="JARVIS.toggle()" style="width:100%;padding:9px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:9px;cursor:pointer;font-size:var(--fs-12-5);font-weight:600;letter-spacing:0.06em;transition:all .2s;font-family:var(--mono)">🔊 JARVIS activo</button>
       <button id="jarvis-wake-btn" onclick="JARVIS_EARS.toggleWake()" style="width:100%;padding:9px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:9px;cursor:pointer;font-size:var(--fs-12-5);font-weight:600;letter-spacing:0.06em;transition:all .2s;font-family:var(--mono)">🎙️ "Hey Jarvis" apagado</button>
+      <button id="jarvis-voice-en-btn" onclick="JARVIS.toggleVoiceEN()" title="JARVIS habla en inglés; lo que ves en pantalla sigue en español" style="width:100%;padding:9px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:9px;cursor:pointer;font-size:var(--fs-12-5);font-weight:600;letter-spacing:0.06em;transition:all .2s;font-family:var(--mono)">🗣️ Voz en inglés: activada</button>
       <!-- Cada key va con un ojo que la revela: son de vista única al crearlas, y si se pierden
            hay que rotarlas. Sin esto la única forma de recuperarlas era la consola del navegador. -->
       <div style="display:flex;gap:6px">

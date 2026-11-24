@@ -369,11 +369,12 @@
 
   // Traduce a inglés un texto generado localmente en español (briefing/insights del centro de mando),
   // para que JARVIS lo HABLE en inglés aunque la tarjeta en pantalla siga en español.
-  // Sin key de IA o ante cualquier error → devuelve el texto original (degradación elegante).
+  // Sin key de IA o ante cualquier error → devuelve null (el llamador usa un respaldo en inglés: JARVIS
+  // NUNCA lee el español con la voz inglesa).
   let _translateWarned = false; // toast de degradación una sola vez por sesión, no en cada llamada
   async function _translateEN(text) {
     const key = localStorage.getItem('jarvis_gemini_key');
-    if (!key || !text) return text;
+    if (!key || !text) return null;
     const sysT = 'Translate the user message into natural, fluent English. Keep it concise and faithful. Reply with ONLY the English translation — no quotes, no notes, no preamble.';
     const headers = { 'Content-Type': 'application/json' };
     let url, body, parse;
@@ -400,20 +401,27 @@
       let res;
       try { res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: ctrl.signal }); }
       finally { clearTimeout(tout); }
-      if (!res.ok) return text;
+      if (!res.ok) return null;
       const data = await res.json();
-      return ((parse(data) || '') + '').trim() || text;
+      return ((parse(data) || '') + '').trim() || null;
     } catch (e) {
       console.warn('JARVIS translate error:', e.message);
       if (!_translateWarned) {
         _translateWarned = true;
-        if (typeof showToast === 'function') showToast('🌐 Traducción no disponible — JARVIS hablará en español', 5000);
+        if (typeof showToast === 'function') showToast('🌐 Traducción no disponible — JARVIS dirá un aviso corto en inglés', 5000);
       }
-      return text;
+      return null;
     }
   }
   // Hablar en inglés un texto que puede venir en español (traduce y luego habla)
-  function sayEN(text) { _translateEN(text).then(en => say(en, true)); }
+  // Sin traducción disponible → respaldo genérico en inglés (en:''), nunca el español.
+  // pre/post: frases ya en inglés que rodean al texto (saludo, metas) y se dicen igual aunque falle la traducción.
+  function sayEN(text, pre, post) {
+    const wrap = s => [pre, s, post].filter(Boolean).join(' ');
+    _translateEN(text).then(en => { if (en) say(wrap(en), true); else if (window.JARVIS) JARVIS.speak(text, { dynamic: true, en: wrap(JARVIS.GENERIC_EN) }); });
+  }
+  // Nombres de sección (ids internos en español) → inglés, para que la voz no diga "finanzas".
+  const _TAB_EN = { vida: 'Life', finanzas: 'Finance', salud: 'Health', conocimiento: 'Knowledge', ia: 'Intelligence' };
   window.JARVIS_EARS_sayEN = sayEN;   // reutilizable desde otros módulos (p. ej. paleta de comandos)
 
   let _cmdBusy = false, _cmdBusyTimer = null;
@@ -446,7 +454,7 @@
         // normalizado (sin acentos, minúsculas) y las claves son ASCII → \b se comporta bien.
         if (new RegExp('\\b' + word + '\\b').test(t)) {
           const btn = document.querySelector(`.nav-btn[data-tab="${tab}"]`);
-          if (btn) { btn.click(); say(`Switching to ${tab}, sir.`, true); return; }
+          if (btn) { btn.click(); say(`Switching to ${_TAB_EN[tab] || 'that section'}, sir.`, true); return; }
         }
       }
     }
@@ -459,7 +467,7 @@
       if (mt) { tab = TABS_VOICE[mt[1]]; name = name.slice(0, mt.index).trim(); }
       if (name) {
         PROY_VOICE.addProject(tab, name.charAt(0).toUpperCase() + name.slice(1));
-        _translateEN(name).then(n => say(`Project "${n}" created in ${tab}, sir. I'll keep an eye on it.`, true));
+        _translateEN(name).then(n => say(`Project ${n ? '"' + n + '" ' : ''}created in ${_TAB_EN[tab] || 'that section'}, sir. I'll keep an eye on it.`, true));
         return;
       }
     }
@@ -477,7 +485,7 @@
       const marked = PROY_VOICE.markHabit(name, status);
       if (marked) {
         const w = status === 'partial' ? 'logged as partial' : status === 'missed' ? 'marked as missed' : status === 'rest' ? 'marked as a rest day' : 'marked as done';
-        _translateEN(marked).then(n => say(`"${n}" ${w} for today, sir.`, true));
+        _translateEN(marked).then(n => say(n ? `"${n}" ${w} for today, sir.` : `Habit ${w} for today, sir.`, true));
       } else say(`I couldn't find a habit matching that, sir.`, true);
       return;
     }
@@ -486,9 +494,9 @@
     m = raw.match(/(?:marc[aá]\w*|complet[aá]\w*|termin[aá]\w*|tild[aá]\w*)\s+(?:como\s+(?:hecha|hecho|completa|completada|completado)\s+)?(?:la\s+tarea\s+)?(.+)/i);
     if (m && window.PROY_VOICE) {
       const done = PROY_VOICE.completeTask(m[1].trim());
-      if (done) { _translateEN(done).then(n => say(`"${n}" marked as complete, sir. Well done.`, true)); return; }
+      if (done) { _translateEN(done).then(n => say(n ? `"${n}" marked as complete, sir. Well done.` : 'Task marked as complete, sir. Well done.', true)); return; }
       const h = PROY_VOICE.markHabit(m[1].trim(), 'done');
-      if (h) { _translateEN(h).then(n => say(`"${n}" marked as done for today, sir.`, true)); return; }
+      if (h) { _translateEN(h).then(n => say(n ? `"${n}" marked as done for today, sir.` : 'Habit marked as done for today, sir.', true)); return; }
       // ni tarea ni hábito → que lo resuelva el cerebro IA (puede ser objetivo trimestral, meta del día, etc.)
     }
 
@@ -518,9 +526,9 @@
       }
     }
 
-    // principio del día (principios.js): lo dice en español con sus opciones en pantalla
+    // principio del día (principios.js): el texto exacto queda en pantalla (español); la voz dice el aviso en inglés
     if (/\b(principio del dia|principio de hoy|que principio|cual principio)\b/.test(t) && window.Principios && Principios.delDia) {
-      const dd = Principios.delDia(); if (dd) { Principios.mostrarDelDia(dd); Principios.decirDelDia(dd); } else if (window.JARVIS) JARVIS.speak('No tenés principios para recordar hoy.', { lang: 'es' });
+      const dd = Principios.delDia(); if (dd) { Principios.mostrarDelDia(dd); Principios.decirDelDia(dd); } else { if (typeof showToast === 'function') showToast('No tenés principios para recordar hoy.'); if (window.JARVIS) JARVIS.speak('No tenés principios para recordar hoy.', { lang: 'es', en: "You have no principles to recall today, sir." }); }
       return;
     }
 
@@ -584,34 +592,36 @@
   // Siempre registra exactamente un turno de respuesta en _convo (balanceado con el del usuario).
   function _handleBrain(raw) {
     const parsed = _extractJSON(raw);
-    let spoken;
+    // en = lo que se HABLA (inglés); es = lo que se MUESTRA (español). Los mensajes armados en código ya son inglés.
+    let en = '', es = '';
+    let codeEN = false;    // true → en viene de código (plantilla inglesa), no del LLM
     let segments = null;   // set cuando la acción devuelve una respuesta con plantilla fija (ver jarvis-brain.js _buildSegments)
+    const fromLLM = () => { const bi = JARVIS.parseBilingual(parsed); es = bi.es; en = bi.en; if (!es && !en) { en = 'Done, sir.'; codeEN = true; } };
     if (!parsed) {
-      spoken = ('' + raw).trim();   // no vino como JSON → leerlo tal cual
-    } else {
-      const reply = ((parsed.reply || parsed.say || '') + '').trim();
-      if (parsed.action && parsed.action !== 'none' && window.JARVIS_BRAIN) {
-        const res = JARVIS_BRAIN.execute(parsed.action, Object.assign({}, parsed.args || {}, { _source: 'voice' }));
-        if (res && res.confirm_required) {
-          _pendingConfirm = { action: parsed.action, args: parsed.args || {}, ts: Date.now() };
-          spoken = res.msg || 'Shall I proceed, sir?';
-        } else if (res && Array.isArray(res.segments)) {
-          // Plantilla fija ya armada en código (report_balance/report_goals_today/report_habits):
-          // ignoramos reply/res.msg para el habla, spoken solo alimenta la memoria conversacional.
-          segments = res.segments;
-          spoken = segments.map(s => s.t).join('');
-        } else {
-          spoken = (res && res.ok === false) ? (res.msg || "I couldn't do that, sir.") : (reply || 'Done, sir.');
-        }
-      } else {
-        spoken = reply || 'Done, sir.';
-      }
-    }
-    spoken = spoken || 'Done, sir.';
-    _convo.push({ role: 'model', text: spoken });
+      // no vino como JSON: no se lee (puede ser español o JSON cortado) → respaldo genérico; se muestra si es texto legible
+      const t = ('' + raw).trim(); es = t.charAt(0) === '{' ? '' : t;
+      // JSON cortado: no queda nada que mostrar → al menos la frase de respaldo en voz (antes quedaba mudo)
+      if (!es) { en = (window.JARVIS && JARVIS.GENERIC_EN) || "Sir, I've put the details on screen."; codeEN = true; }
+    } else if (parsed.action && parsed.action !== 'none' && window.JARVIS_BRAIN) {
+      const res = JARVIS_BRAIN.execute(parsed.action, Object.assign({}, parsed.args || {}, { _source: 'voice' }));
+      if (res && res.confirm_required) {
+        _pendingConfirm = { action: parsed.action, args: parsed.args || {}, ts: Date.now() };
+        en = res.msg || 'Shall I proceed, sir?'; codeEN = true;
+      } else if (res && Array.isArray(res.segments)) {
+        // Plantilla fija ya armada en código (report_balance/report_goals_today/report_habits):
+        // ignoramos reply/res.msg para el habla, en solo alimenta la memoria conversacional.
+        segments = res.segments;
+        en = segments.map(s => s.t).join(''); codeEN = true;
+      } else if (res && res.ok === false) {
+        en = res.msg || "I couldn't do that, sir."; codeEN = true;
+      } else fromLLM();
+    } else fromLLM();
+    _convo.push({ role: 'model', text: en || es || 'Done, sir.' });
     if (_convo.length > 12) _convo = _convo.slice(-12);
+    if (es && !codeEN && typeof showToast === 'function') showToast('🤖 ' + es, 7000);   // pantalla en español
     if (segments && window.JARVIS && typeof JARVIS.speakSegments === 'function') JARVIS.speakSegments(segments);
-    else say(spoken, true);
+    else if (codeEN) say(en, true);
+    else if (window.JARVIS) JARVIS.speak(es || en, { dynamic: true, en });   // en '' → respaldo genérico, nunca el español
   }
 
   /* ── Gemini (free tier) — key por dispositivo, nunca en el repo ── */
@@ -627,13 +637,13 @@
     let isNight = false;
     try { isNight = !!(window.JARVIS && JARVIS.isNight && JARVIS.isNight()); } catch(e) {}
     let sys =
-'You are JARVIS, the AI butler of this personal command center. The user speaks Spanish (rioplatense); understand him in Spanish but ALWAYS reply in English, addressing him as "sir", precise with a touch of dry wit. Today is ' + new Date().toDateString() + '.\n\n' +
-'IMPORTANT — LANGUAGE: All the command center DATA in CONTEXT (task names, project names, goals, subjects, reminders, notes, etc.) is written in Spanish. Whenever you read, list or report any of it aloud, TRANSLATE it naturally into English — never speak the Spanish text verbatim. For example a task "Comprar leche" must be said as "Buy milk". Your entire reply must be in fluent English, including every item name you mention. (You still match items against the Spanish CONTEXT internally for actions, but you SPEAK English.)\n\n' +
+'You are JARVIS, the AI butler of this personal command center. The user speaks Spanish (rioplatense). Every reply has TWO versions of the same content: "reply" in natural Spanish (rioplatense, shown on screen) and "say_en" in natural, fluent English (spoken aloud by a British voice), addressing him as "sir", precise with a touch of dry wit. Today is ' + new Date().toDateString() + '.\n\n' +
+'IMPORTANT — LANGUAGE: All the command center DATA in CONTEXT (task names, project names, goals, subjects, reminders, notes, etc.) is written in Spanish. In "say_en" TRANSLATE it naturally into English — never put Spanish text there. For example a task "Comprar leche" must be said as "Buy milk". "say_en" must be entirely fluent English, including every item name you mention, with no emojis, markdown or URLs, and amounts written plainly (e.g. "about 7.9 million pesos"). (You still match items against the Spanish CONTEXT internally for actions.)\n\n' +
 'You can READ the full state of the command center (CONTEXT below) AND act on it (create, mark/complete, edit, delete). ' +
 'Respond with ONLY a single JSON object — no markdown, no text around it:\n' +
-'{"action":"<an action name below, or none>","args":{...},"reply":"<your spoken reply in English, max 2 sentences>"}\n' +
-'If the user only asks something, use "action":"none" and answer in "reply" using the CONTEXT (e.g. the quarterly objectives are listed there). ' +
-'If he asks to create/mark/complete/edit/delete anything, choose the matching action, fill args, and confirm in "reply". ' +
+'{"action":"<an action name below, or none>","args":{...},"reply":"<your reply in Spanish for the screen, max 2 sentences>","say_en":"<the same reply in English, spoken aloud, max 2 sentences>"}\n' +
+'If the user only asks something, use "action":"none" and answer in "reply"/"say_en" using the CONTEXT (e.g. the quarterly objectives are listed there). ' +
+'If he asks to create/mark/complete/edit/delete anything, choose the matching action, fill args, and confirm in "reply"/"say_en". ' +
 'For "search"/"name" args use a short distinctive fragment of the item so it can be matched.\n\n' +
 'CRITICAL SAFETY RULES — obey strictly:\n' +
 '1. Choose a MUTATING action (create/add/mark/complete/edit/delete/log/toggle) ONLY when THIS user message is a clear, explicit, intentional command to do exactly that.\n' +
@@ -641,7 +651,7 @@
 '3. NEVER mark, complete, toggle or delete anything as a side effect of answering. Listing today\'s tasks must NEVER complete them.\n' +
 '4. When in any doubt, use "action":"none". Acting without an explicit request is a serious error; doing nothing is always safe.\n\n' +
 'NOTE ON DELETIONS: for delete_* actions the system itself asks the user to confirm and waits for their next reply — you do not need to ask for confirmation yourself, add "confirm":true, or retry. Just pick the delete action normally, once, and let the system handle the confirm/cancel.\n\n' +
-'NOTE ON BALANCE/GOALS/HABITS REPORTS: if the user asks how much money he has / his account balance, how many goals are left today, or how many habits he has done today, use the action "report_balance", "report_goals_today" or "report_habits" respectively with args:{} — the system builds the spoken answer itself from a fixed template, so you can leave "reply":"" empty.\n\n' +
+'NOTE ON BALANCE/GOALS/HABITS REPORTS: if the user asks how much money he has / his account balance, how many goals are left today, or how many habits he has done today, use the action "report_balance", "report_goals_today" or "report_habits" respectively with args:{} — the system builds the spoken answer itself from a fixed template, so you can leave "reply":"" and "say_en":"" empty.\n\n' +
 'AVAILABLE ACTIONS:\n- ' + actions + '\n\n' +
 'CONTEXT (live state of the command center):\n' + snap;
     if (isNight) sys += '\n\nNIGHT MODE: it is late; keep every reply to one short sentence.';
@@ -659,7 +669,7 @@
       headers['anthropic-dangerous-direct-browser-access'] = 'true';
       body = {
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 600,
+        max_tokens: 800,
         system: sys,
         messages: [..._convo.map(mm => ({ role: mm.role === 'model' ? 'assistant' : 'user', content: mm.text })), { role: 'user', content: question }]
       };
@@ -671,7 +681,7 @@
       body = {
         model: isGroq ? 'openai/gpt-oss-120b' : 'meta-llama/llama-3.3-70b-instruct:free',
         messages: [{ role: 'system', content: sys }, ..._convo.map(mm => ({ role: mm.role === 'model' ? 'assistant' : 'user', content: mm.text })), { role: 'user', content: question }],
-        max_tokens: isGroq ? 1400 : 600, temperature: 0.2
+        max_tokens: isGroq ? 1600 : 800, temperature: 0.2
       };
       if (isGroq) body.reasoning_effort = 'low';   // gpt-oss razona: sin techo holgado la respuesta vuelve vacia
       parse = d => d.choices?.[0]?.message?.content;
@@ -683,7 +693,7 @@
       body = {
         systemInstruction: { parts: [{ text: sys }] },
         contents: [..._convo.map(mm => ({ role: mm.role === 'model' ? 'model' : 'user', parts: [{ text: mm.text }] })), { role: 'user', parts: [{ text: question }] }],
-        generationConfig: { maxOutputTokens: 600, temperature: 0.2, responseMimeType: 'application/json', thinkingConfig: { thinkingBudget: 0 } }
+        generationConfig: { maxOutputTokens: 800, temperature: 0.2, responseMimeType: 'application/json', thinkingConfig: { thinkingBudget: 0 } }
       };
       parse = d => d.candidates?.[0]?.content?.parts?.[0]?.text;
     }

@@ -293,40 +293,154 @@
     return _playSequence(blobs);
   }
 
-  // Preprocesador TTS: los datos de la app vienen en formato es-AR ($1.234.567,89 · 45,5%) pero
-  // JARVIS habla en inglés — sin esto, ElevenLabs/speechSynthesis leen los símbolos literalmente.
-  // Puro: solo regex, sin dependencias. Se aplica a TODO texto antes de sintetizar.
-  function _ttsPrep(text, lang) {
-    if (!text) return text;
+  // ── Voz en inglés (preferencia) ──
+  // JARVIS HABLA siempre en inglés (voz nativa George); lo que se ve en pantalla sigue en español.
+  // Preferencia por dispositivo, activada por defecto: localStorage 'jarvis_voice_en' === '0' la apaga
+  // (vuelve al comportamiento anterior: lee el texto tal cual, con lang 'es' si el llamador lo pide).
+  const VOICE_EN_KEY = 'jarvis_voice_en';
+  function _voiceEN() { try { return localStorage.getItem(VOICE_EN_KEY) !== '0'; } catch (e) { return true; } }
+  // Respaldo cuando hay que hablar algo que solo existe en español: NUNCA se lee el español con la voz inglesa.
+  const GENERIC_EN = "Sir, I've put the details on screen.";
+
+  // ¿Este texto es español? Heurística barata (sin LLM): signos ¿¡ ñ, o proporción de palabras funcionales
+  // del español que no existen en inglés. Un nombre propio suelto dentro de una frase inglesa larga NO la dispara.
+  const _ES_WORDS = new Set(['de','del','la','las','los','el','que','por','con','para','una','un','y','en','es','al','lo','se','su','sus','mi','mis','pero','como','más','mas','muy','ya','hoy','tu','tus','sin','está','esta','están','fue','hay','tenés','tenes','tiene','tienen','te','nos','este','estos','estas','también','porque','cuando','donde','sobre','entre','hasta','desde','todo','todos','cada','mañana','ayer','semana','principio','principios']);
+  function _looksSpanish(text) {
+    const t = String(text || '');
+    if (/[¿¡ñÑ]/.test(t)) return true;
+    const words = t.toLowerCase().match(/[a-záéíóúüñ]+/g) || [];
+    if (!words.length) return false;
+    let hits = 0;
+    for (const w of words) if (_ES_WORDS.has(w)) hits++;
+    const ratio = hits / words.length;
+    const accents = (t.match(/[áéíóúü]/gi) || []).length;
+    return hits >= 3 || (hits >= 1 && ratio >= 0.18) || (accents >= 1 && hits >= 1 && ratio >= 0.1);
+  }
+
+  // Separa la respuesta bilingüe del LLM (UN solo llamado): "reply" = español para pantalla, "say_en" = inglés para la voz.
+  // Si falta la versión en inglés → en '' (el llamador habla el respaldo genérico, nunca el español).
+  function _parseBilingual(obj) {
+    const o = obj && typeof obj === 'object' ? obj : {};
+    const s = v => (typeof v === 'string' ? v : '').trim();
+    return { es: s(o.reply) || s(o.say_es) || s(o.say), en: s(o.say_en) || s(o.reply_en) };
+  }
+
+  // Preprocesador TTS (D): lo que JARVIS dice sale del formato es-AR de la app a algo que la voz inglesa
+  // lee bien. Puro (solo regex, sin DOM): se testea en Node. `now` solo decide si una fecha lleva año.
+  const _MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  function _ord(n) { const v = n % 100; return (v >= 11 && v <= 13) ? n + 'th' : n + (['th','st','nd','rd'][n % 10] || 'th'); }
+  function _parseNum(s) {
+    s = String(s).trim();
+    if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(s)) return parseFloat(s.replace(/\./g, '').replace(',', '.'));   // es-AR: 1.234.567,89
+    if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(s)) return parseFloat(s.replace(/,/g, ''));                       // en-US: 1,234,567.89
+    if (/^\d+,\d+$/.test(s)) return parseFloat(s.replace(',', '.'));                                         // decimal con coma: 45,5
+    if (/^\d+(\.\d+)?$/.test(s)) return parseFloat(s);
+    return NaN;
+  }
+  function _scaled(n, d, word) { const v = n / d, r = Math.round(v * 10) / 10; return (Math.abs(v - r) < 1e-6 ? '' : 'about ') + r + ' ' + word; }
+  // Montos largos se dicen en palabras ("about 7.9 million"); el resto, con comas (la voz los lee bien).
+  function _fmtBig(n) {
+    const a = Math.abs(n);
+    if (a >= 1e9) return _scaled(n, 1e9, 'billion');
+    if (a >= 1e6) return _scaled(n, 1e6, 'million');
+    if (a >= 1000) return Math.round(n).toLocaleString('en-US');
+    return String(Math.round(n * 100) / 100);
+  }
+  const _SIGLAS = { IOL: 'I O L', FCI: 'F C I', CCL: 'C C L', MEP: 'M E P', BCRA: 'B C R A', CEDEAR: 'Sedear', CEDEARS: 'Sedears', ARS: 'Argentine pesos', USD: 'US dollars', EUR: 'euros' };
+  function _prepEN(text, now) {
+    if (!text) return '';
+    now = now || new Date();
+    let o = String(text);
+    // emojis y modificadores
+    o = o.replace(/[\p{Extended_Pictographic}\p{Emoji_Modifier}\u{1F1E6}-\u{1F1FF}\u200d\ufe0f\u20e3]/gu, '');
+    // markdown: enlaces, títulos, viñetas, énfasis, saltos de línea
+    o = o.replace(/\[([^\]]+)\]\((?:[^)]*)\)/g, '$1');
+    o = o.replace(/^\s{0,3}#{1,6}\s+/gm, '').replace(/^\s*(?:[-*+•·●▪◦]\s+)/gm, '');
+    const lines = o.split(/\n+/).map(l => l.trim()).filter(Boolean);
+    o = lines.map((l, i) => (i < lines.length - 1 && !/[.!?:;,…]$/.test(l)) ? l + '.' : l).join(' ');
+    // URLs → "a link"
+    o = o.replace(/\b(?:https?:\/\/|www\.)[^\s)]+/gi, 'a link').replace(/\b[a-z0-9-]+\.(?:com|org|net|io|app|dev|ar)(?:\/[^\s)]*)?(?=[\s.,;:!?)]|$)/g, 'a link');
+    o = o.replace(/\*\*|__|~~|`+/g, '').replace(/\*/g, '').replace(/(?<!\w)_|_(?!\w)/g, '');
+    // fechas: 2026-11-24 y 24/11/2026 → "November 24th" (con año si no es el actual)
+    const dateOut = (d, m, y) => {
+      if (m < 1 || m > 12 || d < 1 || d > 31) return null;
+      return _MONTHS[m - 1] + ' ' + _ord(d) + (y && y !== now.getFullYear() ? ', ' + y : '');
+    };
+    o = o.replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g, (m, y, mo, d) => dateOut(+d, +mo, +y) || m);
+    o = o.replace(/\b(\d{1,2})\/(\d{1,2})\/(\d{2,4})\b/g, (m, d, mo, y) => dateOut(+d, +mo, y.length === 2 ? 2000 + +y : +y) || m);
+    // horas: 14:30 → 2:30 PM
+    o = o.replace(/\b([01]?\d|2[0-3]):([0-5]\d)\b(?!\s?[AaPp]\.?[Mm])/g, (m, h, mi) => {
+      const hh = +h, h12 = hh % 12 === 0 ? 12 : hh % 12;
+      return h12 + (mi === '00' ? '' : ':' + mi) + (hh < 12 ? ' AM' : ' PM');
+    });
+    // montos: $1.234,56 · US$ 1.500 · USD 1.500 · 1.500 USD
+    const unitOf = c => { c = c.toUpperCase(); return /^(US\$|U\$S|USD)$/.test(c) ? 'dollars' : /^(€|EUR)$/.test(c) ? 'euros' : 'pesos'; };
+    const money = (num, unit) => { const n = _parseNum(num); if (isNaN(n)) return null; return _fmtBig(n) + ' ' + (n === 1 ? unit.replace(/s$/, '') : unit); };
+    o = o.replace(/(US\$|U\$S|USD|ARS|EUR|€|\$)\s?(\d[\d.,]*\d|\d)/gi, (m, c, num) => money(num, unitOf(c)) || m);
+    o = o.replace(/(\d[\d.,]*\d|\d)\s?(USD|ARS|EUR)\b/g, (m, num, c) => money(num, unitOf(c)) || m);
+    // porcentajes: +12,5% → "plus 12.5 percent"
+    o = o.replace(/([+\-−]?)(\d[\d.,]*\d|\d)\s?%/g, (m, sg, num) => {
+      const n = _parseNum(num); const v = isNaN(n) ? num : String(Math.round(n * 100) / 100);
+      return (sg === '+' ? 'plus ' : sg ? 'minus ' : '') + v + ' percent';
+    });
+    // duraciones: 3h · 25 min
+    o = o.replace(/\b(\d+(?:[.,]\d+)?)\s?(?:h|hs|hr|hrs)\b/g, (m, n) => n.replace(',', '.') + (parseFloat(n.replace(',', '.')) === 1 ? ' hour' : ' hours'));
+    o = o.replace(/\b(\d+)\s?(?:min|mins)\b\.?/g, (m, n) => n + (n === '1' ? ' minute' : ' minutes'));
+    // siglas de la app
+    o = o.replace(/\bS&P\b/g, 'S and P').replace(/\b(IOL|FCI|CCL|MEP|BCRA|CEDEARs?|ARS|USD|EUR)\b/g, (m, k) => _SIGLAS[k.toUpperCase()] || m);
+    // números es-AR sueltos y fracciones tipo hecho/total
+    o = o.replace(/\b\d{1,3}(?:\.\d{3})+(?:,\d+)?\b/g, m => { const n = _parseNum(m); return isNaN(n) ? m : _fmtBig(n); });
+    o = o.replace(/\b(\d+),(\d{1,2})\b(?!\d)/g, '$1.$2');
+    // d/m sin año con día 13-31 y mes 1-12 es claramente una fecha (30/11 → November 30th); lo demás, hecho/total (3/5 → 3 of 5)
+    o = o.replace(/\b(\d+)\/(\d+)\b/g, (m, a, b) => { const d = +a, mo = +b; return (d >= 13 && d <= 31 && mo >= 1 && mo <= 12) ? _MONTHS[mo - 1] + ' ' + _ord(d) : a + ' of ' + b; });
+    // abreviaturas y símbolos
+    o = o.replace(/\bvs\.?(?=\s)/gi, 'versus').replace(/\bapprox\./gi, 'approximately').replace(/\be\.g\./gi, 'for example').replace(/\bi\.e\./gi, 'that is');
+    o = o.replace(/[→⇒➜➡▶|]/g, ', ').replace(/[≈~]\s?/g, 'about ').replace(/&/g, ' and ').replace(/°/g, ' degrees').replace(/×/g, ' times ').replace(/[•·●▪◦★☆✓✔✗✘]/g, ' ');
+    // limpieza final
+    o = o.replace(/\s+/g, ' ').replace(/\s+([,.;:!?])/g, '$1').replace(/(?:,\s*){2,}/g, ', ').replace(/^[,.;\s]+/, '').trim();
+    return o;
+  }
+  // Legacy (preferencia apagada + texto en español): solo normaliza números es-AR a coma decimal / "por ciento".
+  function _prepESLegacy(text) {
     let out = text;
-    // es-AR → número plano en inglés: punto = separador de miles, coma = decimal
-    function esArToPlain(numStr) {
-      if (numStr.indexOf(',') !== -1) {
-        const parts = numStr.split(',');
-        return parts[0].replace(/\./g, '') + (lang === 'es' ? ',' : '.') + parts[1];
-      }
+    function plain(numStr) {
+      if (numStr.indexOf(',') !== -1) { const p = numStr.split(','); return p[0].replace(/\./g, '') + ',' + p[1]; }
       return numStr.replace(/\./g, '');
     }
-    // 1) Montos: "$1.234.567,89" → "1234567.89 pesos"
-    out = out.replace(/\$\s?(\d{1,3}(?:\.\d{3})*(?:,\d+)?|\d+(?:,\d+)?)/g, (m, num) => esArToPlain(num) + ' pesos');
-    // 2) Porcentajes: "45,5%" → "45.5 percent"
-    out = out.replace(/(\d+(?:,\d+)?)\s?%/g, (m, num) => lang === 'es' ? num + ' por ciento' : num.replace(',', '.') + ' percent');
-    // 3) Números es-AR sueltos con separador de miles (sin $ ni %): "1.234.567" → "1234567"
-    //    Exige al menos un grupo de EXACTAMENTE 3 dígitos tras el punto, para no tocar decimales
-    //    normales (ej. "3.14") ni fechas ISO ("2026-07-14", que usa guiones, no puntos).
-    out = out.replace(/\b\d{1,3}(?:\.\d{3})+(?:,\d+)?\b/g, (m) => esArToPlain(m));
+    out = out.replace(/\$\s?(\d{1,3}(?:\.\d{3})*(?:,\d+)?|\d+(?:,\d+)?)/g, (m, num) => plain(num) + ' pesos');
+    out = out.replace(/(\d+(?:,\d+)?)\s?%/g, (m, num) => num + ' por ciento');
+    out = out.replace(/\b\d{1,3}(?:\.\d{3})+(?:,\d+)?\b/g, m => plain(m));
     return out;
+  }
+  function _ttsPrep(text, lang) {
+    if (!text) return text;
+    return lang === 'es' ? _prepESLegacy(text) : _prepEN(text);
+  }
+  // Qué texto y en qué idioma se pronuncia. Con la preferencia activa SIEMPRE es inglés: `opts.en` es la versión
+  // inglesa explícita ('' = "no hay"); sin `opts.en` el texto se asume inglés. Si lo que iba a sonar parece español
+  // (o no hay nada), se habla el respaldo genérico — jamás español con la voz inglesa.
+  function _resolveVoice(text, opts) {
+    if (!_voiceEN()) return { text, lang: opts && opts.lang === 'es' ? 'es' : 'en' };
+    let t = (opts && typeof opts.en === 'string') ? opts.en : text;
+    t = String(t || '').trim();
+    if (!t || _looksSpanish(t)) t = GENERIC_EN;
+    return { text: t, lang: 'en' };
   }
 
   // Fallback de voz del navegador: se usa SOLO cuando ElevenLabs falla (sin key es aparte, ver
   // _elHint), para que una key vencida/rate-limit no deje a JARVIS mudo. Nunca reemplaza a
   // ElevenLabs como voz primaria (issues históricos de speechSynthesis trabado — ver fixes.json);
   // es puramente el "no te quedes sin hablar" ante un error puntual de la API.
+  // Voz del navegador para inglés: en-GB si existe, si no cualquier en-*; sin voces cargadas, en-GB igual.
+  function _pickEnVoice() {
+    try { const vs = speechSynthesis.getVoices() || []; return vs.find(v => /^en[-_]GB/i.test(v.lang)) || vs.find(v => /^en/i.test(v.lang)) || null; } catch (e) { return null; }
+  }
   function _speakBrowser(text, lang) {
     try {
       if (!window.speechSynthesis) return;
       const u = new SpeechSynthesisUtterance(text);
-      u.lang = lang === 'es' ? 'es-AR' : 'en-GB';
+      if (lang === 'es') u.lang = 'es-AR';
+      else { const v = _pickEnVoice(); u.lang = v ? v.lang : 'en-GB'; if (v) { try { u.voice = v; } catch (e) {} } }
       if (_isNightTime()) u.volume = NIGHT_VOLUME;
       speechSynthesis.speak(u);
     } catch(e) {}
@@ -410,10 +524,11 @@
   // ver _elHint y reserva de cuota). Ante error de ElevenLabs (key inválida, rate-limit, red)
   // se cae a _speakBrowser() para que la frase igual suene — ver _elHandleFailure.
   async function speak(text, opts) {
-    if (!enabled || !text) return;
+    if (!enabled || (!text && !(opts && opts.en))) return;
     _speakAt = Date.now();
-    const lang = opts && opts.lang === 'es' ? 'es' : 'en';
-    let prepped = _ttsPrep(text, lang);
+    const voiced = _resolveVoice(text, opts);   // inglés siempre (o respaldo genérico); ver _resolveVoice
+    const lang = voiced.lang;
+    let prepped = _ttsPrep(voiced.text, lang);
     // Tope duro en respuestas dinámicas: el prompt de Gemini ya pide "max 2 sentences" pero un
     // LLM puede ignorarlo — sin este corte una respuesta larga se comería la cuota de ElevenLabs.
     // No aplica a texto no-dinámico (líneas fijas, ya son cortas por diseño).
@@ -445,19 +560,20 @@
     if (!(await _elQuotaOk())) return;   // se trata siempre como dinámica: trae datos en vivo
     _speakAt = Date.now();
     const elModel = localStorage.getItem('jarvis_el_model') || 'eleven_flash_v2_5';
-    const joined = segments.map(s => s.t).join('');
+    const parts = segments.map(seg => _prepEN(seg.t)).filter(t => t);   // mismo preprocesador que speak()
+    const joined = parts.join(' ');
     try {
       const c = await _openCache();
       const blobs = [];
-      for (const seg of segments) {
-        const key = _ttsCacheKey(seg.t, elModel);
-        blobs.push(await _getOrSynth(seg.t, key, elModel, c));
+      for (const t of parts) {
+        const key = _ttsCacheKey(t, elModel);
+        blobs.push(await _getOrSynth(t, key, elModel, c));
       }
       return _playSequence(blobs);
     } catch (e) {
       console.warn('JARVIS sin voz premium (ElevenLabs) en speakSegments, usando voz del navegador:', e.message);
       _elHandleFailure(e);
-      _speakBrowser(joined);   // nunca queda mudo
+      _speakBrowser(joined, 'en');   // nunca queda mudo
     }
   }
 
@@ -604,7 +720,18 @@
     if (enabled) { speak('Voice systems online, sir.'); _elQuotaCheckProactive(); }
   }
 
+  function toggleVoiceEN() {
+    localStorage.setItem(VOICE_EN_KEY, _voiceEN() ? '0' : '1');
+    _updateBtn();
+  }
+
   function _updateBtn() {
+    const vb = document.getElementById('jarvis-voice-en-btn');
+    if (vb) {
+      const on = _voiceEN();
+      vb.textContent = on ? '🗣️ Voz en inglés: activada' : '🗣️ Voz en inglés: apagada';
+      vb.style.color = on ? 'rgba(0,255,136,0.75)' : 'rgba(255,255,255,0.28)';
+    }
     const b = document.getElementById('jarvis-toggle-btn');
     if (!b) return;
     b.textContent = enabled ? '🔊 JARVIS activo' : '🔇 JARVIS silenciado';
@@ -624,5 +751,5 @@
     };
   }
 
-  window.JARVIS = { speak, speakSegments, greeting, onNewProject, onTaskDone, onPrioritySet, onDeleteProject, onThemeChange, checkOverdue, toggle, isSpeaking, recentlySpoke, stopSpeaking, checkVoiceQuota: _elQuotaCheckProactive, isNight: _isNightTime, getUsageStats, addApiUsage };
+  window.JARVIS = { speak, speakSegments, toggleVoiceEN, voiceEN: _voiceEN, prepSpeech: _prepEN, looksSpanish: _looksSpanish, parseBilingual: _parseBilingual, GENERIC_EN, greeting, onNewProject, onTaskDone, onPrioritySet, onDeleteProject, onThemeChange, checkOverdue, toggle, isSpeaking, recentlySpoke, stopSpeaking, checkVoiceQuota: _elQuotaCheckProactive, isNight: _isNightTime, getUsageStats, addApiUsage };
 })();
