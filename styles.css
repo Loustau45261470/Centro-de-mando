@@ -1753,7 +1753,7 @@ button.goal-hora-vacio:hover { color: var(--tp); background: rgba(255,255,255,.0
 .study-cal-grid {
   display:grid; grid-template-columns:repeat(7,1fr); gap:0;
   border:1px solid rgba(255,255,255,.1);
-  border-top:none; border-radius:0 0 9px 9px; overflow:hidden;
+  border-top:none; border-radius:0 0 9px 9px;
 }
 .study-cal-day {
   border-right:1px solid rgba(255,255,255,.06);
@@ -1809,6 +1809,29 @@ button.goal-hora-vacio:hover { color: var(--tp); background: rgba(255,255,255,.0
   align-self:flex-end; padding-right:5px;
 }
 .study-cal-day.today-cell .study-cal-num { color:var(--accent); font-weight:800; font-size:var(--fs-12-5); }
+/* Hoy (propuesta HUD #4): borde que respira + anillo que se expande hacia afuera y se desvanece, color de la sección.
+   La grilla no recorta (sin overflow:hidden): z-index sube la celda sobre las vecinas; solo anima la celda de hoy. */
+.study-cal-day.today-cell { position:relative; z-index:2; animation:cal-hoy-pulse 1.4s ease-in-out infinite; }
+.study-cal-day.today-cell::after {
+  content:""; position:absolute; inset:0; pointer-events:none;
+  border:1.5px solid color-mix(in srgb, var(--card-accent, var(--accent)) 75%, transparent);
+  border-radius:inherit;
+  animation:cal-hoy-ring 1.1s ease-out infinite;
+}
+@keyframes cal-hoy-pulse {
+  0%,100% { box-shadow:0 0 6px 0 color-mix(in srgb, var(--card-accent, var(--accent)) 50%, transparent), inset 0 0 0 1.5px color-mix(in srgb, var(--card-accent, var(--accent)) 45%, transparent); }
+  50%     { box-shadow:0 0 14px 1px color-mix(in srgb, var(--card-accent, var(--accent)) 95%, transparent), inset 0 0 0 1.5px color-mix(in srgb, var(--card-accent, var(--accent)) 95%, transparent); }
+}
+@keyframes cal-hoy-ring { from { inset:0; opacity:.75; } to { inset:-12px; opacity:0; } }
+/* Sin overflow:hidden en la grilla, las celdas de las esquinas inferiores redondean su fondo */
+.study-cal-day:nth-child(7n+1):nth-last-child(-n+7) { border-bottom-left-radius:8px; }
+.study-cal-day:nth-child(7n):last-child { border-bottom-right-radius:8px; }
+/* Aire lateral para que el anillo (+12px) y el glow de hoy en las columnas L y D no los recorte .card-body (overflow:hidden) */
+.study-cal-weekdays, .study-cal-grid { margin-inline:16px; }
+@media (prefers-reduced-motion:reduce) {
+  .study-cal-day.today-cell { animation:none; box-shadow:inset 0 0 0 1.5px color-mix(in srgb, var(--card-accent, var(--accent)) 90%, transparent); }
+  .study-cal-day.today-cell::after { display:none; }
+}
 
 .study-cal-dot {
   width:26px; height:26px; border-radius:50%;
@@ -7180,3 +7203,5 @@ html.mo-in .tab-panel.active .card:nth-child(n+4) { animation-delay: .12s; }
 @keyframes rg-pulso { 0%, 100% { box-shadow: 0 0 0 0 rgba(15,185,214,.55); } 50% { box-shadow: 0 0 0 7px rgba(15,185,214,0); } }
 @media (prefers-reduced-motion: reduce) { .rg-btn.tiene { animation: none; } }
 .rg-ov-acc { display: flex; justify-content: flex-end; margin: 4px 0 8px; }
+.rg-cat-otra { max-width: 260px; margin: -2px 0 10px; padding: 6px 10px; font-size: 13px; }
+.rg-cat-propia { border-style: dashed; }

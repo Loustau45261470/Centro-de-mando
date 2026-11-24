@@ -258,4 +258,79 @@ test.describe('Registros', () => {
     });
     await expect(page.locator('#fo-reparto')).toContainText('Estudio');
   });
+
+  test('categoría propia: se escribe, se guarda, sale en historial, filtro, resumen y como sugerencia; un chip fijo limpia el texto', async ({ cmPage: page, consoleErrors }) => {
+    test.setTimeout(90000);
+    const SHOTS = 'C:/Users/Tobias/AppData/Local/Temp/claude/5d52610f902b8d2c/0ee1a2f9-6695-4db7-81d3-bffab298c7c8/scratchpad/rg-cat-propia/';
+    await page.setViewportSize({ width: 390, height: 844 });
+    await a(page, 11, 2);
+    await irAVida(page);
+    await antiguar(page);
+    const abrir = async () => { await page.evaluate(() => Registros.responder('reg_principal')); await expect(page.locator('#ov-registro-resp.show #rg-cat-otra')).toBeVisible(); };
+
+    // Escribir una propia: se deselecciona el chip fijo; Enter no guarda el registro.
+    await abrir();
+    await page.fill('#rg-act', 'Armando un banco de preguntas');
+    await page.locator('#ov-registro-resp .fo-cat[data-cat="estudio"]').click();
+    await expect(page.locator('#ov-registro-resp .fo-cat[data-cat="estudio"]')).toHaveClass(/on/);
+    await page.fill('#rg-cat-otra', '  Lectura   de   papers  ');
+    await expect(page.locator('#ov-registro-resp .fo-cat.on')).toHaveCount(0);
+    await page.press('#rg-cat-otra', 'Enter');
+    await expect(page.locator('#ov-registro-resp.show')).toBeVisible();
+    expect(await page.evaluate(() => S.registroRespuestas.length)).toBe(0);
+    expect(await sinScrollH(page)).toBe(true);
+    await page.screenshot({ path: SHOTS + 'form-390.png' });
+    await page.click('#rg-guardar');
+    expect(await page.evaluate(() => S.registroRespuestas.map((r) => r.categoria))).toEqual(['Lectura de papers']);
+
+    // Segundo registro con la misma categoría en otra forma + una fija: tope de 40 y mayúsculas/acentos agrupados.
+    await abrir();
+    await expect(page.locator('#ov-registro-resp .rg-cat-propia')).toHaveText(['Lectura de papers']);   // sugerida
+    await page.locator('#ov-registro-resp .rg-cat-propia').click();
+    await expect(page.locator('#ov-registro-resp .rg-cat-propia')).toHaveClass(/on/);
+    await page.fill('#rg-cat-otra', 'x'.repeat(60));
+    expect(await page.evaluate(() => _rgF.categoria.length)).toBe(40);
+    await page.fill('#rg-cat-otra', 'LECTURA DE PAPERS');
+    await expect(page.locator('#ov-registro-resp .rg-cat-propia')).toHaveClass(/on/);   // misma clave: el chip sugerido se enciende
+    await page.fill('#rg-act', 'Más lectura');
+    await page.click('#rg-guardar');
+    // Tocar un chip fijo limpia el texto; escribir el nombre de una fija usa la fija.
+    await abrir();
+    await page.fill('#rg-cat-otra', 'algo');
+    await page.locator('#ov-registro-resp .fo-cat[data-cat="gym"]').click();
+    await expect(page.locator('#rg-cat-otra')).toHaveValue('');
+    expect(await page.evaluate(() => _rgF.categoria)).toBe('gym');
+    await page.fill('#rg-cat-otra', 'estudio');
+    expect(await page.evaluate(() => _rgF.categoria)).toBe('estudio');
+    await page.fill('#rg-act', 'Repaso');
+    await page.click('#rg-guardar');
+    const cats = await page.evaluate(() => S.registroRespuestas.map((r) => r.categoria));
+    expect(cats).toEqual(['Lectura de papers', 'LECTURA DE PAPERS', 'estudio']);   // se guarda el texto tal cual, limpio
+    await page.evaluate(() => { _rgH.preset = 'hoy'; });
+    await page.evaluate(() => Registros.abrirHistorial());
+    await expect(page.locator('#ov-registros-hist.show')).toBeVisible();
+    const ents = page.locator('#rg-h-res .rg-ent:not(.rg-sin)');
+    await expect(ents.filter({ hasText: /Lectura de papers/ })).toHaveCount(1);
+    await expect(ents.filter({ hasText: /LECTURA DE PAPERS/ })).toHaveCount(1);
+    await expect(page.locator('#rg-h-cat option', { hasText: 'Lectura de papers' })).toHaveCount(1);   // una sola opción: mismas mayúsculas/acentos agrupados
+    await page.selectOption('#rg-h-cat', { label: 'Lectura de papers' });
+    await expect(ents).toHaveCount(2);
+    await page.selectOption('#rg-h-cat', 'estudio');
+    await expect(ents).toHaveCount(1);
+    await page.selectOption('#rg-h-cat', '');
+    await page.fill('#rg-h-texto', 'lectura de PAPERS');
+    await expect(ents).toHaveCount(2);
+    await page.fill('#rg-h-texto', '');
+    const res = page.locator('#rg-h-res .pr-card').first();
+    await expect(res).toContainText('En qué se fue el tiempo');
+    await expect(res).toContainText('Lectura de papers · 2'.replace(' · 2', ''));
+    await expect(res.locator('.fo-rep', { hasText: 'Lectura de papers' })).toContainText('2 · 67%');
+    await expect(res.locator('.fo-rep', { hasText: 'Estudio' })).toContainText('1 · 33%');
+    await page.screenshot({ path: SHOTS + 'historial-390.png' });
+    await page.evaluate(() => CMOverlay.close('ov-registros-hist'));
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await abrir();
+    await page.screenshot({ path: SHOTS + 'form-1280.png' });
+    expect(consoleErrors).toEqual([]);
+  });
 });
