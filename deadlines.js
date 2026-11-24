@@ -63,11 +63,24 @@ const CMDeadlines = (() => {
     pedido:      [],
   };
 
+  // Entidades cuyo id NO lleva la fecha: si se reprograma tras avisar, la clave vieja taparía el aviso nuevo.
+  // Su clave de "ya avisado" incluye fecha y hora (id@YYYY-MM-DDTHH:MM + sufijo). Las demás (meta_, act_, tarj_, foco_, prin_)
+  // ya llevan la fecha en el id. `legacyKey` = la clave sin fecha de antes: dueAlerts la sigue respetando para no
+  // reavisar, al desplegar, lo que ya se avisó con la fecha sin cambios.
+  const KEY_CON_FECHA = { rec: 1, proy: 1, final: 1, cursada: 1, proyeccion: 1, pedido: 1 };
+
   function buildAlerts(it, opts) {
     const tz = opts.tz, out = [];
+    const conFecha = !!KEY_CON_FECHA[it.kind];
+    const base = conFecha ? it.id + '@' + it.datetime : it.id;
+    const mk = (suffix, at, title, lead) => {
+      const a = { key: base + suffix, at, title, body: it.notifBody, lead: !!lead };
+      if (conFecha) a.legacyKey = it.id + suffix;
+      return a;
+    };
     // `lead` = aviso de anticipación (tolera llegar tarde y pide interacción);
     // sin lead = aviso "es ahora", que tarde ya no sirve.
-    const push = (suffix, at, title, lead) => { if (!isNaN(at)) out.push({ key: it.id + suffix, at, title, body: it.notifBody, lead: !!lead }); };
+    const push = (suffix, at, title, lead) => { if (!isNaN(at)) out.push(mk(suffix, at, title, lead)); };
 
     if (it.kind === 'foco' || it.kind === 'principio') {
       // Chequeo de Foco y principio por horario: un solo aviso "es ahora" (tarde ya no sirve), con destino dentro de la app.
@@ -83,8 +96,8 @@ const CMDeadlines = (() => {
     } else if (it.kind === 'rec') {
       // Recordatorios clásicos: se respetan las claves y los tiempos originales
       // (24 h antes + al momento) para no re-disparar lo ya notificado.
-      out.push({ key: it.id + '_1d', at: it.at - DAY, title: '📅 Vence mañana — Centro de Mando', body: it.notifBody, lead: true });
-      out.push({ key: it.id,        at: it.at,       title: '🔔 Recordatorio — Centro de Mando', body: it.notifBody, lead: false });
+      out.push(mk('_1d', it.at - DAY, '📅 Vence mañana — Centro de Mando', true));
+      out.push(mk('',    it.at,       '🔔 Recordatorio — Centro de Mando', false));
     } else {
       // Tarea con franja (sin hora exacta): un solo aviso al arrancar la franja, sin el "en 10 min".
       if (!it.ahoraTxt) push('_10m', it.at - 10 * MIN, `${it.icon} En 10 min: ${it.title}`, false);
@@ -335,12 +348,25 @@ const CMDeadlines = (() => {
     const out = [];
     collect(state, opts).forEach(it => (it.alerts || []).forEach(a => {
       const win = a.winMs || (a.lead ? winLead : winTimed);   // winMs propio del aviso gana sobre la regla por lead
-      if (a.at <= now && now - a.at < win && !has(a.key)) out.push({ ...a, item: it });
+      if (a.at <= now && now - a.at < win && !has(a.key) && !(a.legacyKey && has(a.legacyKey))) out.push({ ...a, item: it });
     }));
     return out;
   }
 
-  return { collect, dueAlerts, focoHoras };
+  // Migración de claves: para cada aviso ya vencido (at <= now) cuya clave vieja (sin fecha) figura como avisada, la clave
+  // nueva (con fecha) también. Si el aviso todavía no llegó (at > now) la fecha se corrió a futuro tras avisar: no se
+  // hereda, así vuelve a avisar. Devuelve las claves nuevas a conservar.
+  function migrarClaves(state, opts, seen) {
+    const has = k => (seen && typeof seen.has === 'function' ? seen.has(k) : !!(seen && seen[k]));
+    const now = (opts && opts.now) || Date.now();
+    const out = [];
+    collect(state, opts).forEach(it => (it.alerts || []).forEach(a => {
+      if (a.legacyKey && a.at <= now && has(a.legacyKey) && !has(a.key)) out.push(a.key);
+    }));
+    return out;
+  }
+
+  return { collect, dueAlerts, focoHoras, migrarClaves };
 })();
 
 if (typeof window !== 'undefined') window.CMDeadlines = CMDeadlines;

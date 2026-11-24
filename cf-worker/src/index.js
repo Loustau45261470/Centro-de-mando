@@ -7,6 +7,8 @@
 // Rutas:
 //   POST /schedule/:id  { delaySeconds, subscriptions[≤10] (o subscription sola, formato viejo), title, body, tag }  — Bearer <ID token del dueño>
 //   POST /cancel/:id                                                      — Bearer <ID token del dueño>
+//   GET  /push/salud · POST /push/salud/ack {endpoints} — endpoints muertos (404/410) vistos por las alarmas, fallos recientes y último dispatch del cron — Bearer <ID token del dueño>
+//   scheduled (cron */5) — dispara el workflow push-reminders.yml del repo del sitio (workflow_dispatch) con GH_DISPATCH_TOKEN (fine-grained, Actions: Read and write sobre Centro-de-mando)
 //   GET  /cartera  — cartera IOL en vivo — Bearer <ID token de Firebase Auth>, ver más abajo
 //                    (el estado — caché, token de IOL, frenos — vive en el Durable Object CarteraGate)
 //   GET  /datos/<archivo>.json — archivos privados de la cartera (repo privado de GitHub) — Bearer <ID token de Firebase Auth>
@@ -55,6 +57,39 @@ export class TimerAlarm {
       await this.state.storage.delete('payload');
       return new Response('cancelled', { status: 200 });
     }
+    // Registro de salud (solo lo usa la instancia '__salud__'; las demás nunca reciben estas rutas).
+    // POST /registrar { eventos:[{endpoint,status}], cron?:{status} } — lo llaman alarm() y scheduled().
+    if (request.method === 'POST' && url.pathname === '/registrar') {
+      const b = await request.json().catch(() => ({}));
+      const salud = (await this.state.storage.get('salud')) || { muertos: {}, fallos: [], cron: null };
+      const now = Date.now();
+      for (const e of (Array.isArray(b.eventos) ? b.eventos : []).slice(0, 20)) {
+        if (!e || typeof e.endpoint !== 'string') continue;
+        if (e.status === 404 || e.status === 410) salud.muertos[e.endpoint] = { at: now, status: e.status };
+        else { salud.fallos.push({ at: now, status: e.status || 0 }); salud.fallos = salud.fallos.slice(-20); }
+      }
+      const claves = Object.keys(salud.muertos);
+      if (claves.length > 50) claves.sort((x, y) => salud.muertos[x].at - salud.muertos[y].at).slice(0, claves.length - 50).forEach(k => delete salud.muertos[k]);
+      if (b.cron && typeof b.cron === 'object') salud.cron = { at: now, status: Number(b.cron.status) || 0 };
+      await this.state.storage.put('salud', salud);
+      return new Response('ok', { status: 200 });
+    }
+    // GET /salud — endpoints que respondieron 404/410 desde el Worker, fallos recientes y estado del cron.
+    if (request.method === 'GET' && url.pathname === '/salud') {
+      const salud = (await this.state.storage.get('salud')) || { muertos: {}, fallos: [], cron: null };
+      return new Response(JSON.stringify({
+        muertos: Object.entries(salud.muertos).map(([endpoint, v]) => ({ endpoint, at: v.at, status: v.status })),
+        fallos: salud.fallos, cron: salud.cron,
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+    // POST /salud/ack { endpoints:[...] } — la app avisa que ya renovó esos dispositivos.
+    if (request.method === 'POST' && url.pathname === '/salud/ack') {
+      const b = await request.json().catch(() => ({}));
+      const salud = (await this.state.storage.get('salud')) || { muertos: {}, fallos: [], cron: null };
+      (Array.isArray(b.endpoints) ? b.endpoints : []).slice(0, 50).forEach(e => { delete salud.muertos[e]; });
+      await this.state.storage.put('salud', salud);
+      return new Response('ok', { status: 200 });
+    }
     return new Response('not found', { status: 404 });
   }
 
@@ -65,7 +100,7 @@ export class TimerAlarm {
     const { title, notifBody, tag } = payload;
     const subs = payload.subscriptions || (payload.subscription ? [payload.subscription] : []);   // payload viejo ya guardado: una sola
     const vapid = {
-      subject: 'mailto:tobiloustau@gmail.com',
+      subject: VAPID_SUBJECT,   // URL del sitio (no un email personal: el repo es público)
       publicKey: this.env.VAPID_PUBLIC_KEY,
       privateKey: this.env.VAPID_PRIVATE_KEY,
     };
@@ -75,16 +110,59 @@ export class TimerAlarm {
       options: { ttl: 300 }, // si no se entrega en 5 min ya no sirve, no encolar más
     };
     // A todos los dispositivos; cada envío con su try/catch (uno que falla no frena al resto). No se loguean endpoints.
+    // Los 404/410 (suscripción muerta) y demás fallos se registran en el DO '__salud__' para que la app se entere (GET /push/salud).
+    const eventos = [];
     await Promise.all(subs.map(async (subscription) => {
       try {
         const req = await buildPushPayload(message, subscription, vapid);
         const res = await fetch(subscription.endpoint, req);
-        if (!res.ok) console.error('push send failed', res.status, await res.text());
+        if (!res.ok) {
+          console.error('push send failed', res.status, await res.text());
+          eventos.push({ endpoint: subscription.endpoint, status: res.status });
+        }
       } catch (e) {
         console.error('push send error', e && e.message);
+        eventos.push({ endpoint: subscription.endpoint, status: 0 });
       }
     }));
+    if (eventos.length) await registrarSalud(this.env, { eventos });
   }
+}
+
+// Subject VAPID: la URL del sitio, no un email personal (el repo es público).
+const VAPID_SUBJECT = 'https://loustau45261470.github.io/Centro-de-mando/';
+
+// Escribe en el DO único '__salud__' (nunca tira: la salud es visibilidad, no debe romper el envío).
+async function registrarSalud(env, cuerpo) {
+  try {
+    if (!env || !env.TIMER) return;
+    await env.TIMER.get(env.TIMER.idFromName('__salud__')).fetch('https://do/registrar', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(cuerpo),
+    });
+  } catch (e) { console.error('registrar salud error', e && e.message); }
+}
+
+// Cron Trigger (cada 5 min): el schedule de GitHub Actions corre en la práctica cada ~4,6 h, así que el Worker
+// dispara el workflow push-reminders.yml (workflow_dispatch). El schedule de GitHub queda como respaldo.
+const PUSH_REPO_DEFAULT = 'Loustau45261470/Centro-de-mando';
+const PUSH_WORKFLOW = 'push-reminders.yml';
+async function dispararPushReminders(env) {
+  // Token propio (GH_DISPATCH_TOKEN: fine-grained, repo del sitio, permiso Actions: Read and write). GH_DATA_TOKEN solo sirve si tiene ese permiso en este repo.
+  const token = env.GH_DISPATCH_TOKEN || env.GH_DATA_TOKEN;
+  if (!token) { console.error('cron: falta GH_DISPATCH_TOKEN'); await registrarSalud(env, { cron: { status: -1 } }); return -1; }
+  let status = 0;
+  try {
+    const res = await fetch(`https://api.github.com/repos/${env.PUSH_REPO || PUSH_REPO_DEFAULT}/actions/workflows/${PUSH_WORKFLOW}/dispatches`, {
+      method: 'POST',
+      headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${token}`, 'User-Agent': 'cdm-push-worker', 'X-GitHub-Api-Version': '2022-11-28', 'content-type': 'application/json' },
+      body: JSON.stringify({ ref: 'main' }),
+    });
+    status = res.status;
+    if (status !== 204) console.error('cron: dispatch HTTP', status, (await res.text()).slice(0, 200));
+    else console.log('cron: dispatch ok (204)');
+  } catch (e) { console.error('cron: dispatch error', e && e.message); }
+  await registrarSalud(env, { cron: { status } });
+  return status;
 }
 
 // CORS: el Worker vive en otro origen que el sitio (loustau45261470.github.io),
@@ -92,7 +170,7 @@ export class TimerAlarm {
 // El gate real es el Bearer token, no el origin — '*' no relaja nada de fondo.
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Headers': 'content-type, authorization',
 };
 const withCors = res => {
@@ -1182,6 +1260,15 @@ export default {
     // Gate: ID token de Firebase del dueño (el secreto fijo WORKER_SECRET se eliminó: estaba expuesto en el repo público).
     const denegado = await autorizarDueno(request, env);
     if (denegado) return withCors(denegado);
+    if (url.pathname === '/push/salud' || url.pathname === '/push/salud/ack') {
+      // Estado de salud del push del Worker (endpoints muertos, fallos recientes, último dispatch del cron). Solo el dueño.
+      const ack = url.pathname.endsWith('/ack');
+      if (request.method !== (ack ? 'POST' : 'GET')) return withCors(new Response('not found', { status: 404 }));
+      const r = await env.TIMER.get(env.TIMER.idFromName('__salud__')).fetch('https://do/' + (ack ? 'salud/ack' : 'salud'), {
+        method: ack ? 'POST' : 'GET', headers: { 'content-type': 'application/json' }, body: ack ? (await request.text()).slice(0, 32768) : undefined,
+      });
+      return withCors(r);
+    }
     const m = url.pathname.match(/^\/(schedule|cancel)\/([a-zA-Z0-9_-]+)$/);
     if (!m || request.method !== 'POST') return withCors(new Response('not found', { status: 404 }));
     const [, action, id] = m;
@@ -1196,5 +1283,10 @@ export default {
       body: bodyText || undefined,
     });
     return withCors(res);
+  },
+
+  // Cron Trigger (wrangler.toml [triggers]): dispara push-reminders.yml cada 5 min.
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(dispararPushReminders(env));
   },
 };

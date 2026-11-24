@@ -375,19 +375,49 @@ function checkReminderNotifications() {
 }
 
 // ── Aviso de avisos caídos ──
-// push-reminders.js (el cron) escribe pushDead en el documento cuando el servicio push da la
-// suscripción por muerta (404/410). app.js llama a pushDeadAviso() con ese campo en cada snapshot:
-// el aviso queda visible hasta que el usuario se resuscribe (eso borra el campo).
-function pushDeadAviso(pd) {
+// push-reminders.js (el cron) escribe en el documento: pushDead cuando el servicio push da por muerta la suscripción
+// de TODOS los dispositivos (404/410), y pushHealth.fallos.<dispositivo> cuando a UN dispositivo no se le pudo enviar
+// (suscripción muerta, o 3 corridas seguidas con VAPID/límite/servicio caído), aunque otro dispositivo sí reciba.
+// app.js llama a pushDeadAviso() con esos campos en cada snapshot: el aviso queda visible hasta que el dispositivo
+// afectado se resuscribe (eso borra su entrada) o se lo descarta tocándolo.
+function pushHealthVisibles(ph) {
+  const f = (ph && ph.fallos) || {};
+  return Object.keys(f).filter(k => f[k] && (f[k].dead || f[k].n >= 3)).map(k => Object.assign({ id: k }, f[k]));
+}
+function pushDeadAviso(pd, ph) {
   let b = document.getElementById('pushdead-banner');
-  if (!pd) { if (b) b.remove(); return; }
-  if (b) return;
-  b = document.createElement('button');
-  b.id = 'pushdead-banner';
-  b.type = 'button';
-  b.textContent = '🔕 Los avisos al celular dejaron de llegar. Tocá para reactivarlos.';
-  b.onclick = pushDeadReactivar;
-  document.body.appendChild(b);
+  const vis = pushHealthVisibles(ph);
+  if (!pd && !vis.length) { if (b) b.remove(); return; }
+  let txt, fn;
+  if (pd) {
+    txt = '🔕 Los avisos al celular dejaron de llegar. Tocá para reactivarlos.';
+    fn = pushDeadReactivar;
+  } else {
+    const yo = typeof _pushDeviceId === 'function' ? _pushDeviceId() : null;
+    const propio = vis.some(e => e.id === yo);
+    const quien = vis.map(e => e.ua || 'otro dispositivo').filter((x, i, arr) => arr.indexOf(x) === i).join(', ');
+    const dead = vis.every(e => e.dead);
+    txt = propio
+      ? '🔕 Las notificaciones de este dispositivo dejaron de funcionar. Tocá para reactivarlas.'
+      : '🔕 Las notificaciones de ' + quien + ' ' + (dead ? 'dejaron de funcionar (suscripción vencida)' : 'están fallando') + '. Abrí la app en ese dispositivo para renovarlas. Tocá para ocultar este aviso.';
+    fn = propio ? pushDeadReactivar : () => pushHealthDescartar(vis.map(e => e.id));
+  }
+  if (!b) {
+    b = document.createElement('button');
+    b.id = 'pushdead-banner';
+    b.type = 'button';
+    document.body.appendChild(b);
+  }
+  b.textContent = txt;
+  b.onclick = fn;
+}
+// Oculta el aviso de dispositivos ajenos: borra solo sus entradas de pushHealth.fallos (campos puntuales, no toca `state`).
+async function pushHealthDescartar(ids) {
+  try {
+    const upd = {};
+    ids.forEach(id => { upd['pushHealth.fallos.' + id] = firebase.firestore.FieldValue.delete(); });
+    await _DOC().update(upd);
+  } catch (e) { if (typeof showToast === 'function') showToast('No pude ocultar el aviso. Probá de nuevo.', 4000); }
 }
 async function pushDeadReactivar() {
   if (!('Notification' in window)) { showToast('Este navegador no soporta notificaciones'); return; }

@@ -2,13 +2,19 @@ name: Push Reminder Notifications
 
 on:
   schedule:
-    - cron: '*/5 * * * *'   # Every 5 minutes
-  workflow_dispatch:          # Allow manual trigger from GitHub UI
+    - cron: '*/5 * * * *'   # Respaldo: en la práctica GitHub lo corre cada ~4,6 h
+  workflow_dispatch:          # Lo dispara el Worker de Cloudflare cada 5 min (cf-worker, Cron Trigger) y también sirve a mano
+
+# Nunca dos corridas a la vez: duplicarían avisos (ambas leerían el mismo notifiedReminders). La que llega
+# mientras otra corre queda en cola (solo una; la más nueva reemplaza a la pendiente) y no cancela a la que está enviando.
+concurrency:
+  group: push-reminders
+  cancel-in-progress: false
 
 jobs:
   send-reminders:
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 4
 
     steps:
       - uses: actions/checkout@v4

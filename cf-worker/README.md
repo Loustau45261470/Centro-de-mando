@@ -6,8 +6,27 @@ del lado del cliente, que el navegador frena o pausa cuando la pestaña está en
 segundo plano o el celular tiene otra app abierta.
 
 Un Durable Object por timer (`TimerAlarm`), con una Alarm programada al
-timestamp exacto de fin. Sin polling, sin cron: el propio runtime de Cloudflare
+timestamp exacto de fin. Sin polling para los timers: el propio runtime de Cloudflare
 despierta al Durable Object en el momento justo.
+
+## Cron Trigger: dispara los avisos con la app cerrada
+
+El schedule de GitHub Actions de `push-reminders.yml` corre en la práctica cada ~4,6 h (mediana medida: 279 min en 200 corridas), así
+que casi ningún aviso con ventana de 20/60 min llegaba. `wrangler.toml` declara `[triggers] crons = ["*/5 * * * *"]` y el handler
+`scheduled` hace `POST /repos/Loustau45261470/Centro-de-mando/actions/workflows/push-reminders.yml/dispatches` (`workflow_dispatch`, ref `main`).
+El schedule de GitHub queda como respaldo y el workflow tiene `concurrency` (grupo `push-reminders`, sin cancelar) para no duplicar avisos.
+
+- **Secret `GH_DISPATCH_TOKEN`** (fine-grained PAT, repo `Loustau45261470/Centro-de-mando`, permiso **Actions: Read and write**; Metadata: Read-only lo agrega GitHub solo).
+  Cargarlo con `npx wrangler secret put GH_DISPATCH_TOKEN`. Si no existe se usa `GH_DATA_TOKEN`, pero ese token es del repo privado de datos y
+  GitHub responde 403 «Resource not accessible by personal access token» (medido el 2026-11-24).
+- El resultado del último dispatch (HTTP 204 = ok) queda en `GET /push/salud` → `cron: { at, status }`.
+- Verificación: `gh run list --workflow=push-reminders.yml --limit 5` debe mostrar eventos `workflow_dispatch` cada ~5 min.
+
+## Salud del push (`GET /push/salud`, `POST /push/salud/ack`)
+
+Cuando una alarma (Pomodoro/descanso) recibe 404/410 de un servicio push, el endpoint se registra en el Durable Object único `__salud__`
+(junto con los últimos 20 fallos de otro tipo y el estado del cron). Mismo gate que `/schedule` (Bearer ID token del dueño). La app lo consulta al arrancar
+(`_asegurarPushDispositivo`): si su propio endpoint figura como muerto, renueva la suscripción y hace `ack`. El VAPID subject es la URL del sitio.
 
 Un segundo Durable Object, `CarteraGate` (binding `CARTERA`, una sola instancia),
 guarda todo el estado de `/cartera` (ver abajo).

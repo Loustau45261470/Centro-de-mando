@@ -342,7 +342,10 @@ async function _pwaInit() {
 async function _getOrCreateVapidKeys() {
   if (!_auth.currentUser) return null;   // sin sesión no se puede escribir a Firestore
   try {
-    const snap = await _DOC().get();
+    // Se lee del SERVIDOR (no de la caché local): si otro dispositivo ya generó las claves hay que usar esas, y si no hay red no se
+    // generan claves nuevas a ciegas (dos dispositivos distintos terminarían con claves distintas y los avisos de uno dejarían de entrar).
+    const ref = _DOC();
+    const snap = await ref.get({ source: 'server' });
     const d = snap.data();
     if (d?.vapidKeys?.pubKey) return d.vapidKeys;
 
@@ -353,7 +356,19 @@ async function _getOrCreateVapidKeys() {
     const sigJwk  = await crypto.subtle.exportKey('jwk', sigObj);
     const b64u    = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
     const keys    = { pubKey: b64u(pubBuf), sigKey: sigJwk.d };
-    await _DOC().update({ vapidKeys: keys });
+    // Escritura condicional en transacción: si entre la lectura y la escritura otro dispositivo guardó las suyas, se devuelven esas.
+    const fsx = ref.firestore;
+    if (fsx && typeof fsx.runTransaction === 'function') {
+      return await fsx.runTransaction(async tx => {
+        const cur = ((await tx.get(ref)).data() || {}).vapidKeys;
+        if (cur && cur.pubKey) return cur;
+        tx.update(ref, { vapidKeys: keys });
+        return keys;
+      });
+    }
+    const otra = ((await ref.get({ source: 'server' })).data() || {}).vapidKeys;
+    if (otra && otra.pubKey) return otra;
+    await ref.update({ vapidKeys: keys });
     return keys;
   } catch (e) { console.warn('[PWA] VAPID key error:', e); return null; }
 }
@@ -370,7 +385,7 @@ async function _subscribePush(pubKey, nueva) {
   if (!_auth.currentUser) return false;   // sin sesión no se puede escribir a Firestore
   try {
     let existing = await _swReg.pushManager.getSubscription();
-    if (existing && nueva) { await existing.unsubscribe(); existing = null; }
+    if (existing && nueva) { try { await existing.unsubscribe(); } catch (e) {} existing = null; }
     const sub = existing || await _swReg.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: _b64uToUint8(pubKey),
@@ -379,7 +394,10 @@ async function _subscribePush(pubKey, nueva) {
     // pushSubscription = legado (último dispositivo); pushSubscriptions.<id> = una entrada por dispositivo (campo puntual: no pisa a los demás).
     const upd = { pushSubscription: subJson, ['pushSubscriptions.' + _pushDeviceId()]: { sub: subJson, ua: _pushDeviceUa(), updatedAt: Date.now() } };
     _pushSubsCache = null;
-    if (nueva) upd.pushDead = firebase.firestore.FieldValue.delete();   // ya se resuscribió: baja el aviso
+    if (nueva) {   // ya se resuscribió: baja el aviso y el fallo registrado de ESTE dispositivo
+      upd.pushDead = firebase.firestore.FieldValue.delete();
+      upd['pushHealth.fallos.' + _pushDeviceId()] = firebase.firestore.FieldValue.delete();
+    }
     await _DOC().update(upd);
     if (nueva && typeof pushDeadAviso === 'function') pushDeadAviso(null);
     console.log('[PWA] Push subscription stored');
@@ -401,13 +419,45 @@ async function _asegurarPushDispositivo() {
     if (!_swReg) _swReg = await Promise.race([navigator.serviceWorker.ready, new Promise(r => setTimeout(() => r(null), 5000))]);
     if (!_swReg) return;
     const actual = await _swReg.pushManager.getSubscription();
-    const snap = await _DOC().get();
+    // Lectura del SERVIDOR: con la caché local una entrada "faltante" podría ser solo un dato viejo y se resuscribiría de más.
+    const snap = await _DOC().get({ source: 'server' });
     const d = (snap && snap.data && snap.data()) || {};
-    const mia = d.pushSubscriptions && d.pushSubscriptions[_pushDeviceId()];
-    if (actual && mia && mia.sub && mia.sub.endpoint === actual.endpoint) return;
+    const id = _pushDeviceId();
+    const mia = d.pushSubscriptions && d.pushSubscriptions[id];
+    const fallo = d.pushHealth && d.pushHealth.fallos && d.pushHealth.fallos[id];
+    const falloVisible = !!(fallo && (fallo.dead || fallo.n >= 3));
+    const workerMuerto = actual ? await _pushWorkerEndpointMuerto(actual.endpoint) : false;
+    if (actual && mia && mia.sub && mia.sub.endpoint === actual.endpoint && !falloVisible && !workerMuerto) return;
+    // Sin entrada propia pero con suscripción en el navegador: el cron la borró por muerta (404/410) o el dispositivo es previo al mapa.
+    // Reusar el endpoint del navegador reescribiría el mismo endpoint muerto para siempre: se descarta y se crea una suscripción nueva.
+    const nueva = !!(actual && (!mia || !mia.sub || falloVisible || workerMuerto));
     const keys = await _getOrCreateVapidKeys();
-    if (keys) await _subscribePush(keys.pubKey);
+    if (!keys) return;
+    const ok = await _subscribePush(keys.pubKey, nueva);
+    if (ok && (falloVisible || workerMuerto || (nueva && fallo)) && typeof showToast === 'function') showToast('🔔 Las notificaciones de este dispositivo se renovaron', 5000);
+    if (ok && workerMuerto) _pushWorkerSaludAck([actual.endpoint]);
   } catch (e) { console.warn('[PWA] asegurar push:', e); }
+}
+
+// ¿El Worker vio morir (404/410) el endpoint de este dispositivo en una alarma de Pomodoro/descanso? Solo visibilidad: falla en silencio.
+async function _pushWorkerEndpointMuerto(endpoint) {
+  try {
+    const token = await _pushWorkerToken();
+    if (!token || !endpoint) return false;
+    const ac = new AbortController(), t = setTimeout(() => ac.abort(), 4000);
+    const r = await fetch(`${_PUSH_WORKER_URL}/push/salud`, { headers: { authorization: `Bearer ${token}` }, signal: ac.signal });
+    clearTimeout(t);
+    if (!r || !r.ok || typeof r.json !== 'function') return false;
+    const j = await r.json();
+    return !!(j && Array.isArray(j.muertos) && j.muertos.some(m => m && m.endpoint === endpoint));
+  } catch (e) { return false; }
+}
+async function _pushWorkerSaludAck(endpoints) {
+  try {
+    const token = await _pushWorkerToken();
+    if (!token) return;
+    fetch(`${_PUSH_WORKER_URL}/push/salud/ack`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ endpoints }), keepalive: true }).catch(() => {});
+  } catch (e) {}
 }
 
 // ── Worker de push preciso (Pomodoro / descanso gym) ──
@@ -1362,7 +1412,7 @@ function _startFirestoreSync() {
   _listenerVivo = true;
   _DOC().onSnapshot(snap => {
     if (snap.exists) _registrarEscritura(snap.data()._dev, snap.data()._savedAt);  // solo informativo
-    if (typeof pushDeadAviso === 'function') pushDeadAviso(snap.exists ? snap.data().pushDead : null);  // solo visibilidad: aviso de avisos caídos
+    if (typeof pushDeadAviso === 'function') pushDeadAviso(snap.exists ? snap.data().pushDead : null, snap.exists ? snap.data().pushHealth : null);  // solo visibilidad: aviso de avisos caídos
     if (_fbSaveTid || _fbSaveInProgress) { window._snapDrops = (window._snapDrops || 0) + 1; _dgSnapDrop(snap); return; }  // save en vuelo — descarta update remoto
     if (!snap.exists || !snap.data()?.state) return;
     if (snap.data()._wid && snap.data()._wid === _lastWriteId) return;  // eco propio

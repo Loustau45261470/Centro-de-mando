@@ -32,6 +32,15 @@ const ref = {
     });
     volcar();
   },
+  // update real de Firestore: cada clave es un camino con puntos; un valor-objeto REEMPLAZA el campo (no fusiona) y el sentinel borra solo ese campo.
+  update: async (upd) => {
+    Object.keys(upd).forEach(k => {
+      const p = k.split('.'); let o = doc;
+      p.slice(0, -1).forEach(x => { o = o[x] = o[x] || {}; });
+      if (upd[k] === BORRAR) delete o[p[p.length - 1]]; else o[p[p.length - 1]] = JSON.parse(JSON.stringify(upd[k]));
+    });
+    volcar();
+  },
 };
 
 const dobles = {

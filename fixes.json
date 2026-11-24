@@ -2,6 +2,69 @@
   "_doc": "Registro witness de fixes (idea adaptada de ruflo-core/witness, sin criptografía). Cada entrada tiene un marker: una substring distintiva que DEBE seguir presente en el archivo. Si un marker desaparece, el fix pudo haber sido revertido — alertar antes de asumir que 'ya estaba arreglado'. Se chequea con grep en cada verificación y en /mantenimiento.",
   "fixes": [
     {
+      "id": "push-worker-salud-endpoints-muertos",
+      "fecha": "2026-11-23",
+      "desc": "TimerAlarm solo hacia console.error ante 404/410. Ahora registra los endpoints muertos en el DO __salud__ y los expone en GET /push/salud (Bearer del dueno); la app renueva su suscripcion si el Worker la vio morir. VAPID subject = URL del sitio (no email personal).",
+      "file": "cf-worker/src/index.js",
+      "marker": "async function registrarSalud"
+    },
+    {
+      "id": "push-marca-por-lotes",
+      "fecha": "2026-11-23",
+      "desc": "notifiedReminders se escribia recien al final: si el job moria a mitad se reenviaba todo. Ahora se persiste tras cada lote de avisos, con TTL y timeout explicitos en sendNotification.",
+      "file": "push-reminders.js",
+      "marker": "SEND_TIMEOUT_MS"
+    },
+    {
+      "id": "push-vapid-carrera",
+      "fecha": "2026-11-23",
+      "desc": "Dos dispositivos podian generar claves VAPID distintas a la vez. Ahora se lee del servidor y se escribe en transaccion devolviendo las que ya existan; sin red no se generan.",
+      "file": "app.js",
+      "marker": "Escritura condicional en transacción"
+    },
+    {
+      "id": "push-salud-fallos-consecutivos",
+      "fecha": "2026-11-23",
+      "desc": "401/403/413/429/5xx quedaban solo en el log y el job salia verde. Ahora pushHealth.fallos.<dispositivo> cuenta corridas seguidas sin poder enviar; a la 3a (o 404/410) la app muestra un aviso visible y el job sale rojo una vez.",
+      "file": "push-reminders.js",
+      "marker": "function evaluarSalud"
+    },
+    {
+      "id": "push-poda-notified-update",
+      "fecha": "2026-11-23",
+      "desc": "ref.set(...,{merge:true}) fusionaba el mapa notifiedReminders y la poda no borraba nada (crecia sin limite). Ahora ref.update reemplaza el mapa.",
+      "file": "push-reminders.js",
+      "marker": "`update` (no `set` con merge)"
+    },
+    {
+      "id": "push-resuscribir-dispositivo-muerto",
+      "fecha": "2026-11-23",
+      "desc": "Un dispositivo con suscripcion muerta (entrada borrada por el cron) reusaba el endpoint viejo del navegador y moria de nuevo para siempre. Ahora sin entrada propia (o con fallo visible / endpoint muerto segun el Worker) se descarta la suscripcion del navegador (nueva=true) y se avisa por toast.",
+      "file": "app.js",
+      "marker": "const nueva = !!(actual && (!mia || !mia.sub || falloVisible || workerMuerto))"
+    },
+    {
+      "id": "push-claves-con-fecha",
+      "fecha": "2026-11-23",
+      "desc": "Las claves de notifiedReminders de rec, proy_, final_, curs_, ord_ y proye_ no llevaban la fecha: reprogramar tras avisar nunca volvia a avisar. Ahora id@YYYY-MM-DDTHH:MM + sufijo; legacyKey/migrarClaves respetan las claves viejas si la fecha no cambio.",
+      "file": "deadlines.js",
+      "marker": "const KEY_CON_FECHA"
+    },
+    {
+      "id": "push-cron-concurrency",
+      "fecha": "2026-11-23",
+      "desc": "Dos corridas a la vez leerian el mismo notifiedReminders y duplicarian avisos: el workflow serializa con concurrency (sin cancelar la que esta enviando).",
+      "file": ".github/workflows/push-reminders.yml",
+      "marker": "group: push-reminders"
+    },
+    {
+      "id": "push-cron-worker-dispatch",
+      "fecha": "2026-11-23",
+      "desc": "El schedule de GitHub corria cada ~4,6 h (mediana 279 min) y casi ningun aviso llegaba con la app cerrada. Ahora el Worker (Cron Trigger */5) dispara push-reminders.yml por workflow_dispatch; el schedule queda de respaldo y el workflow tiene concurrency para no duplicar avisos. Requiere el secret GH_DISPATCH_TOKEN (fine-grained, Actions write sobre Centro-de-mando).",
+      "file": "cf-worker/src/index.js",
+      "marker": "async function dispararPushReminders"
+    },
+    {
       "id": "proy-detalle-100-marca-done",
       "fecha": "2026-11-23",
       "desc": "El modal de detalle de una tarea de Proyectos al poner 100% solo escribia node.progress y nunca node.done, por lo que la tarea seguia en Recordatorios/Vencimientos (deadlines.js filtra por !n.done). Ahora 100% => done=true (advances una vez, refresca recordatorios/goals, JARVIS.onTaskDone) y <100 => done=false.",
@@ -336,7 +399,7 @@
       "fecha": "2026-11-04",
       "desc": "push-reminders.js marcaba el aviso como enviado ANTES de enviar y tragaba el error, asi que un fallo del servicio push perdia el aviso para siempre y una suscripcion muerta (404/410) fallaba en silencio. Ahora send() devuelve true o el statusCode, solo se marca lo que salio bien, y ante 404/410 se escribe pushDead {at,code} en el documento (una vez; esa corrida sale con exit 1 para que llegue UN mail de Actions) y la app muestra un aviso para reactivar. Errores fatales de main salen con exit 1. NO volver a marcar newNotif antes del envio ni a taparlo con exit(0).",
       "file": "push-reminders.js",
-      "marker": "if (r.ok) { okCount++; newNotif[sends[i].key] = true; }"
+      "marker": "if (r.ok) { okCount++; marcadas[lote[j].key] = true; }"
     },
     {
       "id": "onsnapshot-error-visible",
@@ -434,7 +497,7 @@
       "fecha": "2026-11-12",
       "desc": "Los avisos push llegan a TODOS los dispositivos: cada uno guarda su suscripcion en pushSubscriptions.<deviceId> (campo puntual, no pisa a los otros), el cron manda a todas (dedupe por endpoint, borra la entrada 404/410) y los timers del Worker (Pomodoro/gym) van por dispositivo con subscriptions[]",
       "file": "push-reminders.js",
-      "marker": "sendTodas(targets, a.title"
+      "marker": "sendTodas(wp, targets, a.title"
     },
     {
       "id": "reportes-textos-sin-duplicar-conversion",

@@ -3,6 +3,10 @@ main = "src/index.js"
 compatibility_date = "2026-08-17"
 account_id = "670b8efbac8b8c275e2a849e9f130bee"
 
+[triggers]
+# Dispara push-reminders.yml (GitHub Actions) cada 5 min: el schedule de GitHub corre en la práctica cada ~4,6 h.
+crons = ["*/5 * * * *"]
+
 [[durable_objects.bindings]]
 name = "TIMER"
 class_name = "TimerAlarm"

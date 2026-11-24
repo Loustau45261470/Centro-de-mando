@@ -125,6 +125,7 @@ function buildInitScript(fixtureObj) {
     firestoreFn.FieldValue = {
       arrayUnion: function () { return { __fv: 'union', els: Array.prototype.slice.call(arguments) }; },
       arrayRemove: function () { return { __fv: 'remove', els: Array.prototype.slice.call(arguments) }; },
+      delete: function () { return { __fv: 'delete' }; },   // la app lo usa al resuscribir push (pushDead / pushHealth)
     };
     window.firebase = {
       initializeApp: function () {},
