@@ -7139,3 +7139,28 @@ textarea.pr-in { resize: vertical; min-height: 60px; }
 .pr-in.rg-fecha { width: 140px; }
 .rg-dias .rg-dia { flex: 1 0 20%; }
 @media (max-width: 480px) { .rg-filtros { grid-template-columns: 1fr; } .rg-dias .rg-dia { flex: 1 0 22%; } }
+
+/* ═══════════════ HUD #2 — TARJETAS QUE SE ENCIENDEN (color = --card-accent de cada sección) ═══════════════
+   Solo CSS: al mostrarse la pestaña, cada card "se enciende" (borde al rojo blanco -> acento, brackets que
+   caen de escala, título con destello). Anima solo border/box-shadow/::after; sin transform en la card
+   (no afecta Sortable ni el colapso de .card-body). Estado final = estilo normal (fill backwards). */
+@keyframes card-ignite {
+  0%   { border-color: color-mix(in srgb, #fff 55%, var(--card-accent)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--card-accent) 70%, transparent), 0 0 30px color-mix(in srgb, var(--card-accent) 45%, transparent), inset 0 0 22px color-mix(in srgb, var(--card-accent) 22%, transparent); }
+  60%  { border-color: color-mix(in srgb, var(--card-accent) 70%, transparent); }
+}
+@keyframes card-brk-pop {
+  0%   { opacity: 1; transform: scale(1.07); filter: drop-shadow(0 0 6px var(--card-accent)) brightness(1.6); }
+}
+@keyframes card-title-flash {
+  0%   { color: #fff; text-shadow: 0 0 16px var(--card-accent); }
+}
+/* Solo mientras <html> lleva .mo-in (lo pone CMMotion al entrar a una sección, ~700 ms): un re-render por datos no re-anima.
+   Duración + delay <= 650 ms para terminar antes de que se quite .mo-in. */
+html.mo-in .tab-panel.active .card { animation: card-ignite .45s cubic-bezier(.2,.8,.2,1) backwards; }
+html.mo-in .tab-panel.active .card::after { animation: card-brk-pop .45s .1s cubic-bezier(.2,1.4,.4,1) backwards; }
+html.mo-in .tab-panel.active .card > .card-title { animation: card-title-flash .5s .08s ease-out backwards; }
+html.mo-in .tab-panel.active .card:nth-child(2) { animation-delay: .04s; } html.mo-in .tab-panel.active .card:nth-child(3) { animation-delay: .08s; }
+html.mo-in .tab-panel.active .card:nth-child(n+4) { animation-delay: .12s; }
+@media (prefers-reduced-motion: reduce) {
+  .card, .card::after, .card > .card-title { animation: none !important; }
+}
