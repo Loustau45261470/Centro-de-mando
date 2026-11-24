@@ -66,11 +66,130 @@ function remVirtualItems(tab) {
   };
 }
 
+// ── Recordatorios que se repiten ("cada 2 h de 9 a 21") ──
+// La lógica de qué ocurrencia toca vive en CMDeadlines (deadlines.js); acá solo el texto y la UI.
+const REM_DIAS_LARGO = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+const REM_DIAS_ORDEN = [1, 2, 3, 4, 5, 6, 0];   // chips L M M J V S D
+const remEsRep = r => !!(r && r.repetir && typeof CMDeadlines !== 'undefined' && CMDeadlines.repValidar(r.repetir) === '');
+function _remHoraTxt(h) { const [hh, mm] = h.split(':'); return mm === '00' ? String(parseInt(hh, 10)) : parseInt(hh, 10) + ':' + mm; }
+function _remDiasTxt(dias) {
+  const d = (dias && dias.length ? Array.from(new Set(dias)) : [0, 1, 2, 3, 4, 5, 6]).sort((a, b) => REM_DIAS_ORDEN.indexOf(a) - REM_DIAS_ORDEN.indexOf(b));
+  const k = d.join(',');
+  if (d.length === 7) return 'todos los días';
+  if (k === '1,2,3,4,5') return 'de lunes a viernes';
+  if (k === '6,0') return 'sábados y domingos';
+  const n = d.map(x => REM_DIAS_LARGO[x] + 's');
+  return n.length === 1 ? 'los ' + n[0] : 'los ' + n.slice(0, -1).join(', ') + ' y ' + n[n.length - 1];
+}
+// Frase completa: «Te aviso cada 2 h, de 9 a 21, de lunes a viernes».
+function remRepTexto(rep) {
+  const n = rep.cada, fin = rep.fin ? ', hasta el ' + rep.fin.slice(8, 10) + '/' + rep.fin.slice(5, 7) : '';
+  if (rep.unidad === 'd') return 'Te aviso ' + (n === 1 ? 'todos los días' : 'cada ' + n + ' días') + ', a la hora de arriba' + fin;
+  return 'Te aviso cada ' + n + (rep.unidad === 'h' ? ' h' : ' min') + ', de ' + _remHoraTxt(rep.desde) + ' a ' + _remHoraTxt(rep.hasta) + ', ' + _remDiasTxt(rep.dias) + fin;
+}
+// Etiqueta corta de la lista: «cada 2 h».
+function remRepCorto(rep) {
+  return rep.unidad === 'd' ? (rep.cada === 1 ? 'cada día' : 'cada ' + rep.cada + ' días') : 'cada ' + rep.cada + (rep.unidad === 'h' ? ' h' : ' min');
+}
+// «hoy 15:00» / «mañana 09:00» / «lun 25 nov · 09:00»
+function remRepCuando(o) {
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  const d = new Date(o.date + 'T00:00:00'), dif = Math.round((d - hoy) / 86400000);
+  if (dif === 0) return 'hoy ' + o.time;
+  if (dif === 1) return 'mañana ' + o.time;
+  return d.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' }) + ' · ' + o.time;
+}
+function remRepFromForm() {
+  const unidad = document.getElementById('remRepUnidad').value;
+  const rep = { cada: parseInt(document.getElementById('remRepCada').value, 10), unidad };
+  if (unidad !== 'd') {
+    rep.desde = document.getElementById('remRepDesde').value;
+    rep.hasta = document.getElementById('remRepHasta').value;
+    rep.dias = Array.from(document.querySelectorAll('#remRepDias .rem-dia[aria-pressed="true"]')).map(b => parseInt(b.dataset.d, 10));
+  }
+  const fin = document.getElementById('remRepFin').value;
+  if (fin) rep.fin = fin;
+  return rep;
+}
+function remRepError(rep) {
+  return CMDeadlines.repValidar(rep) || (rep.unidad !== 'd' && !rep.dias.length ? 'Elegí al menos un día de la semana.' : '');
+}
+// Texto vivo bajo el formulario: la frase, o el motivo por el que todavía no sirve.
+function remRepVivo() {
+  const on = document.getElementById('remRepOn').checked;
+  document.getElementById('remRepBody').hidden = !on;
+  if (!on) return;
+  const d = document.getElementById('remRepUnidad').value === 'd';
+  document.getElementById('remRepVentana').hidden = d;
+  document.getElementById('remRepDias').hidden = d;
+  const rep = remRepFromForm(), err = remRepError(rep);
+  const t = document.getElementById('remRepTxt');
+  t.textContent = err || remRepTexto(rep);
+  t.classList.toggle('rem-rep-err', !!err);
+}
+function remRepDia(btn) { btn.setAttribute('aria-pressed', btn.getAttribute('aria-pressed') === 'true' ? 'false' : 'true'); remRepVivo(); }
+function remRepCargar(rep) {
+  document.getElementById('remRepOn').checked = !!rep;
+  const r = rep || { cada: 2, unidad: 'h', desde: '09:00', hasta: '21:00', dias: [0, 1, 2, 3, 4, 5, 6] };
+  document.getElementById('remRepCada').value = r.cada;
+  document.getElementById('remRepUnidad').value = r.unidad;
+  document.getElementById('remRepDesde').value = r.desde || '09:00';
+  document.getElementById('remRepHasta').value = r.hasta || '21:00';
+  const dias = r.dias && r.dias.length ? r.dias : [0, 1, 2, 3, 4, 5, 6];
+  document.querySelectorAll('#remRepDias .rem-dia').forEach(b => b.setAttribute('aria-pressed', dias.includes(parseInt(b.dataset.d, 10)) ? 'true' : 'false'));
+  document.getElementById('remRepFin').value = r.fin || '';
+  remRepVivo();
+}
+// Da por vista la ocurrencia vigente: el recordatorio sigue y la próxima avisa a su hora.
+function remRepVista(tab, id) {
+  const r = (S.reminders[tab] || []).find(x => x.id === id);
+  if (!r || !remEsRep(r)) return;
+  const o = CMDeadlines.repOcurrencias(r, Date.now()).actual;
+  if (!o) return;
+  r.repetir.visto = o.datetime;
+  saveState(); renderReminders(tab);
+  const p = CMDeadlines.repOcurrencias(r, Date.now()).proxima;
+  showToast('✓ Hecho' + (p ? ' · próxima ' + remRepCuando(p) : ''));
+}
+function remRepPausar(tab, id) {
+  const r = (S.reminders[tab] || []).find(x => x.id === id);
+  if (!r || !r.repetir) return;
+  r.repetir.pausado = !r.repetir.pausado;
+  saveState(); renderReminders(tab);
+  showToast(r.repetir.pausado ? '⏸ Repetición en pausa' : '▶ Repetición reactivada');
+}
+// Filas de los repetidos (pausados incluidos): estado, próxima hora y acciones siempre a la vista.
+function remRepFilasHTML(tab, reps, now) {
+  const PENCIL = '<svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
+  const TRASH = '<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>';
+  return reps.map(r => {
+    const pausado = !!r.repetir.pausado, o = CMDeadlines.repOcurrencias(r, now);
+    const cfg = REM_CFG[r.priority] || REM_CFG.medium;
+    const ids = "'" + tab + "','" + r.id + "'";
+    const estado = pausado ? '<span class="rem-rep-estado">En pausa</span>'
+      : o.actual ? '<span class="rem-rep-estado rem-rep-ahora">Toca ahora · ' + o.actual.time + '</span>' : '';
+    const prox = pausado ? '' : (o.proxima ? 'Próxima: ' + remRepCuando(o.proxima) : 'Ya terminó');
+    const pTxt = pausado ? 'Reactivar la repetición' : 'Pausar la repetición';
+    return '<div class="rem-item rem-rep-item' + (pausado ? ' rem-rep-pausado' : '') + '" data-rem-id="' + r.id + '">' +
+      '<div class="rem-priority-dot" style="background:' + cfg.dot + '"></div>' +
+      '<div class="rem-info"><div class="rem-title">' + escHtml(r.title) + '</div>' +
+      '<div class="rem-meta"><span class="rem-rep-tag">🔁 ' + remRepCorto(r.repetir) + '</span>' + estado + (prox ? '<span>' + prox + '</span>' : '') + '</div></div>' +
+      '<div class="rem-rep-actions">' +
+      (o.actual && !pausado ? '<button class="icon-btn rem-rep-ok" title="Hecho: dar por vista esta vez" aria-label="Hecho: dar por vista esta vez" onclick="remRepVista(' + ids + ')">✓</button>' : '') +
+      '<button class="icon-btn rem-rep-pausa" title="' + pTxt + '" aria-label="' + pTxt + '" onclick="remRepPausar(' + ids + ')">' + (pausado ? '▶' : '⏸') + '</button>' +
+      '<button class="icon-btn" title="Editar" aria-label="Editar" onclick="openEditReminder(' + ids + ')">' + PENCIL + '</button>' +
+      '<button class="icon-btn rem-rep-del" title="Eliminar el recordatorio repetido" aria-label="Eliminar el recordatorio repetido" onclick="deleteReminder(' + ids + ')">' + TRASH + '</button>' +
+      '</div></div>';
+  }).join('');
+}
+
 function renderReminders(tab) {
   const wrap = document.getElementById('reminders-wrap-' + tab);
   if (!wrap) return;
   if (!S.reminders) S.reminders = {};
-  const all = S.reminders[tab] || [];
+  const todos = S.reminders[tab] || [];
+  const reps = todos.filter(remEsRep);
+  const all = todos.filter(r => !remEsRep(r));
   const now = Date.now();
 
   const PENCIL = `<svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
@@ -177,7 +296,8 @@ function renderReminders(tab) {
     ? `<div class="rem-nodate-section" style="margin-top:14px">✓ Pasados</div>${past.map(remItemHTML).join('')}`
     : '';
 
-  const isEmpty = all.length === 0 && virtImminent.length === 0 && virtUpcoming.length === 0 && virtPast.length === 0;
+  const repHTML = reps.length ? `<div class="rem-nodate-section">🔁 Se repiten</div>${remRepFilasHTML(tab, reps, now)}` : '';
+  const isEmpty = all.length === 0 && reps.length === 0 && virtImminent.length === 0 && virtUpcoming.length === 0 && virtPast.length === 0;
 
   wrap.innerHTML = `<div class="card">
     <div class="card-title">
@@ -187,7 +307,7 @@ function renderReminders(tab) {
         <button class="btn btn-ghost btn-sm" onclick="openAddReminder('${tab}')">+ Recordatorio</button>
       </div>
     </div>
-    ${isEmpty ? '<div class="empty-state">Nada por vencer</div>' : urgentHTML + upcomingHTML + noDateHTML + pastHTML}
+    ${isEmpty ? '<div class="empty-state">Nada por vencer</div>' : urgentHTML + repHTML + upcomingHTML + noDateHTML + pastHTML}
   </div>`;
   renderRemindersNotif(tab);
 }
@@ -205,8 +325,13 @@ function renderRemindersNotif(tab) {
   if (!S.reminders) S.reminders = {};
   const now = Date.now();
   const { virtImminent, virtUpcoming, virtPast } = remVirtualItems(tab);
-  const rec = (S.reminders[tab] || []).filter(r => r.datetime)
-    .map(r => ({ title: r.title, priority: r.priority, at: new Date(r.datetime).getTime(), datetime: r.datetime, kindLabel: 'Recordatorio', icon: '🔔' }));
+  const repItems = [];
+  (S.reminders[tab] || []).filter(remEsRep).forEach(r => {
+    const o = CMDeadlines.repOcurrencias(r, now);
+    [o.actual, o.proxima].filter(Boolean).forEach(x => repItems.push({ title: r.title, priority: r.priority, at: x.at, datetime: x.datetime, kindLabel: 'Se repite ' + remRepCorto(r.repetir), icon: '🔁' }));
+  });
+  const rec = (S.reminders[tab] || []).filter(r => r.datetime && !remEsRep(r))
+    .map(r => ({ title: r.title, priority: r.priority, at: new Date(r.datetime).getTime(), datetime: r.datetime, kindLabel: 'Recordatorio', icon: '🔔' })).concat(repItems);
   const vencidos = [...rec.filter(r => r.at - now <= 0), ...virtPast].sort((a, b) => b.at - a.at);
   const proximos = [...rec.filter(r => r.at - now > 0), ...virtImminent, ...virtUpcoming].sort((a, b) => a.at - b.at);
   const verAll = `<button class="rnotif-all" onclick="event.stopPropagation();if(window.openRemindersOverlay)openRemindersOverlay('${tab}')">Ver todo →</button>`;
@@ -272,6 +397,7 @@ function openAddReminder(tab) {
   document.getElementById('remTitle').value    = '';
   document.getElementById('remDatetime').value = '';
   document.getElementById('remPriority').value = 'medium';
+  remRepCargar(null);
   openModal('modal-reminder');
 }
 
@@ -285,6 +411,7 @@ function openEditReminder(tab, id) {
   document.getElementById('remTitle').value    = r.title;
   document.getElementById('remDatetime').value = r.datetime ? r.datetime.slice(0, 16) : '';
   document.getElementById('remPriority').value = r.priority || 'medium';
+  remRepCargar(r.repetir || null);
   openModal('modal-reminder');
 }
 
@@ -292,16 +419,33 @@ function saveReminder() {
   const tab      = document.getElementById('remTab').value;
   const id       = document.getElementById('remId').value;
   const title    = document.getElementById('remTitle').value.trim();
-  const datetime = document.getElementById('remDatetime').value || '';
+  let datetime = document.getElementById('remDatetime').value || '';
   const priority = document.getElementById('remPriority').value;
   if (!title) { showToast('Escribe el título'); return; }
+  let repetir = null;
+  if (document.getElementById('remRepOn').checked) {
+    repetir = remRepFromForm();
+    const err = remRepError(repetir);
+    if (err) { showToast(err, 4000); return; }
+    if (!datetime) {
+      if (repetir.unidad === 'd') { showToast('Elegí la fecha y hora de inicio.', 4000); return; }
+      datetime = new Date().toLocaleDateString('sv-SE') + 'T' + repetir.desde;   // sin fecha: empieza hoy (de `desde` en adelante)
+    }
+  }
   if (!S.reminders)      S.reminders = {};
   if (!S.reminders[tab]) S.reminders[tab] = [];
   if (id) {
     const r = S.reminders[tab].find(r => r.id === id);
-    if (r) Object.assign(r, { title, datetime, priority });
+    if (r) {
+      Object.assign(r, { title, datetime, priority });
+      // Editar no reactiva ni olvida lo ya visto: se conservan pausa y última vista.
+      if (repetir) r.repetir = Object.assign({}, repetir, r.repetir && r.repetir.pausado ? { pausado: true } : {}, r.repetir && r.repetir.visto ? { visto: r.repetir.visto } : {});
+      else delete r.repetir;
+    }
   } else {
-    S.reminders[tab].push({ id: uid(), title, datetime, priority });
+    const nuevo = { id: uid(), title, datetime, priority };
+    if (repetir) nuevo.repetir = repetir;
+    S.reminders[tab].push(nuevo);
   }
   saveState(); renderReminders(tab); closeModal('modal-reminder');
 }

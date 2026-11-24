@@ -93,6 +93,10 @@ const CMDeadlines = (() => {
                         `${it.icon} ${d === 1 ? 'Mañana' : 'En ' + d + ' días'}: ${it.title}`, true);
       });
       push('_due', toMs(it.date, ALLDAY_HOUR, tz), `${it.icon} Hoy: ${it.title}`, true);
+    } else if (it.kind === 'rec' && it.repeticion) {
+      // Ocurrencia de un recordatorio repetido: un solo aviso, a la hora. La clave lleva fecha y hora de ESA ocurrencia
+      // (id@YYYY-MM-DDTHH:MM) y no hereda claves viejas: cada ocurrencia avisa una vez.
+      out.push({ key: base, at: it.at, title: '🔁 Recordatorio — Centro de Mando', body: it.notifBody, lead: false });
     } else if (it.kind === 'rec') {
       // Recordatorios clásicos: se respetan las claves y los tiempos originales
       // (24 h antes + al momento) para no re-disparar lo ya notificado.
@@ -150,6 +154,78 @@ const CMDeadlines = (() => {
     return (n < 0 ? '-' : '') + '$' + i.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + (d === '00' ? '' : ',' + d);
   };
 
+  // ── recordatorios que se repiten ────────────────────────────────────────
+  // r.repetir = { cada:N, unidad:'min'|'h'|'d', desde:'HH:MM', hasta:'HH:MM', dias:[0..6], fin:'YYYY-MM-DD', pausado:bool, visto:'YYYY-MM-DDTHH:MM' }
+  //  · min/h: ocurrencias de `desde` a `hasta` (mismo día, sin cruzar medianoche), cada N, solo en `dias` (vacío = todos).
+  //  · d: cada N días, a la hora de r.datetime.
+  //  · r.datetime es el comienzo: nada ocurre antes. `fin` (fecha) es opcional; sin fin sigue para siempre.
+  //  · `visto` = última ocurrencia dada por vista a mano: esa y las anteriores no se muestran ni avisan.
+  // Nunca se expande la serie: solo la ocurrencia vigente (la última que pasó dentro de la ventana) y la próxima.
+  const REP_MIN_MIN = 15;          // el cron corre cada 5 min: menos que esto no se puede cumplir
+  const REP_VENTANA_MS = 60 * MIN; // cuánto tiempo sigue "vigente" una ocurrencia que ya pasó
+  const REP_HORA = /^([01]\d|2[0-3]):[0-5]\d$/;
+  const minDeHora = h => parseInt(h.slice(0, 2), 10) * 60 + parseInt(h.slice(3, 5), 10);
+  const horaDeMin = m => pad(Math.floor(m / 60)) + ':' + pad(m % 60);
+
+  // '' si es válido; si no, el motivo en español simple.
+  function repValidar(rep) {
+    if (!rep || typeof rep !== 'object') return 'Falta configurar la repetición.';
+    const n = Number(rep.cada);
+    if (!Number.isInteger(n) || n < 1) return 'Poné cada cuánto se repite (un número entero).';
+    if (rep.unidad !== 'min' && rep.unidad !== 'h' && rep.unidad !== 'd') return 'Elegí minutos, horas o días.';
+    if (rep.fin && !isDate(rep.fin)) return 'La fecha final no es válida.';
+    if (rep.unidad === 'd') return '';
+    if (rep.unidad === 'min' && n < REP_MIN_MIN) return 'El mínimo es cada ' + REP_MIN_MIN + ' minutos.';
+    if (!REP_HORA.test(rep.desde || '') || !REP_HORA.test(rep.hasta || '')) return 'Poné la hora de inicio y la de fin.';
+    if (minDeHora(rep.hasta) < minDeHora(rep.desde)) return 'La hora de fin tiene que ser posterior a la de inicio (no puede cruzar la medianoche).';
+    if (rep.dias != null && (!Array.isArray(rep.dias) || rep.dias.some(d => !Number.isInteger(d) || d < 0 || d > 6))) return 'Los días no son válidos.';
+    return '';
+  }
+
+  // → { actual, proxima } con { date, time, datetime, at } o null. Sin repetición válida o en pausa → ambos null.
+  function repOcurrencias(r, now, opts) {
+    const vacio = { actual: null, proxima: null };
+    const rep = r && r.repetir;
+    if (!rep || rep.pausado || repValidar(rep) || !r.datetime) return vacio;
+    opts = opts || {};
+    const tz = opts.tz, pasMs = opts.ventanaMs != null ? opts.ventanaMs : REP_VENTANA_MS;
+    const [d0, t0] = String(r.datetime).split('T');
+    const inicio = toMs(d0, t0, tz);
+    if (isNaN(inicio)) return vacio;
+    const hoy = dateStrFromMs(now, tz);
+    let actual = null, proxima = null;
+    // Devuelve true cuando ya encontró la próxima (no hace falta seguir).
+    const visitar = (date, time) => {
+      const at = toMs(date, time, tz);
+      if (isNaN(at) || at < inicio) return false;
+      const datetime = date + 'T' + time;
+      if (rep.visto && datetime <= rep.visto) return false;
+      const o = { date, time, datetime, at };
+      if (at <= now) { if (now - at <= pasMs) actual = o; return false; }
+      proxima = o; return true;
+    };
+    if (rep.unidad === 'd') {
+      const dif = Math.round((Date.parse(hoy + 'T12:00:00Z') - Date.parse(d0 + 'T12:00:00Z')) / DAY);
+      const k0 = Math.max(0, Math.floor(dif / rep.cada) - 1);
+      for (let k = k0; k < k0 + 4; k++) {
+        const date = addDays(d0, k * rep.cada);
+        if (rep.fin && date > rep.fin) break;
+        if (visitar(date, isTime(t0) ? t0.slice(0, 5) : '00:00')) break;
+      }
+    } else {
+      const paso = rep.cada * (rep.unidad === 'h' ? 60 : 1), a = minDeHora(rep.desde), b = minDeHora(rep.hasta);
+      const dias = Array.isArray(rep.dias) && rep.dias.length ? rep.dias : null;
+      // Desde ayer (la ventana de rescate puede cruzar la medianoche) hasta 8 días: alcanza para cualquier combinación de días.
+      fuera: for (let i = -1; i <= 8; i++) {
+        const date = addDays(hoy, i);
+        if (rep.fin && date > rep.fin) break;
+        if (dias && !dias.includes(new Date(date + 'T12:00:00').getDay())) continue;
+        for (let m = a; m <= b; m += paso) { if (visitar(date, horaDeMin(m))) break fuera; }
+      }
+    }
+    return { actual, proxima };
+  }
+
   // ── recolección ─────────────────────────────────────────────────────────
   function collect(state, opts) {
     opts = opts || {};
@@ -164,6 +240,14 @@ const CMDeadlines = (() => {
     TABS.forEach(tab => {
       (S.reminders && S.reminders[tab] || []).forEach(r => {
         if (!r || !r.datetime) return;
+        if (r.repetir && !repValidar(r.repetir)) {
+          // Repetido: solo la ocurrencia vigente y la próxima (una pausa o un "visto" las apaga). Misma id, cada una con su clave.
+          const o = repOcurrencias(r, now, opts);
+          [o.actual, o.proxima].filter(Boolean).forEach(x => add({ id: r.id, kind: 'rec', kindLabel: 'Recordatorio', icon: '🔁', tab,
+            title: r.title || '(sin título)', date: x.date, time: x.time, allDay: false, repeticion: true,
+            priority: r.priority || 'medium', editable: true, raw: r }));
+          return;
+        }
         const [date, time] = String(r.datetime).split('T');
         add({ id: r.id, kind: 'rec', kindLabel: 'Recordatorio', icon: '🔔', tab,
               title: r.title || '(sin título)', date, time, allDay: false,
@@ -366,7 +450,7 @@ const CMDeadlines = (() => {
     return out;
   }
 
-  return { collect, dueAlerts, focoHoras, migrarClaves };
+  return { collect, dueAlerts, focoHoras, migrarClaves, repValidar, repOcurrencias, REP_MIN_MIN };
 })();
 
 if (typeof window !== 'undefined') window.CMDeadlines = CMDeadlines;

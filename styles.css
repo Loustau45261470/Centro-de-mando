@@ -7065,3 +7065,26 @@ textarea.pr-in { resize: vertical; min-height: 60px; }
 .rep-comp-d summary { display: flex; justify-content: space-between; gap: 10px; cursor: pointer; padding: 4px 0; }
 .rep-comp-d ul { list-style: none; margin: 4px 0 6px; padding: 0 0 0 8px; }
 .rep-comp-d li { display: flex; justify-content: space-between; gap: 10px; font-size: var(--fs-13); color: var(--ts); padding: 2px 0; }
+
+/* ── Recordatorios que se repiten: sección «Repetir» del modal y filas de la lista ── */
+.rem-rep-head { display: flex !important; align-items: center; justify-content: space-between; gap: 10px; min-height: 36px; cursor: pointer; }
+.rem-rep-head input { width: 16px; height: 16px; flex: none; margin: 0; accent-color: var(--accent); cursor: pointer; }   /* casilla chica a la derecha */
+.rem-rep-body { display: flex; flex-direction: column; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; }
+.rem-rep-body[hidden], .rem-rep-row[hidden], .rem-rep-dias[hidden] { display: none; }
+.rem-rep-row { display: flex; align-items: center; gap: 8px; color: var(--ts); font-size: var(--fs-13-5); }
+.rem-rep-row .inp { flex: 1 1 0; min-width: 0; width: auto; }
+.rem-rep-opc { font-size: var(--fs-12-5); color: var(--tt); flex: none; }
+.rem-rep-dias { display: flex; gap: 6px; }
+.rem-dia { flex: 1 1 0; min-width: 0; height: 36px; border-radius: 99px; border: 1px solid var(--border); background: rgba(255,255,255,0.04); color: var(--ts); font: 700 var(--fs-13) var(--mono); cursor: pointer; padding: 0; }
+.rem-dia[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 22%, transparent); border-color: color-mix(in srgb, var(--accent) 60%, transparent); color: var(--tp); }
+.rem-rep-txt { font-size: var(--fs-13); color: var(--tp); line-height: 1.4; }
+.rem-rep-txt.rem-rep-err { color: var(--warn); }
+.rem-rep-item.rem-rep-pausado .rem-title, .rem-rep-item.rem-rep-pausado .rem-meta { opacity: .55; }
+.rem-rep-item .rem-info { min-width: 0; }
+.rem-rep-item .rem-title { overflow-wrap: anywhere; }
+.rem-rep-tag { color: var(--hud-bright); font-weight: 700; }
+.rem-rep-estado { padding: 1px 8px; border-radius: 99px; border: 1px solid var(--border); font-size: var(--fs-12-5); }
+.rem-rep-ahora { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 50%, transparent); }
+.rem-rep-actions { display: flex; gap: 2px; flex-shrink: 0; align-items: center; }   /* siempre a la vista: en el celu no hay hover */
+.rem-rep-ok { color: var(--ok); }
+.rem-rep-pausa { color: var(--tp); font-size: var(--fs-15); }
