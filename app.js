@@ -859,6 +859,17 @@ function _rescueLocal(cloudObj, localObj) {
     const news = l.filter(e => e?.date && e?.accountId && !keys.has(e.date+'|'+e.accountId));
     if (news.length) r.accountHistory = [...c, ...news].sort((a,b)=>String(a.date).localeCompare(String(b.date)));
   }
+  // Resto de las claves (comidas, foco, reminders, principios, dayPlan, sgc, revisionSemanal, monthlyGoals, notas...):
+  // sin ancestro no se sabe quién cambió qué → se UNEN con _merge3 sin base (altas de ambos lados, nada se borra, en un
+  // dato simple en conflicto gana la nube). Trade-off: algo que la nube borró y local aún tenía puede volver (como en las listas de arriba).
+  const _yaTratadas = new Set(['_savedAt', '_wid', 'txnCategories', 'goals', 'tomorrowGoals', 'habitTrackers', 'workoutLog', 'sleepLog', 'routineLog', 'nwHistory', 'accountHistory',
+    'transactions','moves','cards','accounts','accountTypes','cardCharges','cardPayments','coverCollections','cardDues','subscriptions','orders','wishlist','repartos',
+    'photos','finObjectives','lawMilestones','routines','exerciseLibrary','bodyWeight','exercises','seasonals','carteraTx','goalRepeats','frasesPropias']);
+  Object.keys(localObj).forEach(k => {
+    if (_yaTratadas.has(k)) return;
+    const v = _merge3(undefined, localObj[k], cloudObj[k]);   // rescue-claves-objeto
+    if (v !== undefined) r[k] = v;
+  });
   return r;
 }
 
@@ -1026,7 +1037,15 @@ const _fbDoSave = async (opts = {}) => {
           const cloudObj = JSON.parse(cloudRaw);
           const cloudM = _dataMetric(cloudObj);
           const localM = _dataMetric(localObj);
+          // Ancestro de este dispositivo (último estado sincronizado). Lo local mucho más chico que el ancestro = todavía no
+          // cargó (guardado temprano al arrancar con S vacío), no "borró todo": no se toman bajas, solo se rescata lo que tenga
+          // (verificación ciega 22/11: borraba la nube).
+          let base = null; try { base = JSON.parse(localStorage.getItem('_lastSyncedStateStr') || 'null'); } catch (e) {}
+          const _localChico = base && JSON.stringify(localObj).length < JSON.stringify(base).length * 0.5;
           if (cloudM > localM + 3) {
+            // Nube con bastante más que local: SIEMPRE unión (_rescueLocal, ahora también con las claves objeto). No merge 3 vías acá:
+            // con un ancestro más nuevo que local (dos pestañas que comparten localStorage) tomaría como bajas lo que local aún no tiene
+            // y achicaría la nube (verificación ciega 24/11). Trade-off aceptado: algo borrado en otro dispositivo puede reaparecer.
             toSave = _rescueLocal(cloudObj, localObj);
             _writeBranch = 'rescue-unconfirmed';
             S = toSave;
@@ -1040,10 +1059,6 @@ const _fbDoSave = async (opts = {}) => {
           } else {
             // Arranque sin nube (offline) y después se guarda: antes se subía lo local entero y pisaba lo que el otro
             // dispositivo hizo. Ahora merge 3 vías con el último estado sincronizado de este dispositivo (o rescate).
-            let base = null; try { base = JSON.parse(localStorage.getItem('_lastSyncedStateStr') || 'null'); } catch (e) {}
-            // Lo local mucho más chico que el ancestro = todavía no cargó (guardado temprano al arrancar con S vacío), no
-            // "borró todo": no se toman bajas, solo se rescata lo que tenga (verificación ciega 22/11: borraba la nube).
-            const _localChico = base && JSON.stringify(localObj).length < JSON.stringify(base).length * 0.5;
             toSave = (base && !_localChico) ? _mergeStates(base, localObj, cloudObj) : _rescueLocal(cloudObj, localObj);
             _writeBranch = 'merge-sin-confirmar';
             S = toSave;
