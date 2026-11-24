@@ -188,11 +188,10 @@ test.describe('Patrimonio v2', () => {
     expect(consoleErrors).toEqual([]);
   });
 
-  test('el gráfico de línea es 76 px (2 cm) más alto que hace un momento y no muestra las fechas del eje X', async ({ cmPage: page, consoleErrors }) => {
+  test('el gráfico de línea mide 124 px (achicado para alinear el fin de Patrimonio con el de Hábitos) y no muestra las fechas del eje X', async ({ cmPage: page, consoleErrors }) => {
     await preparar(page);
     const h = await page.evaluate(() => document.getElementById('nwLineChart').closest('.chart-wrap').getBoundingClientRect().height);
-    expect(h).toBe(PREVIO.grafico + 76);
-    expect(h).toBe(ANTES.altoGrafico + 38 + 76);
+    expect(h).toBe(124);
     const x = await page.evaluate(() => ({ display: nwLineInst.options.scales.x.ticks.display }));
     expect(x.display).toBe(false);
     // el eje Y con los montos se mantiene

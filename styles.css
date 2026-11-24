@@ -2149,7 +2149,7 @@ button.goal-hora-vacio:hover { color: var(--tp); background: rgba(255,255,255,.0
   padding: 3px 14px 12px;
 }
 #tab-finanzas .chart-wrap-tall { padding: 0 14px 12px; margin-top: 0; height: 185px; }
-#tab-finanzas .chart-wrap      { padding: 0 14px 12px; margin-top: 0; height: 262px; }   /* +114px (3 cm) sobre los 148 de antes: +38 y luego +76 (2 cm) */
+#tab-finanzas .chart-wrap      { padding: 0 14px 12px; margin-top: 0; height: 124px; }   /* 262 → 124 para alinear el fin de Patrimonio con el fin de Hábitos (medido con datos reales en 1366 y 1536) */
 
 /* ══ SELECTOR DE RANGO DEL GRÁFICO DE PATRIMONIO ══ */
 .nw-range { padding: 0; gap: 4px; flex: 0 0 auto; }
