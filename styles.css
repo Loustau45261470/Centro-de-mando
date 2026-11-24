@@ -1972,13 +1972,24 @@ button.goal-hora-vacio:hover { color: var(--tp); background: rgba(255,255,255,.0
 /* ── Enlace objetivo ↔ hábito/abogacía ── */
 .qobj-link-progress { display:flex; align-items:center; gap:4px 7px; margin-top:4px; flex-wrap:wrap; }
 .qobj-link-label { font-size:11px; color:var(--tt); font-family:var(--mono); min-width:0; overflow-wrap:anywhere; }
-.qobj-link-bar-wrap { flex:1; max-width:110px; height:4px; position:relative; background:var(--border); border-radius:2px; flex-shrink:0; }
-.qobj-link-meta { position:absolute; top:-3px; width:2px; height:10px; margin-left:-1px; background:var(--tp); border-radius:1px; opacity:.85; }
+/* HUD #5 — barras de objetivos en bloques LED. Color: rojo (<50% de la meta) → naranja (50-80%) → ámbar (80-100%) → color de la sección (en meta o superada). Sin meta: color de la sección. */
+.qobj-link-progress { --led: var(--card-accent, var(--hud)); --led-seg: linear-gradient(90deg,#000 0 5px,transparent 5px 7px) 0 0/7px 100%; }
+.qobj-link-progress.led-low  { --led:#FF3B4E; }
+.qobj-link-progress.led-mid  { --led:#FF7A2A; }
+.qobj-link-progress.led-near { --led:#F5B323; }
+.qobj-link-bar-wrap { flex:1 1 84px; min-width:84px; max-width:140px; height:8px; position:relative; flex-shrink:0; }
+.qobj-link-bar-wrap::before { content:''; position:absolute; inset:0; background:color-mix(in srgb,var(--led) 20%,var(--border)); -webkit-mask:var(--led-seg); mask:var(--led-seg); }
+.qobj-link-meta { position:absolute; top:-3px; width:2px; height:14px; z-index:1; margin-left:-1px; background:var(--tp); border-radius:1px; opacity:.85; }
 .qobj-link-estado { font-size:var(--fs-12); font-weight:600; padding:1px 7px; border-radius:99px; white-space:nowrap; }
 .qobj-link-estado.ok { color:var(--ok); background:color-mix(in srgb,var(--ok) 14%,transparent); }
 .qobj-link-estado.low { color:var(--warn); background:color-mix(in srgb,var(--warn) 14%,transparent); }
-.qobj-link-bar { height:4px; background:var(--accent); border-radius:2px; transition:width .4s; }
+.qobj-link-bar { height:8px; background:var(--led); box-shadow:0 0 7px color-mix(in srgb,var(--led) 70%,transparent); -webkit-mask:var(--led-seg); mask:var(--led-seg); transition:width .4s; }
 .qobj-link-bar.exceeded { background:var(--danger); }
+.qobj-link-progress:is(.led-low,.led-mid,.led-near) .qobj-link-estado.low { color:var(--led); background:color-mix(in srgb,var(--led) 14%,transparent); }
+/* Se encienden de izquierda a derecha solo al entrar a la sección (html.mo-in), no en cada guardado */
+@keyframes qobj-led-on { from { clip-path:inset(0 100% 0 0); filter:brightness(2); } to { clip-path:inset(0 0 0 0); filter:brightness(1); } }
+html.mo-in .tab-panel.active .qobj-link-bar { animation:qobj-led-on .55s steps(12,end) backwards; }
+@media (prefers-reduced-motion: reduce) { html.mo-in .tab-panel.active .qobj-link-bar { animation:none; } }
 .qobj-link-picker { margin-bottom:14px; }
 .qobj-link-picker-title { font-size:var(--fs-12-5); font-weight:700; color:var(--sec); margin-bottom:6px; }
 .qobj-link-row { display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:var(--fs-13); color:var(--sec); }

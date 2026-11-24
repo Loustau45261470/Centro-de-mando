@@ -231,12 +231,14 @@ function qobjLinkHTML(periodId, link, text) {
   if (p.kind === 'pct') {
     const marca = p.meta ? `<span class="qobj-link-meta" style="left:${p.meta}%"></span>` : '';
     const est = p.estado ? `<span class="qobj-link-estado ${p.ok ? 'ok' : 'low'}">${p.estado}</span>` : '';
-    return `<div class="qobj-link-progress" title="Es el % de los días que ya pasaron">
+    // HUD #5: color de la barra LED según val/meta (rojo muy debajo, naranja, ámbar cerca, color de sección en meta/superada)
+    const r = p.meta ? p.val / p.meta : 1, tier = r >= 1 ? 'ok' : r >= .8 ? 'near' : r >= .5 ? 'mid' : 'low';
+    return `<div class="qobj-link-progress led-${tier}" title="Es el % de los días que ya pasaron">
     <span class="qobj-link-label">${p.label}</span>
     <div class="qobj-link-bar-wrap">${marca}<div class="qobj-link-bar" style="width:${p.pct}%"></div></div>${est}
   </div>`;
   }
-  return `<div class="qobj-link-progress">
+  return `<div class="qobj-link-progress${p.exceeded?' led-low':''}">
     <span class="qobj-link-label">${p.label}</span>
     <div class="qobj-link-bar-wrap"><div class="qobj-link-bar${p.exceeded?' exceeded':''}" style="width:${p.pct}%"></div></div>
   </div>`;
