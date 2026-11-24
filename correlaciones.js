@@ -2,7 +2,7 @@
 /* ══════════════════════════════════════════════════════════════════════
    🔗 RELACIONES — motor de correlaciones entre las series diarias que ya
    registra la app (sueño, planner, metas, hábitos, entrenamiento, estudio,
-   dieta, gasto). El usuario es economista: nada de explicar qué es una
+   gasto). El usuario es economista: nada de explicar qué es una
    correlación, sí exigir rigor (n mínimo, varianza mínima, ausencia de
    dato ≠ cero, relación ≠ causalidad).
 
@@ -109,7 +109,7 @@
 
   // ════════════════════════════════════════════════════════════════════
   // Series diarias desde `S` — un valor por día, para poder cruzar dos variables
-  // fecha a fecha (ej. umbral de dieta; 'rest' no cuenta en hábitos).
+  // fecha a fecha ('rest' no cuenta en hábitos).
   // ════════════════════════════════════════════════════════════════════
 
   function ST() { return (typeof S !== 'undefined' && S) ? S : {}; }
@@ -210,21 +210,6 @@
     });
     return out;
   }
-  // Umbral de dieta. Limitación heredada
-  // del propio S.dieta.log (app.js): si el usuario destilda todas las reglas
-  // de un día, la clave se borra (arr.length===0 → delete) — ese día vuelve a
-  // verse igual que "nunca registrado". No es un bug de este archivo, es el
-  // modelo de datos existente; no se toca (fuera del alcance de este ticket).
-  function serieDietaCumple() {
-    var out = {}, dieta = ST().dieta;
-    if (!dieta || !Array.isArray(dieta.reglas) || !dieta.reglas.length) return out;
-    var umbral = Math.min(dieta.umbral != null ? dieta.umbral : 1, dieta.reglas.length);
-    var log = dieta.log || {};
-    Object.keys(log).forEach(function (d) {
-      out[d] = (log[d] || []).length >= umbral ? 1 : 0;
-    });
-    return out;
-  }
   // Solo ARS (mezclar monedas distintas en una suma no significa nada). Un día
   // cuenta como dato si tuvo AL MENOS una transacción ARS ese día (ingreso o
   // gasto) — así se puede distinguir "gastó 0 de verdad" (hubo actividad
@@ -257,7 +242,6 @@
     { id: 'training_volume', label: 'Volumen entrenado', unidad: 'kg-vol', sube: 'levantás más volumen', baja: 'levantás menos volumen', build: serieVolumenEntreno },
     { id: 'studied_bool', label: 'Estudio', unidad: '', sube: 'estudiás', baja: 'no estudiás', build: serieEstudioBool },
     { id: 'focus_minutes', label: 'Minutos de foco', unidad: 'min', sube: 'sumás más minutos de foco', baja: 'sumás menos minutos de foco', build: serieFocoMinutos },
-    { id: 'diet_pct', label: 'Dieta', unidad: '', sube: 'cumplís la dieta', baja: 'no cumplís la dieta', build: serieDietaCumple },
     { id: 'expense_day', label: 'Gasto del día', unidad: 'ARS', sube: 'gastás más', baja: 'gastás menos', build: serieGastoDia },
   ];
 
@@ -329,7 +313,6 @@
     n += nKeys(st.routineLog) * 17;
     n += ((st.pomodoroHistory && st.pomodoroHistory.length) || 0) * 19;
     n += ((st.transactions && st.transactions.length) || 0) * 23;
-    n += nKeys(st.dieta && st.dieta.log) * 29;
     // Los hábitos cambian marcando un día dentro de cada tracker: contar los días
     // marcados, no la cantidad de hábitos (que casi nunca cambia).
     var ht = st.habitTrackers || {};

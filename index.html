@@ -21,13 +21,13 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-<link rel="stylesheet" href="styles.css?v=289">
+<link rel="stylesheet" href="styles.css?v=290">
 <script>try{if(localStorage.getItem('cm_rail_off')==='1')document.documentElement.classList.add('rail-off')}catch(e){}</script>
 <link rel="stylesheet" href="gamemode.css">
 <link rel="stylesheet" href="overlay-core.css">
 <link rel="stylesheet" href="historial-versiones.css?v=3">
 <link rel="stylesheet" href="speed-dial.css?v=2">
-<link rel="stylesheet" href="proyectos-overlay.css?v=160">
+<link rel="stylesheet" href="proyectos-overlay.css?v=161">
 <link rel="stylesheet" href="mapa-ideas.css?v=1">
 <link rel="stylesheet" href="negocios.css?v=1">
 <link rel="stylesheet" href="libros.css?v=3">
@@ -400,7 +400,7 @@
           </div>
         </div>
 
-        <!-- Dieta: resumen (sección) · reglas completas en el overlay (FAB → Dieta) -->
+        <!-- Dieta: resumen (sección) · registro de comida completo en el overlay (FAB → Dieta) -->
         <div class="card" id="dieta-resumen-card">
           <div class="card-title">🥗 Dieta</div>
           <div id="dietaResumenBody"></div>
@@ -424,9 +424,9 @@
 
     <!-- Entrenamiento completo (vive en el overlay) -->
     <div id="rutinas-wrap"></div>
-    <!-- Dieta completa: reglas de comida sana del día · vive en el overlay -->
+    <!-- Registro de comida del día (desayuno, almuerzo, merienda, cena) · vive en el overlay -->
     <div class="card" id="dieta-card">
-      <div class="card-title">🥗 Dieta</div>
+      <div class="card-title">🥗 Registro de comida</div>
       <div id="dietaBody"></div>
     </div>
   </div>
@@ -1824,15 +1824,29 @@
   </div>
 </div>
 
-<!-- Dieta: crear/editar una regla de alimentación -->
-<div class="modal-overlay" id="modal-dieta-regla" onclick="if(event.target===this)closeModal('modal-dieta-regla')">
+<!-- Registro de comida: crear/editar un alimento de la biblioteca -->
+<div class="modal-overlay" id="modal-comida-alimento" onclick="if(event.target===this)closeModal('modal-comida-alimento')">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-title" id="dietaReglaTitle">Nueva regla</div>
-    <div class="field"><label>Regla</label><input class="inp" id="dietaReglaText" placeholder="Ej: Verduras en 2+ comidas"></div>
+    <div class="modal-title" id="comAlimTitle">Nuevo alimento</div>
+    <div class="field"><label for="comAlimNombre">Nombre</label><input class="inp" id="comAlimNombre" maxlength="80" placeholder="Ej: Pan, Huevo, Pollo"></div>
+    <div class="field"><label>Se mide en</label>
+      <div class="com-chips" id="comAlimUnidad">
+        <button type="button" class="com-chip" data-v="g" aria-pressed="false" onclick="comChipUnidad(this)">Gramos (g)</button>
+        <button type="button" class="com-chip" data-v="u" aria-pressed="false" onclick="comChipUnidad(this)">Unidades (u)</button>
+      </div>
+    </div>
+    <div class="field"><label>Aparece en</label>
+      <div class="com-chips" id="comAlimComidas">
+        <button type="button" class="com-chip" data-v="desayuno" aria-pressed="false" onclick="comChipComida(this)">Desayuno</button>
+        <button type="button" class="com-chip" data-v="almuerzo" aria-pressed="false" onclick="comChipComida(this)">Almuerzo</button>
+        <button type="button" class="com-chip" data-v="merienda" aria-pressed="false" onclick="comChipComida(this)">Merienda</button>
+        <button type="button" class="com-chip" data-v="cena" aria-pressed="false" onclick="comChipComida(this)">Cena</button>
+      </div>
+    </div>
     <div class="modal-actions">
-      <button class="btn btn-ghost" onclick="closeModal('modal-dieta-regla')">Cancelar</button>
-      <button class="btn btn-primary" onclick="saveDietaRegla()">Guardar</button>
+      <button class="btn btn-ghost" onclick="closeModal('modal-comida-alimento')">Cancelar</button>
+      <button class="btn btn-primary" onclick="comGuardarAlimento()">Guardar</button>
     </div>
   </div>
 </div>
@@ -2009,7 +2023,7 @@
 <script src="errores.js?v=1"></script>
 <script src="deadlines.js?v=12"></script>
 <script src="motion.js?v=1"></script>
-<script src="app.js?v=237"></script>
+<script src="app.js?v=238"></script>
 <script src="datos-privados.js?v=2"></script>
 <script src="sync-diagnostico.js?v=2"></script>
 <script src="historial-versiones.js?v=3"></script>
@@ -2018,20 +2032,21 @@
 <script src="workspace.js?v=201"></script>
 <script src="abogacia.js?v=9"></script>
 <script src="correlativas.js?v=6"></script>
-<script src="habitos.js?v=11"></script>
+<script src="habitos.js?v=12"></script>
 <script src="rutinas.js"></script>
+<script src="comidas.js?v=1"></script>
 <script src="tarjetas-motor.js?v=9"></script>
 <script src="finanzas.js?v=44"></script>
 <script src="reparto-gastos.js?v=1"></script>
 <script src="recordatorios.js?v=14"></script>
-<script src="objetivos.js"></script>
+<script src="objetivos.js?v=1"></script>
 <script src="principios.js?v=18"></script>
-<script src="foco.js?v=4"></script>
+<script src="foco.js?v=5"></script>
 <script src="sueno-stats.js?v=2"></script>
-<script src="reportes.js?v=11"></script>
-<script src="reportes-vista.js?v=15"></script>
+<script src="reportes.js?v=12"></script>
+<script src="reportes-vista.js?v=16"></script>
 <script src="consejero.js?v=2"></script>
-<script src="correlaciones.js?v=3"></script>
+<script src="correlaciones.js?v=4"></script>
 <script src="cursada.js?v=8"></script>
 <script src="mapa-ideas.js?v=3"></script>
 <script src="share-target.js?v=1"></script>

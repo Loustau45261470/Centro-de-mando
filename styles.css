@@ -5341,40 +5341,35 @@ input:focus, select:focus, textarea:focus {
 }
 .diet-state.met { color: #10E07C; background: rgba(16,224,124,.10); border-color: rgba(16,224,124,.32); }
 
-/* ════════════════════ DIETA · reglas de comida sana (overlay) ════════════════════ */
+/* ════════════════════ DIETA · registro de comida (overlay) ════════════════════ */
 #dieta-card { --ent-accent: #10E07C; }
-.diet-head { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
-.diet-head > div:last-child { min-width: 0; flex: 1; }
-.diet-head-count {
-  font-size: 34px; font-weight: 800; letter-spacing: -.04em; line-height: 1;
-  color: var(--tp); font-variant-numeric: tabular-nums;
-}
-.diet-head.met .diet-head-count { color: #10E07C; }
-.diet-head-total { font-size: var(--fs-15); font-weight: 700; color: var(--tt); }
-.diet-head-state { font-size: var(--fs-13); font-weight: 700; color: var(--ts); }
-.diet-head.met .diet-head-state { color: #10E07C; }
-.diet-head-sub { font-size: var(--fs-12-5); color: var(--tt); margin-top: 2px; line-height: 1.35; }
-.diet-bar {
-  position: relative; height: 9px; border-radius: 6px; margin-bottom: 14px;
-  background: rgba(6,10,20,.65); border: 1px solid rgba(120,160,255,.08); overflow: hidden;
-}
-.diet-bar span {
-  display: block; height: 100%; border-radius: 6px;
-  background: color-mix(in oklab, #10E07C 60%, transparent);
-  transition: width .45s var(--ease-out-expo);
-}
-.diet-bar span.met { background: linear-gradient(90deg, color-mix(in oklab, #10E07C 55%, #000), #10E07C); box-shadow: 0 0 12px -2px #10E07C; }
-.diet-bar i { position: absolute; top: 0; bottom: 0; width: 2px; background: rgba(255,255,255,.45); z-index: 1; }
-.diet-rule.on .sub-name { color: #10E07C; }
 .ptask-check { display: flex; flex-shrink: 0; cursor: pointer; padding: 6px; margin: -6px; } /* zona de toque de 28px sin agrandar la casilla */
 .ptask-check input { width: 16px; height: 16px; margin: 0; cursor: pointer; accent-color: #10E07C; }
-.diet-foot {
-  display: flex; align-items: center; justify-content: space-between;
-  flex-wrap: wrap; gap: 10px; margin-top: 14px; padding-top: 12px;
-  border-top: 1px solid var(--border);
-}
-.diet-umbral { display: flex; align-items: center; gap: 7px; font-size: var(--fs-12-5); color: var(--tt); }
-.diet-umbral .inp { width: 62px; }
+.com-dia { font-size: var(--fs-13); font-weight: 700; color: var(--ts); margin-bottom: 12px; }
+.com-bloque { margin-bottom: 14px; }
+.com-bloque-t { margin: 0 0 4px; font-family: var(--mono); font-size: var(--fs-12-5); letter-spacing: .6px; text-transform: uppercase; color: #10E07C; }
+.com-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border); }
+.com-row:last-child { border-bottom: none; }
+.com-name { flex: 1; min-width: 0; text-align: left; font-size: var(--fs-14); font-weight: 600; overflow-wrap: anywhere; }
+.com-row.on .com-name { color: #10E07C; }
+.com-qty { display: flex; align-items: center; gap: 5px; flex: none; }
+.com-cant { width: 74px; padding: 6px 8px; text-align: right; }
+.com-unit { width: 12px; font-size: var(--fs-13); color: var(--tt); }
+.com-vacio { font-size: var(--fs-13); color: var(--tt); margin: 6px 0; }
+.com-foot { display: flex; justify-content: flex-end; margin: 4px 0 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.com-bib { border-top: 1px solid var(--border); padding-top: 10px; }
+.com-bib summary { cursor: pointer; font-size: var(--fs-13); font-weight: 700; color: var(--ts); margin-bottom: 8px; }
+.com-bib-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: 7px 0; border-bottom: 1px solid var(--border); }
+.com-bib-row:last-child { border-bottom: none; }
+.com-bib-row.arch { opacity: .6; }
+.com-bib-info { min-width: 0; flex: 1 1 140px; }
+.com-bib-name { font-size: var(--fs-14); font-weight: 600; overflow-wrap: anywhere; }
+.com-bib-name small { color: var(--tt); font-weight: 400; }
+.com-bib-sub { font-size: var(--fs-12-5); color: var(--tt); }
+.com-bib-acts { display: flex; align-items: center; gap: 6px; }
+.com-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.com-chip { padding: 8px 14px; border-radius: 999px; cursor: pointer; font-family: var(--sans); font-size: var(--fs-13); font-weight: 600; color: var(--ts); background: rgba(120,150,220,.06); border: 1px solid var(--border); }
+.com-chip[aria-pressed="true"] { color: #10E07C; background: rgba(16,224,124,.12); border-color: rgba(16,224,124,.45); }
 
 /* ════════════════════ ADQUISICIÓN · puntaje + Top 5 ════════════════════ */
 /* Control de puntaje en cada fila del overlay */

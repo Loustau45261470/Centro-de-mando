@@ -3,7 +3,7 @@
 // FOCO — sub-pestaña "Foco" dentro de la ventana de Principios (puntos 1, 3 y 4 del "Seguimiento de Foco" de specs/principios-y-revisiones.md).
 //   1. Cierre nocturno: atención (1-5), energía (1-5) y una línea de "dónde se fue el tiempo". Un registro por día.
 //   3. Tiempo de pantalla semanal: horas totales de la semana, una por semana (clave = lunes en fecha local).
-//   4. Cruce: energía/atención contra sueño, entrenamiento y comida; solo con datos suficientes.
+//   4. Cruce: energía/atención contra sueño y entrenamiento; solo con datos suficientes.
 //   2. Chequeos durante el día: aviso push (kind 'foco' en deadlines.js) que abre esta sub-pestaña con el chequeo listo
 //      (destino '#foco-chequeo'); un toque en categoría + energía 1-5; horas configurables; reparto de los últimos 7 días.
 //
@@ -15,7 +15,6 @@
 // Fuentes del cruce (solo lectura, no se agrega tracking nuevo):
 //   sueño        → S.sleepLog['YYYY-MM-DD'].hours        (app.js, tracker de sueño)
 //   entrenamiento→ S.workoutLog['YYYY-MM-DD'][ejercicio]  (rutinas.js; día con al menos una serie cargada)
-//   comida       → dietaDayMet(fecha) / S.dieta.log       (app.js, tracker de comida sana)
 // Las funciones puras (sin DOM) están arriba y se exportan para Node al final del archivo.
 // ════════════════════════════════════════════════════════════════════════
 
@@ -92,7 +91,7 @@ function foCruceGrupos(foco, clasif, minDias, minGrupo) {
   return { estado: 'ok', n, a, b, comparable: a.ok && b.ok };
 }
 
-// Clasificadores a partir del estado de los otros módulos (solo lectura). ctx = { sleepLog, workoutLog, dietaLog, dietaMet }.
+// Clasificadores a partir del estado de los otros módulos (solo lectura). ctx = { sleepLog, workoutLog }.
 function foClasifSueno(ctx) {
   return ds => { const h = ctx.sleepLog && ctx.sleepLog[ds] && ctx.sleepLog[ds].hours; return typeof h === 'number' && h > 0 ? (h >= FO_HORAS_BUEN_SUENO ? 'a' : 'b') : null; };
 }
@@ -104,23 +103,16 @@ function foEntrenoDelDia(workoutLog, ds) {
 function foClasifEntreno(ctx, haySeries) {   // sin ninguna serie cargada en los días registrados no se puede distinguir "no entrené" de "no cargué"
   return haySeries ? (ds => foEntrenoDelDia(ctx.workoutLog, ds) ? 'a' : 'b') : (() => null);
 }
-function foClasifComida(ctx, hayLog) {   // un día sin nada anotado es "no lo cargué", no "no lo cumplí": queda afuera
-  const anotado = ds => !!ctx.dietaLog && Array.isArray(ctx.dietaLog[ds]) && ctx.dietaLog[ds].length > 0;
-  return (hayLog && typeof ctx.dietaMet === 'function') ? (ds => anotado(ds) ? (ctx.dietaMet(ds) ? 'a' : 'b') : null) : (() => null);
-}
 
-// Arma los tres cruces con su texto. Cada item: { clave, titulo, estado, texto, detalle? }.
+// Arma los cruces con su texto. Cada item: { clave, titulo, estado, texto, detalle? }.
 function foArmarCruces(foco, ctx) {
   const dias = foDiasValidos(foco);
   const haySeries = dias.some(ds => foEntrenoDelDia(ctx.workoutLog, ds));
-  const hayComida = dias.some(ds => ctx.dietaLog && Array.isArray(ctx.dietaLog[ds]) && ctx.dietaLog[ds].length);
   const defs = [
     { clave: 'sueno', titulo: 'Sueño', nombre: 'sueño', clasif: foClasifSueno(ctx),
       a: 'dormiste ' + FO_HORAS_BUEN_SUENO + ' horas o más', b: 'dormiste menos de ' + FO_HORAS_BUEN_SUENO + ' horas' },
     { clave: 'entreno', titulo: 'Entrenamiento', nombre: 'entrenamiento', clasif: foClasifEntreno(ctx, haySeries),
       a: 'cargaste rutina de gym', b: 'no cargaste rutina de gym' },
-    { clave: 'comida', titulo: 'Comida', nombre: 'comida', clasif: foClasifComida(ctx, hayComida),
-      a: 'cumpliste la meta de comida sana', b: 'no la cumpliste' },
   ];
   return defs.map(d => {
     const r = foCruceGrupos(foco, d.clasif);
@@ -188,8 +180,6 @@ function _foCtx() {
   return {
     sleepLog: (typeof S !== 'undefined' && S.sleepLog) || {},
     workoutLog: (typeof S !== 'undefined' && S.workoutLog) || {},
-    dietaLog: (typeof S !== 'undefined' && S.dieta && S.dieta.log) || {},
-    dietaMet: (typeof dietaDayMet === 'function' && typeof S !== 'undefined' && S.dieta && Array.isArray(S.dieta.reglas)) ? dietaDayMet : null,
   };
 }
 function _foSave() { if (typeof saveState === 'function') saveState(); }
@@ -295,7 +285,7 @@ function foHtml() {
 
   // 4. Cruce
   const n = foDiasValidos(d).length;
-  h += '<div class="pr-card"><div class="pr-form-t">Cruce con sueño, entrenamiento y comida</div>';
+  h += '<div class="pr-card"><div class="pr-form-t">Cruce con sueño y entrenamiento</div>';
   if (n < FO_MIN_DIAS) h += '<div class="pr-nota">Faltan datos: llevás ' + n + ' de ' + FO_MIN_DIAS + ' días</div>';
   else {
     h += '<div class="pr-nota">Son promedios de tus días registrados (' + n + '). Muestran qué coincide con qué, no qué causa qué.</div>';

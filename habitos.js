@@ -913,7 +913,7 @@ function habitAutoTexto(a) {
   if (a.metric === 'bed_before') return 'Se marca solo si te acostás antes de las ' + a.hora;
   return 'Se marca solo si dormís al menos ' + n(a.horas) + ' horas';
 }
-// Misma regla que _dietaSyncHabit: 'done' si ese día cumple, y lo saca si dejó de cumplir. Nunca pisa 'partial', 'rest' ni 'missed' puestos a mano;
+// 'done' si ese día cumple, y lo saca si dejó de cumplir. Nunca pisa 'partial', 'rest' ni 'missed' puestos a mano;
 // sin el dato que el criterio necesita no toca nada. Devuelve true si cambió algo (no guarda: lo hace quien llama, una sola vez).
 function _habitSleepSyncDia(h, ds) {
   if (!h || !h.auto || h.auto.type !== 'sleep' || !window.CMSueno) return false;

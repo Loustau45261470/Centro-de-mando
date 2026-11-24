@@ -17,7 +17,7 @@
 /* Entrenamiento completo: ídem. */
 #rutinas-wrap { display: none; }
 .cm-ov-host #rutinas-wrap { display: block; }
-/* Dieta: las reglas del día viven en el overlay; la sección muestra un resumen. */
+/* Dieta: el registro de comida del día vive en el overlay; la sección muestra un resumen. */
 #dieta-card { display: none; }
 .cm-ov-host #dieta-card { display: block; }
 /* Vida: Metas de Hoy (completo) y Plan Mañana viven en el overlay de Planificación. */

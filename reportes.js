@@ -487,7 +487,7 @@ const _repNum15 = v => { const n = Math.round(Number(v)); return (n >= 1 && n <=
 const _repCatsFoco = ['estudio', 'gym', 'trabajo', 'pantalla', 'social', 'descanso', 'otro'];   // FO_CATEGORIAS (foco.js:26)
 const _repMinChequeos = 5;   // FO_MIN_CHEQUEOS (foco.js:25)
 
-// datos = { foco: S.foco, sleepLog, workoutLog, dietaLog, dietaMet }; deps = { foArmarCruces } (foco.js:113; opcional, no se lee global).
+// datos = { foco: S.foco, sleepLog, workoutLog }; deps = { foArmarCruces } (foco.js:113; opcional, no se lee global).
 // rangoAnt (opcional) = rango comparable del período anterior; sin él atención/energía salen sin comparación (compatible con la llamada vieja repFoco(datos, rango, deps)).
 function repFoco(datos, rango, rangoAnt, deps) {
   if (rangoAnt && !rangoAnt.desde) { deps = rangoAnt; rangoAnt = null; }
@@ -523,7 +523,7 @@ function repFoco(datos, rango, rangoAnt, deps) {
     : { valor: nc, n: nc, filas: _repCatsFoco.filter(c => rep[c]).map(c => ({ categoria: c, n: rep[c], pct: Math.round(rep[c] * 100 / nc) })).sort((x, y) => y.n - x.n),
         motivo: 'Es una muestra, no un cronómetro' };
   let cruces = null;   // foArmarCruces ya respeta su mínimo de 10 días con registro
-  if (typeof deps.foArmarCruces === 'function') cruces = deps.foArmarCruces({ dias }, { sleepLog: datos.sleepLog || {}, workoutLog: datos.workoutLog || {}, dietaLog: datos.dietaLog || {}, dietaMet: datos.dietaMet || null });
+  if (typeof deps.foArmarCruces === 'function') cruces = deps.foArmarCruces({ dias }, { sleepLog: datos.sleepLog || {}, workoutLog: datos.workoutLog || {} });
   return {
     atencion: n ? prom(a, 'a') : sinDias, energia: n ? prom(e, 'e') : sinDias,
     pantalla: ps ? { valor: _repRedondeo(ph / ps, 1), semanas: ps, total: _repRedondeo(ph, 1), motivo: 'Promedio de horas por semana completa' } : _repNulo('No hay semanas completas con tiempo de pantalla cargado'),

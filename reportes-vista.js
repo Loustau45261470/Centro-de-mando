@@ -56,8 +56,7 @@ function _rvDatos(rango, rangoAnt, hoy) {
     config: (S.reportes && S.reportes.config) || {}, cardCharges: S.cardCharges || [],
     cards: (S.cards || []).map(k => ({ id: k.id, resetAt: k.resetAt, resetDay: k.resetDay })),
     lawProgress: S.lawProgress, finales: (S.sgc && S.sgc.finales) || [], pomodoroHistory: S.pomodoroHistory || [], studyDays: _rvHabitosEstudio(),
-    foco: S.foco, sleepLog: S.sleepLog || {}, workoutLog: S.workoutLog || {}, dietaLog: (S.dieta && S.dieta.log) || {},
-    dietaMet: (typeof dietaDayMet === 'function' && S.dieta && Array.isArray(S.dieta.reglas)) ? dietaDayMet : null,
+    foco: S.foco, sleepLog: S.sleepLog || {}, workoutLog: S.workoutLog || {}, 
   };
 }
 
@@ -231,7 +230,7 @@ function _rvKpisFoco(fo, eco, su) {
   const ch = fo.chequeos;
   h += _rvCard('¿Dónde estuvo el tiempo? (chequeos)', ch.valor == null ? '<div class="rv-fm">' + _rvEsc(_rvMotivo(ch.motivo)) + '</div>'
     : ch.filas.map(x => '<div class="rv-row"><span>' + _rvEsc(_rvCap(x.categoria)) + '</span><span class="rv-rn">' + x.pct + '% <small>(' + x.n + ')</small></span></div>').join('') + '<div class="rv-fm">' + _rvEsc(_rvMotivo(ch.motivo)) + '</div>');
-  if (fo.cruces && fo.cruces.length) h += _rvCard('Cruce con sueño, entrenamiento y comida', fo.cruces.map(c => '<div class="rv-cruce"><b>' + _rvEsc(c.titulo) + '</b><div class="rv-fs">' + _rvEsc(c.texto) + '</div></div>').join(''));
+  if (fo.cruces && fo.cruces.length) h += _rvCard('Cruce con sueño y entrenamiento', fo.cruces.map(c => '<div class="rv-cruce"><b>' + _rvEsc(c.titulo) + '</b><div class="rv-fs">' + _rvEsc(c.texto) + '</div></div>').join(''));
   if (su) h += '<div class="rv-sec">Sueño</div>' + _rvKpisSueno(su);
   h += _rvGastosCat(eco && eco.gastos, 5, 'Dónde fue el dinero');   // top 5 de lo que ya devuelve repKpiEconomia para este rango
   return h;

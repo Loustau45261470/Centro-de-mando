@@ -1,4 +1,4 @@
-// Objetivos (trimestrales y metas mensuales) enlazados a métricas: sueño, entrenamiento, estudio, dieta,
+// Objetivos (trimestrales y metas mensuales) enlazados a métricas: sueño, entrenamiento, estudio,
 // finanzas (gasto total y superávit) y hábito en Conocimiento. "Hoy" se fija pisando getActiveDate().
 'use strict';
 const { test, expect } = require('./support/fixtures');
@@ -85,16 +85,12 @@ test.describe('vínculos de objetivos: cálculo', () => {
     expect(r.label).toContain('2.5/10 h'); expect(r.pct).toBe(25);
   });
 
-  test('dieta: días cumplidos en el rango', async ({ cmPage }) => {
+  // Retirado por decisión del usuario (dieta por reglas → registro de comida): ya no existe el vínculo «días de dieta cumplida».
+  // Se prueba la ausencia: un link viejo no calcula nada y el selector no lo ofrece (ver tests/comidas.spec.js para la migración).
+  test('dieta: el vínculo viejo ya no calcula progreso', async ({ cmPage }) => {
     await prep(cmPage);
-    await cmPage.evaluate((ds) => {
-      ensureDietaState();
-      S.dieta.reglas = [{ id: 'x1', text: 'a' }, { id: 'x2', text: 'b' }]; S.dieta.umbral = 2; S.dieta.log = {};
-      ds.slice(0, 3).forEach((d) => { S.dieta.log[d] = ['x1', 'x2']; });
-      S.dieta.log[ds[3]] = ['x1'];   // no llega al umbral
-    }, [1, 2, 3, 4].map(dia));
-    const r = await prog(cmPage, MES, { type: 'dieta', metric: 'dias', target: 6 });
-    expect(r.label).toContain('3/6 días cumplidos'); expect(r.pct).toBe(50);
+    expect(await prog(cmPage, MES, { type: 'dieta', metric: 'dias', target: 6 })).toBeNull();
+    expect(await cmPage.evaluate(() => typeof _dietaLinkProgress + '/' + typeof dietaDayMet)).toBe('undefined/undefined');
   });
 
   test('finanzas: gasto total pasado del tope se marca como excedido; sin tocar otras monedas', async ({ cmPage }) => {
@@ -222,7 +218,8 @@ test.describe('vínculos de objetivos: UI', () => {
     await cmPage.click('#qobj-wrap-conocimiento button:has-text("+ Meta mensual")');
     const kinds = await cmPage.locator('#mgoal-link-kind option').allTextContents();
     expect(kinds.slice(0, 3)).toEqual(['Sin enlace', 'Materias', 'Hábito']);
-    for (const k of ['Sueño', 'Entrenamiento', 'Estudio', 'Dieta', 'Finanzas']) expect(kinds).toContain(k);
+    for (const k of ['Sueño', 'Entrenamiento', 'Estudio', 'Finanzas']) expect(kinds).toContain(k);
+    expect(kinds).not.toContain('Dieta');   // retirado: el registro de comida no se vincula a objetivos
     await cmPage.fill('#mgoal-input-text', 'Leer todos los días');
     await cmPage.selectOption('#mgoal-link-kind', 'habit');
     await cmPage.selectOption('#mgoal-link-habit', 'hc1');

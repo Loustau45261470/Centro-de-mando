@@ -49,6 +49,7 @@ const DEFAULT_STATE = {
   txnCategories: {},   // { catId: { label, icon, color, section } } — categorías de transacción gestionables por el usuario
   txnCategoriesSeeded: false, // true una vez que ensureTxnCategories() sembró los defaults — distingue "nunca sembrado" de "usuario borró todo" (un {} vacío es truthy y no alcanza, ver fixes.json)
   sleepLog:        {}, // { 'YYYY-MM-DD': { bedtime:'HH:MM', waketime:'HH:MM', hours, wellness:{sleepQuality,energy,mood,pain,stress}, notes } }
+  comidas:         { alimentos: [], registro: {} }, // registro de comida (comidas.js): alimentos = biblioteca [{ id, nombre, unidad:'g'|'u', comidas:['desayuno'|'almuerzo'|'merienda'|'cena'], archivado? }]; registro = { 'YYYY-MM-DD': { desayuno: { <alimentoId>: { ok, cant } }, almuerzo, merienda, cena } }
   ideas:     { vida: [], finanzas: [], salud: [], conocimiento: [], ia: [] }, // [{ id, title, description, notes }]
   reminders: { vida: [], finanzas: [], salud: [], conocimiento: [], ia: [] }, // [{ id, title, datetime, priority:'high'|'medium'|'low' }]
   lawProgress: { years: [
@@ -1334,6 +1335,7 @@ function _applyRemoteState(raw, savedAt) {
     _migrateQToT();
     _migrateMonthlyGoals();
     _migrateFixedExpenses();
+    _migrateDietaRetirada();
     localStorage.setItem('lifedash_v2', JSON.stringify(S));
     _reRenderAll();
     if (typeof window._reloadProyectosFromState === 'function') window._reloadProyectosFromState();
@@ -1553,6 +1555,7 @@ async function loadState() {
   if (_migrateQToT()) saveState();
   if (_migrateMonthlyGoals()) saveState();
   if (_migrateFixedExpenses()) saveState();
+  if (_migrateDietaRetirada()) saveState();
   // ── Presupuesto: init + auto-copia en cascada de los meses futuros del año real actual ──
   if (!S.budgets) S.budgets = {};
   ensureBudgetYear(new Date().getFullYear());
@@ -1563,6 +1566,22 @@ function _migrateFixedExpenses() {
   if (Array.isArray(S.fixedExpenses) && !S.fixedExpenses.length) { delete S.fixedExpenses; changed = true; }
   const log = S.fixedExpenseLog;
   if (log && typeof log === 'object' && !Object.keys(log).length) { delete S.fixedExpenseLog; changed = true; }
+  return changed;
+}
+// Dieta de reglas retirada: los objetivos con vínculo "días de dieta cumplida" pasan a manuales (se quita solo el link; el resto del objetivo
+// —texto, done, categoría— queda igual: un objetivo manual no guarda progreso numérico, solo `done`) y un hábito con criterio automático de dieta
+// queda como hábito común (se quita solo `auto`; sus días marcados no se tocan). Idempotente. Nunca toca S.dieta ni ningún historial.
+function _migrateDietaRetirada() {
+  let changed = false;
+  const sinLink = o => { if (o && typeof o === 'object' && o.link && o.link.type === 'dieta') { delete o.link; changed = true; } };
+  const lista = a => { if (Array.isArray(a)) a.forEach(sinLink); };
+  const qo = S.quarterlyObjectives;
+  if (qo && Array.isArray(qo.periods)) qo.periods.forEach(p => { if (p) lista(p.objectives); });
+  const mg = S.monthlyGoals;
+  if (mg && typeof mg === 'object') Object.values(mg).forEach(v => { if (Array.isArray(v)) lista(v); else if (v && typeof v === 'object') Object.values(v).forEach(lista); });
+  const ht = S.habitTrackers;
+  const habs = Array.isArray(ht) ? ht : (ht && typeof ht === 'object' ? Object.values(ht).reduce((a, x) => a.concat(Array.isArray(x) ? x : []), []) : []);
+  habs.forEach(h => { if (h && h.auto && h.auto.type === 'dieta') { delete h.auto; changed = true; } });
   return changed;
 }
 function _migrateQToT() {
@@ -3591,224 +3610,8 @@ function saveEditWish() {
 }
 
 
-// ════════════════════════════════════════════════════════
-// DIETA (Salud) — tracker de comida sana. Reglas de alimentación que define
-// Tobías, umbral de cumplimiento por día y marcado AUTOMÁTICO del hábito
-// "Comida sana" del calendario de Hábitos de Salud.
-// ════════════════════════════════════════════════════════
-const DIETA_HABIT_ID = 'habit-comida-sana';
-const DIETA_REGLAS_DEFAULT = [
-  'Proteína en cada comida',
-  'Verduras en 2+ comidas',
-  'Sin ultraprocesados',
-  'Sin azúcar agregada',
-  '3L de agua',
-];
-
-function ensureDietaState() {
-  if (!S.dieta || typeof S.dieta !== 'object') S.dieta = {};
-  // Primera vez (o estado viejo de planillas): siembra las reglas por defecto.
-  if (!Array.isArray(S.dieta.reglas)) S.dieta.reglas = DIETA_REGLAS_DEFAULT.map(text => ({ id: uid(), text }));
-  if (!S.dieta.log || typeof S.dieta.log !== 'object') S.dieta.log = {};
-  if (typeof S.dieta.umbral !== 'number' || S.dieta.umbral < 1) S.dieta.umbral = Math.min(4, S.dieta.reglas.length) || 1;
-}
-
-// Umbral efectivo: nunca puede exigir más reglas de las que existen.
-function _dietaUmbral() { return Math.min(S.dieta.umbral, S.dieta.reglas.length); }
-
-// Reglas marcadas ese día, ignorando ids de reglas que ya no existen.
-function _dietaDoneIds(ds) {
-  const ids = S.dieta.log[ds] || [];
-  return ids.filter(id => S.dieta.reglas.some(r => r.id === id));
-}
-
-function dietaDayMet(ds) {
-  const n = _dietaUmbral();
-  return n > 0 && _dietaDoneIds(ds).length >= n;
-}
-
-function _dietaDS(d) { return d.toISOString().slice(0, 10); }
-
-// Días consecutivos cumplidos. El día en curso solo suma si ya está cumplido:
-// si todavía no, la racha se mide hasta ayer y no se "rompe" a la mañana.
-function _dietaStreak() {
-  const d = new Date(getActiveDate() + 'T00:00:00');
-  if (!dietaDayMet(_dietaDS(d))) d.setDate(d.getDate() - 1);
-  let n = 0;
-  while (dietaDayMet(_dietaDS(d))) { n++; d.setDate(d.getDate() - 1); }
-  return n;
-}
-
-function _dietaLast7() {
-  const base = new Date(getActiveDate() + 'T00:00:00');
-  let n = 0;
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(base); d.setDate(d.getDate() - i);
-    if (dietaDayMet(_dietaDS(d))) n++;
-  }
-  return n;
-}
-
-// ── Hábito "Comida sana": lo maneja la Dieta, no se marca a mano ──
-function _dietaHabit(create) {
-  if (!S.habitTrackers || Array.isArray(S.habitTrackers)) return null; // formato viejo: solo Vida
-  const arr = S.habitTrackers.salud || (S.habitTrackers.salud = []);
-  let h = arr.find(x => x.id === DIETA_HABIT_ID);
-  if (!h && create) { h = { id: DIETA_HABIT_ID, name: 'Comida sana', emoji: '🥗', days: {} }; arr.push(h); }
-  if (h && !h.days) h.days = {};
-  return h || null;
-}
-
-// Escribe 'done' si el día cumple el objetivo y lo saca si dejó de cumplirlo.
-// Nunca pisa un 'partial'/'rest' puesto a mano en el calendario.
-function _dietaSyncHabit(ds) {
-  const h = _dietaHabit(true);
-  if (!h) return;
-  if (dietaDayMet(ds)) h.days[ds] = 'done';
-  else if (h.days[ds] === 'done') delete h.days[ds];
-}
-
-// Al cambiar el umbral o borrar una regla cambia el cumplimiento de días pasados:
-// se recalculan todos los días con registro para que el calendario no mienta.
-function _dietaSyncAll() {
-  Object.keys(S.dieta.log).forEach(_dietaSyncHabit);
-  _dietaSyncHabit(getActiveDate());
-}
-
-function _dietaRefresh() {
-  saveState();
-  renderDieta(); renderDietaResumen();
-  if (typeof renderHabitsCard === 'function') renderHabitsCard('salud');
-}
-
-function toggleDietaRegla(id) {
-  ensureDietaState();
-  const ds = getActiveDate();
-  const arr = S.dieta.log[ds] || (S.dieta.log[ds] = []);
-  const i = arr.indexOf(id);
-  if (i >= 0) arr.splice(i, 1); else arr.push(id);
-  if (!arr.length) delete S.dieta.log[ds];
-  _dietaSyncHabit(ds);
-  _dietaRefresh();
-}
-
-function setDietaUmbral(val) {
-  ensureDietaState();
-  S.dieta.umbral = Math.max(1, +val || 1);
-  _dietaSyncAll();
-  _dietaRefresh();
-}
-
-// ── Alta/edición/baja de reglas ──
-let _dietaReglaEditId = null;
-
-function openDietaReglaModal(id) {
-  ensureDietaState();
-  _dietaReglaEditId = id || null;
-  const r = id ? S.dieta.reglas.find(x => x.id === id) : null;
-  document.getElementById('dietaReglaTitle').textContent = r ? 'Editar regla' : 'Nueva regla';
-  document.getElementById('dietaReglaText').value = r ? r.text : '';
-  openModal('modal-dieta-regla');
-}
-
-function saveDietaRegla() {
-  const text = document.getElementById('dietaReglaText').value.trim();
-  if (!text) { showToast('Escribí la regla'); return; }
-  ensureDietaState();
-  if (_dietaReglaEditId) {
-    const r = S.dieta.reglas.find(x => x.id === _dietaReglaEditId);
-    if (r) r.text = text;
-  } else {
-    S.dieta.reglas.push({ id: uid(), text });
-  }
-  closeModal('modal-dieta-regla');
-  _dietaSyncAll();
-  _dietaRefresh();
-}
-
-function deleteDietaRegla(id) {
-  if (!confirm('¿Eliminar esta regla de alimentación?')) return;
-  ensureDietaState();
-  S.dieta.reglas = S.dieta.reglas.filter(r => r.id !== id);
-  if (S.dieta.umbral > S.dieta.reglas.length) S.dieta.umbral = Math.max(1, S.dieta.reglas.length);
-  _dietaSyncAll();
-  _dietaRefresh();
-}
-
-// ── Checklist completo (vive en el overlay de Dieta) ──
-function renderDieta() {
-  const body = document.getElementById('dietaBody');
-  if (!body) return;
-  ensureDietaState();
-  const ds    = getActiveDate();
-  const done  = _dietaDoneIds(ds);
-  const total = S.dieta.reglas.length;
-  const meta  = _dietaUmbral();
-  const met   = dietaDayMet(ds);
-  const falta = Math.max(0, meta - done.length);
-
-  const rows = S.dieta.reglas.map(r => {
-    const on = done.includes(r.id);
-    return `<div class="sub-row diet-rule${on ? ' on' : ''}">
-      <div class="sub-info"><div class="sub-name">${r.text}</div></div>
-      <div class="flex gap-8">
-        <button class="icon-btn" onclick="openDietaReglaModal('${r.id}')" title="Editar">✎</button>
-        <button class="icon-btn" onclick="deleteDietaRegla('${r.id}')" title="Eliminar">${_DEL_SVG}</button>
-      </div>
-      <label class="ptask-check"><input type="checkbox" ${on ? 'checked' : ''} onchange="toggleDietaRegla('${r.id}')"></label>
-    </div>`;
-  }).join('') || '<p class="empty-state">Sin reglas de alimentación. Agregá la primera con “+ Regla”.</p>';
-
-  const opts = S.dieta.reglas.map((_, i) => `<option value="${i + 1}"${i + 1 === meta ? ' selected' : ''}>${i + 1}</option>`).join('');
-
-  body.innerHTML = `
-    <div class="diet-head${met ? ' met' : ''}">
-      <div class="diet-head-count">${done.length}<span class="diet-head-total">/${total}</span></div>
-      <div>
-        <div class="diet-head-state">${!total ? 'Sin reglas cargadas' : met ? '✔ Día sano cumplido' : `Falta${falta === 1 ? '' : 'n'} ${falta} para cumplir`}</div>
-        <div class="diet-head-sub">Objetivo: ${meta} de ${total} reglas</div>
-        <div class="diet-head-sub">Cumplirlo marca el hábito 🥗 Comida sana</div>
-      </div>
-    </div>
-    ${total ? `<div class="diet-bar"><i style="left:${(meta / total) * 100}%"></i><span class="${met ? 'met' : ''}" style="width:${(done.length / total) * 100}%"></span></div>` : ''}
-    ${rows}
-    <div class="diet-foot">
-      <label class="diet-umbral">Objetivo del día
-        <select class="inp" onchange="setDietaUmbral(this.value)"${total ? '' : ' disabled'}>${opts}</select>
-        de ${total}
-      </label>
-      <button class="btn btn-ghost btn-sm" onclick="openDietaReglaModal(null)">+ Regla</button>
-    </div>`;
-}
-
-// ── Resumen de dieta (sección) · el checklist completo vive en el overlay ──
-function renderDietaResumen() {
-  const body = document.getElementById('dietaResumenBody');
-  if (!body) return;
-  ensureDietaState();
-  const total = S.dieta.reglas.length;
-  const abrir = '<button class="ent-full" onclick="if(window.openDietaOverlay)openDietaOverlay()">Abrir dieta completa →</button>';
-
-  if (!total) {
-    body.innerHTML = `<p class="empty-state">Sin reglas de alimentación cargadas.</p>${abrir}`;
-    return;
-  }
-
-  const ds   = getActiveDate();
-  const done = _dietaDoneIds(ds).length;
-  const meta = _dietaUmbral();
-  const met  = dietaDayMet(ds);
-  const falta = Math.max(0, meta - done);
-
-  body.innerHTML = `
-    <div class="ent-kpis" style="grid-template-columns:repeat(3,1fr)">
-      <div class="ent-kpi"><div class="ent-kpi-num">${done}<span class="ent-kpi-u">/${total}</span></div><div class="ent-kpi-lbl">Hoy</div></div>
-      <div class="ent-kpi"><div class="ent-kpi-num">${_dietaStreak()}</div><div class="ent-kpi-lbl">Racha</div></div>
-      <div class="ent-kpi"><div class="ent-kpi-num">${_dietaLast7()}<span class="ent-kpi-u">/7</span></div><div class="ent-kpi-lbl">7 días</div></div>
-    </div>
-    <div class="diet-state${met ? ' met' : ''}">${met ? '✔ Objetivo de hoy cumplido' : `Falta${falta === 1 ? '' : 'n'} ${falta} regla${falta === 1 ? '' : 's'} para cumplir hoy`}</div>
-    ${abrir}`;
-}
+// DIETA / registro de comida: vive en comidas.js (S.comidas). El tracker viejo de reglas (S.dieta) se retiró de la pantalla;
+// sus datos quedan en S.dieta sin tocar. La limpieza de vínculos viejos está en _migrateDietaRetirada().
 
 // ════════════════════════════════════════════════════════
 // CHARTS

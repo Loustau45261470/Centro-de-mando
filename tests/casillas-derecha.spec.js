@@ -86,14 +86,13 @@ const LISTAS = [
     estado: () => getDayPlan(getActiveDate()).tasks[0].done, click: true, captura: '#ov-planner',
   },
   {
-    id: 'dieta-reglas', tab: 'salud',
+    id: 'dieta-comidas', tab: 'salud',
     armar: () => {
-      ensureDietaState();
-      S.dieta.reglas = [{ id: 'r1', text: 'Regla de ejemplo uno' }, { id: 'r2', text: 'Regla de ejemplo dos' }];
-      S.dieta.umbral = 1; renderDieta(); openDietaOverlay();
+      S.comidas = { alimentos: [{ id: 'a1', nombre: 'Alimento de ejemplo uno', unidad: 'g', comidas: ['desayuno'] }, { id: 'a2', nombre: 'Alimento de ejemplo dos', unidad: 'u', comidas: ['desayuno'] }], registro: {} };
+      renderDieta(); openDietaOverlay();
     },
-    fila: '#dietaBody .diet-rule', casilla: '.ptask-check input', texto: '.sub-name', captura: '#ov-dieta',
-    estado: () => _dietaDoneIds(getActiveDate()).includes('r1'), click: true,
+    fila: '#dietaBody .com-row', casilla: '.ptask-check input', texto: '.com-name', captura: '#ov-dieta',
+    estado: () => comComio(getActiveDate(), 'desayuno', 'a1'), click: true,
   },
   {
     id: 'cursada-card', tab: 'conocimiento',

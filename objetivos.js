@@ -32,7 +32,7 @@ function _qobjCatLabel(id) {
 //   | {type:'law', subjects:[{yearId,subId}]}
 //   | {type:'finance', metric:'patrimonio'|'cuenta'|'gasto'|'ingreso'|'presupuesto'|'gasto_total'|'superavit', accountId?, category?, target?, modo?:'total'|'promedio'}
 //   | {type:'sleep', metric:'wake_in', desde:'HH:MM', hasta:'HH:MM', target:%} | {type:'sleep', metric:'bed_before', hora:'HH:MM', target:%} | {type:'sleep', metric:'hours_min', horas:n, target:%}
-//   | {type:'gym', metric:'sesiones', target:n} | {type:'estudio', metric:'horas', target:n} | {type:'dieta', metric:'dias', target:n}
+//   | {type:'gym', metric:'sesiones', target:n} | {type:'estudio', metric:'horas', target:n}
 // Se calcula sobre un período: id de trimestre ('t4-2026'), de mes ('2026-11') o personalizado ('p-…', sin fechas → últimos 90 días).
 function _periodDateRange(periodId) {
   const months = _periodMonths(periodId);
@@ -93,14 +93,6 @@ function _estudioLinkProgress(link, periodId) {
   const min = (S.pomodoroHistory || []).reduce((a, e) => (e && e.date >= rg.desde && e.date <= rg.fin) ? a + (+e.minutes || 0) : a, 0);
   const h = Math.round(min / 6) / 10, target = +link.target || 0;
   return { label: `📚 Estudio · ${h}/${target} h`, pct: _qobjCountPct(h, target) };
-}
-
-function _dietaLinkProgress(link, periodId) {
-  if (typeof dietaDayMet !== 'function') return null;
-  let n = 0;
-  _qobjDays(_qobjRange(periodId)).forEach(ds => { try { if (dietaDayMet(ds)) n++; } catch (e) {} });
-  const target = +link.target || 0;
-  return { label: `🥗 Dieta · ${n}/${target} días cumplidos`, pct: _qobjCountPct(n, target) };
 }
 
 function _habitLinkProgress(link) {
@@ -205,7 +197,6 @@ function qobjLinkProgress(periodId, link) {
   if (link.type === 'sleep')   return _sleepLinkProgress(link, periodId);
   if (link.type === 'gym')     return _gymLinkProgress(link, periodId);
   if (link.type === 'estudio') return _estudioLinkProgress(link, periodId);
-  if (link.type === 'dieta')   return _dietaLinkProgress(link, periodId);
   return null;
 }
 
@@ -220,14 +211,14 @@ function qobjLinkHTML(periodId, link) {
 
 // ── Selector de enlace (un solo selector "Enlazar a" para todas las pestañas y para metas mensuales) ──
 // El prefijo 'mgoal…' identifica al modal de metas mensuales (período = mes).
-const QOBJ_KIND_LABEL = { habit: 'Hábito', law: 'Materias', sleep: 'Sueño', gym: 'Entrenamiento', estudio: 'Estudio', dieta: 'Dieta', finance: 'Finanzas' };
+const QOBJ_KIND_LABEL = { habit: 'Hábito', law: 'Materias', sleep: 'Sueño', gym: 'Entrenamiento', estudio: 'Estudio', finance: 'Finanzas' };
 // Todos los tipos están en todas las pestañas; el orden pone primero los más naturales de cada una.
 const QOBJ_KIND_ORDER = {
-  vida:         ['habit', 'sleep', 'dieta', 'gym', 'estudio', 'finance', 'law'],
-  salud:        ['habit', 'gym', 'sleep', 'dieta', 'estudio', 'finance', 'law'],
-  finanzas:     ['finance', 'habit', 'sleep', 'gym', 'estudio', 'dieta', 'law'],
-  conocimiento: ['law', 'habit', 'estudio', 'sleep', 'gym', 'dieta', 'finance'],
-  ia:           ['habit', 'estudio', 'sleep', 'gym', 'dieta', 'finance', 'law']
+  vida:         ['habit', 'sleep', 'gym', 'estudio', 'finance', 'law'],
+  salud:        ['habit', 'gym', 'sleep', 'estudio', 'finance', 'law'],
+  finanzas:     ['finance', 'habit', 'sleep', 'gym', 'estudio', 'law'],
+  conocimiento: ['law', 'habit', 'estudio', 'sleep', 'gym', 'finance'],
+  ia:           ['habit', 'estudio', 'sleep', 'gym', 'finance', 'law']
 };
 const _qobjPer = idPrefix => idPrefix.indexOf('mgoal') === 0 ? 'mes' : 'trimestre';
 
@@ -347,7 +338,7 @@ function qobjKindSubHTML(p, tab, kind, link) {
         </label>`).join('')}`).join('');
     return `<div class="qobj-link-subj-list">${rows || '<div class="empty-state" style="padding:8px 0">Sin materias cargadas</div>'}</div>`;
   }
-  const cnt = { gym: 'Sesiones de entrenamiento meta', estudio: 'Horas de estudio meta', dieta: 'Días con dieta cumplida meta' }[kind];
+  const cnt = { gym: 'Sesiones de entrenamiento meta', estudio: 'Horas de estudio meta' }[kind];
   if (cnt) return `<input class="inp" type="number" min="1" id="${p}-cnt-target" placeholder="${cnt}" value="${l && l.target != null ? l.target : ''}" style="width:100%">`;
   return '';
 }
@@ -391,10 +382,10 @@ function qobjReadLinkFromPicker(idPrefix, tabName) {
     if (metric === 'hours_min') { const horas = +el('sl-horas')?.value; return horas > 0 ? { type: 'sleep', metric, horas, target } : null; }
     return null;
   }
-  if (kind === 'gym' || kind === 'estudio' || kind === 'dieta') {
+  if (kind === 'gym' || kind === 'estudio') {
     const target = +el('cnt-target')?.value || 0;
     if (target <= 0) return null;
-    return { type: kind, metric: { gym: 'sesiones', estudio: 'horas', dieta: 'dias' }[kind], target };
+    return { type: kind, metric: { gym: 'sesiones', estudio: 'horas' }[kind], target };
   }
   if (kind === 'finance') {
     const metric = el('fin-metric')?.value;
