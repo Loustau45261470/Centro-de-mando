@@ -21,7 +21,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-<link rel="stylesheet" href="styles.css?v=290">
+<link rel="stylesheet" href="styles.css?v=291">
 <script>try{if(localStorage.getItem('cm_rail_off')==='1')document.documentElement.classList.add('rail-off')}catch(e){}</script>
 <link rel="stylesheet" href="gamemode.css">
 <link rel="stylesheet" href="overlay-core.css">
@@ -1836,6 +1836,12 @@
         <button type="button" class="com-chip" data-v="u" aria-pressed="false" onclick="comChipUnidad(this)">Unidades (u)</button>
       </div>
     </div>
+    <div class="field"><label>Clasificación</label>
+      <div class="com-chips" id="comAlimSana">
+        <button type="button" class="com-chip" data-v="true" aria-pressed="false" onclick="comChipSana(this)">Sana</button>
+        <button type="button" class="com-chip" data-v="false" aria-pressed="false" onclick="comChipSana(this)">No sana</button>
+      </div>
+    </div>
     <div class="field"><label>Aparece en</label>
       <div class="com-chips" id="comAlimComidas">
         <button type="button" class="com-chip" data-v="desayuno" aria-pressed="false" onclick="comChipComida(this)">Desayuno</button>
@@ -1919,7 +1925,7 @@
     <div class="field"><label>Nombre</label><input class="inp" id="habitName" placeholder="Ej: Lectura, Meditación, Idioma…"></div>
     <div class="field"><label>Emoji / ícono</label><input class="inp" id="habitEmoji" placeholder="📖" maxlength="4"></div>
     <div class="field habit-auto">
-      <div class="habit-auto-row"><label for="habitAutoOn">Marcar solo con el sueño</label><input type="checkbox" id="habitAutoOn" onchange="habitAutoToggle()"></div>
+      <div class="habit-auto-row"><label for="habitAutoOn">Marcar solo con el sueño</label><input type="checkbox" id="habitAutoOn" onchange="if(this.checked){document.getElementById('habitAutoComidasOn').checked=false;habitComidasToggle()}habitAutoToggle()"></div>
       <div class="habit-auto-body" id="habitAutoBody" style="display:none">
         <select class="inp" id="habitAutoMetric" onchange="habitAutoToggle()">
           <option value="wake_in">Levantarme dentro de una franja</option>
@@ -1930,6 +1936,14 @@
         <div class="habit-auto-vals" data-m="bed_before" style="display:none"><span>antes de las</span><input class="inp" type="time" id="habitAutoHora" value="00:30"></div>
         <div class="habit-auto-vals" data-m="hours_min" style="display:none"><span>al menos</span><input class="inp" type="number" id="habitAutoHoras" value="7" min="1" max="14" step="0.5"><span>horas</span></div>
         <div class="habit-auto-nota">Se tilda solo al guardar tus horarios de sueño del día, y se destilda si dejás de cumplirlo. No pisa lo que marques a mano como parcial, descanso o fallado.</div>
+      </div>
+    </div>
+    <div class="field habit-auto">
+      <div class="habit-auto-row"><label for="habitAutoComidasOn">Marcar solo con el registro de comidas</label><input type="checkbox" id="habitAutoComidasOn" onchange="if(this.checked){document.getElementById('habitAutoOn').checked=false;habitAutoToggle()}habitComidasToggle()"></div>
+      <div class="habit-auto-body" id="habitComidasBody" style="display:none">
+        <div class="habit-auto-vals"><label for="habitComidasMin">Comidas mínimas</label><input class="inp" type="number" id="habitComidasMin" value="3" min="1" max="4" step="1" oninput="habitComidasToggle()"></div>
+        <div class="habit-auto-vals"><label for="habitComidasPct">% mínimo sano</label><input class="inp" type="number" id="habitComidasPct" value="90" min="0" max="100" step="5" oninput="habitComidasToggle()"></div>
+        <div class="habit-auto-nota" id="habitComidasNota">Se marca si cargaste al menos 3 comidas y el 90% de lo que comiste es sano</div>
       </div>
     </div>
     <div class="modal-actions" style="flex-wrap:wrap;gap:8px">
@@ -2032,9 +2046,9 @@
 <script src="workspace.js?v=201"></script>
 <script src="abogacia.js?v=9"></script>
 <script src="correlativas.js?v=6"></script>
-<script src="habitos.js?v=12"></script>
+<script src="habitos.js?v=13"></script>
 <script src="rutinas.js"></script>
-<script src="comidas.js?v=1"></script>
+<script src="comidas.js?v=3"></script>
 <script src="tarjetas-motor.js?v=9"></script>
 <script src="finanzas.js?v=44"></script>
 <script src="reparto-gastos.js?v=1"></script>

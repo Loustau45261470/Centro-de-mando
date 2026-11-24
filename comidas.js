@@ -5,7 +5,7 @@
 //   (nombre + unidad g/u + en qué comidas aparece); por día se marca «comí» y se escribe la cantidad.
 //
 // Estado (clave de primer nivel S.comidas; el guardado serializa todo S, sin tocar la lógica de sync):
-//   S.comidas = { alimentos: [{ id, nombre, unidad:'g'|'u', comidas:['desayuno',...], archivado? }],
+//   S.comidas = { alimentos: [{ id, nombre, unidad:'g'|'u', sana:true|false (ausente = sin clasificar), comidas:['desayuno',...], archivado? }],
 //                 registro: { 'YYYY-MM-DD': { desayuno: { <alimentoId>: { ok:true, cant:<número|null> } }, almuerzo:{}, merienda:{}, cena:{} } } }
 //   - Escribir una cantidad marca la casilla sola; desmarcar conserva la cantidad pero el alimento no cuenta como comido.
 //   - Archivar oculta el alimento de los bloques y conserva el historial; borrar de verdad solo si nunca se usó.
@@ -44,6 +44,47 @@ function comComio(ds, comida, id) { const e = _comEntrada(ds, comida, id); retur
 // Comidas del día con al menos un alimento marcado (solo cuentan los alimentos que hoy se ven en el bloque).
 function comComidasCargadas(ds) {
   return COM_COMIDAS.filter(c => comAlimentosDe(c.id).some(a => comComio(ds, c.id, a.id))).length;
+}
+// ¿El día cumple para el hábito? true/false, o null si no hay registro ese día (así no toca el hábito). cfg = { minComidas:3, pctSano:90 } (por defecto).
+// Una comida está «hecha» si tiene al menos un alimento con ok:true; hacen falta ≥minComidas y sanos/clasificados ≥ pctSano (sin clasificar no cuentan;
+// sin ningún clasificado no hay base → false). Mira todo el registro del día, también alimentos archivados (archivar no reescribe el historial).
+function comDiaCumple(ds, cfg) {
+  const minC = (cfg && cfg.minComidas) || 3, pct = cfg && cfg.pctSano != null ? cfg.pctSano : 90;
+  const c = comEnsure(), dia = c.registro[ds];
+  if (!dia) return null;
+  const porId = {}; c.alimentos.forEach(a => { if (a) porId[a.id] = a; });
+  let hechas = 0, sanos = 0, clasif = 0;
+  COM_COMIDAS.forEach(cm => {
+    const b = dia[cm.id]; if (!b) return;
+    let alguno = false;
+    Object.keys(b).forEach(id => {
+      if (!b[id] || !b[id].ok) return;
+      alguno = true;
+      const a = porId[id];
+      if (a && a.sana === true) { sanos++; clasif++; } else if (a && a.sana === false) clasif++;
+    });
+    if (alguno) hechas++;
+  });
+  if (hechas < minC || !clasif) return false;
+  return sanos * 100 >= clasif * pct;
+}
+// Recalcula el hábito automático de comidas y repinta sus tarjetas si cambió algo. `dias` = 1 → solo el día activo (forzado); si no, 60 días.
+function _comSyncHabito(dias) {
+  if (typeof _habitComidasSyncAll !== 'function') return;
+  if (_habitComidasSyncAll(null, dias, dias === 1) && typeof renderHabitsCard === 'function') ['vida', 'salud', 'conocimiento'].forEach(sec => renderHabitsCard(sec));
+}
+// Cuenta lo marcado como comido en el día según la clasificación del alimento (sin clasificar no entra en ninguno).
+function comConteoSana(ds) {
+  let sanas = 0, noSanas = 0;
+  COM_COMIDAS.forEach(c => comAlimentosDe(c.id).forEach(a => {
+    if (!comComio(ds, c.id, a.id)) return;
+    if (a.sana === true) sanas++; else if (a.sana === false) noSanas++;
+  }));
+  return { sanas, noSanas };
+}
+function _comTextoSana(ds) {
+  const c = comConteoSana(ds);
+  return c.sanas + (c.sanas === 1 ? ' sana' : ' sanas') + ' · ' + c.noSanas + (c.noSanas === 1 ? ' no sana' : ' no sanas');
 }
 // ¿El alimento tiene algún registro (marcado o con cantidad) en cualquier día?
 function comUsado(id) {
@@ -88,6 +129,7 @@ function comOnCant(el, final) {
   f.classList.toggle('on', on);
   f.querySelector('.ptask-check input').checked = on;
   _comResumenVivo();
+  _comSyncHabito(1);
   _comQuitarBorrar(f.dataset.id);
   _comGuardar(final);
 }
@@ -96,6 +138,7 @@ function comOnOk(el) {
   comSetOk(ds, f.dataset.com, f.dataset.id, el.checked);
   f.classList.toggle('on', el.checked);
   _comResumenVivo();
+  _comSyncHabito(1);
   _comQuitarBorrar(f.dataset.id);
   _comGuardar(true);
 }
@@ -106,6 +149,8 @@ function _comQuitarBorrar(id) {
 function _comResumenVivo() {
   const t = document.getElementById('comResumenDia');
   if (t) t.textContent = _comTextoDia(getActiveDate());
+  const q = document.getElementById('comResumenSana');
+  if (q) q.textContent = _comTextoSana(getActiveDate());
   renderDietaResumen();
 }
 function _comTextoDia(ds) {
@@ -123,20 +168,26 @@ function comAbrirAlimento(id) {
   document.getElementById('comAlimTitle').textContent = a ? 'Editar alimento' : 'Nuevo alimento';
   document.getElementById('comAlimNombre').value = a ? a.nombre : '';
   document.querySelectorAll('#comAlimUnidad .com-chip').forEach(b => b.setAttribute('aria-pressed', String(!!a && a.unidad === b.dataset.v)));
+  document.querySelectorAll('#comAlimSana .com-chip').forEach(b => b.setAttribute('aria-pressed', String(!!a && typeof a.sana === 'boolean' && String(a.sana) === b.dataset.v)));
   document.querySelectorAll('#comAlimComidas .com-chip').forEach(b => b.setAttribute('aria-pressed', String(!!a && Array.isArray(a.comidas) && a.comidas.includes(b.dataset.v))));
   openModal('modal-comida-alimento');
 }
 function comChipUnidad(btn) {
   document.querySelectorAll('#comAlimUnidad .com-chip').forEach(b => b.setAttribute('aria-pressed', String(b === btn)));
 }
+function comChipSana(btn) {
+  document.querySelectorAll('#comAlimSana .com-chip').forEach(b => b.setAttribute('aria-pressed', String(b === btn)));
+}
 function comChipComida(btn) { btn.setAttribute('aria-pressed', String(btn.getAttribute('aria-pressed') !== 'true')); }
 
 function comGuardarAlimento() {
   const nombre = document.getElementById('comAlimNombre').value.trim();
   const u = document.querySelector('#comAlimUnidad .com-chip[aria-pressed="true"]');
+  const sn = document.querySelector('#comAlimSana .com-chip[aria-pressed="true"]');
   const comidas = [...document.querySelectorAll('#comAlimComidas .com-chip[aria-pressed="true"]')].map(b => b.dataset.v);
   if (!nombre) { showToast('Escribí el nombre del alimento'); return; }
   if (!u) { showToast('Elegí si se mide en gramos o en unidades'); return; }
+  if (!sn && !_comEditId) { showToast('Elegí si es comida sana o no sana'); return; }   // al editar un alimento viejo sin clasificar se puede dejar así
   if (!comidas.length) { showToast('Elegí en qué comidas aparece'); return; }
   comEnsure();
   if (_comEditId) {
@@ -144,11 +195,13 @@ function comGuardarAlimento() {
     if (a) {
       if (a.unidad !== u.dataset.v && comUsado(a.id) && !confirm('Este alimento ya tiene registros: las cantidades cargadas van a pasar a leerse en la unidad nueva. ¿Seguir?')) return;
       a.nombre = nombre; a.unidad = u.dataset.v; a.comidas = comidas;
+      if (sn) a.sana = sn.dataset.v === 'true';
     }
   } else {
-    S.comidas.alimentos.push({ id: uid(), nombre, unidad: u.dataset.v, comidas });
+    S.comidas.alimentos.push({ id: uid(), nombre, unidad: u.dataset.v, sana: sn.dataset.v === 'true', comidas });
   }
   closeModal('modal-comida-alimento');
+  _comSyncHabito(60);   // la clasificación cambió: se recalculan los días pasados
   saveState(); renderDieta(); renderDietaResumen();
 }
 function comArchivar(id, archivar) {
@@ -165,12 +218,17 @@ function comBorrar(id) {
 }
 
 // ── Render ──
+function _comSanaTxt(a) { return a.sana === true ? 'Sana' : a.sana === false ? 'No sana' : 'Sin clasificar'; }
+function _comMarcaSana(a) {
+  const k = a.sana === true ? 'si' : a.sana === false ? 'no' : 'sc';
+  return `<span class="com-sana ${k}" role="img" aria-label="${_comSanaTxt(a)}" title="${_comSanaTxt(a)}"></span>`;
+}
 function _comFilaHTML(ds, comida, a) {
   const e = _comEntrada(ds, comida, a.id);
   const on = !!(e && e.ok);
   const cant = e && e.cant != null ? e.cant : '';
   return `<div class="com-row${on ? ' on' : ''}" data-com="${comida}" data-id="${escHtml(a.id)}">
-    <span class="com-name">${escHtml(a.nombre)}</span>
+    ${_comMarcaSana(a)}<span class="com-name">${escHtml(a.nombre)}</span>
     <span class="com-qty"><input class="inp com-cant" type="number" inputmode="decimal" step="any" min="0" value="${cant}" aria-label="Cantidad de ${escHtml(a.nombre)}" oninput="comOnCant(this,false)" onchange="comOnCant(this,true)"><span class="com-unit">${a.unidad === 'u' ? 'u' : 'g'}</span></span>
     <label class="ptask-check"><input type="checkbox" ${on ? 'checked' : ''} aria-label="Comí ${escHtml(a.nombre)}" onchange="comOnOk(this)"></label>
   </div>`;
@@ -179,7 +237,7 @@ function _comBibFilaHTML(a) {
   const donde = (a.comidas || []).map(c => (COM_COMIDAS.find(x => x.id === c) || { label: c }).label).join(', ');
   const borrable = !comUsado(a.id);
   return `<div class="com-bib-row${a.archivado ? ' arch' : ''}" data-id="${escHtml(a.id)}">
-    <div class="com-bib-info"><div class="com-bib-name">${escHtml(a.nombre)}${a.archivado ? ' <small>(archivado)</small>' : ''}</div><div class="com-bib-sub">${a.unidad === 'u' ? 'Unidades' : 'Gramos'} · ${escHtml(donde)}</div></div>
+    <div class="com-bib-info"><div class="com-bib-name">${escHtml(a.nombre)}${a.archivado ? ' <small>(archivado)</small>' : ''}</div><div class="com-bib-sub">${a.unidad === 'u' ? 'Unidades' : 'Gramos'} · ${_comSanaTxt(a).toLowerCase()} · ${escHtml(donde)}</div></div>
     <div class="com-bib-acts">
       <button class="icon-btn" onclick="comAbrirAlimento('${escHtml(a.id)}')" title="Editar" aria-label="Editar">✎</button>
       <button class="btn btn-ghost btn-sm" onclick="comArchivar('${escHtml(a.id)}',${a.archivado ? 'false' : 'true'})">${a.archivado ? 'Restaurar' : 'Archivar'}</button>
@@ -203,6 +261,7 @@ function renderDieta() {
     : '<p class="com-vacio">La biblioteca está vacía. Agregá el primer alimento con “+ Alimento”.</p>';
   body.innerHTML = `
     <div class="com-dia" id="comResumenDia">${_comTextoDia(ds)}</div>
+    <div class="com-dia com-dia-sana" id="comResumenSana">${_comTextoSana(ds)}</div>
     ${bloques}
     <div class="com-foot"><button class="btn btn-ghost btn-sm" onclick="comAbrirAlimento(null)">+ Alimento</button></div>
     <details class="com-bib"${_comBibAbierta ? ' open' : ''} ontoggle="_comBibAbierta=this.open"><summary>Biblioteca de alimentos (${todos.length})</summary>${bib}</details>`;
@@ -218,5 +277,5 @@ function renderDietaResumen() {
     body.innerHTML = `<p class="empty-state">Todavía no cargaste alimentos. Armá tu biblioteca desde el registro.</p>${abrir}`;
     return;
   }
-  body.innerHTML = `<div class="diet-state">${_comTextoDia(ds)}</div>${abrir}`;
+  body.innerHTML = `<div class="diet-state">${_comTextoDia(ds)}</div><div class="com-dia-sana" id="comResumenSanaCard">${_comTextoSana(ds)}</div>${abrir}`;
 }

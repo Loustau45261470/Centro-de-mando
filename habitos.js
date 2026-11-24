@@ -313,7 +313,7 @@ function renderHabitsCard(section) {
       </div>
     </div>
     <div class="habit-tabs">${tabsHTML}</div>
-    ${(() => { const ah = habits.find(h => h.id === _habitActiveId[section]); return ah && ah.auto ? `<div class="habit-auto-tag">🌙 ${habitAutoTexto(ah.auto)}</div>` : ''; })()}
+    ${(() => { const ah = habits.find(h => h.id === _habitActiveId[section]); return ah && ah.auto ? `<div class="habit-auto-tag">${ah.auto.type === 'comidas' ? '🍽️' : '🌙'} ${habitAutoTexto(ah.auto)}</div>` : ''; })()}
     <div id="habit-stats-${section}"></div>
     <div id="habit-cal-${section}"></div>
     <div id="habit-chart-wrap-${section}" style="height:120px;margin:12px 0 4px;display:none">
@@ -875,6 +875,11 @@ function openEditHabitFor(section, id) {
 function _habitAutoCargar(a) {
   const on = !!(a && a.type === 'sleep');
   const $ = id => document.getElementById(id);
+  const co = !!(a && a.type === 'comidas');
+  $('habitAutoComidasOn').checked = co;
+  $('habitComidasMin').value = (co && a.minComidas) || 3;
+  $('habitComidasPct').value = co && a.pctSano != null ? a.pctSano : 90;
+  habitComidasToggle();
   $('habitAutoOn').checked = on;
   $('habitAutoMetric').value = on ? a.metric : 'wake_in';
   $('habitAutoDesde').value = (on && a.desde) || '06:45';
@@ -882,6 +887,11 @@ function _habitAutoCargar(a) {
   $('habitAutoHora').value  = (on && a.hora)  || '00:30';
   $('habitAutoHoras').value = (on && a.horas) || 7;
   habitAutoToggle();
+}
+function habitComidasToggle() {
+  const $ = id => document.getElementById(id);
+  $('habitComidasBody').style.display = $('habitAutoComidasOn').checked ? '' : 'none';
+  $('habitComidasNota').textContent = 'Se marca si cargaste al menos ' + (Number($('habitComidasMin').value) || 3) + ' comidas y el ' + ($('habitComidasPct').value === '' ? 90 : Number($('habitComidasPct').value)) + '% de lo que comiste es sano';
 }
 function habitAutoToggle() {
   const $ = id => document.getElementById(id);
@@ -892,6 +902,12 @@ function habitAutoToggle() {
 // Lee el formulario → objeto `auto` limpio, null si está apagado, o undefined si hay un valor inválido (ya avisó con un toast).
 function _habitAutoLeer() {
   const v = id => document.getElementById(id).value;
+  if (document.getElementById('habitAutoComidasOn').checked) {
+    const mn = Number(v('habitComidasMin')), pc = Number(v('habitComidasPct'));
+    if (!Number.isInteger(mn) || mn < 1 || mn > 4) { showToast('Comidas mínimas: un número entero de 1 a 4'); return undefined; }
+    if (v('habitComidasPct') === '' || !Number.isInteger(pc) || pc < 0 || pc > 100) { showToast('% mínimo sano: un entero de 0 a 100'); return undefined; }
+    return { type: 'comidas', minComidas: mn, pctSano: pc };
+  }
   if (!document.getElementById('habitAutoOn').checked) return null;
   const C = window.CMSueno, m = v('habitAutoMetric');
   if (m === 'wake_in') {
@@ -907,6 +923,7 @@ function _habitAutoLeer() {
   return { type: 'sleep', metric: 'hours_min', horas: hs };
 }
 function habitAutoTexto(a) {
+  if (a && a.type === 'comidas') return 'Se marca solo: ≥' + (a.minComidas || 3) + ' comidas y ' + (a.pctSano != null ? a.pctSano : 90) + '% sano';
   if (!a || a.type !== 'sleep') return '';
   const n = x => String(x).replace('.', ',');
   if (a.metric === 'wake_in') return 'Se marca solo si te levantás entre ' + a.desde + ' y ' + a.hasta;
@@ -939,6 +956,33 @@ function _habitSleepSyncAll(solo, dias) {
   return cambio;
 }
 
+// ── Hábito que se marca solo con el registro de comidas: habit.auto = { type:'comidas', minComidas:3, pctSano:90 } (la regla vive en comDiaCumple, comidas.js).
+// Igual que el de sueño: 'done' si cumple, lo saca si dejó de cumplir, nunca pisa 'partial'/'rest'/'missed'. Sin registro ese día (null) no toca nada,
+// salvo con `forzar` (el día que se está editando: al desmarcar todo el registro del día desaparece y el 'done' no debe quedar colgado).
+function _habitComidasSyncDia(h, ds, forzar) {
+  if (!h || !h.auto || h.auto.type !== 'comidas' || typeof comDiaCumple !== 'function') return false;
+  let ok = comDiaCumple(ds, h.auto);
+  if (ok === null) { if (!forzar) return false; ok = false; }
+  if (!h.days) h.days = {};
+  if (ok && !h.days[ds]) { h.days[ds] = 'done'; return true; }
+  if (!ok && h.days[ds] === 'done') { delete h.days[ds]; return true; }
+  return false;
+}
+// Recalcula los últimos `dias` días (60 por defecto) de un hábito, o de todos los de comidas si `solo` es null. Devuelve true si cambió algo.
+function _habitComidasSyncAll(solo, dias, forzar) {
+  const hoy = getActiveDate(); let cambio = false;
+  const hs = solo ? [solo] : Object.keys(S.habitTrackers || {}).reduce((a, sec) => a.concat(S.habitTrackers[sec] || []), []);
+  hs.forEach(h => {
+    if (!h || !h.auto || h.auto.type !== 'comidas') return;
+    for (let i = 0; i < (dias || 60); i++) {
+      const d = new Date(hoy + 'T12:00:00'); d.setDate(d.getDate() - i);
+      const ds = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      if (_habitComidasSyncDia(h, ds, forzar)) cambio = true;
+    }
+  });
+  return cambio;
+}
+
 function saveHabit() {
   const section = document.getElementById('habitSection').value;
   const id      = document.getElementById('habitId').value;
@@ -960,7 +1004,7 @@ function saveHabit() {
     _habitActiveId[section] = newH.id;
     hab = newH;
   }
-  if (hab && hab.auto) _habitSleepSyncAll(hab, 60);
+  if (hab && hab.auto) { _habitSleepSyncAll(hab, 60); _habitComidasSyncAll(hab, 60); }
   saveState(); closeModal('modal-habit'); renderHabitsCard(section);
 }
 

@@ -5367,6 +5367,13 @@ input:focus, select:focus, textarea:focus {
 .com-bib-name small { color: var(--tt); font-weight: 400; }
 .com-bib-sub { font-size: var(--fs-12-5); color: var(--tt); }
 .com-bib-acts { display: flex; align-items: center; gap: 6px; }
+/* Marca sana / no sana: punto chico antes del nombre (el significado va por aria-label/title, no solo por color) */
+.com-sana { flex: none; width: 9px; height: 9px; border-radius: 50%; box-sizing: border-box; }
+.com-sana.si { background: #10E07C; }
+.com-sana.no { background: #FF5C6C; }
+.com-sana.sc { border: 1px dashed var(--tt); }
+.com-dia-sana { font-size: var(--fs-13); color: var(--tt); margin: 0 0 12px; }
+.com-dia.com-dia-sana { margin-top: -8px; font-weight: 600; }
 .com-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .com-chip { padding: 8px 14px; border-radius: 999px; cursor: pointer; font-family: var(--sans); font-size: var(--fs-13); font-weight: 600; color: var(--ts); background: rgba(120,150,220,.06); border: 1px solid var(--border); }
 .com-chip[aria-pressed="true"] { color: #10E07C; background: rgba(16,224,124,.12); border-color: rgba(16,224,124,.45); }
