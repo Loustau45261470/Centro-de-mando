@@ -25,12 +25,15 @@ const BLOCKED_API_PATTERNS = [
   'https://api.voyageai.com/**',
 ];
 
-// Completa el login decorativo (login.js) usando las credenciales hardcodeadas
-// en el propio código fuente del repo (público) — no son un secreto real, y
-// automatizar el flujo real de UI es más robusto que tocar el código de la app.
+// Completa el login de la pantalla de ingreso (login.js) con credenciales de PRUEBA.
+// login.js guarda solo el SHA-256 de 'usuario:clave' (nada en texto plano en el repo público);
+// en los tests se sirve login.js con el hash de estas credenciales falsas (ver la ruta en el fixture).
+const TEST_LOGIN_USER = 'usuario-de-prueba';
+const TEST_LOGIN_PASS = 'clave-de-prueba';
+const TEST_LOGIN_HASH = require('crypto').createHash('sha256').update(TEST_LOGIN_USER + ':' + TEST_LOGIN_PASS, 'utf8').digest('hex');
 async function completeLoginOverlay(page) {
-  await page.fill('#login-user', 'Loustau11');
-  await page.fill('#login-pass', 'Loustau88');
+  await page.fill('#login-user', TEST_LOGIN_USER);
+  await page.fill('#login-pass', TEST_LOGIN_PASS);
   await page.click('#login-btn');
   await page.locator('#login-screen').waitFor({ state: 'detached', timeout: 15000 });
 }
@@ -82,6 +85,12 @@ const test = base.test.extend({
     for (const pattern of BLOCKED_API_PATTERNS) {
       await page.route(pattern, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '{}' }));
     }
+    // login.js real, pero con el hash de las credenciales de prueba en lugar del de producción.
+    await page.route('**/login.js*', async (route) => {
+      const res = await route.fetch();
+      const body = (await res.text()).replace(/const _CM_LOGIN_HASH = '[0-9a-f]{64}';/, `const _CM_LOGIN_HASH = '${TEST_LOGIN_HASH}';`);
+      await route.fulfill({ response: res, body });
+    });
 
     await page.addInitScript({ content: buildInitScript(ESTADO_BASE) });
     // Chromium headless tiene las notificaciones denegadas: sin esto la tarjeta diaria de "avisos bloqueados" tapa clics de los demás tests.

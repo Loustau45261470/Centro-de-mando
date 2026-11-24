@@ -167,8 +167,15 @@
   const passEl  = document.getElementById('login-pass');
   const errEl   = document.getElementById('login-error');
 
+// Usuario y clave ya no van en texto plano en el código público: se compara el SHA-256 de 'usuario:clave'.
+const _CM_LOGIN_HASH = 'c065ffd522e3ed4b0b2e1eeaf8766492470d4f574ef6cd042d15fac9f59dc1b0';
+async function _cmLoginHash(txt) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(txt));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
   async function tryLogin() {
-    if (userEl.value.trim() === 'Loustau11' && passEl.value === 'Loustau88') {
+    if ((await _cmLoginHash(userEl.value.trim() + ':' + passEl.value)) === _CM_LOGIN_HASH) {
       errEl.textContent = '';
       btnEl.textContent = 'SINCRONIZANDO...';
       btnEl.style.color = 'rgba(0,212,255,0.9)';

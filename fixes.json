@@ -175,7 +175,7 @@
       "fecha": "2026-07-18",
       "desc": "En cada _initApp() se pisaba S.lawProgress entero con el DEFAULT_STATE si subjects[0].id === 's1_1', pensado como marcador de datos placeholder viejos. Pero 's1_1' es el id PERMANENTE de la primera materia (nunca cambia al marcar done/nota), asi que la condicion era siempre verdadera: cada reload borraba notas y materias finalizadas de Progreso de abogacia y propagaba el borrado a Firestore/otros dispositivos via saveState(). Bloque de migracion eliminado por completo.",
       "file": "app.js",
-      "marker": "_migratePhotos();   // migra fotos embebidas viejas a Storage (una vez, cuando Storage esté listo)\nupdateDayProgress();"
+      "marker": "_migratePhotos();   // migra fotos embebidas viejas a Storage (una vez, cuando Storage esté listo)"
     },
     {
       "id": "sync-offline-no-blind-write",
@@ -694,6 +694,13 @@
       "desc": "controllerchange hacia location.reload() inmediato y cortaba modales/formularios. Ahora se difiere mientras haya modal/overlay abierto, foco en un campo o guardado en curso, con aviso Hay una version nueva.",
       "file": "app.js",
       "marker": "function _swControllerCambio("
+    },
+    {
+      "id": "login-sin-clave-en-texto-plano",
+      "fecha": "2026-11-24",
+      "desc": "Usuario y clave de la pantalla de ingreso estaban en texto plano en login.js (repo publico). Ahora se compara el SHA-256 de usuario:clave; los tests sirven login.js con el hash de credenciales de prueba.",
+      "file": "login.js",
+      "marker": "_CM_LOGIN_HASH"
     }
   ]
 }
