@@ -116,11 +116,14 @@ function _habitLinkProgress(link, text) {
   const range = _periodDateRange(link.periodId);
   let start = range ? range[0] : (Object.keys(days).sort()[0] || today);
   let end = (range && range[1] < today) ? range[1] : today;
+  // Misma regla que el calendario del hábito: parcial = medio día, descanso no cuenta, y hoy solo cuenta si ya tiene registro.
   let done = 0, total = 0;
   for (let d = new Date(start + 'T00:00:00'); d <= new Date(end + 'T00:00:00'); d.setDate(d.getDate() + 1)) {
     const ds = d.toISOString().slice(0, 10);
     const v = days[ds];
+    if (ds === today && !v) continue;
     if (v === 'done' || v === 'studied') { done++; total++; }
+    else if (v === 'partial') { done += 0.5; total++; }
     else if (v !== 'rest') total++;
   }
   const meta = (+link.target > 0 ? Math.min(100, Math.round(+link.target)) : 0) || _qobjMetaDeTexto(text);

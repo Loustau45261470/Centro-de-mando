@@ -1,4 +1,4 @@
-// Objetivos de PORCENTAJE (hábito con meta en %, sueño): «79% · meta 60%», marca de la meta en la barra,
+// Objetivos de PORCENTAJE (hábito con meta en %, sueño): «85% · meta 60%», marca de la meta en la barra,
 // estado «En camino» / «Por debajo» y NADA se marca hecho antes de que cierre el período.
 // Los de cantidad (gym «8/12») siguen igual. "Hoy" se fija pisando getActiveDate().
 'use strict';
@@ -33,11 +33,11 @@ const hab = (extra) => ({ type: 'habit', section: 'vida', habitId: 'hm1', ...ext
 const mg = (id, text, link, done = false) => ({ id, text, done, link });
 
 test.describe('objetivos de porcentaje', () => {
-  test('hábito 11 de 14 con meta 60%: «79% · meta 60%», En camino, no se marca hecho', async ({ cmPage, consoleErrors }) => {
+  test('hábito 11 de 14 con meta 60%: «85% · meta 60%», En camino, no se marca hecho', async ({ cmPage, consoleErrors }) => {
     await prep(cmPage, { goals: [mg(1, 'Madrugador y responsable: levantarme 60% de los días antes de las 08:00', hab())] });
     await verMes(cmPage);
     const item = cmPage.locator('#qobj-wrap-vida .monthly-goal-item').first();
-    await expect(item.locator('.qobj-link-label')).toHaveText('🌅 Madrugar · 79% · meta 60%');   // la meta sale del texto
+    await expect(item.locator('.qobj-link-label')).toHaveText('🌅 Madrugar · 85% · meta 60%');   // 11 de 13: hoy (14) sin registro no cuenta, igual que el calendario; la meta sale del texto
     await expect(item.locator('.qobj-link-estado')).toHaveText('En camino');
     await expect(item.locator('.qobj-link-progress')).toHaveAttribute('title', 'Es el % de los días que ya pasaron');
     await expect(item).not.toContainText('11/14');
@@ -49,7 +49,7 @@ test.describe('objetivos de porcentaje', () => {
     await prep(cmPage, { hechos: 5, goals: [mg(1, 'Levantarme temprano (50% de los días)', hab({ target: 60 }))] });
     await verMes(cmPage);
     const item = cmPage.locator('#qobj-wrap-vida .monthly-goal-item').first();
-    await expect(item.locator('.qobj-link-label')).toHaveText('🌅 Madrugar · 36% · meta 60%');
+    await expect(item.locator('.qobj-link-label')).toHaveText('🌅 Madrugar · 38% · meta 60%');   // 5 de 13
     await expect(item.locator('.qobj-link-estado')).toHaveText('Por debajo');
     await expect(item.locator('.qobj-link-estado')).toHaveClass(/low/);
   });
@@ -58,7 +58,7 @@ test.describe('objetivos de porcentaje', () => {
     await prep(cmPage, { goals: [mg(1, 'Madrugar 60%', hab())] });
     await verMes(cmPage);
     const item = cmPage.locator('#qobj-wrap-vida .monthly-goal-item').first();
-    await expect(item.locator('.qobj-link-bar')).toHaveAttribute('style', /width:79%/);
+    await expect(item.locator('.qobj-link-bar')).toHaveAttribute('style', /width:85%/);
     const m = await item.locator('.qobj-link-bar-wrap').evaluate((w) => {
       const wb = w.getBoundingClientRect(), mk = w.querySelector('.qobj-link-meta').getBoundingClientRect();
       return { frac: (mk.left + mk.width / 2 - wb.left) / wb.width, alto: mk.height };
@@ -117,7 +117,7 @@ test.describe('objetivos de porcentaje', () => {
     await prep(cmPage, { objs: [{ id: 1, text: 'Católico devoto: 60% de días rezando a primera hora', done: false, category: 'Vida', link: hab() }] });
     await cmPage.evaluate(() => selectMonthView('vida', 'trim'));
     const item = cmPage.locator('#qobj-wrap-vida .qobj-item').first();
-    await expect(item.locator('.qobj-link-label')).toHaveText('🌅 Madrugar · 24% · meta 60%');   // 11 de 45 días (1/10 → 14/11)... hábito solo registra noviembre
+    await expect(item.locator('.qobj-link-label')).toHaveText('🌅 Madrugar · 25% · meta 60%');   // 11 de 44 días (hoy sin registro no cuenta) (1/10 → 14/11)... hábito solo registra noviembre
     await expect(item.locator('.qobj-link-estado')).toHaveText('Por debajo');
     await expect(item.locator('.qobj-link-meta')).toHaveCount(1);
     expect(await cmPage.evaluate(() => S.quarterlyObjectives.periods.find((p) => p.id === 't4-2026').objectives[0].done)).toBe(false);
@@ -153,4 +153,21 @@ test.describe('objetivos de porcentaje', () => {
     expect(await cmPage.evaluate(() => S.monthlyGoals.vida['2026-11'][0].link)).toEqual({ type: 'habit', section: 'vida', habitId: 'hm1', target: 70 });
     await expect(cmPage.locator('#qobj-wrap-vida .qobj-link-label').first()).toContainText('meta 70%');
   });
+});
+
+// Bug 24/11: el % del objetivo no coincidía con el del calendario del hábito (parcial contaba 0 y hoy sin registro contaba como fallado).
+test('el % del objetivo de hábito coincide con el calendario: parcial = medio día, descanso fuera, hoy sin registro fuera', async ({ cmPage, consoleErrors }) => {
+  await prep(cmPage, { hoy: '2026-11-24', hechos: 0, goals: [mg(1, 'Madrugador: levantarme 60% de los días antes de las 08:00', hab())] });
+  await cmPage.evaluate(() => {
+    const d = S.habitTrackers.vida[0].days;
+    for (let i = 1; i <= 11; i++) d['2026-11-' + String(i).padStart(2, '0')] = 'done';      // 11 hechos
+    d['2026-11-12'] = 'partial';                                                            // 1 parcial
+    d['2026-11-13'] = 'missed';                                                             // 1 fallado
+    for (let i = 14; i <= 23; i++) d['2026-11-' + String(i).padStart(2, '0')] = 'rest';    // 10 de descanso; hoy 24 sin registro
+  });
+  await verMes(cmPage);
+  const item = cmPage.locator('#qobj-wrap-vida .monthly-goal-item').first();
+  await expect(item.locator('.qobj-link-label')).toHaveText('🌅 Madrugar · 88% · meta 60%');   // (11 + 0,5) / 13
+  await expect(item.locator('.qobj-link-estado')).toHaveText('En camino');
+  expect(consoleErrors).toEqual([]);
 });

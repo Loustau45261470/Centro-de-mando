@@ -701,6 +701,13 @@
       "desc": "Usuario y clave de la pantalla de ingreso estaban en texto plano en login.js (repo publico). Ahora se compara el SHA-256 de usuario:clave; los tests sirven login.js con el hash de credenciales de prueba.",
       "file": "login.js",
       "marker": "_CM_LOGIN_HASH"
+    },
+    {
+      "id": "objetivo-habito-pct-igual-calendario",
+      "fecha": "2026-11-24",
+      "desc": "El % de un objetivo vinculado a un habito no coincidia con el calendario: parcial contaba 0 y hoy sin registro contaba como fallado. Ahora parcial=0,5, descanso fuera y hoy solo con registro.",
+      "file": "objetivos.js",
+      "marker": "else if (v === 'partial') { done += 0.5; total++; }"
     }
   ]
 }

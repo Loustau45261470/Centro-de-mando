@@ -2125,10 +2125,11 @@ button.goal-hora-vacio:hover { color: var(--tp); background: rgba(255,255,255,.0
 /* ══ NET WORTH ════════════════════════════════════════════════ */
 #tab-finanzas .nw-total {
   font-size: 38px;
-  font-weight: 200;
-  letter-spacing: -0.05em;
+  font-weight: 700;
+  letter-spacing: -0.03em;
   font-family: var(--mono);
-  color: var(--fin-t1);
+  color: #BBF7D0;   /* mismo verde con brillo que los KPI de Finanzas (.kpi-tile .k-val) */
+  text-shadow: 0 0 15px rgba(34,197,94,0.5);
   padding: 18px 14px 2px;
   line-height: 1;
 }
@@ -2148,7 +2149,7 @@ button.goal-hora-vacio:hover { color: var(--tp); background: rgba(255,255,255,.0
   padding: 3px 14px 12px;
 }
 #tab-finanzas .chart-wrap-tall { padding: 0 14px 12px; margin-top: 0; height: 185px; }
-#tab-finanzas .chart-wrap      { padding: 0 14px 12px; margin-top: 0; height: 186px; }   /* +38px (1 cm) sobre los 148 de antes */
+#tab-finanzas .chart-wrap      { padding: 0 14px 12px; margin-top: 0; height: 262px; }   /* +114px (3 cm) sobre los 148 de antes: +38 y luego +76 (2 cm) */
 
 /* ══ SELECTOR DE RANGO DEL GRÁFICO DE PATRIMONIO ══ */
 .nw-range { padding: 0; gap: 4px; flex: 0 0 auto; }
@@ -2161,11 +2162,11 @@ button.goal-hora-vacio:hover { color: var(--tp); background: rgba(255,255,255,.0
 .nw-hero { display: flex; flex-direction: column; align-items: stretch; gap: 10px; padding: 4px 0 0; }
 .nw-hero-text { min-width: 0; }
 .nw-hero-text .nw-total { white-space: nowrap; }
-.nw-dona { position: relative; align-self: center; width: clamp(184px, 56%, 210px); aspect-ratio: 1; margin: 6px 0 4px; }
+.nw-dona { position: relative; align-self: center; width: clamp(216px, 68%, 250px); aspect-ratio: 1; margin: 6px 0 23px; }   /* +19px (0,5 cm) hasta las categorías */
 .nw-dona canvas { max-width: 100%; cursor: default; }
 .nw-dona-centro { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; text-align: center; padding: 0 17%; }
 .nw-dona-centro-lbl { font-size: var(--fs-12); text-transform: uppercase; letter-spacing: .12em; color: var(--ts); }
-.nw-dona-centro-num { font-size: var(--fs-13); font-weight: 800; color: var(--tp); letter-spacing: -.02em; max-width: 100%; overflow-wrap: anywhere; }
+.nw-dona-centro-num { font-size: var(--fs-13); font-weight: 700; color: #BBF7D0; text-shadow: 0 0 15px rgba(34,197,94,0.5); letter-spacing: -.03em; max-width: 100%; overflow-wrap: anywhere; }
 .nw-leg { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 8px; padding: 10px 16px 18px; }
 .nw-leg-item { display: inline-flex; align-items: center; gap: 6px; font-family: var(--sans); font-size: var(--fs-12-5); font-weight: 600; line-height: 1; color: var(--ts); background: var(--card); border: 1px solid var(--border); border-radius: 999px; padding: 6px 10px; cursor: pointer; transition: border-color .12s, color .12s, background .12s; }
 .nw-leg-item:hover { color: var(--tp); }

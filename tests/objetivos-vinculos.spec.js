@@ -139,7 +139,7 @@ test.describe('vínculos de objetivos: cálculo', () => {
       S.transactions = [{ id: 'i1', type: 'income', currency: 'ARS', date: '2026-11-05', amount: 50000 }];
     }, Array.from({ length: 10 }, (_, i) => dia(i + 1)));
     const h = await prog(cmPage, MES, { type: 'habit', section: 'conocimiento', habitId: 'hc1' });
-    expect(h.label).toContain('50% de los días'); expect(h.pct).toBe(50); expect(h.meta).toBe(0);   // hábito sin meta en %: solo el % (antes «5/10 días»)
+    expect(h.label).toContain('56% de los días'); expect(h.pct).toBe(56); expect(h.meta).toBe(0);   // hábito sin meta en %: 5 de 9 (hoy sin registro no cuenta, igual que el calendario del hábito)
     const ing = await prog(cmPage, TRIM, { type: 'finance', metric: 'ingreso', target: 100000 });
     expect(ing.pct).toBe(50);
   });

@@ -6,6 +6,9 @@ const { test, expect } = require('./support/fixtures');
 
 // Medido en HEAD (antes de la v2), mismo viewport 1280: gráfico de línea en un contenedor de 148 px.
 const ANTES = { altoGrafico: 148 };
+// Medido antes del pedido «dona más grande + 19 px + 2 cm de gráfico + números verdes» (mismo viewport): dona 210 px a 1280 y ~199 a 390,
+// aro 198 px, 14 px entre la dona y los chips, gráfico de 186 px.
+const PREVIO = { canvas1280: 210, canvas390: 199, aro: 198, aire: 14, grafico: 186 };
 
 const CUENTAS = [
   { id: 'a1', name: 'Ualá', type: 'bank', balance: 2150000, currency: 'ARS', icon: '🏦' },
@@ -61,8 +64,8 @@ test.describe('Patrimonio v2', () => {
       return { w: cv.width, ring: arc.outerRadius * 2, cx: ce.left + ce.width / 2 - (cv.left + cv.width / 2), cy: ce.top + ce.height / 2 - (cv.top + cv.height / 2),
         inside: ce.left >= cv.left - 1 && ce.right <= cv.right + 1 && ce.top >= cv.top - 1 && ce.bottom <= cv.bottom + 1 };
     });
-    expect(m.w, 'conserva el tamaño nuevo').toBeGreaterThanOrEqual(184);
-    expect(m.ring, 'más grande que los ~137 px de antes').toBeGreaterThan(160);
+    expect(m.w, 'al menos ~15% más grande que antes').toBeGreaterThanOrEqual(Math.round(PREVIO.canvas1280 * 1.15));
+    expect(m.ring, 'el aro de colores también crece').toBeGreaterThan(PREVIO.aro);
     expect(m.inside).toBe(true);
     expect(Math.abs(m.cx)).toBeLessThan(2);
     expect(Math.abs(m.cy)).toBeLessThan(2);
@@ -145,10 +148,61 @@ test.describe('Patrimonio v2', () => {
     expect(consoleErrors).toEqual([]);
   });
 
-  test('el gráfico de línea es 38 px más alto que antes', async ({ cmPage: page, consoleErrors }) => {
+  test('el gráfico de línea es 76 px (2 cm) más alto que hace un momento y no muestra las fechas del eje X', async ({ cmPage: page, consoleErrors }) => {
     await preparar(page);
     const h = await page.evaluate(() => document.getElementById('nwLineChart').closest('.chart-wrap').getBoundingClientRect().height);
-    expect(h).toBe(ANTES.altoGrafico + 38);
+    expect(h).toBe(PREVIO.grafico + 76);
+    expect(h).toBe(ANTES.altoGrafico + 38 + 76);
+    const x = await page.evaluate(() => ({ display: nwLineInst.options.scales.x.ticks.display }));
+    expect(x.display).toBe(false);
+    // el eje Y con los montos se mantiene
+    const y = await page.evaluate(() => nwLineInst.scales.y.ticks.map((t) => t.label));
+    expect(y.length).toBeGreaterThan(2);
+    expect(y.every((t) => t.startsWith('$'))).toBe(true);
+    // y cambiar el rango/serie no los trae de vuelta
+    await page.click('#nwRangeSeg button[data-range="1M"]');
+    expect(await page.evaluate(() => nwLineInst.options.scales.x.ticks.display)).toBe(false);
+    expect(consoleErrors).toEqual([]);
+  });
+
+  test('los números blancos pasan al verde con brillo de los KPI de Finanzas (mismo color, brillo y fuente)', async ({ cmPage: page, consoleErrors }) => {
+    await preparar(page);
+    // referencia: el KPI "Balance" de la sección Finanzas (el «+242k» verde con brillo)
+    await page.click('.nav-btn[data-tab="finanzas"]');
+    await page.evaluate(() => { const t = document.querySelector('#tab-finanzas .kpi-tile .k-val') || (() => { const d = document.createElement('div'); d.className = 'kpi-tile'; d.innerHTML = '<div class="k-val">+242k</div>'; document.querySelector('#tab-finanzas').appendChild(d); return d.firstChild; })(); t.id = 'refVerde'; });
+    const css = (sel) => page.evaluate((s) => { const c = getComputedStyle(document.querySelector(s)); return { color: c.color, shadow: c.textShadow, family: c.fontFamily, weight: c.fontWeight }; }, sel);
+    const ref = await css('#refVerde'), total = await css('#nwTotal'), centro = await css('#nwDonaNum');
+    for (const e of [total, centro]) {
+      expect(e.color).toBe(ref.color);
+      expect(e.shadow).toBe(ref.shadow);
+      expect(e.family).toBe(ref.family);
+      expect(e.weight).toBe(ref.weight);
+    }
+    expect(ref.color).not.toBe('rgb(255, 255, 255)');
+    expect(consoleErrors).toEqual([]);
+  });
+
+  test('dona con aspecto tecnológico: porciones separadas, marco tipo dial y círculo interior (tocar una porción sigue eligiendo la serie: ver el test de arriba)', async ({ cmPage: page, consoleErrors }) => {
+    await preparar(page);
+    const r = await page.evaluate(() => ({ plugin: nwPieInst.config.plugins.some((p) => p.id === 'nwDial'), spacing: nwPieInst.data.datasets[0].spacing, pad: nwPieInst.options.layout.padding }));
+    expect(r.plugin).toBe(true);
+    expect(r.spacing).toBeGreaterThan(0);
+    expect(r.pad).toBeGreaterThan(8);
+    // el canvas tiene trazos del marco fuera del aro de colores (celdas con el celeste del dial a ~7 px del borde del aro)
+    const marco = await page.evaluate(() => {
+      const cv = document.getElementById('nwPieChart'), a = nwPieInst.getDatasetMeta(0).data[0], k = cv.width / cv.getBoundingClientRect().width;
+      const px = cv.getContext('2d').getImageData(Math.round((a.x) * k), Math.round((a.y - a.outerRadius - 7) * k) - 2, 1, 5).data;
+      let max = 0; for (let i = 3; i < px.length; i += 4) max = Math.max(max, px[i]);
+      return max;
+    });
+    expect(marco, 'hay trazo del dial arriba del aro').toBeGreaterThan(30);
+    expect(consoleErrors).toEqual([]);
+  });
+
+  test('categorías: al menos 19 px más de aire debajo de la dona que antes', async ({ cmPage: page, consoleErrors }) => {
+    await preparar(page);
+    const aire = await page.evaluate(() => document.querySelector('#nwLegend .nw-leg-item').getBoundingClientRect().top - document.querySelector('.nw-dona').getBoundingClientRect().bottom);
+    expect(aire).toBeGreaterThanOrEqual(PREVIO.aire + 19);
     expect(consoleErrors).toEqual([]);
   });
 
@@ -278,7 +332,7 @@ test.describe('Patrimonio v2', () => {
       const sep = (a, b) => a.b <= b.t + 1 || b.b <= a.t + 1 || a.r <= b.l + 1 || b.r <= a.l + 1;
       // dona centrada horizontalmente en la card, debajo del total
       expect(Math.abs((g.dona.l + g.dona.r) / 2 - (g.card.l + g.card.r) / 2)).toBeLessThan(2);
-      expect(g.canvas.r - g.canvas.l).toBeGreaterThanOrEqual(184);
+      expect(g.canvas.r - g.canvas.l).toBeGreaterThanOrEqual(Math.round((ancho === 1280 ? PREVIO.canvas1280 : PREVIO.canvas390) * 1.15));
       expect(g.dona.t).toBeGreaterThanOrEqual(g.total.b);
       expect(g.dona.t).toBeGreaterThanOrEqual(g.cash.b);
       // categorías debajo de la dona, y el selector/gráfico debajo de las categorías
