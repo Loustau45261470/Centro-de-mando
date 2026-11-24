@@ -4630,6 +4630,7 @@ body:has(#login-screen) #hud-frame { opacity: 0; }
 /* Arena: red neuronal real al centro, stats globales a los costados */
 .jarvis-arena { position: relative; }
 .jarvis-net { position: relative; height: 46vh; min-height: 320px; z-index: 0; border-radius: 14px; overflow: hidden; }
+#jarvis-orbe-fx { position: absolute; left: 0; top: 0; z-index: 1; pointer-events: none; }
 .jarvis-sides { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
 .jstat-col { display: flex; flex-direction: column; gap: 12px; }
 @media (min-width: 980px) {

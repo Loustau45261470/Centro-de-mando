@@ -118,6 +118,7 @@
       R.x = RT.x = fr.x; R.y = RT.y = fr.y; R.w = RT.w = fr.w; R.h = RT.h = fr.h;
       computeEdges();
       api.setState(_wakeOn() ? 'command' : 'passive');
+      _orbeSync();
     },
     // Volver al overlay fullscreen disparado por voz
     undock() {
@@ -126,9 +127,13 @@
       document.body.appendChild(canvas);
       resize();
       api.setState('passive');
+      _orbeSync();
     },
-    isDocked(){ return docked; }
+    isDocked(){ return docked; },
+    getState(){ return state; },
+    getLevel(){ return levelS; }
   };
+  const _orbeSync = () => { try { window.JARVIS_ORBE_FX && JARVIS_ORBE_FX.sync(); } catch (e) {} };
   window.JARVIS_FX = api;
 
   /* ── Topología: aristas por cercanía + lista de adyacencia (para propagar señales) ── */
