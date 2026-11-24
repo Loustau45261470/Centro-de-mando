@@ -73,6 +73,10 @@ Rehacer la INTERFAZ de la sección Entrenamiento (rutinas.js, pestaña Salud) si
 - [ ] Dos dispositivos editan el plan sin conexión y luego sincronizan: no se pierde ninguna edición (test de merge).
 - [ ] Specs de rutinas/entrenamiento existentes pasan (ajustados solo donde cambia la UI) + specs nuevos para plan, pendientes y sesión; sin errores de consola; 390 y 1280 sin scroll horizontal.
 
+## Decisiones posteriores (24/11)
+- El plan incluye ACTIVIDADES además de rutinas: Boxeo, Jiujitsu, Resistencia, Fuerza y Sprint (usuario: "agrega tanto boxeo, jujitsu, Resistencia, Fuerza, Resistencia y Sprint").
+- Cada día admite VARIOS ítems (el usuario entrena 2 veces por día); descanso = día sin ítems. La regla de pendientes aplica a cada ítem.
+
 ## Open Questions
-- ¿Jiujitsu y boxeo entran en el plan semanal (como "actividad" sin ejercicios) o quedan afuera?
-- ¿"Duración típica" se calcula del historial o la carga el usuario?
+- ¿"Duración típica" se calcula del historial o la carga el usuario? (default propuesto: del historial)
+- ¿Las actividades (boxeo, jiujitsu, etc.) se registran como "hechas" con un toque o con datos (duración, intensidad)?
