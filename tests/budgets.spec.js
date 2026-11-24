@@ -240,7 +240,7 @@ test('6. el estacional de diciembre aparece en diciembre, se edita sin tocar el 
   const linea = cmPage.locator('#budgetBody [data-seasonal-line]');
   await expect(linea).toHaveCount(1);
   await expect(linea).toContainText('Regalo Navidad – mamá');
-  await expect(linea).toContainText('80,000');
+  await expect(linea).toContainText('80.000');
   const totalAntes = await cmPage.locator('.budget-total-num').innerText();
 
   // Se edita el monto SOLO para este mes: el estacional base no cambia, el mes queda ajustado.
@@ -408,8 +408,8 @@ test('10. A: Nov editado a mano que coincide con Sep NO se pisa el 1-nov y apare
   await expect(aviso(cmPage)).toBeVisible();
   await expect(aviso(cmPage)).toContainText('Noviembre 2026 ya tenía un presupuesto armado antes');
   await expect(aviso(cmPage)).toContainText('1 ítem');   // vista previa: cantidad de ítems y total de cada mes
-  await expect(aviso(cmPage)).toContainText('4,000');
-  await expect(aviso(cmPage)).toContainText('9,000');
+  await expect(aviso(cmPage)).toContainText('4.000');
+  await expect(aviso(cmPage)).toContainText('9.000');
   await expect(btn(cmPage, 'Rehacer los marcados')).toBeDisabled();   // noviembre es el mes actual: viene desmarcado
   await expect(btn(cmPage, 'Dejar los demás como están')).toBeVisible();
   expect(await tot(cmPage, '2026-11')).toBe(4000);   // mirar el aviso no cambia nada
@@ -542,7 +542,7 @@ test('15. el estacional también cuenta en el presupuesto y en el objetivo (140.
   // Pantalla de presupuestos: dentro (140.000 de 150.000).
   await abrirPresupuesto(cmPage, '2026-10');
   const fila = cmPage.locator('#budgetBody .budget-cmp-row').first();
-  await expect(fila).toContainText('150,000');
+  await expect(fila).toContainText('150.000');
   await expect(fila.locator('.text-ok')).toBeVisible();
   await expect(fila.locator('.text-danger')).toHaveCount(0);
   // Objetivo ligado a la categoría: mismo total, no excedido.

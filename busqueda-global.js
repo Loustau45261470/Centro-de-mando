@@ -118,7 +118,7 @@
     // Cuentas — app.js:31 accounts: [{ id, name, type, balance, currency, icon }]
     (S.accounts || []).forEach(a => out.push({
       tipo: 'cuenta', seccion: SEC.MOVIMIENTOS, titulo: a.name || '(sin nombre)',
-      subtitulo: 'Cuenta' + (a.type ? ' · ' + a.type : ''),
+      subtitulo: 'Cuenta' + (a.type ? ' · ' + (typeof acctTypeLabel === 'function' ? acctTypeLabel(a.type) : a.type) : ''),
       _ts: -Infinity, _hay: norm(a.name),
       ir: () => { nav('finanzas'); call('openEditAccount', a.id); },
     }));

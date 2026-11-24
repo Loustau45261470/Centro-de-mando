@@ -34,6 +34,7 @@ const DEFAULT_STATE = {
   orders: [],       // [{ id, name, amount, currency, arrival, accountId, deducted }]
   wishlist: [],     // [{ id, name, amount, currency }]
   nwHistory: [],       // [{ date, value }]
+  accountTypes: [],    // [{ id, label, icon, color, cash }] — categorías de cuentas (finanzas.js); vacío = las 5 de fábrica (bank/cash/invest/prestamo/other)
   accountHistory: [],  // [{ date, accountId, balance }] — poblado desde snapshotNW() en adelante, sin reconstrucción retroactiva
   moves: [],           // [{ id, date, from, to, amount, note }] — "Mover plata" entre cuentas (no son ingresos ni gastos)
   cards: [],           // [{ id, name, limit, closeDay, dueDay, openingUsed }] — tarjetas de crédito (openingUsed = saldo de apertura, sin impacto en gastos)
@@ -750,7 +751,7 @@ function _rescueLocal(cloudObj, localObj) {
   // txnCategories: combina local + nube (no pierde categorías creadas offline)
   r.txnCategories = { ...(localObj.txnCategories||{}), ...(cloudObj.txnCategories||{}) };
   // Arrays con ID
-  ['transactions','moves','cards','accounts','cardCharges','cardPayments','coverCollections','cardDues','subscriptions','orders','wishlist','repartos',
+  ['transactions','moves','cards','accounts','accountTypes','cardCharges','cardPayments','coverCollections','cardDues','subscriptions','orders','wishlist','repartos',
    'photos','finObjectives','lawMilestones','routines','exerciseLibrary',
    'bodyWeight','exercises','seasonals','carteraTx','goalRepeats','frasesPropias'
   ].forEach(key => {
@@ -1680,6 +1681,8 @@ function fmtDate(iso) {
   const [y,m,d] = iso.split('-').map(Number);
   return new Date(y,m-1,d).toLocaleDateString('es', { weekday:'short', month:'short', day:'numeric' });
 }
+// Formato numérico argentino de toda la app: punto de miles, coma decimal (dec = decimales fijos; 0 por defecto).
+function fmtNum(n, dec) { const d = dec || 0; return (Number(n) || 0).toLocaleString('es-AR', { minimumFractionDigits: d, maximumFractionDigits: d }); }
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
 
 // ════════════════════════════════════════════════════════
@@ -1790,7 +1793,7 @@ function populateAccountSelects() {
     const sel = document.getElementById(id);
     if (!sel) return;
     const base = id === 'ordAccount' ? '<option value="">— No descontar —</option>' : '<option value="">— Ninguna —</option>';
-    sel.innerHTML = base + S.accounts.filter(a=>a.type==='bank'||a.type==='invest').map(a=>`<option value="${a.id}">${a.icon||'🏦'} ${a.name}</option>`).join('') + '<option value="prestamos_amorcito">💙 Prestamos amorcito</option>';
+    sel.innerHTML = base + S.accounts.filter(a=>a.type==='invest'||(a.type!=='prestamo'&&acctIsCash(a))).map(a=>`<option value="${a.id}">${a.icon||'🏦'} ${a.name}</option>`).join('') + '<option value="prestamos_amorcito">💙 Prestamos amorcito</option>';
   });
 }
 
@@ -3387,7 +3390,7 @@ function _fmtARS(n) {
 
 function _fmtARSShort(n) {
   if (n === null || n === undefined) return '—';
-  if (n >= 1000000) return '$' + (n / 1000000).toFixed(1).replace('.0','') + 'M';
+  if (n >= 1000000) return '$' + fmtNum(n / 1000000, 1).replace(',0', '') + 'M';
   if (n >= 1000)    return '$' + (n / 1000).toFixed(0) + 'k';
   return '$' + n;
 }
@@ -3527,7 +3530,7 @@ function renderFinObjectives() {
         scales: {
           x: { ticks: { color: '#556070', font: { size: _cfs(13) } }, grid: { color: 'rgba(255,255,255,.04)' } },
           y: { ticks: { color: '#556070', font: { size: _cfs(13) },
-                 callback: v => v >= 1000000 ? '$' + (v/1000000).toFixed(0) + 'M' : v >= 1000 ? '$' + (v/1000).toFixed(0) + 'k' : v },
+                 callback: v => v >= 1000000 ? '$' + fmtNum(v/1000000, 0) + 'M' : v >= 1000 ? '$' + (v/1000).toFixed(0) + 'k' : v },
                grid: { color: 'rgba(255,255,255,.04)' }, min: 0 }
         }
       }
@@ -3612,6 +3615,7 @@ function saveEditExercise() {
 function openEditAccount(id) {
   const acc = S.accounts.find(a => a.id === id);
   if (!acc) return;
+  document.getElementById('editAccType').innerHTML = acctTypeOptionsHtml(acc.type);
   document.getElementById('editAccId').value       = id;
   document.getElementById('editAccName').value     = acc.name;
   document.getElementById('editAccType').value     = acc.type;
@@ -3682,6 +3686,7 @@ try {
   // números de ejes, leyendas y tooltips no queden en otra letra que el resto.
   const MONO = (getComputedStyle(document.body).getPropertyValue('--sans') || '').trim()
     || "'Plus Jakarta Sans', -apple-system, 'Segoe UI', sans-serif";
+  _setChartDefault('locale', 'es-AR');   // números de ejes y tooltips: punto de miles, coma decimal
   _setChartDefault('color', '#8BA5C0');
   _setChartDefault('borderColor', 'rgba(100,160,230,0.07)');
   _setChartDefault('font.family', MONO);
@@ -3818,13 +3823,61 @@ function initChartsForTab(tab) {
   if (tab==='finanzas') { initNWCharts(); }
 }
 
-// ── Líneas de cuentas individuales superpuestas al patrimonio total ──
-let nwSelectedAccounts = []; // ids de hasta 3 cuentas, no persistido (nice-to-have fuera de alcance)
-const _NW_ACC_COLORS = [
-  { border:'rgba(124,142,232,.85)', bg:'rgba(124,142,232,.08)' },
-  { border:'rgba(242,192,99,.85)',  bg:'rgba(242,192,99,.08)' },
-  { border:'rgba(255,107,107,.85)', bg:'rgba(255,107,107,.08)' },
-];
+// ── Serie del gráfico de evolución: una sola a la vez, con su propio eje Y ──
+// 'total' = patrimonio · 't:<id de categoría>' = suma de las cuentas de esa categoría · 'a:<id de cuenta>' = una cuenta.
+// Solo en memoria (arranca en Total). Los saldos por día salen de S.accountHistory (S.nwHistory para el total).
+let _nwSeries = 'total';
+const _hexA = (hex, a) => { const m = /^#([0-9a-f]{6})$/i.exec(hex || ''); return m ? `rgba(${parseInt(m[1].slice(0,2),16)},${parseInt(m[1].slice(2,4),16)},${parseInt(m[1].slice(4,6),16)},${a})` : `rgba(107,227,164,${a})`; };
+
+// Categorías con al menos una cuenta visible (las de deuda en 0 no cuentan) + lo que suman: lo que leen la dona, su leyenda y el selector.
+function _nwCats() {
+  return acctTypes().map(t => {
+    const accs = visibleAccounts().filter(a => acctTypeId(a) === t.id);
+    return { t, accs, sum: accs.reduce((s, a) => s + (+a.balance || 0), 0) };
+  }).filter(c => c.accs.length);
+}
+
+function _nwSeriesInfo() {
+  if (_nwSeries.startsWith('t:')) {
+    const c = _nwCats().find(x => x.t.id === _nwSeries.slice(2));
+    if (c) return { label: c.t.label, color: c.t.color, ids: (S.accounts || []).filter(a => acctTypeId(a) === c.t.id).map(a => a.id) };
+  } else if (_nwSeries.startsWith('a:')) {
+    const a = visibleAccounts().find(x => x.id === _nwSeries.slice(2));
+    if (a) return { label: a.name, color: (acctType(a.type) || {}).color, ids: [a.id] };
+  }
+  _nwSeries = 'total';
+  return { label: 'Patrimonio total', color: '#6BE3A4', ids: null };
+}
+function _nwSeriesData(info, hist) {
+  if (!info.ids) return hist.map(h => h.value);
+  const by = {};
+  (S.accountHistory || []).forEach(h => { if (info.ids.includes(h.accountId)) (by[h.date] = by[h.date] || []).push(+h.balance || 0); });
+  return hist.map(h => by[h.date] ? Math.round(by[h.date].reduce((s, v) => s + v, 0) * 100) / 100 : null);
+}
+
+function renderNWSeriesSelect() {
+  const el = document.getElementById('nwSeriesSel');
+  if (!el) return;
+  const cats = _nwCats();
+  const html = '<option value="total">Total</option>'
+    + (cats.length ? '<optgroup label="Categorías">' + cats.map(c => `<option value="t:${escHtml(c.t.id)}">${escHtml(c.t.icon || '')} ${escHtml(c.t.label)}</option>`).join('') + '</optgroup>' : '')
+    + (visibleAccounts().length ? '<optgroup label="Cuentas">' + visibleAccounts().map(a => `<option value="a:${escHtml(a.id)}">${escHtml(a.icon || '🏦')} ${escHtml(a.name)}</option>`).join('') + '</optgroup>' : '');
+  if (el.dataset.sig !== html) { el.innerHTML = html; el.dataset.sig = html; }
+  _nwSeriesInfo();   // valida: si la serie elegida ya no existe vuelve a Total
+  el.value = _nwSeries;
+}
+function setNWSeries(v) {
+  _nwSeries = String(v || 'total');
+  updateNWCharts();
+}
+
+// Leyenda de la dona (chips tocables: elegir una categoría = elegir su serie) + acceso a administrar categorías.
+function renderNWLegend() {
+  const el = document.getElementById('nwLegend');
+  if (!el) return;
+  el.innerHTML = _nwCats().map(c => `<button type="button" class="nw-leg-item${_nwSeries === 't:' + c.t.id ? ' on' : ''}" onclick="setNWSeries('t:${escHtml(c.t.id)}')"><span class="nw-leg-dot" style="background:${escHtml(c.t.color || '#888')}"></span>${escHtml(c.t.label)}</button>`).join('')
+    + '<button type="button" class="nw-leg-item nw-leg-edit" onclick="openAcctTypes()" aria-label="Administrar categorías de cuentas">✎ Categorías</button>';
+}
 
 // ── Rango del gráfico de patrimonio (1M/3M/6M/9M/12M/Todo) ──
 // Preferencia por dispositivo en localStorage (no va a Firestore). Default: Todo.
@@ -3868,111 +3921,60 @@ function setNWRange(r) {
   updateNWCharts();
 }
 
-function renderAccountChartToggles() {
-  const host = document.getElementById('nwAccountToggles');
-  nwSelectedAccounts = nwSelectedAccounts.filter(id => S.accounts.some(a => a.id === id));
-  if (!host) return;
-  const atMax = nwSelectedAccounts.length >= 3;
-  host.innerHTML = S.accounts.length ? S.accounts.map(a => {
-    const checked = nwSelectedAccounts.includes(a.id);
-    const disabled = !checked && atMax;
-    return `<label class="nw-acc-toggle${disabled?' disabled':''}">
-      <input type="checkbox" ${checked?'checked':''} ${disabled?'disabled':''} onchange="toggleNWAccountChart('${a.id}', this.checked)">
-      <span>${a.icon||'🏦'} ${a.name}</span>
-    </label>`;
-  }).join('') : '';
-}
-
-function toggleNWAccountChart(accountId, checked) {
-  if (checked) {
-    if (nwSelectedAccounts.length >= 3 || nwSelectedAccounts.includes(accountId)) return;
-    nwSelectedAccounts.push(accountId);
-  } else {
-    nwSelectedAccounts = nwSelectedAccounts.filter(id => id !== accountId);
-  }
-  renderAccountChartToggles();
-  updateNWCharts();
-}
-
-// Datasets de cuentas seleccionadas: se mapean sobre el mismo array `hist` (y por lo
-// tanto el mismo eje de fechas) que usa el dataset de patrimonio total, para que no
-// haya desalineación entre labels MM-DD repetidas entre años.
-function _nwAccountDatasets(hist) {
-  return nwSelectedAccounts.map((accId, i) => {
-    const acc = S.accounts.find(a => a.id === accId);
-    const by = {};
-    (S.accountHistory || []).filter(h => h.accountId === accId).forEach(h => { by[h.date] = h.balance; });
-    const data = hist.map(h => by[h.date] ?? null);
-    const c = _NW_ACC_COLORS[i % _NW_ACC_COLORS.length];
-    // Eje propio por cuenta: una cuenta de $100k tiene que verse igual de bien que
-    // el patrimonio total en millones. Los ejes van ocultos (si no, tres escalas
-    // numéricas comen todo el ancho); el tooltip sigue mostrando el monto real.
-    return { label: acc ? acc.name : 'Cuenta', data, borderColor: c.border, backgroundColor: c.bg, tension:.3, pointRadius:3, fill:false, spanGaps:true, yAxisID: 'yAcc' + i };
-  });
-}
-
-// Escalas del gráfico de líneas: la del patrimonio total + una oculta por cuenta.
+// Escalas del gráfico de líneas: el eje Y se ajusta solo a la serie elegida (no arranca en cero).
 function _nwLineScales() {
-  const scales = {
+  return {
     x: { type: 'category', ticks: { font: { size: _cfs(13) } } },
-    y: { ticks: { font: { size: _cfs(13) }, callback: v => fmtMoney(v, 'USD') } },
+    y: { grace: '8%', ticks: { font: { size: _cfs(13) }, callback: (v, i, ticks) => {
+      const step = ticks && ticks.length > 1 ? Math.abs(ticks[1].value - ticks[0].value) : 1;
+      return fmtMoney(v, 'USD', step < 1 ? 2 : 0);
+    } } },
   };
-  nwSelectedAccounts.forEach((_, i) => {
-    scales['yAcc' + i] = { display: false, position: 'right', grid: { drawOnChartArea: false } };
-  });
-  return scales;
 }
-
-// Aviso de que cada cuenta tiene su propia escala (si no, el gráfico miente:
-// dos líneas a la misma altura no significan el mismo monto).
-function _renderNWScaleNote() {
-  const el = document.getElementById('nwScaleNote');
-  if (!el) return;
-  el.textContent = nwSelectedAccounts.length
-    ? 'Cada cuenta usa su propia escala · comparar la forma, no la altura'
-    : '';
-  el.style.display = nwSelectedAccounts.length ? '' : 'none';
+function _nwLineDataset(info, hist) {
+  return { label: info.label, data: _nwSeriesData(info, hist), borderColor: _hexA(info.color, .85), backgroundColor: _hexA(info.color, .08), tension: .3, pointRadius: 3, fill: true, spanGaps: true };
 }
 
 function initNWCharts() {
-  // Pie
+  // Dona: una porción por categoría con cuentas; tocar una porción elige esa serie en el gráfico de evolución.
   const pieCtx=document.getElementById('nwPieChart').getContext('2d');
-  const types=['bank','cash','invest','prestamo','other'];
-  const labels=['Cuentas','Efectivo','Inversión','Préstamo','Otros'];
-  const colors=['rgba(107,227,164,.7)','rgba(94,200,229,.7)','rgba(124,142,232,.7)','rgba(242,192,99,.7)','rgba(255,107,107,.7)'];
-  const data=types.map(t=>S.accounts.filter(a=>a.type===t).reduce((s,a)=>s+a.balance,0));
   nwPieInst=new Chart(pieCtx,{
     type:'doughnut',
-    data:{ labels, datasets:[{ data, backgroundColor:colors, borderWidth:0, hoverOffset:6 }] },
-    options:{ responsive:true, maintainAspectRatio:false, cutout:'68%', _noCrosshair:true, interaction:{ mode:'nearest', intersect:true }, animation:{ animateRotate:true, animateScale:true, duration:900, easing:'easeOutQuart' }, plugins:{ legend:{ position:'bottom', labels:{ font:{size:_cfs(13), weight:'600'}, padding:12, color:'#C8D5E8' } } } }
+    data:{ labels:[], datasets:[{ data:[], backgroundColor:[], borderWidth:0, hoverOffset:6 }] },
+    options:{ responsive:true, maintainAspectRatio:false, cutout:'72%', _noCrosshair:true, interaction:{ mode:'nearest', intersect:true },
+      animation:{ animateRotate:true, animateScale:true, duration:900, easing:'easeOutQuart' },
+      onClick:(e, els) => { if (els.length) { const c = _nwCats()[els[0].index]; if (c) setNWSeries('t:' + c.t.id); } },
+      onHover:(e, els) => { if (e.native && e.native.target) e.native.target.style.cursor = els.length ? 'pointer' : ''; },
+      plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label: c => ` ${c.label}: ${fmtMoney(c.raw, 'USD')}` } } } }
   });
-  // Line
+  // Línea: una sola serie
   const lineCtx=document.getElementById('nwLineChart').getContext('2d');
-  const hist=_nwHist();
-  const accDatasets = _nwAccountDatasets(hist);
   nwLineInst=new Chart(lineCtx,{
     type:'line',
-    data:{ labels:_nwLabels(hist), datasets:[{ label:'Patrimonio total', data:hist.map(h=>h.value), borderColor:'rgba(107,227,164,.8)', backgroundColor:'rgba(107,227,164,.06)', tension:.3, pointRadius:3, fill:true }, ...accDatasets] },
-    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display: accDatasets.length>0, position:'bottom', labels:{ font:{size:_cfs(13)}, boxWidth:10, color:'#C8D5E8' } } }, scales:_nwLineScales() }
+    data:{ labels:[], datasets:[{ data:[] }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label: c => ` ${c.dataset.label}: ${fmtMoney(c.parsed.y, 'USD')}` } } }, scales:_nwLineScales() }
   });
-  renderAccountChartToggles();
-  _renderNWScaleNote();
   _renderNWRange();
+  updateNWCharts();
 }
 
 function updateNWCharts() {
   if (!nwPieInst||!nwLineInst) return;
-  const types=['bank','cash','invest','prestamo','other'];
-  nwPieInst.data.datasets[0].data=types.map(t=>S.accounts.filter(a=>a.type===t).reduce((s,a)=>s+a.balance,0));
+  const cats = _nwCats();
+  const ds = nwPieInst.data.datasets[0];
+  nwPieInst.data.labels = cats.map(c => c.t.label);
+  ds.data = cats.map(c => Math.max(0, c.sum));
+  ds.backgroundColor = cats.map(c => _hexA(c.t.color, .7));
   nwPieInst.update('none');
-  const hist=_nwHist();
-  const accDatasets = _nwAccountDatasets(hist);
-  nwLineInst.data.labels=_nwLabels(hist);
-  nwLineInst.data.datasets=[{ label:'Patrimonio total', data:hist.map(h=>h.value), borderColor:'rgba(107,227,164,.8)', backgroundColor:'rgba(107,227,164,.06)', tension:.3, pointRadius:3, fill:true }, ...accDatasets];
-  nwLineInst.options.plugins.legend.display = accDatasets.length>0;
+  const num = document.getElementById('nwDonaNum');
+  if (num) num.textContent = fmtMoney(calcNetWorth(), 'USD');
+  renderNWLegend();
+  renderNWSeriesSelect();
+  const hist = _nwHist(), info = _nwSeriesInfo();
+  nwLineInst.data.labels = _nwLabels(hist);
+  nwLineInst.data.datasets = [_nwLineDataset(info, hist)];
   nwLineInst.options.scales = _nwLineScales();
   nwLineInst.update('none');
-  _renderNWScaleNote();
 }
 
 // ════════════════════════════════════════════════════════

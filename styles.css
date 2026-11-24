@@ -2144,22 +2144,45 @@ button.goal-hora-vacio:hover { color: var(--tp); background: rgba(255,255,255,.0
   padding: 3px 14px 12px;
 }
 #tab-finanzas .chart-wrap-tall { padding: 0 14px 12px; margin-top: 0; height: 185px; }
-#tab-finanzas .chart-wrap      { padding: 0 14px 12px; margin-top: 0; height: 148px; }
+#tab-finanzas .chart-wrap      { padding: 0 14px 12px; margin-top: 0; height: 186px; }   /* +38px (1 cm) sobre los 148 de antes */
 
 /* ══ SELECTOR DE RANGO DEL GRÁFICO DE PATRIMONIO ══ */
-.nw-range { padding: 0 14px 8px; gap: 4px; }
-.nw-range button { padding: 4px 10px; font-size: var(--fs-12-5); }
+.nw-range { padding: 0; gap: 4px; flex: 0 0 auto; }
+.nw-range button { padding: 4px 8px; font-size: var(--fs-12-5); }
+/* Selector de la serie (Total / categoría / cuenta) junto al rango: en el celular el selector pasa arriba y el rango abajo. */
+.nw-ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 0 14px 8px; }
+.nw-series-sel { flex: 1 1 150px; min-width: 0; max-width: 230px; padding: 5px 8px; font-size: var(--fs-12-5); }
 
-/* ══ SELECTOR DE CUENTAS SUPERPUESTAS AL GRÁFICO DE PATRIMONIO ══ */
-.nw-acc-toggles { display: flex; flex-wrap: wrap; gap: 6px 10px; padding: 0 14px 10px; }
-.nw-acc-toggle {
-  display: flex; align-items: center; gap: 5px;
-  font-size: var(--fs-12-5); font-weight: 600; color: var(--fin-t2, var(--ts));
-  cursor: pointer; user-select: none;
-}
-.nw-acc-toggle input[type="checkbox"] { width: 13px; height: 13px; accent-color: var(--fin-green, #6BE3A4); cursor: pointer; }
-.nw-acc-toggle.disabled { opacity: .4; cursor: not-allowed; }
-.nw-acc-toggle.disabled input { cursor: not-allowed; }
+/* ══ DONA DE PATRIMONIO: arriba a la derecha del total, con el total adentro (mismo patrón que la dona de Cartera) ══ */
+.nw-hero { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px 0 0; }
+.nw-hero-text { flex: 1 1 auto; min-width: 0; }
+.nw-hero-text .nw-total { white-space: nowrap; }
+.nw-dona { position: relative; flex: 0 1 auto; width: clamp(150px, 46%, 190px); aspect-ratio: 1; margin: 0; }
+.nw-dona canvas { max-width: 100%; cursor: default; }
+.nw-dona-centro { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; text-align: center; padding: 0 17%; }
+.nw-dona-centro-lbl { font-size: var(--fs-12); text-transform: uppercase; letter-spacing: .12em; color: var(--ts); }
+.nw-dona-centro-num { font-size: var(--fs-13); font-weight: 800; color: var(--tp); letter-spacing: -.02em; max-width: 100%; overflow-wrap: anywhere; }
+.nw-leg { display: flex; flex-wrap: wrap; gap: 6px 8px; padding: 2px 14px 12px; }
+.nw-leg-item { display: inline-flex; align-items: center; gap: 6px; font-family: var(--sans); font-size: var(--fs-12-5); font-weight: 600; line-height: 1; color: var(--ts); background: var(--card); border: 1px solid var(--border); border-radius: 999px; padding: 6px 10px; cursor: pointer; transition: border-color .12s, color .12s, background .12s; }
+.nw-leg-item:hover { color: var(--tp); }
+.nw-leg-item.on { color: var(--tp); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.nw-leg-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+.nw-leg-edit { margin-left: auto; border-style: dashed; }
+
+/* ══ MODAL DE CATEGORÍAS DE CUENTAS ══ */
+.at-list { display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; }
+.at-row { display: flex; align-items: center; gap: 8px; padding: 6px 2px; border-bottom: 1px solid var(--border); }
+.at-dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
+.at-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; color: var(--tp); }
+.at-meta { flex: 0 0 auto; font-size: var(--fs-12-5); color: var(--ts); }
+.at-row .icon-btn[disabled] { opacity: .3; cursor: not-allowed; }
+.at-delbox { display: flex; flex-direction: column; gap: 8px; padding: 10px; margin-bottom: 10px; border: 1px solid var(--border); border-radius: 10px; }
+.at-del-text { font-size: var(--fs-13); color: var(--ts); }
+.at-form { border-top: 1px solid var(--border); padding-top: 10px; }
+.at-form-title { font-size: var(--fs-12-5); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ts); margin-bottom: 8px; }
+.at-color { padding: 2px; height: 38px; cursor: pointer; }
+.at-cash { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: var(--fs-13); color: var(--tp); margin-top: 2px; }
+.at-cash input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--fin-green, #6BE3A4); cursor: pointer; flex: 0 0 auto; }
 
 /* ══ ACCOUNT TABLE ════════════════════════════════════════════ */
 #tab-finanzas #accountList { padding: 0; margin-top: 0; }
@@ -6423,12 +6446,6 @@ input:focus, select:focus, textarea:focus {
   flex: 1 1 150px; min-width: 0;
   font-family: var(--mono); font-size: var(--fs-12-5); letter-spacing: .03em;
   padding: 7px 10px; border-radius: 9px;
-}
-
-/* ── Patrimonio: aviso de que cada cuenta tiene su propia escala ── */
-.nw-scale-note {
-  font-family: var(--mono); font-size: var(--fs-12-5); letter-spacing: .05em;
-  color: var(--ts); text-align: center; padding: 2px 8px 6px;
 }
 
 /* ── Correlativas: overlay "Plan de carrera" (Conocimiento) ── */

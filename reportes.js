@@ -243,12 +243,12 @@ function _repSumaSaldos(datos, cuentas, fecha) {
   for (const c of cuentas) { const v = _repSaldoAl(datos, c, fecha); if (v == null) return null; t += v; }
   return _repRedondeo(t);
 }
-// Activos líquidos = efectivo, banco y préstamos a cobrar (misma base que "Cash" de finanzas.js:10) + las cuentas que Tobías
+// Activos líquidos = efectivo, banco y préstamos a cobrar (misma base que "Cash" de finanzas.js: datos.tiposCash = ids de las categorías "cuenta como cash"; sin él, las 3 de fábrica) + las cuentas que Tobías
 // agregue en config.cuentasLiquidas (ids; los bonos no se reconocen solos: viven en la cuenta de inversión, que guarda el capital
 // aportado mezclado con CEDEARs y acciones). Solo pesos: las cuentas en USD nunca entran.
 function _repCuentasLiquidas(datos) {
   const extra = ((datos.config && datos.config.cuentasLiquidas) || []);
-  return (datos.cuentas || []).filter(a => _repEsArs(a) && (['cash', 'bank', 'prestamo'].includes(a.type) || extra.includes(a.id)));
+  return (datos.cuentas || []).filter(a => _repEsArs(a) && ((datos.tiposCash || ['cash', 'bank', 'prestamo']).includes(a.type) || extra.includes(a.id)));
 }
 
 function _repPatrimonio(datos, r) {

@@ -1,5 +1,5 @@
 // Selector de rango (1M/3M/6M/9M/12M/Todo) del gráfico de patrimonio: reemplaza el
-// recorte fijo slice(-30). Las líneas por cuenta usan el mismo rango.
+// recorte fijo slice(-30). La serie de una cuenta usa el mismo rango (ya no se superponen: una sola serie a la vez, ver patrimonio-v2.spec.js).
 'use strict';
 const { test, expect } = require('./support/fixtures');
 
@@ -24,15 +24,18 @@ async function abrirFinanzasConHistorial(page) {
   await page.waitForFunction(() => typeof nwLineInst !== 'undefined' && nwLineInst);
 }
 
-const puntos = (page) => page.evaluate(() => ({
-  total: nwLineInst.data.datasets[0].data.length,
-  labels: nwLineInst.data.labels.length,
-  cuenta: nwLineInst.data.datasets[1] ? nwLineInst.data.datasets[1].data.filter((v) => v !== null).length : null,
-}));
+// Puntos de la serie Total y de la serie de la cuenta 'acc-main' (se elige de a una; antes eran dos líneas superpuestas).
+const puntos = (page) => page.evaluate(() => {
+  setNWSeries('total');
+  const total = nwLineInst.data.datasets[0].data.length, labels = nwLineInst.data.labels.length;
+  setNWSeries('a:acc-main');
+  const cuenta = nwLineInst.data.datasets[0].label !== 'Patrimonio total' ? nwLineInst.data.datasets[0].data.filter((v) => v !== null).length : null;
+  setNWSeries('total');
+  return { total, labels, cuenta };
+});
 
 test('rango del gráfico de patrimonio: 1M ~30, 3M ~90, Todo = todos', async ({ cmPage }) => {
   await abrirFinanzasConHistorial(cmPage);
-  await cmPage.evaluate(() => { toggleNWAccountChart('acc-main', true); });
 
   // Default: Todo
   await cmPage.evaluate(() => updateNWCharts());
@@ -43,7 +46,7 @@ test('rango del gráfico de patrimonio: 1M ~30, 3M ~90, Todo = todos', async ({ 
   let p = await puntos(cmPage);
   expect(p.total).toBeGreaterThanOrEqual(29);
   expect(p.total).toBeLessThanOrEqual(31);
-  expect(p.cuenta).toBe(p.total); // la línea por cuenta respeta el mismo rango
+  expect(p.cuenta).toBe(p.total); // la serie de la cuenta respeta el mismo rango
 
   await cmPage.click('#nwRangeSeg button[data-range="3M"]');
   p = await puntos(cmPage);

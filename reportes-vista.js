@@ -51,7 +51,7 @@ function _rvDatos(rango, rangoAnt, hoy) {
   const fondosMes = {};
   if (typeof _pfBudgetTotal === 'function') Object.keys(meses).forEach(m => { const v = _pfBudgetTotal(m); if (v) fondosMes[m] = v; });
   return {
-    hoy, cuentas: S.accounts || [], nwHistory: S.nwHistory || [], accountHistory: S.accountHistory || [], transactions: S.transactions || [],
+    hoy, tiposCash: typeof acctTypes === 'function' ? acctTypes().filter(t => t.cash).map(t => t.id) : undefined, cuentas: S.accounts || [], nwHistory: S.nwHistory || [], accountHistory: S.accountHistory || [], transactions: S.transactions || [],
     carteraTx: S.carteraTx || [], budgets: S.budgets || {}, fondosMes, creditoUsado: typeof calcCreditUsed === 'function' ? calcCreditUsed() : null,
     config: (S.reportes && S.reportes.config) || {}, cardCharges: S.cardCharges || [],
     cards: (S.cards || []).map(k => ({ id: k.id, resetAt: k.resetAt, resetDay: k.resetDay })),
@@ -546,7 +546,7 @@ function _rvVecina(clave, dir) {   // clave anterior (-1) o siguiente (+1) del p
 }
 function _rvCuentasLiquidasUI() {
   const marcadas = (S.reportes && S.reportes.config && S.reportes.config.cuentasLiquidas) || [];
-  const ctas = (S.accounts || []).filter(a => (!a.currency || a.currency === 'ARS') && !['cash', 'bank', 'prestamo'].includes(a.type));
+  const ctas = (S.accounts || []).filter(a => (!a.currency || a.currency === 'ARS') && !(typeof acctIsCash === 'function' ? acctIsCash(a) : ['cash', 'bank', 'prestamo'].includes(a.type)));
   return '<div class="pr-card"><div class="pr-card-h"><span class="pr-chip pr-chip-h">Cuentas que cuentan como líquidas</span></div>'
     + '<div class="pr-nota">Marcá acá las cuentas de bonos o fondo de emergencia. Efectivo, bancos y préstamos a cobrar ya cuentan solos; las cuentas en dólares no entran.</div>'
     + (ctas.length ? '<div class="pr-checks">' + ctas.map(a => '<label class="pr-chk"><span>' + _rvEsc(((a.icon || '') + ' ' + (a.name || 'Cuenta')).trim()) + '</span><input type="checkbox" value="' + _rvEsc(a.id) + '"' + (marcadas.includes(a.id) ? ' checked' : '') + ' onchange="ReportesVista.liquida(this.value,this.checked)"></label>').join('') + '</div>'

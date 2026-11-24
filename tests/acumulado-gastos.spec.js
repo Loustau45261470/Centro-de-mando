@@ -23,7 +23,7 @@ test('acumulado de gastos: períodos, categorías, donut y barras', async ({ cmP
   const esperado = [3000, 7000, 15000, 31000];   // 3M, 6M, 9M, 12M (YTD depende de la fecha de hoy)
   expect(total.slice(0, 4)).toEqual(esperado);
   await page.click('.gacc-chip:has-text("12M")');
-  await expect(page.locator('#gaccTotal')).toContainText('31,000');
+  await expect(page.locator('#gaccTotal')).toContainText('31.000');
   expect(await page.evaluate(() => [Chart.getChart('gaccDonut').data.datasets[0].data, Chart.getChart('gaccBars').data.labels.length])).toEqual([[27000, 4000], 12]);
   await page.click('.gacc-chip:has-text("3M")');
   expect(await page.evaluate(() => Chart.getChart('gaccBars').data.labels.length)).toBe(3);

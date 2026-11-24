@@ -49,7 +49,7 @@ test('1) efectivo 200k + Ualá 500k + deuda a favor 100k + inversiones 300k − 
   await expect.poll(async () => digitos(await cmPage.locator('#nwTotal').innerText())).toBe('500000');
   expect(digitos(await cmPage.locator('#nwCash').innerText())).toBe('800000');
   // Reorganización de Finanzas: el balance real es el número grande y el cash va en pequeño debajo; sin desglose ni etiquetas.
-  await expect(cmPage.locator('#nwCash').locator('xpath=..')).toHaveText('Cash $800,000');
+  await expect(cmPage.locator('#nwCash').locator('xpath=..')).toHaveText('Cash $800.000');
   expect(await cmPage.locator('#nwBreakdown, #tab-finanzas .nw-label, #tab-finanzas .nw-label-cash').count()).toBe(0);
   expect(consoleErrors).toEqual([]);
 });
@@ -107,7 +107,7 @@ test('4) Mover plata no cambia el patrimonio (Ualá a Inversiones: baja el cash,
   await expect(cmPage.locator('#modal-move-money')).not.toHaveClass(/open/);
   expect(await nw(cmPage)).toBe(antes);
   expect(await cmPage.evaluate(() => calcCash())).toBe(600000);
-  await expect(cmPage.locator('#nwCash').locator('xpath=..')).toHaveText('Cash $600,000');
+  await expect(cmPage.locator('#nwCash').locator('xpath=..')).toHaveText('Cash $600.000');
 });
 
 test('5) una cuenta de tipo Otro suma en el balance real pero no en el cash', async ({ cmPage }) => {

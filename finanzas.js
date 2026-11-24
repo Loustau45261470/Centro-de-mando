@@ -2,14 +2,51 @@
 // FINANCE TAB
 // ════════════════════════════════════════════════════════
 // Patrimonio (etapa 7). Una sola definición: calcNetWorth() = calcBalanceReal(); todo lo que lee el patrimonio llama a calcNetWorth.
-//   Cash disponible = efectivo (cash) + cuentas digitales/bancarias (bank) + deudas a favor (prestamo). Sin tarjetas ni inversiones.
-//   Balance real    = Cash − Crédito usado + Inversiones (invest) + cuentas de otro tipo (other y cualquier tipo no reconocido).
+//   Cash disponible = cuentas de categorías marcadas "cuenta como cash" (de fábrica: efectivo, banco y deudas a favor). Sin tarjetas ni inversiones.
+//   Balance real    = Cash − Crédito usado + Inversiones (invest) + cuentas de otra categoría (other, las no-cash y cualquier tipo no reconocido).
 // Se suma el saldo de cada cuenta tal cual, sin distinguir moneda (por ahora solo importan los pesos).
+
+// ── Categorías de cuentas (S.accountTypes: [{ id, label, icon, color, cash }]) ──
+// Las 5 de fábrica conservan sus claves (la lógica de negocio depende de ellas: 'prestamo' = cuentas "A cobrar", 'invest' = cartera,
+// 'other' = destino seguro al borrar). Esas tres no se pueden borrar ni cambiar su regla de cash. S.accountTypes vacío = las de fábrica.
+const _ACCT_BUILTIN = [
+  { id: 'bank',     label: 'Cuentas',   icon: '🏦', color: '#6BE3A4', cash: true },
+  { id: 'cash',     label: 'Efectivo',  icon: '💵', color: '#5EC8E5', cash: true },
+  { id: 'invest',   label: 'Inversión', icon: '📈', color: '#7C8EE8', cash: false },
+  { id: 'prestamo', label: 'Préstamo',  icon: '🤝', color: '#F2C063', cash: true },
+  { id: 'other',    label: 'Otros',     icon: '💼', color: '#FF6B6B', cash: false },
+];
+const _ACCT_PROTECTED = ['invest', 'prestamo', 'other'];
+function acctTypes() {
+  const cur = (Array.isArray(S.accountTypes) ? S.accountTypes : []).filter(t => t && t.id);
+  const out = cur.length ? cur.slice() : _ACCT_BUILTIN.map(t => ({ ...t }));
+  _ACCT_BUILTIN.filter(b => _ACCT_PROTECTED.includes(b.id) && !out.some(t => t.id === b.id)).forEach(b => out.push({ ...b }));
+  return out;
+}
+function acctType(id) { return acctTypes().find(t => t.id === id) || null; }
+// Categoría real de una cuenta: su type si existe; si no (se borró en otro dispositivo) cae en 'other'.
+function acctTypeId(a) { return a && acctType(a.type) ? a.type : 'other'; }
+function acctTypeLabel(id) { const t = acctType(id); return t ? t.label : 'Otros'; }
+function acctIsCash(a) { const t = a && acctType(a.type); return !!(t && t.cash); }
+// Cuenta de deuda ya cobrada (saldo 0): no se muestra en ninguna lista, pero no se borra ni se toca (reaparece sola si el saldo cambia).
+function acctVisible(a) { return !(a && a.type === 'prestamo' && Math.abs(+a.balance || 0) < 0.005); }
+function visibleAccounts() { return (S.accounts || []).filter(acctVisible); }
+function acctTypeOptionsHtml(selected) {
+  const ts = acctTypes();
+  const list = selected && !ts.some(t => t.id === selected) ? ts.concat([{ id: selected, label: 'Otros', icon: '💼' }]) : ts;
+  return list.map(t => `<option value="${escHtml(t.id)}"${t.id === selected ? ' selected' : ''}>${escHtml(t.icon || '')} ${escHtml(t.label)}</option>`).join('');
+}
+function fillAccountTypeSelects() {
+  ['accType', 'editAccType'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = acctTypeOptionsHtml(el.value || 'bank');
+  });
+}
 function _nwParts() {
   const sum = (f) => (S.accounts || []).filter(f).reduce((s, a) => s + (+a.balance || 0), 0);
-  const cash = sum(a => a.type === 'cash' || a.type === 'bank' || a.type === 'prestamo');
-  const invest = sum(a => a.type === 'invest');
-  const other = sum(a => !['cash', 'bank', 'prestamo', 'invest'].includes(a.type));
+  const cash = sum(a => acctIsCash(a));
+  const invest = sum(a => a.type === 'invest' && !acctIsCash(a));
+  const other = sum(a => !acctIsCash(a) && a.type !== 'invest');
   return { cash, invest, other, credit: calcCreditUsed() };
 }
 function calcCash() { return Math.round(_nwParts().cash * 100) / 100; }
@@ -68,32 +105,49 @@ function renderFinanzasTab() {
   if (nwPieInst) updateNWCharts();
 }
 
+// Cifras enormes: el total reduce su tipografía hasta entrar al lado de la dona (nunca desborda la card).
+function _fitNwTotal() {
+  const el = document.getElementById('nwTotal');
+  if (!el) return;
+  el.style.fontSize = '';
+  if (!el.clientWidth) return;   // pestaña oculta: no hay medida
+  let fs = parseFloat(getComputedStyle(el).fontSize);
+  while (el.scrollWidth > el.clientWidth + 1 && fs > 16) { fs -= 2; el.style.fontSize = fs + 'px'; }
+}
+window.addEventListener('resize', _fitNwTotal);
+
 function renderAccounts() {
   const coverAccs = new Set((S.cardCharges || []).filter(c => c && c.cover).map(c => c.cover.accountId));   // cuentas "A cobrar · <nombre>"
   const nw = calcNetWorth();
   document.getElementById('nwTotal').textContent = fmtMoney(nw, 'USD');
   document.getElementById('nwCash').textContent = fmtMoney(calcCash(), 'USD');
+  _fitNwTotal();
   document.getElementById('nw1pct').textContent = `1% = ${fmtMoney(nw*0.01,'USD')}`;
   const list = document.getElementById('accountList');
-  list.innerHTML = S.accounts.length ? S.accounts.map(a=>`
+  const shown = visibleAccounts();
+  fillAccountTypeSelects();
+  list.innerHTML = shown.length ? shown.map(a=>`
     <div class="account-row">
       <div class="account-icon">${a.icon||'🏦'}</div>
       <div class="account-info">
         <div class="account-name">${a.name}</div>
-        <div class="account-type">${{bank:'Banco',cash:'Efectivo',invest:'Inversión',prestamo:'Préstamo',other:'Otro'}[a.type]}</div>
+        <div class="account-type">${escHtml(acctTypeLabel(a.type))}</div>
         ${coverAccs.has(a.id) ? `<button class="btn btn-sm btn-cover acc-cobro" onclick="openCoverCollect('${escHtml(a.id)}')">Registrar cobro</button>` : ''}
       </div>
       <div class="account-bal pos">${fmtMoney(a.balance,a.currency)}</div>
       <button class="icon-btn" onclick="openEditAccount('${a.id}')"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
       <button class="icon-btn" onclick="deleteAccount('${a.id}')"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg></button>
     </div>`).join('') : '<p class="empty-state">Sin cuentas registradas</p>';
-  if (typeof renderAccountChartToggles === 'function') renderAccountChartToggles();
   if (nwPieInst) updateNWCharts();
 }
 
-function fmtMoney(val, cur) {
-  if (cur==='BTC') return `₿${val.toFixed(6)}`;
-  return new Intl.NumberFormat('en-US',{style:'currency',currency:cur||'USD',minimumFractionDigits:0,maximumFractionDigits:0}).format(val);
+// Único formateador de montos de la app: es-AR (punto de miles, coma decimal). Sin decimales salvo que se pidan (dec).
+// El símbolo no cambia: USD (la moneda por defecto de las cuentas) = "$", ARS = "ARS ", EUR = "€".
+function fmtMoney(val, cur, dec) {
+  if (cur==='BTC') return `₿${fmtNum(val, 6)}`;
+  const n = Number(val) || 0, d = dec || 0, s = fmtNum(Math.abs(n), d);
+  const sym = ({ USD: '$', EUR: '€' })[cur || 'USD'] ?? (cur + ' ');
+  return (n < 0 && Math.round(-n * 10 ** d) > 0 ? '-' : '') + sym + s;
 }
 
 function addAccount() {
@@ -114,10 +168,11 @@ function addAccount() {
 
 // ── Mover plata: pasa un monto de una cuenta a otra. No es ingreso ni gasto (no toca S.transactions). ──
 function openMoveMoney() {
-  const opts = S.accounts.map(a => `<option value="${a.id}">${a.icon||'🏦'} ${a.name} · ${fmtMoney(a.balance,a.currency)}</option>`).join('');
+  const opt = a => `<option value="${a.id}">${a.icon||'🏦'} ${a.name} · ${fmtMoney(a.balance,a.currency)}</option>`;
   const blank = '<option value="">— Elegí una cuenta —</option>';
-  document.getElementById('moveFrom').innerHTML = blank + opts;
-  document.getElementById('moveTo').innerHTML = blank + opts;
+  // Origen: una deuda cobrada (saldo 0) no tiene qué dar. Destino: se muestran todas, porque prestar de nuevo es mover plata a esa cuenta.
+  document.getElementById('moveFrom').innerHTML = blank + visibleAccounts().map(opt).join('');
+  document.getElementById('moveTo').innerHTML = blank + S.accounts.map(opt).join('');
   document.getElementById('moveAmount').value = '';
   document.getElementById('moveNote').value = '';
   updateMoveWarn();
@@ -319,9 +374,97 @@ function carteraVentasAbiertas(simbolo) {
 function deleteAccount(id) {
   if (!confirm('¿Eliminar esta cuenta?')) return;
   S.accounts=S.accounts.filter(a=>a.id!==id);
-  if (typeof nwSelectedAccounts !== 'undefined') nwSelectedAccounts = nwSelectedAccounts.filter(aid=>aid!==id);
   S.accountHistory = (S.accountHistory || []).filter(h => h.accountId !== id);
   snapshotNW(); saveState(); renderFinanzasTab();
+}
+
+// ── Administrar categorías de cuentas (modal #modal-acct-types) ──
+// Primera edición: se copian las de fábrica a S.accountTypes (de ahí en más es la lista real); borrar una con cuentas obliga a pasarlas a otra.
+function _acctTypesMaterialize() {
+  if (!Array.isArray(S.accountTypes) || !S.accountTypes.some(t => t && t.id)) S.accountTypes = [];
+  acctTypes().forEach(t => { if (!S.accountTypes.some(x => x && x.id === t.id)) S.accountTypes.push({ ...t }); });
+}
+function openAcctTypes() {
+  resetAcctTypeForm();
+  renderAcctTypesList();
+  openModal('modal-acct-types');
+}
+function renderAcctTypesList() {
+  const host = document.getElementById('atList');
+  if (!host) return;
+  const n = id => (S.accounts || []).filter(a => acctTypeId(a) === id).length;
+  host.innerHTML = acctTypes().map(t => {
+    const c = n(t.id), prot = _ACCT_PROTECTED.includes(t.id);
+    return `<div class="at-row" data-at="${escHtml(t.id)}">
+      <span class="at-dot" style="background:${escHtml(t.color || '#888')}"></span>
+      <span class="at-name">${escHtml(t.icon || '')} ${escHtml(t.label)}</span>
+      <span class="at-meta">${t.cash ? 'Cash' : 'No cash'} · ${c} ${c === 1 ? 'cuenta' : 'cuentas'}</span>
+      <button class="icon-btn at-edit" onclick="editAcctType('${escHtml(t.id)}')" aria-label="Editar ${escHtml(t.label)}"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+      <button class="icon-btn at-del" ${prot ? 'disabled title="Esta categoría no se puede borrar"' : ''} onclick="deleteAcctType('${escHtml(t.id)}')" aria-label="Borrar ${escHtml(t.label)}"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg></button>
+    </div>`;
+  }).join('');
+}
+function resetAcctTypeForm() {
+  const g = id => document.getElementById(id);
+  g('atId').value = ''; g('atName').value = ''; g('atIcon').value = ''; g('atColor').value = '#7C8EE8';
+  g('atCash').checked = false; g('atCash').disabled = false;
+  g('atFormTitle').textContent = 'Nueva categoría'; g('atSave').textContent = 'Crear categoría';
+  g('atDel').style.display = 'none';
+}
+function editAcctType(id) {
+  const t = acctType(id), g = x => document.getElementById(x);
+  if (!t) return;
+  g('atDel').style.display = 'none';
+  g('atId').value = t.id; g('atName').value = t.label; g('atIcon').value = t.icon || ''; g('atColor').value = /^#[0-9a-f]{6}$/i.test(t.color || '') ? t.color : '#7C8EE8';
+  g('atCash').checked = !!t.cash; g('atCash').disabled = _ACCT_PROTECTED.includes(t.id);
+  g('atFormTitle').textContent = 'Editar categoría'; g('atSave').textContent = 'Guardar cambios';
+  g('atName').focus();
+}
+function saveAcctType() {
+  const g = x => document.getElementById(x);
+  const label = g('atName').value.trim();
+  if (!label) { showToast('Escribí el nombre de la categoría'); return; }
+  const id = g('atId').value;
+  if (acctTypes().some(t => t.id !== id && t.label.toLowerCase() === label.toLowerCase())) { showToast('Ya hay una categoría con ese nombre'); return; }
+  _acctTypesMaterialize();
+  const data = { label, icon: g('atIcon').value.trim() || '🏷️', color: g('atColor').value || '#7C8EE8', cash: g('atCash').checked };
+  if (id) {
+    const t = S.accountTypes.find(x => x.id === id);
+    if (!t) return;
+    Object.assign(t, data, _ACCT_PROTECTED.includes(id) ? { cash: !!t.cash } : {});
+  } else S.accountTypes.push({ id: 'at_' + uid(), ...data });
+  snapshotNW(); saveState(); renderFinanzasTab();
+  resetAcctTypeForm(); renderAcctTypesList();
+  showToast(id ? 'Categoría actualizada' : 'Categoría creada');
+}
+function deleteAcctType(id) {
+  const t = acctType(id);
+  if (!t) return;
+  if (_ACCT_PROTECTED.includes(id)) { showToast('Esa categoría no se puede borrar'); return; }
+  const mine = (S.accounts || []).filter(a => acctTypeId(a) === id);
+  if (!mine.length) {
+    if (!confirm(`¿Borrar la categoría "${t.label}"?`)) return;
+    _acctTypeRemove(id, null);
+    return;
+  }
+  const g = x => document.getElementById(x);
+  g('atDelId').value = id;
+  g('atDelText').textContent = `"${t.label}" tiene ${mine.length} ${mine.length === 1 ? 'cuenta' : 'cuentas'}. Elegí a qué categoría pasarlas para poder borrarla.`;
+  g('atDelTo').innerHTML = '<option value="">— Elegí una categoría —</option>' + acctTypes().filter(x => x.id !== id).map(x => `<option value="${escHtml(x.id)}">${escHtml(x.icon || '')} ${escHtml(x.label)}</option>`).join('');
+  g('atDel').style.display = '';
+}
+function confirmDeleteAcctType() {
+  const id = document.getElementById('atDelId').value, to = document.getElementById('atDelTo').value;
+  if (!to || to === id || !acctType(to)) { showToast('Elegí a qué categoría pasar las cuentas'); return; }
+  _acctTypeRemove(id, to);
+}
+function _acctTypeRemove(id, to) {
+  _acctTypesMaterialize();
+  if (to) (S.accounts || []).forEach(a => { if (a.type === id) a.type = to; });
+  S.accountTypes = S.accountTypes.filter(t => t.id !== id);
+  snapshotNW(); saveState(); renderFinanzasTab();
+  resetAcctTypeForm(); renderAcctTypesList();
+  showToast('Categoría borrada');
 }
 
 // ── Crédito: tarjetas, compras con tarjeta y pagos de resumen (etapas 4 y 5b) ──
@@ -360,7 +503,7 @@ const _ccPesos = (n) => (Number.isInteger(n) ? _creditPesos(n)
 const _ccAccounts = () => (S.accounts || []).filter(a => a.currency === 'ARS');
 function _ccAccountOptions(selected, blankLabel) {
   const blank = blankLabel ? `<option value="">${blankLabel}</option>` : '';
-  return blank + _ccAccounts().map(a => `<option value="${escHtml(a.id)}"${a.id === selected ? ' selected' : ''}>${a.icon || '🏦'} ${escHtml(a.name)} · ${fmtMoney(a.balance, a.currency)}</option>`).join('');
+  return blank + _ccAccounts().filter(a => acctVisible(a) || a.id === selected).map(a => `<option value="${escHtml(a.id)}"${a.id === selected ? ' selected' : ''}>${a.icon || '🏦'} ${escHtml(a.name)} · ${fmtMoney(a.balance, a.currency)}</option>`).join('');
 }
 // Monto con 2 decimales como máximo (rechaza 0,001 y 1,005).
 const _ccTwoDecimals = (n) => Math.round(n * 100) / 100 === n;
@@ -915,7 +1058,7 @@ const _txnPayCardId = () => {
 // Opciones del medio de pago: cuentas (como siempre, más efectivo) y, solo en gastos, una por tarjeta.
 // Las mismas cuentas para el alta y para la edición de un movimiento (la edición no ofrece tarjetas).
 function _txnAccountOptionsHtml(cards) {
-  const accs = (S.accounts || []).filter(a => a.type === 'bank' || a.type === 'invest' || a.type === 'cash');
+  const accs = (S.accounts || []).filter(a => a.type === 'invest' || (a.type !== 'prestamo' && acctIsCash(a)));
   return '<option value="">— Ninguna —</option>'
     + accs.map(a => `<option value="${escHtml(a.id)}">${a.icon || '🏦'} ${escHtml(a.name)}</option>`).join('')
     + '<option value="prestamos_amorcito">💙 Prestamos amorcito</option>'
@@ -1730,7 +1873,7 @@ function openCoverCollect(accId) {
   const card = ch && (S.cards || []).find(c => c.id === ch.cardId);
   const def = card ? card.payAccountId : '';
   g('cvToAcc').innerHTML = '<option value="">— Elegí una cuenta —</option>'
-    + _ccAccounts().filter(a => a.id !== accId).map(a => `<option value="${escHtml(a.id)}"${a.id === def ? ' selected' : ''}>${a.icon || '🏦'} ${escHtml(a.name)} · ${fmtMoney(a.balance, a.currency)}</option>`).join('');
+    + _ccAccounts().filter(a => a.id !== accId && (acctVisible(a) || a.id === def)).map(a => `<option value="${escHtml(a.id)}"${a.id === def ? ' selected' : ''}>${a.icon || '🏦'} ${escHtml(a.name)} · ${fmtMoney(a.balance, a.currency)}</option>`).join('');
   updateCoverCollectPreview();
   openModal('modal-cover-collect');
 }
@@ -1783,6 +1926,10 @@ function undoCoverCollection(id) {
   const rec = (S.accounts || []).find(a => a.id === col.accountId);
   const extra = col.extraTxnId ? (S.transactions || []).find(t => t && t.id === col.extraTxnId) : null;
   let msg = `¿Deshacer el cobro del ${_ccDate(col.date)}? Los ${_ccPesos(applied)} aplicados vuelven a figurar como pendientes${rec ? ` en "${rec.name}"` : ''}${to ? ` y se descuentan de "${to.name}"` : ''}.`;
+  const faltan = [!rec && 'la cuenta "A cobrar"', !to && 'la cuenta donde entró la plata'].filter(Boolean);   // borradas a mano: se deshace lo que se pueda
+  if (faltan.length) msg += `
+
+Ojo: ya no existe ${faltan.join(' ni ')}, así que esos saldos no se van a mover (las cuotas sí vuelven a figurar como pendientes).`;
   if (extra) msg += `\n\nTambién se quita el ingreso extra de ${_ccPesos(extra.amount)}.`;
   if (!confirm(msg)) return;
   // Solo se revierte lo que el mes todavía tiene cobrado: un registro que reaparece (sync) no mueve saldos dos veces.
@@ -1805,7 +1952,7 @@ function undoCoverCollection(id) {
   }
   S.coverCollections = S.coverCollections.filter(c => c.id !== id);
   snapshotNW(); saveState(); renderFinanzasTab();
-  showToast('Cobro deshecho', 4500);
+  showToast(faltan.length ? `Cobro deshecho a medias: ya no existe ${faltan.join(' ni ')}` : 'Cobro deshecho', 4500);
 }
 
 // ── Pago de resumen manual (lo que ya se debía antes de empezar a usar el Centro, o pagos anticipados) ──
@@ -4086,7 +4233,7 @@ function _gaccKeys(p) {
   for (let i = n - 1; i >= 0; i--) { const d = new Date(y, m - i, 1); keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`); }
   return keys;
 }
-function _gaccShort(v) { return v >= 1e6 ? (v / 1e6).toFixed(1).replace('.0', '') + 'M' : v >= 1e3 ? Math.round(v / 1e3) + 'k' : String(Math.round(v)); }
+function _gaccShort(v) { return v >= 1e6 ? fmtNum(v / 1e6, 1).replace(',0', '') + 'M' : v >= 1e3 ? Math.round(v / 1e3) + 'k' : String(Math.round(v)); }
 function renderGastoAcumulado() {
   const host = document.getElementById('gacc-card');
   if (!host || host.offsetParent === null || typeof Chart === 'undefined' || !Array.isArray(S.transactions)) return;

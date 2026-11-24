@@ -335,7 +335,7 @@ function gmTreeLayout() {
   return pos;
 }
 function gmTreeMetricLabel(c) {
-  if (c.metric === 'patrimonio') return '$' + (c.value / 1000000) + 'M';
+  if (c.metric === 'patrimonio') return '$' + (c.value / 1000000).toLocaleString('es-AR') + 'M';
   const cur = gmMetric(c.metric);
   if (c.metric.indexOf('lvl_') === 0) return 'Nv ' + Math.min(cur, c.value) + '/' + c.value;
   return Math.min(cur, c.value) + '/' + c.value;

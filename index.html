@@ -21,7 +21,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-<link rel="stylesheet" href="styles.css?v=291">
+<link rel="stylesheet" href="styles.css?v=292">
 <script>try{if(localStorage.getItem('cm_rail_off')==='1')document.documentElement.classList.add('rail-off')}catch(e){}</script>
 <link rel="stylesheet" href="gamemode.css">
 <link rel="stylesheet" href="overlay-core.css">
@@ -539,21 +539,30 @@
               <button class="btn btn-ghost btn-sm" onclick="openModal('modal-add-account')">+ Cuenta</button>
             </div>
           </div>
-          <div class="nw-total" id="nwTotal">$0</div>
-          <div class="nw-cash">Cash <span id="nwCash">$0</span></div>
-          <div class="nw-1pct" id="nw1pct">1% = $0</div>
-          <div class="chart-wrap-tall"><canvas id="nwPieChart"></canvas></div>
-          <div class="seg seg-sm nw-range" id="nwRangeSeg" role="group" aria-label="Rango del gráfico de patrimonio">
+          <div class="nw-hero">
+            <div class="nw-hero-text">
+              <div class="nw-total" id="nwTotal">$0</div>
+              <div class="nw-cash">Cash <span id="nwCash">$0</span></div>
+              <div class="nw-1pct" id="nw1pct">1% = $0</div>
+            </div>
+            <div class="nw-dona">
+              <canvas id="nwPieChart" role="img" aria-label="Patrimonio por categoría de cuenta"></canvas>
+              <div class="nw-dona-centro"><span class="nw-dona-centro-lbl">Patrimonio</span><span class="mono nw-dona-centro-num" id="nwDonaNum">$0</span></div>
+            </div>
+          </div>
+          <div class="nw-leg" id="nwLegend"></div>
+          <div class="nw-ctl">
+            <select class="inp nw-series-sel" id="nwSeriesSel" aria-label="Qué mostrar en el gráfico de evolución" onchange="setNWSeries(this.value)"><option value="total">Total</option></select>
+            <div class="seg seg-sm nw-range" id="nwRangeSeg" role="group" aria-label="Rango del gráfico de patrimonio">
             <button type="button" data-range="1M" onclick="setNWRange('1M')">1M</button>
             <button type="button" data-range="3M" onclick="setNWRange('3M')">3M</button>
             <button type="button" data-range="6M" onclick="setNWRange('6M')">6M</button>
             <button type="button" data-range="9M" onclick="setNWRange('9M')">9M</button>
             <button type="button" data-range="12M" onclick="setNWRange('12M')">12M</button>
             <button type="button" data-range="all" onclick="setNWRange('all')">Todo</button>
+            </div>
           </div>
           <div class="chart-wrap"><canvas id="nwLineChart"></canvas></div>
-          <div class="nw-scale-note" id="nwScaleNote" style="display:none"></div>
-          <div class="nw-acc-toggles" id="nwAccountToggles"></div>
           <div class="fin-col-hdr accounts-hdr">
             <span></span><span>Cuenta</span><span class="col-r">Saldo</span><span></span><span></span>
           </div>
@@ -1195,6 +1204,36 @@
       <button class="btn btn-ghost" onclick="closeModal('modal-add-account')">Cancelar</button>
       <button class="btn btn-primary" onclick="addAccount()">Agregar</button>
     </div>
+  </div>
+</div>
+
+<!-- Categorías de cuentas (S.accountTypes, finanzas.js): crear, editar y borrar -->
+<div class="modal-overlay" id="modal-acct-types">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Categorías de cuentas</div>
+    <div id="atList" class="at-list"></div>
+    <div class="at-delbox" id="atDel" style="display:none">
+      <input type="hidden" id="atDelId">
+      <div class="at-del-text" id="atDelText"></div>
+      <select class="inp" id="atDelTo"></select>
+      <button class="btn btn-sm at-del-btn" onclick="confirmDeleteAcctType()">Pasar las cuentas y borrar</button>
+    </div>
+    <div class="at-form">
+      <div class="at-form-title" id="atFormTitle">Nueva categoría</div>
+      <input type="hidden" id="atId">
+      <div class="input-row">
+        <div class="field" style="flex:1"><label>Nombre</label><input class="inp" id="atName" maxlength="24" placeholder="Ej: Ahorros, Cripto…"></div>
+        <div class="field" style="width:64px"><label>Ícono</label><input class="inp" id="atIcon" maxlength="4" placeholder="🏷️"></div>
+        <div class="field" style="width:56px"><label>Color</label><input class="inp at-color" type="color" id="atColor" value="#7C8EE8"></div>
+      </div>
+      <label class="at-cash"><span>Cuenta como cash disponible</span><input type="checkbox" id="atCash"></label>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="resetAcctTypeForm()">Limpiar</button>
+        <button class="btn btn-primary" id="atSave" onclick="saveAcctType()">Crear categoría</button>
+      </div>
+    </div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('modal-acct-types')">Cerrar</button></div>
   </div>
 </div>
 
@@ -2037,7 +2076,7 @@
 <script src="errores.js?v=1"></script>
 <script src="deadlines.js?v=13"></script>
 <script src="motion.js?v=1"></script>
-<script src="app.js?v=240"></script>
+<script src="app.js?v=241"></script>
 <script src="datos-privados.js?v=2"></script>
 <script src="sync-diagnostico.js?v=2"></script>
 <script src="historial-versiones.js?v=3"></script>
@@ -2051,15 +2090,15 @@
 <script src="comidas.js?v=3"></script>
 <script src="tarjetas-motor.js?v=9"></script>
 <script src="reintegros.js?v=1"></script>
-<script src="finanzas.js?v=45"></script>
+<script src="finanzas.js?v=46"></script>
 <script src="reparto-gastos.js?v=2"></script>
 <script src="recordatorios.js?v=15"></script>
-<script src="objetivos.js?v=2"></script>
+<script src="objetivos.js?v=3"></script>
 <script src="principios.js?v=18"></script>
 <script src="foco.js?v=5"></script>
 <script src="sueno-stats.js?v=2"></script>
-<script src="reportes.js?v=13"></script>
-<script src="reportes-vista.js?v=16"></script>
+<script src="reportes.js?v=14"></script>
+<script src="reportes-vista.js?v=17"></script>
 <script src="consejero.js?v=2"></script>
 <script src="correlaciones.js?v=5"></script>
 <script src="cursada.js?v=8"></script>
@@ -2081,7 +2120,7 @@
 
 <script src="jarvis-ears.js"></script>
 
-<script src="busqueda-global.js?v=3"></script>
+<script src="busqueda-global.js?v=4"></script>
 <script src="command-palette.js?v=8"></script>
 
 <script src="telemetry.js"></script>
@@ -2093,7 +2132,7 @@
 <script src="notas-estudio.js"></script>
 
 <script src="salud-notas.js"></script>
-<script src="tenencias.js?v=21"></script>
+<script src="tenencias.js?v=22"></script>
 <script src="rendimiento-calc.js?v=2"></script>
 <script src="rendimiento.js?v=2"></script>
 <script src="radar-vista.js?v=5"></script>

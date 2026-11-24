@@ -280,7 +280,7 @@ test('bloque "Ya comprometido" en Actividad: gasto que ya cuenta + pagos de tarj
   await expect(cmPage.locator('#txnComprometido')).toBeHidden();
   // historial mensual: el mes futuro aparece rotulado como comprometido
   await cmPage.evaluate(() => { const el = document.getElementById('monthBalanceList'); el.style.display = ''; renderMonthBalanceList(); });
-  await expect(cmPage.locator('#monthBalanceList')).toContainText(/Ya comprometido: -ARS\s50,000/);
+  await expect(cmPage.locator('#monthBalanceList')).toContainText(/Ya comprometido: -ARS\s50[.]000/);
 });
 
 test('el "Gasto previsto" del calendario de tarjetas coincide con el de tarjeta del helper', async ({ cmPage }) => {

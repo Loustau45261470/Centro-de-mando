@@ -243,7 +243,7 @@ function _qobjHabitSelectHTML(idPrefix, section, link) {
 
 // Sub-campos según la métrica financiera elegida (cuenta/categoría/monto meta o tope)
 function qobjFinanceSubFieldsHTML(idPrefix, metric, link) {
-  const accounts = S.accounts || [];
+  const accounts = (S.accounts || []).filter(a => acctVisible(a) || a.id === (link && link.accountId));
   const cats = _qobjTxnCats();
   const curAccount = (link && link.accountId) || '';
   const curCat = (link && link.category) || '';

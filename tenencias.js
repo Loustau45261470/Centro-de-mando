@@ -449,7 +449,7 @@ const Tenencias = (() => {
     const d = _ctx && _ctx.d;
     const t = d && (d.tenencias || []).find(x => x.simbolo === simbolo);
     if (!t) return;
-    const accs = (S.accounts || []).filter(a => (a.currency || 'ARS') === 'ARS');
+    const accs = (S.accounts || []).filter(a => (a.currency || 'ARS') === 'ARS' && acctVisible(a));
     const inv = accs.filter(a => a.type === 'invest');
     if (!inv.length) { showToast('Para registrar una venta primero creá una cuenta de tipo Inversión en Finanzas', 4500); return; }
     if (accs.length < 2) { showToast('Necesitás otra cuenta en pesos (por ejemplo Ualá) para recibir la plata de la venta', 4500); return; }

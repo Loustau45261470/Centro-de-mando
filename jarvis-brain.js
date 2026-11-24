@@ -996,7 +996,7 @@
           return { ok: true, msg: `${summaryMsg} Nothing pending. Good night, sir.` };
         }
         case 'report_balance': {
-          const accs = S.accounts || [];
+          const accs = typeof visibleAccounts === 'function' ? visibleAccounts() : (S.accounts || []);
           if (!accs.length) return { ok: false, msg: 'You have no accounts set up, sir.' };
           const intros = ['You currently have:', "Here's where things stand, sir:", 'Your account balances, sir:'];
           let segments = [{ d: false, t: intros[Math.floor(Math.random() * intros.length)] + ' ' }];
