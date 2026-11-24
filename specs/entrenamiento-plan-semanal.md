@@ -77,6 +77,9 @@ Rehacer la INTERFAZ de la sección Entrenamiento (rutinas.js, pestaña Salud) si
 - El plan incluye ACTIVIDADES además de rutinas: Boxeo, Jiujitsu, Resistencia, Fuerza y Sprint (usuario: "agrega tanto boxeo, jujitsu, Resistencia, Fuerza, Resistencia y Sprint").
 - Cada día admite VARIOS ítems (el usuario entrena 2 veces por día); descanso = día sin ítems. La regla de pendientes aplica a cada ítem.
 
+- Las actividades se marcan HECHAS CON UN TOQUE; opcionalmente, en cada entrenamiento en particular (actividad o sesión de gimnasio) se puede cargar: duración, intensidad, concentración y propósito/finalidad (usuario: "se marcan hechas con un toque, pero me gustaría poder cargar duración, intensidad, concentración y propósito o finalidad de cada entrenamiento en particular"). Registro nuevo de actividades hechas (por fecha, con uid para merge sin pérdida) que alimenta `hechas(fecha)` de PlanEntreno.pendienteDe.
+
 ## Open Questions
 - ¿"Duración típica" se calcula del historial o la carga el usuario? (default propuesto: del historial)
-- ¿Las actividades (boxeo, jiujitsu, etc.) se registran como "hechas" con un toque o con datos (duración, intensidad)?
+- Corrida y fin de semana: el ítem del último día (domingo) ¿se pierde con aviso, pasa al lunes siguiente o se suma al domingo?
+- Escalas de intensidad y concentración (¿1-5 como Registros/Foco?) y si propósito es texto libre o lista sugerida.
