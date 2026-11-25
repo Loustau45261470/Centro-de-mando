@@ -126,6 +126,7 @@ function _plovApplyTab() {
 }
 
 function _plovRestore() {
+  if (typeof plannerSelCancel === 'function') plannerSelCancel();   // cerrar el overlay sale del modo "Seleccionar"
   ['metas-hoy-card', 'tomorrow-card'].forEach(id => {
     const el = document.getElementById(id);
     if (el && el._plovHome) { el._plovHome.parent.insertBefore(el, el._plovHome.next); el._plovHome = null; }

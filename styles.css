@@ -1118,6 +1118,11 @@ button.goal-hora-vacio:hover { color: var(--tp); background: rgba(255,255,255,.0
 .planner-atajos .pat-num { width: 64px; flex: none; text-align: center; padding: 3px 6px; }
 .planner-atajos .pat-unit { width: auto; flex: none; padding-right: 4px; }   /* el select global trae width:100% */
 .planner-atajos :disabled { opacity: .4; cursor: default; }
+.pat-selbtn { color: var(--accent); }
+.pat-cancel { color: var(--ts); }
+/* Modo "Seleccionar": casilla chica a la derecha de cada actividad pendiente; la elegida se marca con un anillo */
+.pcal-check.plsel input { width: 18px; height: 18px; }
+.pcal-row.plsel-on, .pcal-block.plsel-on { box-shadow: 0 0 0 2px rgba(255,255,255,.85); }
 
 /* ════════ Planificación — tareas con prioridad/postergabilidad (estética HUD) ════════ */
 /* Colores de prioridad: semánticos del sistema, gradiente apagado → llamativo */

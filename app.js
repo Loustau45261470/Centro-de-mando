@@ -3253,14 +3253,16 @@ function _plannerFmtMin(m) {
   const h = Math.floor(m / 60), r = m % 60;
   return (h ? h + ' h' : '') + (h && r ? ' ' : '') + (r || !h ? r + ' min' : '');
 }
-function plannerShiftToday(mins) {
+// ids (opcional): solo esas actividades (modo "Seleccionar"); sin ids corre todo el día pendiente.
+function plannerShiftToday(mins, ids) {
   mins = Math.round(Number(mins));
   if (!(mins > 0)) { showToast('Poné una cantidad mayor a 0'); return; }
   const date = getActiveDate();
   const todas = plannerDayTasks(date);
   if (!todas.length) { showToast('No hay actividades para correr hoy'); return; }
-  const acts = todas.filter(t => !t.done);   // las hechas (incl. las vinculadas a hábito, ya resueltas en plannerDayTasks) no se mueven
-  if (!acts.length) { showToast('No hay actividades pendientes para correr'); return; }
+  const acts = todas.filter(t => !t.done && (!ids || ids.includes(t.id)));   // las hechas (incl. las vinculadas a hábito, ya resueltas en plannerDayTasks) no se mueven
+  if (!acts.length) { showToast(ids ? 'Elegí al menos una actividad pendiente' : 'No hay actividades pendientes para correr'); return; }
+  if (ids) _plSel = null;   // sale del modo selección; el render lo hace _plannerAfterBulk
   const snap = _plannerSnap(date);
   const plan = getDayPlan(date);
   let fuera = 0;
@@ -3279,14 +3281,38 @@ function plannerShiftToday(mins) {
     if (pasa) fuera++;
   });
   _plannerAfterBulk();
-  _plannerBulkUndo(date, snap, 'Corriste el día ' + _plannerFmtMin(mins) +
+  _plannerBulkUndo(date, snap, (ids ? (acts.length === 1 ? 'Corriste 1 actividad ' : 'Corriste ' + acts.length + ' actividades ') : 'Corriste el día ') + _plannerFmtMin(mins) +
     (fuera ? ` · ${fuera} ${fuera === 1 ? 'actividad quedó' : 'actividades quedaron'} fuera (pasaban la medianoche)` : ''));
 }
 // Campo de cantidad libre de la barra de atajos (número + unidad min/h).
 function plannerShiftCustom(el) {
   const bar = el.closest('.planner-atajos'); if (!bar) return;
   const n = parseFloat(bar.querySelector('.pat-num').value);
-  plannerShiftToday(bar.querySelector('.pat-unit').value === 'h' ? n * 60 : n);
+  plannerShiftToday(bar.querySelector('.pat-unit').value === 'h' ? n * 60 : n, _plSelIds());
+}
+// ── Modo selección: correr solo algunas actividades (las demás quedan) ──
+// _plSel = null (modo apagado) o Set de ids de las elegidas. Solo hoy, solo pendientes, sin metas.
+let _plSel = null;
+function _plSelIds() { return _plSel ? [..._plSel] : null; }
+function _plSelOn(date, t) { return !!_plSel && date === getActiveDate() && !t.done && !t._goal; }
+function _plSelBoxHTML(t) {
+  const id = escHtml(t.id);
+  return `<label class="pcal-check plsel" onclick="event.stopPropagation()"><input type="checkbox" class="plsel-box" data-id="${id}" aria-label="Elegir para correr: ${escHtml(t.text)}"${_plSel.has(t.id) ? ' checked' : ''} onchange="plannerSelToggle('${id}')"></label>`;
+}
+function plannerSelStart() { _plSel = new Set(); renderDayPlanner(); }
+function plannerSelCancel() { if (!_plSel) return; _plSel = null; renderDayPlanner(); }
+function plannerSelToggle(id) {
+  if (!_plSel) return;
+  if (_plSel.has(id)) _plSel.delete(id); else _plSel.add(id);
+  document.querySelectorAll('.plsel-box').forEach(i => {   // en el lugar (sin re-render: no mueve el scroll del calendario)
+    const on = _plSel.has(i.dataset.id); i.checked = on;
+    const fila = i.closest('.pcal-row, .pcal-block'); if (fila) fila.classList.toggle('plsel-on', on);   // no '[data-id]': el propio input lo tiene
+  });
+  const n = _plSel.size;
+  document.querySelectorAll('.planner-atajos').forEach(b => {
+    const l = b.querySelector('.pat-lbl'); if (l) l.textContent = 'Correr ' + (n === 1 ? '1 elegida' : n + ' elegidas');
+    b.querySelectorAll('.pat-chip:not(.pat-cancel), .pat-num, .pat-unit').forEach(e => { e.disabled = !n; });
+  });
 }
 function plannerClearToday() {
   const date = getActiveDate();
@@ -3303,16 +3329,22 @@ function plannerClearToday() {
   _plannerBulkUndo(date, snap, 'Vaciaste el día · ' + acts.length + (acts.length === 1 ? ' actividad' : ' actividades'));
 }
 function plannerAtajosHTML(date) {
-  const d = plannerDayTasks(date).length ? '' : ' disabled';
-  const chip = (m, l) => `<button type="button" class="pat-chip" onclick="plannerShiftToday(${m})"${d}>${l}</button>`;
+  const hay = plannerDayTasks(date).length;
+  if (_plSel && !plannerDayTasks(date).some(t => !t.done && !t._goal)) _plSel = null;   // nada que elegir: sale solo
+  const sel = !!_plSel, n = sel ? _plSel.size : 0;
+  const d = sel ? (n ? '' : ' disabled') : (hay ? '' : ' disabled');
+  const chip = (m, l) => `<button type="button" class="pat-chip" onclick="plannerShiftToday(${m}${sel ? ',_plSelIds()' : ''})"${d}>${l}</button>`;
   return `<div class="planner-atajos" role="group" aria-label="Atajos del día de hoy">
-    <span class="pat-lbl">Correr</span>
+    <span class="pat-lbl">${sel ? 'Correr ' + (n === 1 ? '1 elegida' : n + ' elegidas') : 'Correr'}</span>
     ${chip(30, '+30 min')}${chip(60, '+1 h')}${chip(120, '+2 h')}${chip(180, '+3 h')}
     <input class="pat-num" type="number" min="1" step="1" inputmode="numeric" placeholder="otra" aria-label="Otra cantidad para correr el día"${d}
       onkeydown="if(event.key==='Enter'){event.preventDefault();plannerShiftCustom(this)}">
     <select class="pat-unit" aria-label="Unidad"${d}><option value="min">min</option><option value="h">h</option></select>
     <button type="button" class="pat-chip pat-go" onclick="plannerShiftCustom(this)"${d}>Correr</button>
-    <button type="button" class="pat-chip pat-clear" onclick="plannerClearToday()"${d}>Vaciar día</button>
+    ${sel
+      ? '<button type="button" class="pat-chip pat-cancel" onclick="plannerSelCancel()">Cancelar</button>'
+      : `<button type="button" class="pat-chip pat-selbtn" onclick="plannerSelStart()"${hay ? '' : ' disabled'}>Seleccionar</button>
+    <button type="button" class="pat-chip pat-clear" onclick="plannerClearToday()"${hay ? '' : ' disabled'}>Vaciar día</button>`}
   </div>`;
 }
 
@@ -3342,13 +3374,14 @@ function plannerBlockHTML(date, t, hourPx, compact, lay) {
   const label = isGoal ? 'Tarea' : areaCfg.label;
   // Vista previa minimalista: sólo título (hora/área/repetición/prioridad se ven al abrir la tarjeta).
   // El tooltip conserva el detalle para hover. El color del bloque ya comunica el área.
-  return `<div class="pcal-block${compact ? ' pcal-compact' : ''}${isGoal ? ' pcal-goal' : ''} prio-${t.priority}${t.done ? ' done' : ''}" data-id="${rid}"
+  const sel = !compact && _plSelOn(date, t);
+  return `<div class="pcal-block${compact ? ' pcal-compact' : ''}${isGoal ? ' pcal-goal' : ''} prio-${t.priority}${t.done ? ' done' : ''}${sel && _plSel.has(t.id) ? ' plsel-on' : ''}" data-id="${rid}"
     style="top:${top}px;height:${height}px;${pos}--area-c:var(${colorVar})"
-    ${isGoal ? '' : `onclick="openPlanModal('${escHtml(date)}','${rid}')"`} title="${escHtml(t.text)} · ${range} · ${label} · ${prioCfg.label}${t.habit ? ' · Hábito' : ''}">
+    ${sel ? `onclick="plannerSelToggle('${rid}')"` : isGoal ? '' : `onclick="openPlanModal('${escHtml(date)}','${rid}')"`} title="${escHtml(t.text)} · ${range} · ${label} · ${prioCfg.label}${t.habit ? ' · Hábito' : ''}">
     <div class="pcal-head">
       <div class="pcal-text">${hIcon}${escHtml(t.text) || '<span class="pcal-empty">Sin título</span>'}</div>
-      ${isGoal ? '' : `<button class="pcal-del" onclick="event.stopPropagation();plannerDeleteTask('${escHtml(date)}','${rid}')" title="Eliminar" aria-label="Eliminar">✕</button>`}
-      <label class="pcal-check" onclick="event.stopPropagation()"><input type="checkbox" aria-label="Marcar como hecha: ${escHtml(t.text)}"${t.done ? ' checked' : ''} onchange="plannerToggleTask('${escHtml(date)}','${rid}',event)"></label>
+      ${isGoal || sel ? '' : `<button class="pcal-del" onclick="event.stopPropagation();plannerDeleteTask('${escHtml(date)}','${rid}')" title="Eliminar" aria-label="Eliminar">✕</button>`}
+      ${sel ? _plSelBoxHTML(t) : `<label class="pcal-check" onclick="event.stopPropagation()"><input type="checkbox" aria-label="Marcar como hecha: ${escHtml(t.text)}"${t.done ? ' checked' : ''} onchange="plannerToggleTask('${escHtml(date)}','${rid}',event)"></label>`}
     </div>
     ${compact ? '' : `<div class="pcal-foot"><span class="pcal-prio-tag">${isGoal ? 'Tarea · ' + prioCfg.label : prioCfg.label}</span></div>`}
   </div>`;
@@ -3418,14 +3451,15 @@ function plannerListRowHTML(date, t) {
   const rid     = escHtml(t.id);
   const range   = isGoal ? t.time : `${t.time}–${_minToTimeDisp(endMin)}`;
   const label   = isGoal ? 'Tarea' : areaCfg.label;
-  return `<div class="pcal-row${isGoal ? ' pcal-goal' : ''}${t.done ? ' done' : ''}" data-id="${rid}"
+  const sel = _plSelOn(date, t);
+  return `<div class="pcal-row${isGoal ? ' pcal-goal' : ''}${t.done ? ' done' : ''}${sel && _plSel.has(t.id) ? ' plsel-on' : ''}" data-id="${rid}"
     style="--area-c:var(${isGoal ? '--hud' : areaCfg.cssVar})"
-    ${isGoal ? '' : `onclick="openPlanModal('${escHtml(date)}','${rid}')"`} title="${escHtml(t.text)} · ${label} · ${prioCfg.label}">
-    ${isGoal ? '' : `<button class="pcal-del" onclick="event.stopPropagation();plannerDeleteTask('${escHtml(date)}','${rid}')" title="Eliminar" aria-label="Eliminar">✕</button>`}
+    ${sel ? `onclick="plannerSelToggle('${rid}')"` : isGoal ? '' : `onclick="openPlanModal('${escHtml(date)}','${rid}')"`} title="${escHtml(t.text)} · ${label} · ${prioCfg.label}">
+    ${isGoal || sel ? '' : `<button class="pcal-del" onclick="event.stopPropagation();plannerDeleteTask('${escHtml(date)}','${rid}')" title="Eliminar" aria-label="Eliminar">✕</button>`}
     <span class="pcal-row-time">${range}</span>
     <div class="pcal-text">${hIcon}${escHtml(t.text) || '<span class="pcal-empty">Sin título</span>'}</div>
     ${isGoal ? '<span class="pcal-row-tag">Tarea</span>' : ''}
-    <label class="pcal-check" onclick="event.stopPropagation()"><input type="checkbox" aria-label="Marcar como hecha: ${escHtml(t.text)}"${t.done ? ' checked' : ''} onchange="plannerToggleTask('${escHtml(date)}','${rid}',event)"></label>
+    ${sel ? _plSelBoxHTML(t) : `<label class="pcal-check" onclick="event.stopPropagation()"><input type="checkbox" aria-label="Marcar como hecha: ${escHtml(t.text)}"${t.done ? ' checked' : ''} onchange="plannerToggleTask('${escHtml(date)}','${rid}',event)"></label>`}
   </div>`;
 }
 function buildDayList(containerEl, date) {
