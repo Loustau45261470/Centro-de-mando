@@ -364,63 +364,8 @@ function fmtRestTime(secs) {
   return m ? `${m}m${s ? ` ${s}s` : ''}` : `${s}s`;
 }
 
-function renderRutinas() {
-  initRoutines();
-  const wrap = document.getElementById('rutinas-wrap');
-  if (!wrap) return;
-  if (S.activeRtnSession) { renderActiveSession(); return; }
-
-  const cards = S.routines.map(r => {
-    const hist = S.routineLog[r.id] || [];
-    const last = hist[hist.length - 1];
-
-    const lastDateLabel = last ? `<span style="font-family:var(--mono);font-size:var(--fs-12-5);color:var(--tt);flex-shrink:0;margin-right:6px">${last.date.slice(5)}</span>` : '';
-
-    const _ordBtn = 'background:none;border:none;cursor:pointer;padding:3px 4px;font-size:var(--fs-13);color:var(--tt);line-height:1;flex-shrink:0';
-    const _ordOff = ';opacity:.25;pointer-events:none';
-    const exListHtml = r.exercises.length
-      ? r.exercises.map((exRaw, i, arr) => { const ex = exDisplay(exRaw); return `
-          <div class="rtn-ex-row">
-            <span class="rtn-equip-tag">${ex.equipment}</span>
-            <span class="rtn-ex-name" style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px" onclick="event.stopPropagation();openExHistByLib('${ex.libId}')">${ex.name}</span>
-            <span class="rtn-ex-rest">⏱ ${fmtRestTime(ex.restSecs)}</span>
-            <div style="display:flex;align-items:center;gap:2px;flex-shrink:0">
-              <button title="Subir" onclick="event.stopPropagation();moveRtnEx('${r.id}','${ex.id}',-1)" style="${_ordBtn}${i === 0 ? _ordOff : ''}">↑</button>
-              <button title="Bajar" onclick="event.stopPropagation();moveRtnEx('${r.id}','${ex.id}',1)" style="${_ordBtn}${i === arr.length - 1 ? _ordOff : ''}">↓</button>
-              <button class="icon-btn" onclick="event.stopPropagation();editRtnEx('${r.id}','${ex.id}')" style="color:var(--tt);flex-shrink:0">
-                <svg viewBox="0 0 24 24" style="width:15px;height:15px"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-              </button>
-              <button class="icon-btn" onclick="event.stopPropagation();deleteRtnEx('${r.id}','${ex.id}')" style="color:var(--tt);flex-shrink:0">
-                <svg viewBox="0 0 24 24" style="width:15px;height:15px"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
-              </button>
-            </div>
-          </div>`; }).join('')
-      : '<p class="text-xs text-ter" style="padding:8px 0">Sin ejercicios. Agregá uno abajo.</p>';
-
-    return `
-      <div class="rtn-card" id="rtn-card-${r.id}">
-        <div class="rtn-header" onclick="toggleRutina('${r.id}')">
-          <span class="rtn-icon">${r.icon}</span>
-          <div class="rtn-info">
-            <div class="rtn-name">${r.name}</div>
-            <div class="rtn-preview" style="margin-top:1px;font-size:var(--fs-12-5);color:var(--tt)">${r.exercises.length} ejercicios</div>
-          </div>
-          <button class="icon-btn" onclick="event.stopPropagation();openEditRoutine('${r.id}')" style="color:var(--tt);flex-shrink:0">
-            <svg viewBox="0 0 24 24" style="width:15px;height:15px"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-          </button>
-          <button class="btn btn-ghost" onclick="event.stopPropagation();openExPicker('add','${r.id}')" style="font-size:var(--fs-12-5);padding:2px 7px;flex-shrink:0;line-height:1.4">+ Ej</button>
-          <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();startRutinaSession('${r.id}')" style="flex-shrink:0">▶ Empezar</button>
-          <span class="rtn-chevron">▾</span>
-        </div>
-        <div class="rtn-body">
-          <div class="rtn-ex-list">${exListHtml}</div>
-          <div style="display:flex;justify-content:flex-end;padding:2px 14px 10px">
-            <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="event.stopPropagation();deleteRoutineById('${r.id}')">🗑 Borrar rutina</button>
-          </div>
-        </div>
-      </div>`;
-  }).join('');
-
+// Estadísticas del período (_statsPeriod): MISMA lógica de siempre, ahora reutilizable. Deja SCAN_DATA para el popover del mapa muscular.
+function entStatsCalc() {
   // ── Estadísticas aggregates ──
   const _allLog = S.routines.map(r => ({ rtn: r, hist: S.routineLog[r.id] || [] }));
   const _periodDays = { mes: 30, trimestre: 90, semestre: 180, año: 365 };
@@ -495,82 +440,67 @@ function renderRutinas() {
   S.routines.forEach(r => r.exercises.forEach(exRaw => {
     if (_recMap[exRaw.id]) _recArr.push({ name: exDisplay(exRaw).name, ..._recMap[exRaw.id] });
   }));
+  return { period: _statsPeriod, cutoffStr: _cutoffStr, sess: _totalSess, vol: _totalVol, sets: _totalSets, time: _totalTime, timeStr: _timeStr, volStr: _volStr,
+    muscleCounts: _muscleCounts, muscleArr: _muscleArr, muscleTotal: _muscleTotal, muscleStats: _muscleStats, recArr: _recArr };
+}
 
-  const statsBodyHtml = `
-    <div style="padding:12px 14px 16px">
-      <div style="display:flex;gap:4px;margin-bottom:14px">
-        ${['mes','trimestre','semestre','año'].map(p => `<button onclick="setStatsPeriod('${p}')" style="flex:1;padding:5px 0;font-size:var(--fs-12-5);font-weight:700;letter-spacing:.07em;text-transform:uppercase;border-radius:6px;border:1px solid ${_statsPeriod===p ? 'var(--c-salud)' : 'var(--border)'};background:${_statsPeriod===p ? 'rgba(244,63,94,.12)' : 'transparent'};color:${_statsPeriod===p ? 'var(--c-salud)' : 'var(--tt)'};cursor:pointer">${p}</button>`).join('')}
-      </div>
-      <div style="margin-bottom:14px">
-        <div onclick="toggleMuscleDist()" style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:6px;user-select:none">
-          <span id="muscle-dist-chev" style="font-size:var(--fs-12-5);color:var(--tt);display:inline-block;transition:transform .2s;transform:${_muscleDistOpen ? 'rotate(0deg)' : 'rotate(-90deg)'}">▾</span>
-          <span style="font-size:var(--fs-12-5);font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--tt)">Distribución muscular</span>
+function renderRutinas() {
+  initRoutines();
+  const wrap = document.getElementById('rutinas-wrap');
+  if (!wrap) return;
+  if (S.activeRtnSession) { renderActiveSession(); return; }
+
+  const cards = S.routines.map(r => {
+    const hist = S.routineLog[r.id] || [];
+    const last = hist[hist.length - 1];
+
+    const lastDateLabel = last ? `<span style="font-family:var(--mono);font-size:var(--fs-12-5);color:var(--tt);flex-shrink:0;margin-right:6px">${last.date.slice(5)}</span>` : '';
+
+    const _ordBtn = 'background:none;border:none;cursor:pointer;padding:3px 4px;font-size:var(--fs-13);color:var(--tt);line-height:1;flex-shrink:0';
+    const _ordOff = ';opacity:.25;pointer-events:none';
+    const exListHtml = r.exercises.length
+      ? r.exercises.map((exRaw, i, arr) => { const ex = exDisplay(exRaw); return `
+          <div class="rtn-ex-row">
+            <span class="rtn-equip-tag">${ex.equipment}</span>
+            <span class="rtn-ex-name" style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px" onclick="event.stopPropagation();openExHistByLib('${ex.libId}')">${ex.name}</span>
+            <span class="rtn-ex-rest">⏱ ${fmtRestTime(ex.restSecs)}</span>
+            <div style="display:flex;align-items:center;gap:2px;flex-shrink:0">
+              <button title="Subir" onclick="event.stopPropagation();moveRtnEx('${r.id}','${ex.id}',-1)" style="${_ordBtn}${i === 0 ? _ordOff : ''}">↑</button>
+              <button title="Bajar" onclick="event.stopPropagation();moveRtnEx('${r.id}','${ex.id}',1)" style="${_ordBtn}${i === arr.length - 1 ? _ordOff : ''}">↓</button>
+              <button class="icon-btn" onclick="event.stopPropagation();editRtnEx('${r.id}','${ex.id}')" style="color:var(--tt);flex-shrink:0">
+                <svg viewBox="0 0 24 24" style="width:15px;height:15px"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
+              <button class="icon-btn" onclick="event.stopPropagation();deleteRtnEx('${r.id}','${ex.id}')" style="color:var(--tt);flex-shrink:0">
+                <svg viewBox="0 0 24 24" style="width:15px;height:15px"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+              </button>
+            </div>
+          </div>`; }).join('')
+      : '<p class="text-xs text-ter" style="padding:8px 0">Sin ejercicios. Agregá uno abajo.</p>';
+
+    return `
+      <div class="rtn-card" id="rtn-card-${r.id}">
+        <div class="rtn-header" onclick="toggleRutina('${r.id}')">
+          <span class="rtn-icon">${r.icon}</span>
+          <div class="rtn-info">
+            <div class="rtn-name">${r.name}</div>
+            <div class="rtn-preview" style="margin-top:1px;font-size:var(--fs-12-5);color:var(--tt)">${r.exercises.length} ejercicios</div>
+          </div>
+          <button class="icon-btn" onclick="event.stopPropagation();openEditRoutine('${r.id}')" style="color:var(--tt);flex-shrink:0">
+            <svg viewBox="0 0 24 24" style="width:15px;height:15px"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+          <button class="btn btn-ghost" onclick="event.stopPropagation();openExPicker('add','${r.id}')" style="font-size:var(--fs-12-5);padding:2px 7px;flex-shrink:0;line-height:1.4">+ Ej</button>
+          <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();startRutinaSession('${r.id}')" style="flex-shrink:0">▶ Empezar</button>
+          <span class="rtn-chevron">▾</span>
         </div>
-        <div id="muscle-dist-body" style="display:${_muscleDistOpen ? 'block' : 'none'}">
-          ${_muscleArr.length === 0
-            ? `<p style="font-size:var(--fs-12-5);color:var(--tt);margin:0">Sin datos en este período.</p>`
-            : '<div class="scan-duo">' + buildSpinViewer() + buildMuscleHeatmap(_muscleCounts) + '</div>' + _muscleArr.map(([muscle, count]) => {
-                const pct = Math.round(count / _muscleTotal * 100);
-                const hc = muscleHeatColor(Math.round(count / Math.max(...Object.values(_muscleCounts), 1) * 100));
-                return `<div style="margin-bottom:6px">
-                  <div style="display:flex;justify-content:space-between;margin-bottom:2px">
-                    <span style="font-size:var(--fs-12-5);color:var(--fg)">${muscle}</span>
-                    <span style="font-family:var(--mono);font-size:var(--fs-12-5);color:var(--tt)">${pct}%</span>
-                  </div>
-                  <div style="height:3px;background:var(--border);border-radius:2px">
-                    <div style="height:100%;width:${pct}%;background:${hc.fill.replace(/[\d.]+\)$/, '0.9)')};border-radius:2px;transition:width .4s"></div>
-                  </div>
-                </div>`;
-              }).join('')}
+        <div class="rtn-body">
+          <div class="rtn-ex-list">${exListHtml}</div>
+          <div style="display:flex;justify-content:flex-end;padding:2px 14px 10px">
+            <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="event.stopPropagation();deleteRoutineById('${r.id}')">🗑 Borrar rutina</button>
+          </div>
         </div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px">
-        <div style="background:var(--bg2);border-radius:10px;padding:10px 12px">
-          <div style="font-family:var(--mono);font-size:22px;font-weight:800;color:var(--c-salud);line-height:1">${_totalSess}</div>
-          <div style="font-size:var(--fs-12-5);font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--tt);margin-top:5px">Entrenamientos</div>
-        </div>
-        <div style="background:var(--bg2);border-radius:10px;padding:10px 12px">
-          <div style="font-family:var(--mono);font-size:${_totalVol >= 10000 ? 16 : 22}px;font-weight:800;color:var(--c-salud);line-height:1">${_volStr}</div>
-          <div style="font-size:var(--fs-12-5);font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--tt);margin-top:5px">Volumen kg</div>
-        </div>
-        <div style="background:var(--bg2);border-radius:10px;padding:10px 12px">
-          <div style="font-family:var(--mono);font-size:22px;font-weight:800;color:var(--c-salud);line-height:1">${_totalSets}</div>
-          <div style="font-size:var(--fs-12-5);font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--tt);margin-top:5px">Series</div>
-        </div>
-        <div style="background:var(--bg2);border-radius:10px;padding:10px 12px">
-          <div style="font-family:var(--mono);font-size:22px;font-weight:800;color:var(--c-salud);line-height:1">${_timeStr}</div>
-          <div style="font-size:var(--fs-12-5);font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--tt);margin-top:5px">Tiempo</div>
-        </div>
-      </div>
-      <div style="margin-top:16px">
-        <div onclick="toggleRecords()" style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:6px;user-select:none">
-          <span id="records-chev" style="font-size:var(--fs-12-5);color:var(--tt);display:inline-block;transition:transform .2s;transform:${_recordsOpen ? 'rotate(0deg)' : 'rotate(-90deg)'}">▾</span>
-          <span style="font-size:var(--fs-12-5);font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--tt)">Records</span>
-        </div>
-        <div id="records-body" style="display:${_recordsOpen ? 'block' : 'none'}">
-          ${_recArr.length === 0
-            ? `<p style="font-size:var(--fs-12-5);color:var(--tt);margin:0">Sin datos en este período.</p>`
-            : _recArr.map(rec => `
-              <div style="padding:9px 0;border-top:1px solid var(--border)">
-                <div style="font-size:var(--fs-12-5);font-weight:700;color:var(--fg);margin-bottom:6px">${rec.name}</div>
-                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
-                  <div>
-                    <div style="font-family:var(--mono);font-size:var(--fs-14);font-weight:800;color:var(--c-salud);line-height:1">${rec.maxWeight}<span style="font-size:var(--fs-12-5);font-weight:400"> kg</span></div>
-                    <div style="font-size:var(--fs-12-5);color:var(--tt);margin-top:2px">${rec.maxWeightDate ? rec.maxWeightDate.slice(5) : '—'} · peso</div>
-                  </div>
-                  <div>
-                    <div style="font-family:var(--mono);font-size:var(--fs-14);font-weight:800;color:var(--c-salud);line-height:1">${rec.maxReps}<span style="font-size:var(--fs-12-5);font-weight:400"> reps</span></div>
-                    <div style="font-size:var(--fs-12-5);color:var(--tt);margin-top:2px">${rec.maxRepsDate ? rec.maxRepsDate.slice(5) : '—'} · reps</div>
-                  </div>
-                  <div>
-                    <div style="font-family:var(--mono);font-size:var(--fs-14);font-weight:800;color:var(--c-salud);line-height:1">${rec.maxVol >= 1000 ? (rec.maxVol/1000).toFixed(1)+'<span style="font-size:var(--fs-12-5);font-weight:400">t</span>' : rec.maxVol+'<span style="font-size:var(--fs-12-5);font-weight:400"> kg</span>'}</div>
-                    <div style="font-size:var(--fs-12-5);color:var(--tt);margin-top:2px">${rec.maxVolDate ? rec.maxVolDate.slice(5) : '—'} · kg×reps</div>
-                  </div>
-                </div>
-              </div>`).join('')}
-        </div>
-      </div>
-    </div>`;
+      </div>`;
+  }).join('');
+
 
   const _rutinaOpen = _rtnSections.has('rutinas');
   // Acordeón "Mis rutinas": las tarjetas de siempre (editar/reordenar/borrar ejercicios, + Ej, Borrar rutina). Cerrado por defecto.
@@ -583,18 +513,19 @@ function renderRutinas() {
       <div id="rtn-section-rutinas" style="display:${_rutinaOpen ? 'block' : 'none'}">${cards}</div>`;
   const _tab = _entTab;
   let _bodyHtml;
-  if (_tab === 'progreso') _bodyHtml = `<div class="pe-h2">Progreso</div>${statsBodyHtml}`;
-  else if (_tab === 'ejercicios') _bodyHtml = `<div class="pe-h2">Ejercicios <button class="btn btn-ghost btn-sm" onclick="openLibEx()" style="font-size:var(--fs-12-5);letter-spacing:.06em">+ Nuevo</button></div>${buildLibraryBody()}`;
+  if (_tab === 'progreso') _bodyHtml = window.EntrenoProg ? EntrenoProg.progresoHtml(entStatsCalc()) : '';
+  else if (_tab === 'ejercicios') _bodyHtml = window.EntrenoProg ? EntrenoProg.ejerciciosHtml() : '';
   else _bodyHtml = window.PlanUI ? PlanUI.html(_accRutinas, cards) : _accRutinas;
   const _tabBtn = (id, label) => `<button type="button" role="tab" aria-selected="${_tab === id}" class="pe-tab${_tab === id ? ' pe-tab-on' : ''}" onclick="setEntTab('${id}')">${label}</button>`;
 
   wrap.innerHTML = `
     <div class="card pe-root">
-      <div class="pe-main">${_bodyHtml}</div>
+      <div class="pe-main${_tab === 'progreso' ? ' prg-wide' : ''}">${_bodyHtml}</div>
       <nav class="pe-tabbar" role="tablist" aria-label="Secciones de Entrenamiento">${_tabBtn('plan', 'Plan')}${_tabBtn('progreso', 'Progreso')}${_tabBtn('ejercicios', 'Ejercicios')}</nav>
     </div>`;
   initScanner();
   if (_tab === 'plan' && window.PlanUI) PlanUI.post();
+  else if (window.EntrenoProg) EntrenoProg.post(_tab);
 }
 
 // ── Biblioteca: filtros + listado ──
@@ -611,56 +542,6 @@ function libUsageCount(libId) {
   let n = 0;
   (S.routines || []).forEach(r => (r.exercises || []).forEach(ex => { if (ex.libId === libId) n++; }));
   return n;
-}
-
-function buildLibraryBody() {
-  const all = (S.exerciseLibrary || []).filter(l => !l.archived);
-  // Grupos musculares presentes, en orden del vocabulario
-  const musclesPresent = LIB_MUSCLES.filter(m => all.some(l => l.muscle === m));
-  const equipPill = (val, label) => {
-    const active = _libFilterEquip === val;
-    return `<button onclick="setLibFilter('equip','${val}')" class="lib-pill${active ? ' active' : ''}">${label}</button>`;
-  };
-  const musclePill = (val, label) => {
-    const active = _libFilterMuscle === val;
-    return `<button onclick="setLibFilter('muscle','${val}')" class="lib-pill${active ? ' active' : ''}">${label}</button>`;
-  };
-
-  const filtered = all.filter(l =>
-    (_libFilterEquip === 'all' || l.equipment === _libFilterEquip) &&
-    (_libFilterMuscle === 'all' || l.muscle === _libFilterMuscle)
-  ).sort((a, b) => a.name.localeCompare(b.name));
-
-  let listHtml;
-  if (all.length === 0) {
-    listHtml = `<p style="font-size:var(--fs-12-5);color:var(--tt);text-align:center;padding:18px 0">Biblioteca vacía. Agregá el primer ejercicio.</p>`;
-  } else if (filtered.length === 0) {
-    listHtml = `<p style="font-size:var(--fs-12-5);color:var(--tt);text-align:center;padding:18px 0">No hay ejercicios con estos filtros.</p>`;
-  } else {
-    listHtml = filtered.map(l => {
-      const uses = libUsageCount(l.id);
-      return `<div class="lib-ex-row">
-        <div style="flex:1;min-width:0" onclick="openExHistByLib('${l.id}')" >
-          <div class="lib-ex-name">${l.name}</div>
-          <div class="lib-ex-meta">${l.equipment} · ${l.muscle} · ⏱ ${fmtRestTime(l.defaultRestSecs)} · ${l.defaultSets} series${uses ? ` · <span style="color:var(--c-salud)">en ${uses} rutina${uses > 1 ? 's' : ''}</span>` : ''}</div>
-        </div>
-        <button class="icon-btn" onclick="event.stopPropagation();openLibEx('${l.id}')" style="color:var(--tt);flex-shrink:0" title="Editar">
-          <svg viewBox="0 0 24 24" style="width:15px;height:15px"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-        </button>
-        <button class="icon-btn" onclick="event.stopPropagation();deleteLibEx('${l.id}')" style="color:var(--tt);flex-shrink:0" title="Borrar">
-          <svg viewBox="0 0 24 24" style="width:15px;height:15px"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
-        </button>
-      </div>`;
-    }).join('');
-  }
-
-  return `<div style="padding:10px 12px 14px">
-    <div class="lib-filter-lbl">Equipamiento</div>
-    <div class="lib-pill-row">${equipPill('all', 'Todos')}${LIB_EQUIPMENT.map(e => equipPill(e, e)).join('')}</div>
-    <div class="lib-filter-lbl" style="margin-top:10px">Grupo muscular</div>
-    <div class="lib-pill-row">${musclePill('all', 'Todos')}${musclesPresent.map(m => musclePill(m, m)).join('')}</div>
-    <div style="margin-top:12px">${listHtml}</div>
-  </div>`;
 }
 
 function toggleRutina(id) {
@@ -1259,10 +1140,8 @@ function openExHistByLib(libId) {
 // ── Session ──
 let _rtnSections = new Set();   // acordeón "Mis rutinas" cerrado por defecto (el Inicio es el plan semanal)
 let _entTab = 'plan';          // pestañas de la sección: plan | progreso | ejercicios
-function setEntTab(t) { _entTab = t; if (t === 'plan' && window.PlanUI) PlanUI.entrar(); renderRutinas(); }
+function setEntTab(t) { _entTab = t; if (t === 'plan' && window.PlanUI) PlanUI.entrar(); else if (window.EntrenoProg) EntrenoProg.entrar(); renderRutinas(); }
 let _statsPeriod = 'mes';
-let _muscleDistOpen = true;
-let _recordsOpen = true;
 
 function toggleRtnSection(name) {
   if (_rtnSections.has(name)) { _rtnSections.delete(name); } else { _rtnSections.add(name); }
@@ -1274,22 +1153,6 @@ function toggleRtnSection(name) {
 }
 
 function setStatsPeriod(p) { _statsPeriod = p; renderRutinas(); }
-
-function toggleMuscleDist() {
-  _muscleDistOpen = !_muscleDistOpen;
-  const body = document.getElementById('muscle-dist-body');
-  const chev = document.getElementById('muscle-dist-chev');
-  if (body) body.style.display = _muscleDistOpen ? 'block' : 'none';
-  if (chev) chev.style.transform = _muscleDistOpen ? 'rotate(0deg)' : 'rotate(-90deg)';
-}
-
-function toggleRecords() {
-  _recordsOpen = !_recordsOpen;
-  const body = document.getElementById('records-body');
-  const chev = document.getElementById('records-chev');
-  if (body) body.style.display = _recordsOpen ? 'block' : 'none';
-  if (chev) chev.style.transform = _recordsOpen ? 'rotate(0deg)' : 'rotate(-90deg)';
-}
 
 let _rtnTimers = {};         // { exId: intervalId }
 let _rtnTimerRemaining = {}; // { exId: secondsLeft } — derivado de _rtnTimerEndsAt, no se decrementa a mano

@@ -275,14 +275,16 @@ for (const vp of [{ w: 390, h: 844 }, { w: 1280, h: 900 }]) {
       await armarPlan(page, [{ off: 0, items: [{ r: 0 }] }]);
       await expect(page.locator('.pe-tab')).toHaveText(['Plan', 'Progreso', 'Ejercicios']);
       await page.locator('.pe-tab', { hasText: 'Progreso' }).click();
-      await expect(page.locator('#rutinas-wrap')).toContainText('Entrenamientos');
-      await expect(page.locator('#rutinas-wrap')).toContainText('Records');
-      await expect(page.locator('#rutinas-wrap')).toContainText('Distribución muscular');
-      await page.getByRole('button', { name: 'trimestre' }).click();                       // selector de período sigue funcionando
-      await expect(page.locator('#rutinas-wrap')).toContainText('Entrenamientos');
+      await expect(page.locator('#rutinas-wrap')).toContainText('Entrenos');
+      await expect(page.locator('#rutinas-wrap')).toContainText('Récords');
+      await expect(page.locator('#rutinas-wrap')).toContainText('Músculos trabajados');
+      await expect(page.locator('#rutinas-wrap')).toContainText('Mapa muscular');
+      await page.getByRole('button', { name: '3 meses' }).click();                         // selector de período (1M/3M/6M/1A) sigue funcionando
+      await expect(page.getByRole('button', { name: '3 meses' })).toHaveAttribute('aria-pressed', 'true');
+      await expect(page.locator('#rutinas-wrap')).toContainText('Entrenos');
       await shot(page, `11-progreso-${vp.w}`);
       await page.locator('.pe-tab', { hasText: 'Ejercicios' }).click();
-      await expect(page.locator('#rutinas-wrap .lib-pill').first()).toBeVisible();          // filtros de la biblioteca
+      await expect(page.locator('#rutinas-wrap .prg-chip').first()).toBeVisible();          // filtros de la biblioteca
       await expect(page.getByRole('button', { name: '+ Nuevo' })).toBeVisible();
       await shot(page, `12-ejercicios-${vp.w}`);
       await page.locator('.pe-tab', { hasText: 'Plan' }).click();
