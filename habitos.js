@@ -316,6 +316,7 @@ function renderHabitsCard(section) {
     ${(() => { const ah = habits.find(h => h.id === _habitActiveId[section]); return ah && ah.auto ? `<div class="habit-auto-tag">${ah.auto.type === 'comidas' ? '🍽️' : '🌙'} ${habitAutoTexto(ah.auto)}</div>` : ''; })()}
     <div id="habit-stats-${section}"></div>
     <div id="habit-cal-${section}"></div>
+    <div id="habit-heat-${section}"></div>
     <div id="habit-chart-wrap-${section}" style="height:120px;margin:12px 0 4px;display:none">
       <canvas id="habit-chart-${section}"></canvas>
     </div>
@@ -369,6 +370,7 @@ function renderHabitCal(section) {
   const calEl   = document.getElementById(`habit-cal-${section}`);
   const statsEl = document.getElementById(`habit-stats-${section}`);
   if (!calEl) return;
+  renderHabitHeat(section);
 
   const activeId = _habitActiveId[section];
   if (!activeId) return;
@@ -566,6 +568,71 @@ function _renderHabitHeatmap(section, habit, today) {
     <span><i class="dot" style="background:rgba(255,255,255,.14)"></i>Descanso</span>
     <span><i class="dot" style="background:rgba(255,255,255,.05)"></i>Sin registro</span>
   </div>`;
+}
+
+// ── Mapa de calor de la sección (HUD D6): un cuadradito por día, intensidad = hechos / (hábitos que aplican − descansos),
+//    usando SOLO los hábitos de esa sección. Mismos criterios que el calendario: 'done'/'studied' = 1, 'partial' = 0,5,
+//    'rest' no cuenta ni arriba ni abajo; el resto (sin registro, incumplido) cuenta en el denominador.
+//    Un hábito "aplica" desde su primer día registrado (no tiene fecha de alta) y nunca en el futuro.
+//    Devuelve { n: nivel 0-4, o -1 si el día es neutro (todo en descanso / nada aplica), pts, den, rest }.
+function habitHeatDay(habits, ds, today) {
+  let pts = 0, den = 0, rest = 0;
+  if (ds <= today) {
+    for (const h of habits) {
+      const days = h.days || {}, st = days[ds];
+      const ini = Object.keys(days).sort()[0];
+      if (!ini || ds < ini) continue;
+      if (st === 'rest') { rest++; continue; }
+      den++;
+      if (st === 'done' || st === 'studied') pts++;
+      else if (st === 'partial') pts += 0.5;
+    }
+  }
+  const n = den === 0 ? -1 : pts === 0 ? 0 : Math.min(4, Math.ceil(pts / den * 4));
+  return { n, pts, den, rest };
+}
+
+const HEAT_WEEKS = 19;
+function renderHabitHeat(section) {
+  const el = document.getElementById(`habit-heat-${section}`);
+  if (!el) return;
+  const habits = _getHabits(section);
+  if (!habits.length) { el.innerHTML = ''; return; }
+  const today = getActiveDate();
+  const t0 = new Date(today + 'T00:00:00');
+  let dow = t0.getDay(); dow = dow === 0 ? 6 : dow - 1;
+  const d = new Date(t0);
+  d.setDate(d.getDate() - dow - (HEAT_WEEKS - 1) * 7);   // lunes de la primera columna
+  const MON = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  const WD = ['L','','X','','V','','D'];
+  let html = '<span class="hh-corner"></span>' + WD.map(w => `<span class="hh-wd">${w}</span>`).join('');
+  for (let c = 0; c < HEAT_WEEKS; c++) {
+    html += `<span class="hh-mon">${d.getDate() <= 7 ? MON[d.getMonth()] : ''}</span>`;
+    for (let r = 0; r < 7; r++) {
+      const ds = calDateStr(d.getFullYear(), d.getMonth(), d.getDate());
+      let cls = 'hh-cell', info = '';
+      if (ds > today) cls += ' fut';
+      else {
+        const x = habitHeatDay(habits, ds, today);
+        cls += x.n < 0 ? ' neu' : ` on l${x.n}`;
+        if (ds === today) cls += ' hh-today';
+        const f = v => String(v).replace('.', ',');
+        info = (x.n < 0 ? 'sin hábitos que cuenten' : `${f(x.pts)} de ${x.den}`) + (x.rest ? ` · ${x.rest} en descanso` : '');
+        info = d.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' }) + ' · ' + info;
+      }
+      html += `<span class="${cls}" style="--hc:${c};--hr:${r}"${info ? ` data-i="${info}" title="${info}"` : ''}></span>`;
+      d.setDate(d.getDate() + 1);
+    }
+  }
+  el.innerHTML = `<div class="hh" role="img" aria-label="Mapa de calor de hábitos de las últimas ${HEAT_WEEKS} semanas">
+    <div class="hh-title">Mapa de calor · ${HEAT_WEEKS} semanas</div>
+    <div class="hh-grid">${html}</div>
+    <div class="hh-foot"><span class="hh-info">Tocá un día</span><span class="hh-leg">Menos<i class="hh-cell on l0"></i><i class="hh-cell on l1"></i><i class="hh-cell on l2"></i><i class="hh-cell on l3"></i><i class="hh-cell on l4"></i>Más</span></div>
+  </div>`;
+  const info = el.querySelector('.hh-info');
+  const show = e => { const c = e.target.closest('.hh-cell[data-i]'); if (c) info.textContent = c.dataset.i; };
+  el.querySelector('.hh-grid').addEventListener('mouseover', show);
+  el.querySelector('.hh-grid').addEventListener('click', show);
 }
 
 function _renderHabitChart(section, habit) {

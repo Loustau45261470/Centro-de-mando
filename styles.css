@@ -1772,6 +1772,37 @@ button.goal-hora-vacio:hover { color: var(--tp); background: rgba(255,255,255,.0
   .study-cal-day.today-cell::after { display:none; }
 }
 
+/* Mapa de calor de hábitos (HUD D6): color de la sección (--card-accent), 5 niveles; se enciende en ola solo al entrar (html.mo-in), hoy late como el calendario */
+.hh { margin:14px 0 4px; padding:0 8px; }
+.hh-title { font-size:var(--fs-12-5); color:var(--tt); font-family:var(--mono); letter-spacing:.04em; text-transform:uppercase; margin-bottom:6px; }
+.hh-grid { display:grid; grid-auto-flow:column; grid-template-rows:auto repeat(7,auto); grid-template-columns:14px repeat(19,minmax(0,1fr)); gap:2px; }
+.hh-corner, .hh-mon, .hh-wd { font-size:10px; line-height:1; color:var(--tt); font-family:var(--mono); white-space:nowrap; align-self:center; }
+.hh-mon { height:12px; overflow:visible; }
+.hh-cell { display:block; aspect-ratio:1; border-radius:20%; background:transparent; }
+.hh-cell.neu { box-shadow:inset 0 0 0 1px rgba(255,255,255,.08); }
+.hh-cell.fut { box-shadow:inset 0 0 0 1px rgba(255,255,255,.04); }
+.hh-cell.on { background:rgba(255,255,255,.07); }
+.hh-cell.on.l1 { background:color-mix(in srgb, var(--card-accent, var(--accent)) 24%, transparent); }
+.hh-cell.on.l2 { background:color-mix(in srgb, var(--card-accent, var(--accent)) 46%, transparent); }
+.hh-cell.on.l3 { background:color-mix(in srgb, var(--card-accent, var(--accent)) 72%, transparent); }
+.hh-cell.on.l4 { background:var(--card-accent, var(--accent)); box-shadow:0 0 5px color-mix(in srgb, var(--card-accent, var(--accent)) 55%, transparent); }
+.hh-cell[data-i] { cursor:pointer; }
+.hh-foot { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:8px; font-size:var(--fs-12-5); color:var(--tt); flex-wrap:wrap; }
+.hh-info { color:var(--tp, inherit); font-family:var(--mono); }
+.hh-leg { display:inline-flex; align-items:center; gap:3px; }
+.hh-leg .hh-cell { width:11px; height:11px; aspect-ratio:auto; }
+.hh-today { position:relative; z-index:2; animation:cal-hoy-pulse 1.4s ease-in-out infinite; }
+.hh-today::after { content:""; position:absolute; inset:0; pointer-events:none; border:1.5px solid color-mix(in srgb, var(--card-accent, var(--accent)) 75%, transparent); border-radius:inherit; animation:hh-ring 1.1s ease-out infinite; }
+@keyframes hh-ring { from { inset:0; opacity:.75; } to { inset:-5px; opacity:0; } }
+@keyframes hh-on { from { opacity:.15; filter:brightness(2.2); transform:scale(.6); } to { opacity:1; filter:none; transform:none; } }
+html.mo-in .tab-panel.active .hh-cell.on:not(.hh-leg .hh-cell) { animation:hh-on .38s ease-out backwards; animation-delay:calc(var(--hc) * 14ms + var(--hr) * 4ms); }
+html.mo-in .tab-panel.active .hh-cell.hh-today { animation:hh-on .38s ease-out backwards, cal-hoy-pulse 1.4s ease-in-out infinite; animation-delay:calc(var(--hc) * 14ms + var(--hr) * 4ms), 0s; }
+@media (prefers-reduced-motion:reduce) {
+  .hh-today { animation:none; box-shadow:inset 0 0 0 1.5px color-mix(in srgb, var(--card-accent, var(--accent)) 90%, transparent); }
+  .hh-today::after { display:none; }
+  html.mo-in .tab-panel.active .hh-cell.on:not(.hh-leg .hh-cell), html.mo-in .tab-panel.active .hh-cell.hh-today { animation:none; }
+}
+
 .study-cal-dot {
   width:26px; height:26px; border-radius:50%;
   border:1.5px solid rgba(255,255,255,.13);
