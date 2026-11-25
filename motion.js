@@ -76,7 +76,42 @@ const CMMotion = (() => {
     if (cx.length) panel._cxT = setTimeout(() => cx.forEach(c => { c.classList.remove('cx-in'); c.style.removeProperty('--cx-d'); }), CX_CAP + 800);   // 700 ms de la animación más larga + margen
     // Totales: descifrado completo al entrar (descifrar.js; los k-val del kpi-strip los maneja jarvis-intel con el mismo helper).
     for (const el of panel.querySelectorAll(NUM_SEL)) if (el.getClientRects().length) { if (window.cmDescifrar) cmDescifrar(el, el.textContent, { full: true }); else countUp(el, { from: 0 }); }
+    drawSparks(panel);
     return els.length;
+  }
+
+  // ── 1b. Mini gráficos que se dibujan (HUD D5) ──────────────────────
+  // Sparklines de tendencia de los KPI (.k-spark: Vida, Finanzas, Salud, Estudio, IA): al ENTRAR a la sección la línea se revela de izquierda a derecha
+  // (~800 ms) con un punto de luz en la punta y el último valor aparece al final. Se llama solo desde enterPanel (no al re-renderizar por guardar)
+  // y solo sobre los svg visibles. Todo WAAPI (clip-path + transform), nada queda animando al terminar.
+  const SPARK_MS = 800, SPARK_PAD = 6;
+  function drawSparks(panel) {
+    for (const svg of panel.querySelectorAll('svg.k-spark')) {
+      try {
+        if (!svg.getClientRects().length) continue;
+        const poly = svg.querySelector('polyline'); if (!poly) continue;
+        if (svg._skA) svg._skA.forEach(a => a.cancel());
+        const pts = (poly.getAttribute('points') || '').trim().split(/\s+/).map(p => p.split(',').map(Number)).filter(p => p.length === 2 && isFinite(p[0]) && isFinite(p[1]));
+        if (pts.length < 2) continue;
+        const col = poly.getAttribute('stroke') || 'currentColor';
+        const timing = { duration: SPARK_MS, easing: 'cubic-bezier(0.45, 0, 0.25, 1)', fill: 'backwards' };
+        // el svg se estira (preserveAspectRatio none): elipse con radios compensados para que el punto se vea redondo (3 px)
+        const bb = svg.getBoundingClientRect(), tip = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+        tip.setAttribute('class', 'k-tip'); tip.setAttribute('rx', String(3 / ((bb.width / 100) || 1))); tip.setAttribute('ry', String(3 / ((bb.height / 24) || 1))); tip.setAttribute('fill', col);
+        tip.style.filter = 'drop-shadow(0 0 4px ' + col + ') drop-shadow(0 0 8px ' + col + ')';
+        svg.appendChild(tip);
+        const anims = [];
+        anims.push(svg.animate(
+          [{ clipPath: `inset(-${SPARK_PAD}px 100% -${SPARK_PAD}px -${SPARK_PAD}px)` }, { clipPath: `inset(-${SPARK_PAD}px -${SPARK_PAD}px -${SPARK_PAD}px -${SPARK_PAD}px)` }], timing));
+        const n = pts.length;
+        const kf = pts.map((p, i) => ({ transform: `translate(${p[0]}px, ${p[1]}px)`, offset: i / (n - 1) }));
+        anims.push(tip.animate(kf, timing));
+        const lastC = svg.querySelector('circle:not(.k-tip)');
+        if (lastC) anims.push(lastC.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 160, delay: SPARK_MS - 160, easing: 'ease-out', fill: 'backwards' }));
+        svg._skA = anims;
+        anims[1].onfinish = anims[1].oncancel = () => tip.remove();
+      } catch (e) {}
+    }
   }
 
   // ── 2. Count-up ─────────────────────────────────────────────────────

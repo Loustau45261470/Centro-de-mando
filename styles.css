@@ -352,8 +352,7 @@ body:not([class*="theme-"]) #hud-ambient { display: none; }
 /* ── KPI: sparkline 14-días, count-up, flash, barra animada ── */
 .kpi-tile .k-spark { display: block; width: 100%; height: 15px; margin-top: 7px; overflow: visible; }
 /* spark/barra/valor solo se animan cuando jarvis-intel marca la tira como .kpi-enter (entrada a la sección), no en cada re-render */
-.kpi-strip.kpi-enter .kpi-tile .k-spark { animation: spark-draw var(--dur-slow) var(--ease-out-expo) both; animation-delay: 60ms; }
-@keyframes spark-draw { from { clip-path: inset(0 100% 0 0); opacity: 0; } to { clip-path: inset(0 0 0 0); opacity: 1; } }
+/* el dibujo del spark (línea de izquierda a derecha + punto de luz, HUD D5) lo hace motion.js drawSparks al entrar a la sección */
 .kpi-tile .k-bar i { transform-origin: left center; }
 .kpi-strip.kpi-enter .kpi-tile .k-bar i { animation: kbar-grow var(--dur-slow) var(--ease-out-expo) both; animation-delay: 80ms; }
 @keyframes kbar-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
@@ -6907,7 +6906,7 @@ body:has(#pushdead-banner) #avisos-app{top:max(var(--av-top,0px),calc(env(safe-a
   .tab-panel.active, .modal-overlay.open, #ach-overlay.open, #gm-logros-overlay.show, #gm-tree-overlay.show,
   .modal, #ach-panel, #notas-overlay.show #notas-panel, .plov-pane,
   .k-val.k-pop, .k-val.k-flash,
-  .kpi-strip.kpi-enter .kpi-tile .k-spark, .kpi-strip.kpi-enter .kpi-tile .k-bar i { animation: none !important; }
+  .kpi-strip.kpi-enter .kpi-tile .k-bar i { animation: none !important; }
   .card.sr-armed { transition: none; }
 }
 
