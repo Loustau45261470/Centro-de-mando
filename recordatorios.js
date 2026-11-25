@@ -320,6 +320,35 @@ const REM_NOTIF_MAX = 5;
 const _remNotifMore = {};   // tab -> true si "Ver más" está desplegado (sobrevive al refresco de cada minuto)
 function remNotifToggle(tab) { _remNotifMore[tab] = !_remNotifMore[tab]; renderRemindersNotif(tab); }
 
+// HUD E8 — cuenta regresiva en las tarjetas «Vencimientos» de TODAS las secciones: cada fila lleva una barra de tiempo (14 días = llena) y un tono que
+// va de verde (5 días o más) a ámbar (menos de 5) y rojo (menos de 1 día o ya pasó); en rojo corren los segundos y la fila late. El tono solo mira la hora:
+// no toca datos. Un único intervalo de 1 s existe mientras haya una fila en rojo; no hace nada con la pestaña oculta ni con la fila fuera de pantalla.
+let _remTickT = null;
+function _remHMS(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000)), p = n => String(n).padStart(2, '0');
+  return p(Math.floor(s / 3600)) + ':' + p(Math.floor(s % 3600 / 60)) + ':' + p(s % 60);
+}
+function _remCdTexto(diff) {   // diff > 0
+  if (diff < 86400000) return _remHMS(diff);
+  const d = Math.floor(diff / 86400000), h = Math.floor(diff % 86400000 / 3600000);
+  return d + ' d ' + h + ' h';
+}
+function _remTick() {
+  const rows = document.querySelectorAll('.rnotif-item[data-at]');
+  if (!rows.length) { clearInterval(_remTickT); _remTickT = null; return; }
+  if (document.hidden) return;
+  const now = Date.now(), vencidas = new Set();
+  rows.forEach(r => {
+    if (!r.offsetParent) return;
+    const left = Number(r.dataset.at) - now;
+    if (left <= 0) { const b = r.closest('[id^="reminders-notif-"]'); if (b) vencidas.add(b.id.slice('reminders-notif-'.length)); return; }
+    const cd = r.querySelector('.rnotif-cd'), t = _remHMS(left);
+    if (cd && cd.textContent !== t) cd.textContent = t;
+  });
+  vencidas.forEach(tab => renderRemindersNotif(tab));   // pasó la hora: la fila pasa a «Vencido»
+}
+function _remTickEnsure() { if (!_remTickT && document.querySelector('.rnotif-item[data-at]')) _remTickT = setInterval(_remTick, 1000); }
+
 function renderRemindersNotif(tab) {
   const body = document.getElementById('reminders-notif-' + tab); if (!body) return;
   if (!S.reminders) S.reminders = {};
@@ -348,7 +377,8 @@ function renderRemindersNotif(tab) {
     // Ámbar solo para lo que es YA (3 h). Con el umbral de 24 h, todo el grupo "Hoy"
     // se pintaba de ámbar y el color dejaba de avisar nada.
     const imminent = !overdue && diff < 3 * 3600000;
-    const cd = overdue ? 'Vencido' : ((typeof remCountdown === 'function') ? remCountdown(r.datetime) : '');
+    const tono = overdue ? '' : diff < 86400000 ? 'r' : diff < 5 * 86400000 ? 'a' : 'v';
+    const cd = overdue ? 'Vencido' : _remCdTexto(diff);
     const d = new Date(r.at);
     const when = d.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' })
       + (r.allDay ? '' : ' · ' + d.toTimeString().slice(0, 5));
@@ -358,7 +388,7 @@ function renderRemindersNotif(tab) {
     const act = r.openAction
       ? ` onclick="event.stopPropagation();${r.openAction}" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();event.stopPropagation();this.click();}"`
       : '';
-    return `<div class="rnotif-item${overdue ? ' overdue' : imminent ? ' imminent' : ''}" role="listitem" style="--i:${i++}"${act} title="Prioridad ${prioCfg.label.toLowerCase()}">
+    return `<div class="rnotif-item${overdue ? ' overdue' : imminent ? ' imminent' : ''}${tono ? ' rnotif-t-' + tono : ''}${tono === 'r' ? ' rnotif-hot' : ''}"${tono === 'r' ? ` data-at="${r.at}"` : ''} role="listitem" style="--i:${i++}"${act} title="Prioridad ${prioCfg.label.toLowerCase()}">
       <span class="rnotif-dot"${dotStyle}></span>
       <div class="rnotif-body">
         <span class="sr-only">Prioridad ${prioCfg.label}.</span>
@@ -366,6 +396,7 @@ function renderRemindersNotif(tab) {
         <div class="rnotif-when"><span class="rnotif-date">${when}</span>${r.sub ? ` · ${escHtml(r.sub)}` : ''}</div>
       </div>
       ${cd ? `<span class="rnotif-cd">${cd}</span>` : ''}
+      ${tono ? `<span class="rnotif-bar" aria-hidden="true"><b style="--w:${Math.round(Math.min(1, diff / (14 * 86400000)) * 100)}"></b></span>` : ''}
     </div>`;
   };
 
@@ -381,6 +412,7 @@ function renderRemindersNotif(tab) {
   }
   if (vencidos.length) html += `<div class="rnotif-group is-overdue">Vencido · ${vencidos.length}</div><div role="list" class="rnotif-over">${vencidos.map(filaHTML).join('')}</div>`;
   body.innerHTML = html + verAll;
+  _remTickEnsure();
 }
 
 // Re-dibuja los vencimientos de la sección visible. Lo llaman el intervalo de un

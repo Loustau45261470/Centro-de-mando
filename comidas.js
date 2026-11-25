@@ -147,6 +147,7 @@ function _comQuitarBorrar(id) {
   document.querySelectorAll('.com-bib-row').forEach(r => { if (r.dataset.id === id) r.querySelectorAll('button[title="Borrar"]').forEach(b => b.remove()); });
 }
 function _comResumenVivo() {
+  comPlatoVivo();
   const t = document.getElementById('comResumenDia');
   if (t) t.textContent = _comTextoDia(getActiveDate());
   const q = document.getElementById('comResumenSana');
@@ -217,6 +218,48 @@ function comBorrar(id) {
   saveState(); renderDieta(); renderDietaResumen();
 }
 
+// ── Plato (HUD E6): un anillo con una porción por comida. Cada porción se llena según lo marcado ese día, con el color de la sección (Salud):
+//    sana = color pleno con brillo, no sana = el mismo color tenue, sin clasificar = casi apagado. Se anima solo al marcar/desmarcar (comPlatoVivo);
+//    al pintar de nuevo (abrir, guardar un alimento) sale ya en su estado final. Solo dibuja: no escribe nada en S. ──
+function _comPlatoDatos(ds) {
+  return COM_COMIDAS.map(c => {
+    let s = 0, n = 0, u = 0;
+    comAlimentosDe(c.id).forEach(a => { if (!comComio(ds, c.id, a.id)) return; if (a.sana === true) s++; else if (a.sana === false) n++; else u++; });
+    return { s, n, u, t: s + n + u };
+  });
+}
+// Tramo de la porción (pathLength=1) que ocupa cada clase: sana primero, luego no sana, luego sin clasificar.
+function _comPlatoDash(d, k) {
+  if (!d.t) return '0 0 0 2';
+  const fs = d.s / d.t, fn = d.n / d.t, fu = d.u / d.t;
+  const [a, b] = k === 's' ? [0, fs] : k === 'n' ? [fs, fn] : [fs + fn, fu];
+  return '0 ' + a.toFixed(4) + ' ' + b.toFixed(4) + ' 2';
+}
+function _comPlatoTexto(datos) {
+  const c = datos.filter(d => d.t).length, s = datos.reduce((x, d) => x + d.s, 0), n = datos.reduce((x, d) => x + d.n, 0);
+  return { n: c, aria: 'Plato: ' + c + ' de ' + COM_COMIDAS.length + ' comidas cargadas, ' + s + (s === 1 ? ' sana' : ' sanas') + ' y ' + n + (n === 1 ? ' no sana' : ' no sanas') };
+}
+function _comPlatoHTML(ds) {
+  const datos = _comPlatoDatos(ds), R = 44, GAP = 0.05, N = COM_COMIDAS.length, TAU = Math.PI * 2, t = _comPlatoTexto(datos);
+  const arc = i => {
+    const a0 = i / N * TAU + GAP, a1 = (i + 1) / N * TAU - GAP;
+    return 'M' + (60 + R * Math.cos(a0)).toFixed(2) + ' ' + (60 + R * Math.sin(a0)).toFixed(2) + ' A' + R + ' ' + R + ' 0 0 1 ' + (60 + R * Math.cos(a1)).toFixed(2) + ' ' + (60 + R * Math.sin(a1)).toFixed(2);
+  };
+  const bg = COM_COMIDAS.map((c, i) => '<path class="com-plato-bg" d="' + arc(i) + '"/>').join('');
+  const seg = COM_COMIDAS.map((c, i) => ['s', 'n', 'u'].map(k => '<path class="com-plato-p ' + k + '" data-i="' + i + '" data-k="' + k + '" pathLength="1" d="' + arc(i) + '" style="stroke-dasharray:' + _comPlatoDash(datos[i], k) + '"/>').join('')).join('');
+  return '<div class="com-plato" id="comPlato"><div class="com-plato-fig"><svg class="com-plato-svg" viewBox="0 0 120 120" role="img" aria-label="' + t.aria + '">' + bg + seg + '<circle class="com-plato-in" cx="60" cy="60" r="34"/></svg>'
+    + '<div class="com-plato-ct" aria-hidden="true"><b>' + t.n + '/' + N + '</b><span>comidas</span></div></div>'
+    + '<div class="com-plato-leg"><span><i></i>Sana</span><span><i class="n"></i>No sana</span><span><i class="u"></i>Sin clasificar</span></div></div>';
+}
+// Al marcar/desmarcar o escribir una cantidad: mueve las porciones del plato que ya está en pantalla (la transición CSS las anima).
+function comPlatoVivo() {
+  const fig = document.getElementById('comPlato'); if (!fig) return;
+  const datos = _comPlatoDatos(getActiveDate()), t = _comPlatoTexto(datos);
+  fig.querySelectorAll('.com-plato-p').forEach(p => { p.style.strokeDasharray = _comPlatoDash(datos[+p.dataset.i], p.dataset.k); });
+  const b = fig.querySelector('.com-plato-ct b'); if (b) b.textContent = t.n + '/' + COM_COMIDAS.length;
+  const sv = fig.querySelector('svg'); if (sv) sv.setAttribute('aria-label', t.aria);
+}
+
 // ── Render ──
 function _comSanaTxt(a) { return a.sana === true ? 'Sana' : a.sana === false ? 'No sana' : 'Sin clasificar'; }
 function _comMarcaSana(a) {
@@ -260,6 +303,7 @@ function renderDieta() {
     ? todos.map(_comBibFilaHTML).join('')
     : '<p class="com-vacio">La biblioteca está vacía. Agregá el primer alimento con “+ Alimento”.</p>';
   body.innerHTML = `
+    ${_comPlatoHTML(ds)}
     <div class="com-dia" id="comResumenDia">${_comTextoDia(ds)}</div>
     <div class="com-dia com-dia-sana" id="comResumenSana">${_comTextoSana(ds)}</div>
     ${bloques}

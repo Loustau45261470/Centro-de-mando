@@ -812,6 +812,9 @@ const PR_AV_CARD_MS = 8000;
 let _prAvRit = [];   // rituales «Para hacer» (cierre del día, revisión semanal): ítems del panel, sin tarjeta grande
 let _prAvSig = '', _prAvItems = [], _prAvAbierto = false, _prAvCard = [];
 let _prAvTimer = null, _prAvTsTimer = null;
+// HUD E3: la campanita late/suena solo cuando sube el contador, el panel baja solo al abrirse y lo que sale de la lista se desliza afuera (nada de esto corre en un re-render común).
+let _prAvNPrev = 0, _prAvPanelPrev = false;
+const _prSinAnim = () => { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } };
 const _prAvMostrados = new Set();   // avisos que ya se desplegaron en esta sesión (se olvidan al desaparecer: si vuelven, son nuevos)
 const _prOcultos = {};              // "Ocultar" de los avisos por datos: id → firma del aviso; en memoria, vuelve al cambiar el estado o al recargar
 function _prVistoKey(hoy) { return 'cm_pr_visto_' + hoy; }
@@ -826,7 +829,7 @@ function _prDatosEval(hoy) {
 function _prQuitarAvisos() {
   const el = document.getElementById('pr-avisos'); if (el) el.remove();
   clearTimeout(_prAvTimer); clearTimeout(_prAvTsTimer);
-  _prAvSig = ''; _prAvItems = []; _prAvRit = []; _prAvAbierto = false; _prAvCard = [];
+  _prAvSig = ''; _prAvItems = []; _prAvRit = []; _prAvAbierto = false; _prAvCard = []; _prAvNPrev = 0; _prAvPanelPrev = false;
 }
 function _prAvBtn(txt, label, onclick, id, cls) {
   return '<button type="button" class="pr-btn' + (cls ? ' ' + cls : '') + '" aria-label="' + _prEsc(label) + '"' + (id ? ' data-id="' + _prEsc(id) + '"' : '') + ' onclick="' + onclick + '">' + txt + '</button>';
@@ -847,7 +850,7 @@ function _prSugsHtml(p, omitirPosponer, cls) {
 }
 function _prAvItemPanel(it) {
   const id = it.p.id, pos = (txt, label, fn) => _prAvBtn(txt, label, fn, id);
-  return '<div class="pr-av-item">' + _prAvTexto(it) + _prSugsHtml(it.p, true)
+  return '<div class="pr-av-item" data-k="' + _prEsc(it.k) + '">' + _prAvTexto(it) + _prSugsHtml(it.p, true)
     + '<div class="pr-av-pos" role="group" aria-label="Posponer"><span class="pr-av-pl">Posponer</span>'
     + pos('15 min', 'Posponer 15 minutos', 'Principios.posponerMin(this.dataset.id,15)') + pos('1 h', 'Posponer 1 hora', 'Principios.posponerMin(this.dataset.id,60)')
     + pos('3 h', 'Posponer 3 horas', 'Principios.posponerMin(this.dataset.id,180)') + pos('Mañana', 'Posponer hasta mañana', 'Principios.posponer(this.dataset.id)')
@@ -862,7 +865,7 @@ function _prRituales() {
   return out;
 }
 function _prAvItemRitual(r) {
-  return '<div class="pr-av-item pr-av-rit"><div class="pr-av-t">' + _prEsc(r.titulo) + '</div><div class="pr-av-por">' + _prEsc(r.sub) + '</div>'
+  return '<div class="pr-av-item pr-av-rit" data-k="r:' + _prEsc(r.k) + '"><div class="pr-av-t">' + _prEsc(r.titulo) + '</div><div class="pr-av-por">' + _prEsc(r.sub) + '</div>'
     + '<div class="pr-av-fin">' + _prAvBtn(_prEsc(r.label), r.titulo, "Principios.ritual(this.dataset.id,'abrir')", r.k, 'pr-btn-p')
     + _prAvBtn('Descartar', 'Descartar: ' + r.titulo, "Principios.ritual(this.dataset.id,'descartar')", r.k) + '</div></div>';
 }
@@ -871,16 +874,34 @@ function _prAvPintar() {
   if (!el) { el = document.createElement('div'); el.id = 'pr-avisos'; el.className = 'pr-avisos'; document.body.appendChild(el); }
   const n = _prAvItems.length + _prAvRit.length, ab = _prAvAbierto, enPanel = !!el.querySelector('#pr-av-panel:focus-within, #pr-av-panel:focus');
   const card = ab ? [] : _prAvCard.map(k => _prAvItems.find(i => i.k === k)).filter(Boolean);
-  let h = '<button type="button" class="pr-bell' + (n ? ' tiene' : '') + '" aria-label="Avisos' + (n ? ': ' + n + (n === 1 ? ' pendiente' : ' pendientes') : ': ninguno') + '" aria-expanded="' + ab + '" aria-controls="pr-av-panel" onclick="Principios.campana()">'
+  const anim = !_prSinAnim(), late = anim && n > _prAvNPrev, abre = anim && ab && !_prAvPanelPrev;
+  const viejos = ab && _prAvPanelPrev ? [...el.querySelectorAll('#pr-av-panel .pr-av-item')].map(x => ({ n: x, k: x.dataset.k, h: x.offsetHeight })) : [];
+  let h = '<button type="button" class="pr-bell' + (n ? ' tiene' : '') + (late ? ' pr-bell-late' : '') + '" aria-label="Avisos' + (n ? ': ' + n + (n === 1 ? ' pendiente' : ' pendientes') : ': ninguno') + '" aria-expanded="' + ab + '" aria-controls="pr-av-panel" onclick="Principios.campana()">'
     + _PR_BELL_SVG + (n ? '<span class="pr-bell-n" aria-hidden="true">' + (n > 9 ? '9+' : n) + '</span>' : '') + '</button>';
   if (card.length) {
     h += '<div class="pr-av-card" role="status" aria-live="polite">' + _prAvTexto(card[0]) + _prSugsHtml(card[0].p, false)
       + '<div class="pr-av-fin">' + _prAvBtn(card.length > 1 ? 'y ' + (card.length - 1) + ' más' : 'Posponer…', card.length > 1 ? 'Ver los demás avisos' : 'Ver opciones para posponer', 'Principios.campana()', '', 'pr-btn-p')
       + _prAvBtn('Cerrar', 'Cerrar la tarjeta', 'Principios.cerrarTarjeta()', '') + '</div></div>';
   }
-  if (ab) h += '<div class="pr-av-panel" id="pr-av-panel" role="region" aria-label="Avisos" tabindex="-1"><div class="pr-av-ph">Avisos (' + n + ')</div>'
+  if (ab) h += '<div class="pr-av-panel' + (abre ? ' pr-av-abre' : '') + '" id="pr-av-panel" role="region" aria-label="Avisos" tabindex="-1"><div class="pr-av-ph">Avisos (' + n + ')</div>'
     + (n ? _prAvRit.map(_prAvItemRitual).join('') + _prAvItems.map(_prAvItemPanel).join('') : '<div class="pr-av-vacio">No tenés avisos por ahora.</div>') + '</div>';
   el.innerHTML = h;
+  const pn0 = ab ? el.querySelector('#pr-av-panel') : null;
+  if (pn0) {
+    const vivos = [...pn0.querySelectorAll('.pr-av-item')];
+    if (abre) vivos.forEach((x, i) => x.style.setProperty('--i', i));
+    // Lo que ya no está en la lista (visto, ocultado, descartado, pospuesto) se desliza afuera y se borra: no queda acumulado.
+    if (anim && viejos.length) {
+      const ks = new Set(vivos.map(x => x.dataset.k)); let kept = 0;
+      viejos.forEach(v => {
+        if (ks.has(v.k)) { kept++; return; }
+        const g = v.n; g.classList.add('pr-av-sale'); g.style.setProperty('--h', v.h + 'px'); g.setAttribute('aria-hidden', 'true'); g.inert = true;
+        pn0.insertBefore(g, vivos[kept] || pn0.querySelector('.pr-av-vacio'));
+        g.addEventListener('animationend', () => g.remove()); setTimeout(() => g.remove(), 800);
+      });
+    }
+  }
+  _prAvNPrev = n; _prAvPanelPrev = ab;
   const c = el.querySelector('.pr-av-card');
   if (c) {
     c.onpointerenter = c.onfocusin = () => clearTimeout(_prAvTimer);

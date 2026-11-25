@@ -1118,6 +1118,7 @@ function onTxnPaymentChange() {
   document.getElementById('txnAccountLbl').textContent = expense ? 'Medio de pago' : 'Cuenta';
   document.getElementById('txnCardPanel').style.display = card ? '' : 'none';
   document.getElementById('txnCurrencyRow').style.display = card ? 'none' : '';   // las compras con tarjeta son en pesos
+  txnPrintSync(false);
   if (card) onCardChargeModeChange();
   else { document.getElementById('txnCategoryRow').style.display = ''; _coverSyncUi(); }
   syncTxnDiscount();
@@ -1333,7 +1334,30 @@ function syncTxnDiscount() {
   if (!ok) setTxnDiscount(0); else { syncTxnRefundUi(); updateTxnDiscountPreview(); }
   if (typeof repUiSync === 'function') repUiSync('txnRep');
 }
-function onTxnAmountInput() { updateTxnDiscountPreview(); updateCardChargePreview(); }
+function onTxnAmountInput() { updateTxnDiscountPreview(); updateCardChargePreview(); txnPrintSync(true); }
+// ── Monto que se imprime (HUD E9): réplica visual del campo #txnAmount (que sigue siendo el real: no se toca su valor ni su teclado). Cada carácter que
+//    escribís cae con un destello, los puntos de miles aparecen solos y una barra de luces dice qué parte del presupuesto del mes es ese gasto
+//    (solo gasto en pesos y con presupuesto cargado). Solo anima al escribir (animar=true); abrir/cambiar medio de pago repinta sin animar. ──
+let _txnPrintRaw = '';
+function txnPrintSync(animar) {
+  const box = document.getElementById('txnPrint'); if (!box) return;
+  const inp = document.getElementById('txnAmount'), raw = /^-?\d*\.?\d*$/.test(inp.value) ? inp.value : '';
+  const neg = raw[0] === '-', pp = raw.replace('-', '').split('.'), ent = (pp[0] || '0').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  const f = (neg ? '-' : '') + ent + (pp.length > 1 ? ',' + pp[1] : '');
+  const cur = (document.getElementById('txnCurrency') || {}).value || 'ARS', sym = cur === 'USD' ? 'US$' : cur === 'EUR' ? '€' : '$';
+  const nw = animar && raw.length > _txnPrintRaw.length;
+  _txnPrintRaw = raw;
+  box.querySelector('.txn-print-d').innerHTML = '<span class="txn-print-cur">' + sym + '</span>'
+    + f.split('').map((ch, i) => '<span class="txn-print-ch' + (nw && i === f.length - 1 ? ' nw' : '') + '"' + (raw ? '' : ' style="opacity:.35"') + '>' + ch + '</span>').join('');
+  const led = box.querySelector('.txn-print-led'), note = box.querySelector('.txn-print-note');
+  const monto = Number(raw) || 0, presu = (typeof _budgetMonthTotal === 'function' && typeof _curMonthKey === 'function') ? _budgetMonthTotal(_curMonthKey()) : 0;
+  const ver = document.getElementById('txnType').value === 'expense' && cur === 'ARS' && presu > 0 && monto > 0;
+  led.style.display = ver ? '' : 'none';
+  if (!ver) { note.textContent = ''; return; }
+  const pct = monto / presu * 100, n = Math.min(20, Math.round(pct / 5));
+  led.querySelectorAll('i').forEach((l, i) => { l.className = i < n ? 'on' + (i >= 17 ? ' r' : i >= 12 ? ' y' : '') : ''; });
+  note.textContent = pct < 1 ? 'Menos del 1% del presupuesto del mes' : Math.round(pct) + '% del presupuesto del mes' + (pct > 100 ? ' · te pasaste' : '');
+}
 // Etiqueta chica "reintegro 25%" junto al gasto (compra con tarjeta o gasto común que tiene reintegro).
 function _refundTagHtml(rec) {
   const r = rec && rec.refund;
