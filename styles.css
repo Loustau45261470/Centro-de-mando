@@ -174,6 +174,32 @@ body:not([class*="theme-"]) #hud-ambient { display: none; }
 .ticker-item.ok    { color: var(--ok); }
 @keyframes marquee { from { transform: translateX(0) } to { transform: translateX(-50%) } }
 
+/* Marquesina (HUD E2): punto de color por dato, pausa al apoyar el dedo, parpadeo + luz solo cuando llega un dato nuevo (app.js marca .tk-new / .tk-sweep). */
+.ticker-item.ok::before, .ticker-item.warn::before, .ticker-item.alert::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; box-shadow: 0 0 8px currentColor; flex: none; }
+#ticker:hover #ticker-inner, #ticker:active #ticker-inner { animation-play-state: paused; }
+.ticker-item.tk-new:not(.alert) { animation: tk-new 1.6s ease-out 2; }
+@keyframes tk-new { 50% { text-shadow: 0 0 14px currentColor; color: #fff; } }
+#ticker.tk-sweep::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(100deg, transparent 40%, rgba(125,211,252,.14) 50%, transparent 60%); transform: translateX(-120%); animation: tk-sweep 1.4s ease-out 1 forwards; }
+@keyframes tk-sweep { to { transform: translateX(120%); } }
+@media (prefers-reduced-motion: reduce) { .ticker-item.tk-new:not(.alert), #ticker.tk-sweep::after { animation: none; } }
+
+/* Barra inferior con luz que se desliza (HUD E1, solo celular; en el rail de escritorio no existe). Se desliza y rebota al cambiar de sección (app.js _navGlow). */
+#nav-glow { display: none; }
+@media (max-width: 979.98px) {
+  #nav-glow { display: block; position: absolute; top: -1px; left: 0; width: var(--gw, 0); height: 2px; transform: translateX(var(--gx, 0)); background: var(--ic, var(--hud)); box-shadow: 0 0 14px 1px var(--ic, var(--hud)); pointer-events: none; z-index: 1; }
+  #nav-glow::after { content: ''; position: absolute; left: 0; right: 0; top: 2px; height: 46px; background: linear-gradient(to bottom, color-mix(in srgb, var(--ic, var(--hud)) 28%, transparent), transparent); }
+  #nav-glow[data-tab="vida"]         { --ic: var(--c-vida); }
+  #nav-glow[data-tab="finanzas"]     { --ic: var(--c-finanzas); }
+  #nav-glow[data-tab="salud"]        { --ic: var(--c-salud); }
+  #nav-glow[data-tab="conocimiento"] { --ic: var(--c-conocimiento); }
+  #nav-glow[data-tab="ia"]           { --ic: var(--c-ia); }
+  #nav-glow.go { transition: transform .55s cubic-bezier(.3,1.25,.5,1), width .55s cubic-bezier(.3,1.25,.5,1), background-color .3s, box-shadow .3s; }
+  #nav-glow.mv { animation: nav-glow-flash .55s ease-out; }
+  #nav.has-glow .nav-btn.active::before { display: none; }
+}
+@keyframes nav-glow-flash { 40% { filter: brightness(1.8); } }
+@media (prefers-reduced-motion: reduce) { #nav-glow.go { transition: none; } #nav-glow.mv { animation: none; } }
+
 /* ── Scroll container ── */
 #app {
   position: fixed;

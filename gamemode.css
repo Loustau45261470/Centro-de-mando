@@ -420,3 +420,20 @@
   .gm-avatar::before, .gm-avatar::after, .gm-bar-fill::after { animation: none !important; }
   .gm-cat-h:hover .gm-cat-ico, .gm-mission:hover, .gm-epic:hover { transform: none; }
 }
+
+/* Insignia que se enciende (HUD E12): el toast de logro desbloqueado. Apagada → vibra y carga el borde (.gx-chg) → se enciende con destello (.gx-on). */
+.gm-hex { position: relative; display: grid; place-items: center; width: 38px; height: 44px; }
+.gm-hex svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.gm-hex i { position: relative; font-style: normal; font-size: 18px; filter: grayscale(1); opacity: .35; transition: filter .4s, opacity .4s; }
+.gx-hx { fill: rgba(100,150,210,.05); stroke: #3A4C63; stroke-width: 2.4; stroke-linejoin: round; transition: fill .4s, stroke .4s, filter .4s; }
+.gx-cg { fill: none; stroke: var(--rc); stroke-width: 3.2; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: 1; opacity: 0; }
+.gm-toast-logro.gx-chg .gx-cg { opacity: 1; animation: gx-chg .9s ease-in forwards; }
+.gm-toast-logro.gx-chg .gm-hex { animation: gx-shk .9s linear; }
+.gm-toast-logro.gx-on .gx-hx { fill: color-mix(in srgb, var(--rc) 18%, transparent); stroke: var(--rc); filter: drop-shadow(0 0 8px var(--rc)); }
+.gm-toast-logro.gx-on .gm-hex i { filter: none; opacity: 1; }
+.gm-toast-logro.gx-on .gm-hex { animation: gx-flash .6s ease-out; }
+.gx-sp { position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; border-radius: 50%; background: var(--rc); box-shadow: 0 0 8px var(--rc); pointer-events: none; }
+@keyframes gx-chg { to { stroke-dashoffset: 0; } }
+@keyframes gx-shk { 20% { transform: translateX(-2px); } 40% { transform: translateX(2px); } 60% { transform: translateX(-3px); } 80% { transform: translateX(3px); } }
+@keyframes gx-flash { 0% { filter: brightness(3); } 40% { transform: scale(1.18); } 100% { filter: none; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .gm-toast-logro .gx-cg, .gm-toast-logro .gm-hex { animation: none !important; } }

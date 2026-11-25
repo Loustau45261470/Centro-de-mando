@@ -571,10 +571,25 @@ function gmLogroToast(l) {
   const r = GM_RARITY[l.rareza] || GM_RARITY.comun;
   const el = document.createElement('div');
   el.className = 'gm-toast gm-toast-logro'; el.style.setProperty('--rc', r.color);
-  el.innerHTML = `<span class="gm-toast-ico">🏅</span><div><div class="gm-toast-t">${_gmEsc(l.name)}</div><div class="gm-toast-s">${r.label}</div></div>`;
+  // Insignia que se enciende (HUD E12): hexágono que vibra, carga el borde, se enciende con destello y suelta chispas. Solo en el momento del desbloqueo.
+  el.innerHTML = `<span class="gm-toast-ico gm-hex"><svg viewBox="0 0 64 76" aria-hidden="true"><path class="gx-hx" d="M32 4 L58 19 V57 L32 72 L6 57 V19 Z"/><path class="gx-cg" pathLength="1" d="M32 4 L58 19 V57 L32 72 L6 57 V19 Z"/></svg><i>🏅</i></span><div><div class="gm-toast-t">${_gmEsc(l.name)}</div><div class="gm-toast-s">${r.label}</div></div>`;
   _gmToastEl().appendChild(el);
   requestAnimationFrame(() => el.classList.add('in'));
-  setTimeout(() => { el.classList.remove('in'); setTimeout(() => el.remove(), 350); }, 2800);
+  const rm = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (rm) el.classList.add('gx-on');
+  else {
+    el.classList.add('gx-chg');
+    setTimeout(() => {
+      el.classList.remove('gx-chg'); el.classList.add('gx-on');
+      const hx = el.querySelector('.gm-hex');
+      if (hx && hx.animate) for (let k = 0; k < 14; k++) {
+        const sp = document.createElement('b'); sp.className = 'gx-sp'; hx.appendChild(sp);
+        const a = Math.random() * Math.PI * 2, d = 26 + Math.random() * 30;
+        sp.animate([{ transform: 'translate(-50%,-50%) scale(1)', opacity: 1 }, { transform: `translate(calc(-50% + ${Math.cos(a) * d}px),calc(-50% + ${Math.sin(a) * d}px)) scale(.2)`, opacity: 0 }], { duration: 600 + Math.random() * 400, easing: 'ease-out' }).onfinish = () => sp.remove();
+      }
+    }, 900);
+  }
+  setTimeout(() => { el.classList.remove('in'); setTimeout(() => el.remove(), 350); }, rm ? 2800 : 3600);
 }
 function gmFloatXp(anchor, xp) {
   if (!GM.config.animaciones) return;

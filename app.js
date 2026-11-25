@@ -1749,7 +1749,21 @@ function renderTabHeader(metaId) {
   el.innerHTML = `<span class="thm-ok">● OPERATIVO</span>${days[now.getDay()]} ${now.getDate()} ${months[now.getMonth()]}<strong>${now.getFullYear()}</strong>`;
 }
 
+// Barra inferior con luz que se desliza (HUD E1, celular): una raya sigue a la pestaña activa con el color de la sección. Solo se anima al cambiar de sección; el resto (arranque, resize) la coloca sin animar.
+function _navGlow(btn, animate) {
+  const g = document.getElementById('nav-glow'); if (!g || !btn || getComputedStyle(g).display === 'none' || !btn.offsetWidth) return;
+  const placed = g.dataset.on === '1';
+  g.dataset.tab = btn.dataset.tab; g.dataset.on = '1'; g.parentNode.classList.add('has-glow');
+  g.style.setProperty('--gx', btn.offsetLeft + 'px'); g.style.setProperty('--gw', btn.offsetWidth + 'px');
+  if (animate && placed && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    g.classList.add('go'); g.classList.remove('mv'); void g.offsetWidth; g.classList.add('mv');
+  } else g.classList.remove('go', 'mv');
+}
+window.addEventListener('resize', () => _navGlow(document.querySelector('.nav-btn.active'), false));
+window.addEventListener('load', () => _navGlow(document.querySelector('.nav-btn.active'), false));
+
 function switchTab(tab, btn) {
+  _navGlow(btn, true);
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   const _panel = document.getElementById('tab-' + tab);
@@ -1957,8 +1971,12 @@ function buildTickerAlerts() {
   if (alerts.length === 0) alerts.push({ text: '🟢 Dashboard activo — todo en orden', cls: 'ok' });
 
   const inner = document.getElementById('ticker-inner');
+  // Marquesina (HUD E2): un dato que no estaba en el render anterior parpadea y pasa una luz por la cinta (el 1.er render y los repetidos no animan).
+  const _prevTk = window._tkPrev; window._tkPrev = new Set(alerts.map(a => a.text));
+  const _tkNew = t => _prevTk && !_prevTk.has(t);
+  if (_prevTk && alerts.some(a => _tkNew(a.text))) { const tk = document.getElementById('ticker'); if (tk) { tk.classList.remove('tk-sweep'); void tk.offsetWidth; tk.classList.add('tk-sweep'); } }
   const itemsHTML = alerts.map(a =>
-    `<span class="ticker-item ${a.cls}">${a.text}</span><span class="ticker-item" style="color:rgba(255,255,255,.15)">◆</span>`
+    `<span class="ticker-item ${a.cls}${_tkNew(a.text) ? ' tk-new' : ''}">${a.text}</span><span class="ticker-item" style="color:rgba(255,255,255,.15)">◆</span>`
   ).join('');
   // Duplicate so the scroll loops seamlessly: animate -50% of total (= one full copy)
   inner.innerHTML = itemsHTML + itemsHTML;

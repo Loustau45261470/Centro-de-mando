@@ -30,7 +30,15 @@
     .cmdk-item .ci-sub{font-family:var(--mono);font-size:var(--fs-12-5);color:var(--tt);flex-shrink:0;max-width:38%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .cmdk-sep{padding:10px 12px 4px;font-family:var(--mono);font-size:var(--fs-12-5);letter-spacing:.12em;text-transform:uppercase;color:var(--tt);border-top:1px solid var(--border);margin-top:4px}
     .cmdk-sep:first-child{border-top:none;margin-top:0}
-    .cmdk-empty{padding:22px;text-align:center;color:var(--tt);font-family:var(--mono);font-size:var(--fs-12-5)}`;
+    .cmdk-empty{padding:22px;text-align:center;color:var(--tt);font-family:var(--mono);font-size:var(--fs-12-5)}
+    /* Barrido (HUD E4): al abrir pasa una luz por el panel; los resultados se encienden uno tras otro (máx. 6 escalones, ≤ 0.3 s). Solo visual: el tipeo y las teclas no esperan. */
+    #cmdk-panel.fx::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(100deg,transparent 35%,rgba(125,211,252,.16) 50%,transparent 65%);transform:translateX(-110%);animation:cmdk-sw .7s ease-out 1 forwards}
+    @keyframes cmdk-sw{to{transform:translateX(110%)}}
+    #cmdk-list.fx .cmdk-item{animation:cmdk-it .26s ease-out backwards;animation-delay:calc(var(--r)*40ms)}
+    #cmdk-list.fx .cmdk-item::after{content:"";position:absolute;inset:0;border-radius:9px;pointer-events:none;background:linear-gradient(100deg,transparent 30%,rgba(125,211,252,.22) 50%,transparent 70%);transform:translateX(-110%);animation:cmdk-sw .5s ease-out both;animation-delay:calc(var(--r)*40ms)}
+    #cmdk-list .cmdk-item{position:relative;overflow:hidden}
+    @keyframes cmdk-it{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:none}}
+    @media (prefers-reduced-motion:reduce){#cmdk-panel.fx::after,#cmdk-list.fx .cmdk-item,#cmdk-list.fx .cmdk-item::after{animation:none}}`;
   document.head.appendChild(style);
 
   const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
@@ -87,6 +95,7 @@
   document.body.appendChild(overlay);
   const input=overlay.querySelector('#cmdk-input');
   const list=overlay.querySelector('#cmdk-list');
+  const panel=overlay.querySelector('#cmdk-panel');
 
   overlay.addEventListener('click', e=>{ if(e.target===overlay) closePalette(); });
 
@@ -115,11 +124,13 @@
     sel=0; renderList();
   }
   function renderList(){
+    list.classList.remove('fx'); void list.offsetWidth;
     if(!results.length){ list.innerHTML='<div class="cmdk-empty">Sin coincidencias</div>'; return; }
     list.innerHTML=results.map((c,i)=>
       (sepLabels[i]!=null ? '<div class="cmdk-sep">'+esc(sepLabels[i])+'</div>' : '')+
-      '<div class="cmdk-item'+(i===sel?' sel':'')+'" data-i="'+i+'">'+
+      '<div class="cmdk-item'+(i===sel?' sel':'')+'" data-i="'+i+'" style="--r:'+Math.min(i,6)+'">'+
         '<span class="ci-ic">'+esc(c.ic)+'</span><span class="ci-lbl">'+esc(c.lbl)+'</span><span class="ci-cat">'+esc(c.cat)+'</span></div>').join('');
+    list.classList.add('fx');
     list.querySelectorAll('.cmdk-item').forEach(el=>{
       el.onmousemove=()=>{ const i=+el.dataset.i; if(i!==sel){ sel=i; paint(); } };
       el.onclick=()=>{ sel=+el.dataset.i; runSel(); };
@@ -134,10 +145,11 @@
   function runSel(){ const c=results[sel]; if(!c) return; closePalette(); try { c.run(); } catch(e){ console.warn('cmdk', e); } }
   function openPalette(){
     open=true; overlay.classList.add('open'); input.value='';
+    panel.classList.remove('fx'); void panel.offsetWidth; panel.classList.add('fx');
     // Reconstruye el índice de datos una vez por apertura (no por tecla) para que
     // ediciones sin cambio de cantidad de ítems (ej. renombrar una transacción) se vean.
     if(window.CMBuscar && typeof CMBuscar.reindexar==='function'){ try{ CMBuscar.reindexar(); }catch(e){ console.warn('cmdk reindexar', e); } }
-    build(''); setTimeout(()=>input.focus(), 30);
+    build(''); input.focus(); setTimeout(()=>input.focus(), 30);
   }
   function closePalette(){ open=false; overlay.classList.remove('open'); }
 
