@@ -298,6 +298,7 @@ const Pomodoro = (() => {
     </div>${planLineHtml(sel)}`;
   }
 
+  const POMO_SEGS = 60;
   function render() {
     if (!container) return;
     if (phase === 'idle' || phase === 'done') {
@@ -319,9 +320,14 @@ const Pomodoro = (() => {
     const isStudy = phase === 'study';
     const blockTotal = (isStudy ? cfg.study : cfg.brk) * 60;
     const p = blockTotal > 0 ? Math.min(1, (blockTotal - remaining) / blockTotal) : 0;
+    // Anillo en bloques: POMO_SEGS segmentos en círculo; se encienden por tiempo transcurrido (p), el actual lleva el cabezal.
+    const lit = Math.min(POMO_SEGS, Math.floor(p * POMO_SEGS));
+    let segs = '';
+    for (let i = 0; i < POMO_SEGS; i++) segs += `<i class="pomo-seg${i < lit ? ' on' : ''}${i === lit && lit < POMO_SEGS ? ' cur' : ''}" style="--i:${i}"></i>`;
     container.innerHTML = `
       <div class="pomo-run ${isStudy ? 'study' : 'break'} ${paused ? 'paused' : ''}" style="--p:${p.toFixed(3)}">
-        <div class="pomo-dial">
+        <div class="pomo-dial" data-lit="${lit}" data-segs="${POMO_SEGS}">
+          <div class="pomo-segs" aria-hidden="true">${segs}</div>
           <div class="pomo-dial-inner">
             <div class="pomo-phase">${isStudy ? '📚 Estudio' : '☕ Descanso'}</div>
             <div class="pomo-time">${fmt(remaining)}</div>
