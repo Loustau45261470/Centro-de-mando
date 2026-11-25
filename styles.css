@@ -5336,6 +5336,36 @@ input:focus, select:focus, textarea:focus {
 .ent-last b { color: var(--tp); }
 .ent-full { width: 100%; padding: 11px; border-radius: 11px; cursor: pointer; font-family: var(--sans); font-size: var(--fs-13); font-weight: 700; color: color-mix(in oklab, var(--ent-accent) 88%, #fff); background: color-mix(in oklab, var(--ent-accent) 14%, transparent); border: 1px solid color-mix(in oklab, var(--ent-accent) 38%, transparent); transition: background .15s, border-color .15s; }
 .ent-full:hover { background: color-mix(in oklab, var(--ent-accent) 24%, transparent); border-color: var(--ent-accent); }
+/* Tarjeta resumen de Salud · "Hoy toca" del plan semanal */
+.pe-sum-hoy, .pe-sum-live { margin-bottom: 14px; padding: 11px 12px; border-radius: 12px; border: 1px solid color-mix(in oklab, var(--ent-accent) 30%, var(--border)); background: linear-gradient(180deg, color-mix(in oklab, var(--ent-accent) 9%, transparent), rgba(10,16,30,.4)); min-width: 0; }
+.pe-sum-h { font-family: var(--mono); font-size: var(--fs-12-5); letter-spacing: .8px; text-transform: uppercase; color: var(--ent-accent); margin-bottom: 8px; }
+.pe-sum-fr { font-family: var(--mono); font-size: var(--fs-12-5); letter-spacing: .5px; text-transform: uppercase; color: var(--tt); margin: 6px 0 2px; }
+.pe-sum-it { display: flex; align-items: center; gap: 9px; min-height: 36px; font-size: var(--fs-14); font-weight: 600; color: var(--tp); }
+.pe-sum-ico { width: 22px; text-align: center; flex: none; }
+.pe-sum-nom { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.pe-sum-hecho .pe-sum-nom { color: var(--ts); text-decoration: line-through; text-decoration-color: color-mix(in oklab, var(--ent-accent) 50%, transparent); }
+.pe-sum-ok { color: var(--ent-accent); font-weight: 800; flex: none; }
+.pe-sum-it .pe-ck { margin: 0 -6px 0 0; }
+.pe-sum-empty { font-size: var(--fs-13); color: var(--ts); }
+.pe-sum-empty b { color: var(--tp); font-size: var(--fs-14); }
+.pe-sum-pend { display: block; width: 100%; margin: 0 0 8px; padding: 8px 10px; text-align: left; border-radius: 10px; cursor: pointer; font-family: var(--sans); font-size: var(--fs-13); color: var(--tp); background: rgba(244,63,94,.12); border: 1px solid rgba(255,143,163,.5); overflow-wrap: anywhere; }
+.pe-sum-go { display: block; width: 100%; min-height: 44px; margin-top: 8px; border-radius: 11px; cursor: pointer; font-family: var(--mono); font-weight: 800; letter-spacing: .08em; font-size: var(--fs-13); text-transform: uppercase; color: #FFE3E8; border: 1px solid rgba(244,63,94,.75); background: linear-gradient(180deg, rgba(244,63,94,.38), rgba(244,63,94,.2)); overflow-wrap: anywhere; }
+.pe-sum-go-2 { background: rgba(244,63,94,.1); }
+.pe-sum-live { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pe-sum-live-t { flex: 1; min-width: 0; font-size: var(--fs-13); color: var(--ts); overflow-wrap: anywhere; }
+.pe-sum-live-t b { color: var(--tp); }
+.pe-sum-chrono { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ent-accent); font-weight: 800; }
+.pe-sum-live .pe-sum-go { width: auto; flex: none; margin-top: 0; padding: 0 16px; }
+.pe-sum-dot { display: inline-block; width: 8px; height: 8px; margin-right: 7px; border-radius: 50%; background: var(--ent-accent); box-shadow: 0 0 8px var(--ent-accent); }
+.pe-sum-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 14px; }
+.pe-sum-d { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 0 4px; border-radius: 10px; background: rgba(120,150,220,.06); border: 1px solid var(--border); min-width: 0; }
+.pe-sum-d i { font-style: normal; font-family: var(--mono); font-size: var(--fs-12-5); color: var(--tt); }
+.pe-sum-d span { min-height: 22px; display: flex; align-items: center; justify-content: center; gap: 1px; font-size: var(--fs-13); color: var(--ts); white-space: nowrap; }
+.pe-sum-d span b { font-size: var(--fs-12-5); }
+.pe-sum-d em { font-style: normal; min-height: 14px; font-size: var(--fs-12-5); font-weight: 800; color: var(--ent-accent); line-height: 1; }
+.pe-sum-hoyd { border-color: var(--ent-accent); box-shadow: 0 0 12px -4px var(--ent-accent); background: color-mix(in oklab, var(--ent-accent) 12%, transparent); }
+.pe-sum-hoyd i { color: var(--ent-accent); }
+.pe-sum-okd { background: color-mix(in oklab, var(--ent-accent) 20%, transparent); border-color: color-mix(in oklab, var(--ent-accent) 55%, transparent); }
 .diet-state {
   font-size: var(--fs-13); font-weight: 700; color: var(--ts);
   text-align: center; padding: 9px; margin-bottom: 12px;

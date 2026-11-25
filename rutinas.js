@@ -13,6 +13,61 @@ function _gymDays() {
   const h = (S.habitTrackers && S.habitTrackers.salud || []).find(x => x.id === 'habit-entrenamientos');
   return (h && h.days) || (S.workoutCalendar && S.workoutCalendar.days) || {};
 }
+let _entSumTick = null;
+function _entAbrir(tab) { _entTab = tab || 'plan'; if (_entTab === 'plan' && window.PlanUI) PlanUI.entrar(); if (window.openGymOverlay) openGymOverlay(); renderRutinas(); }
+function _entEmpezarDesdeCard(rid) { _entTab = 'plan'; if (window.openGymOverlay) openGymOverlay(); startRutinaSession(rid); }
+function _entMarcarDesdeCard(f, uid) { if (window.PlanUI) PlanUI.marcar(f, uid); }
+function _entDesmarcarDesdeCard(uid) { if (window.PlanUI) PlanUI.desmarcar(uid); }
+function _entSumTickFn() {
+  const el = document.getElementById('pe-sum-chrono');
+  if (!S.activeRtnSession || !el) { clearInterval(_entSumTick); _entSumTick = null; return; }
+  el.textContent = fmtChrono(Math.floor((Date.now() - S.activeRtnSession.startedAt) / 1000));
+}
+function _entHoyTocaHtml() {
+  const P = window.PlanEntreno, U = window.PlanUI;
+  if (!P || !U) return '';
+  const esc = t => String(t == null ? '' : t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const sess = S.activeRtnSession;
+  if (sess) {
+    const r = (S.routines || []).find(x => x.id === sess.routineId);
+    const secs = Math.floor((Date.now() - sess.startedAt) / 1000);
+    return `<div class="pe-sum-live"><div class="pe-sum-live-t"><span class="pe-sum-dot"></span>Sesión en curso · <b>${esc(r ? r.name : 'Rutina')}</b> · <span id="pe-sum-chrono" class="pe-sum-chrono">${fmtChrono(secs)}</span></div>
+      <button type="button" class="pe-sum-go" onclick="_entAbrir('plan')">Continuar</button></div>`;
+  }
+  if (!U.hayPlan()) return `<div class="pe-sum-hoy"><div class="pe-sum-h">Hoy toca</div><div class="pe-sum-empty">Todavía no armaste tu plan semanal.</div>
+      <button type="button" class="pe-sum-go pe-sum-go-2" onclick="_entAbrir('plan')">Armar mi plan</button></div>`;
+  const hoy = getActiveDate(), items = P.itemsDelDia(S.planEntreno, hoy), FR = { manana: 'Mañana', tarde: 'Tarde', noche: 'Noche' };
+  let pend = '';
+  const pd = P.pendienteDe(S.planEntreno, S.routineLog, hoy, U.hechasFn);
+  if (pd) pend = `<button type="button" class="pe-sum-pend" onclick="_entAbrir('plan')">Te quedó <b>${pd.items.map(it => esc(U.nombre(it))).join(' + ')}</b> de ayer →</button>`;
+  let cuerpo;
+  if (!items.length) cuerpo = '<div class="pe-sum-empty"><b>Descanso</b></div>';
+  else {
+    let ult = null;
+    cuerpo = '<div class="pe-sum-list">' + items.map(it => {
+      const done = !!U.hecho(it, hoy), cab = (items.length > 1 || it.franja !== 'manana') && it.franja !== ult ? `<div class="pe-sum-fr">${FR[it.franja]}</div>` : ''; ult = it.franja;
+      const uid = U.claveHecha(hoy, it);
+      const ck = it.tipo === 'actividad'
+        ? (done ? `<button type="button" class="pe-ck pe-ck-on" onclick="_entDesmarcarDesdeCard('${uid}')" aria-label="Deshacer hecha"><b></b></button>`
+                : `<button type="button" class="pe-ck" onclick="_entMarcarDesdeCard('${hoy}','${esc(it.uid)}')" aria-label="Marcar ${esc(U.nombre(it))} como hecha"><b></b></button>`)
+        : (done ? '<span class="pe-sum-ok">✓</span>' : '');
+      return `${cab}<div class="pe-sum-it${done ? ' pe-sum-hecho' : ''}"><span class="pe-sum-ico">${U.icono(it)}</span><span class="pe-sum-nom">${esc(U.nombre(it))}</span>${ck}</div>`;
+    }).join('') + '</div>';
+  }
+  const btns = items.filter(it => it.tipo === 'rutina' && !U.hecho(it, hoy) && (S.routines || []).some(r => r.id === it.id))
+    .map(it => `<button type="button" class="pe-sum-go" onclick="_entEmpezarDesdeCard('${esc(it.id)}')">Empezar ${esc(U.nombre(it))}</button>`).join('');
+  return `<div class="pe-sum-hoy"><div class="pe-sum-h">Hoy toca</div>${pend}${cuerpo}${btns}</div>`;
+}
+function _entStripPlanHtml() {
+  const P = window.PlanEntreno, U = window.PlanUI;
+  if (!P || !U || !U.hayPlan()) return null;
+  const hoy = getActiveDate(), DL = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+  return '<div class="pe-sum-week">' + U.fechasSemana().map((f, i) => {
+    const its = P.itemsDelDia(S.planEntreno, f), ok = its.length > 0 && its.every(it => U.hecho(it, f));
+    const ic = its.slice(0, 2).map(U.icono).join('') + (its.length > 2 ? '<b>+</b>' : '');
+    return `<div class="pe-sum-d${f === hoy ? ' pe-sum-hoyd' : ''}${ok ? ' pe-sum-okd' : ''}"><i>${DL[i]}</i><span>${ic || '·'}</span><em>${ok ? '✓' : ''}</em></div>`;
+  }).join('') + '</div>';
+}
 function renderEntrenamientoResumen() {
   const body = document.getElementById('entrenoResumenBody'); if (!body) return;
   const days = _gymDays();
@@ -42,16 +97,19 @@ function renderEntrenamientoResumen() {
   let lastTxt = 'Sin registros';
   if (last) { const exCount = Object.values(S.workoutLog[last]).filter(s => s && s.length).length; lastTxt = `${fmtDate(last)} · ${exCount} ej.`; }
 
+  const stripPlan = _entStripPlanHtml();
   body.innerHTML = `
+    ${_entHoyTocaHtml()}
     <div class="ent-kpis">
       <div class="ent-kpi"><div class="ent-kpi-num">${dayStreak}</div><div class="ent-kpi-lbl">Racha días</div></div>
       <div class="ent-kpi"><div class="ent-kpi-num">${doneMonth}</div><div class="ent-kpi-lbl">Este mes</div></div>
       <div class="ent-kpi"><div class="ent-kpi-num">${pct}<span class="ent-kpi-u">%</span></div><div class="ent-kpi-lbl">Adherencia</div></div>
       <div class="ent-kpi"><div class="ent-kpi-num">${streakMonths}</div><div class="ent-kpi-lbl">Meses ≥75%</div></div>
     </div>
-    <div class="ent-week">${strip.map(s => `<div class="ent-day ent-${s.v || 'none'}"><span class="ent-day-dot"></span><span class="ent-day-lbl">${s.lbl}</span></div>`).join('')}</div>
+    ${stripPlan || `<div class="ent-week">${strip.map(s => `<div class="ent-day ent-${s.v || 'none'}"><span class="ent-day-dot"></span><span class="ent-day-lbl">${s.lbl}</span></div>`).join('')}</div>`}
     <div class="ent-last">Último entreno: <b>${lastTxt}</b></div>
     <button class="ent-full" onclick="if(window.openGymOverlay)openGymOverlay()">Abrir entrenamiento completo →</button>`;
+  if (S.activeRtnSession && !_entSumTick) _entSumTick = setInterval(_entSumTickFn, 1000);
 }
 
 // ════════════════════════════════════════════════════════
@@ -448,6 +506,7 @@ function renderRutinas() {
   initRoutines();
   const wrap = document.getElementById('rutinas-wrap');
   if (!wrap) return;
+  renderEntrenamientoResumen();   // la tarjeta de Salud refleja siempre el mismo estado que el overlay
   if (S.activeRtnSession) { renderActiveSession(); return; }
 
   const cards = S.routines.map(r => {

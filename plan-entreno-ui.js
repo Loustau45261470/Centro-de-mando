@@ -204,6 +204,8 @@ const PlanUI = (() => {
   // ── Acciones ──
   const api = {
     html, post,
+    // Piezas para la tarjeta resumen de Salud (rutinas.js)
+    hayPlan, hecho: hechoItem, icono: iconoItem, nombre: nombreItem, claveHecha, fechasSemana, hechasFn,
     entrar() { animar = true; sel = hoy(); modo = 'home'; menuRid = null; menuPlan = false; },
     ir(i) { const car = document.getElementById('pe-car'); sel = fechasSemana()[i]; document.querySelectorAll('.pe-s').forEach(b => b.classList.toggle('pe-sel', +b.dataset.i === i)); if (car) car.scrollTo({ left: i * car.clientWidth, behavior: 'smooth' }); },
     empezar(rid) { menuRid = null; startRutinaSession(rid); },
