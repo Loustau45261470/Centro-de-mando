@@ -35,8 +35,11 @@ const PlanUI = (() => {
   // ── Datos derivados ──
   function sesionDe(rid, f) { const h = (S.routineLog && S.routineLog[rid]) || []; for (let i = h.length - 1; i >= 0; i--) if (h[i].date === f) return h[i]; return null; }
   function minTipicos(rid) {
-    const h = ((S.routineLog && S.routineLog[rid]) || []).filter(e => e.duration > 0).slice(-5);
-    return h.length ? Math.max(1, Math.round(h.reduce((a, e) => a + e.duration, 0) / h.length / 60)) : null;
+    // Mediana (no promedio): una sesión que quedó abierta días (2687 min) no debe inflar el "~min" típico.
+    const h = ((S.routineLog && S.routineLog[rid]) || []).filter(e => e.duration > 0).slice(-5).map(e => e.duration).sort((a, b) => a - b);
+    if (!h.length) return null;
+    const m = h.length % 2 ? h[(h.length - 1) / 2] : (h[h.length / 2 - 1] + h[h.length / 2]) / 2;
+    return Math.max(1, Math.round(m / 60));
   }
   function hechoItem(it, f) {
     if (it.tipo === 'rutina') return sesionDe(it.id, f);
@@ -124,6 +127,35 @@ const PlanUI = (() => {
     return `<section class="pe-day${items.length > 1 ? ' pe-day-c' : ''}${f === h ? ' pe-day-hoy' : ''}" data-f="${f}" data-i="${i}" aria-label="${DIAS_N[i]}">
       <div class="pe-day-h"><b>${DIAS_N[i]} ${f.slice(8)}</b>${f === h ? '<span class="pe-tag">HOY</span>' : (f < h ? '<span class="pe-tag pe-tag-p">PASADO</span>' : '')}</div>${cuerpo}</section>`;
   }
+  // Solo escritorio (CSS la oculta en celu): la semana día por día + resumen rápido. Mismos datos que la tira (itemsDelDia / hechoItem).
+  function semanaHtml(fechas) {
+    const h = hoy();
+    const filas = fechas.map((f, i) => {
+      const items = P().itemsDelDia(plan(), f), hechos = items.filter(it => hechoItem(it, f)).length;
+      const ok = items.length > 0 && hechos === items.length;
+      const txt = items.length ? items.map(it => `<span class="pe-wk-i${hechoItem(it, f) ? ' pe-wk-ok' : ''}">${iconoItem(it)} ${esc(nombreItem(it))}</span>`).join('') : '<span class="pe-wk-rest">Descanso</span>';
+      return `<button type="button" class="pe-wk${f === h ? ' pe-hoy' : ''}${f === sel ? ' pe-sel' : ''}${ok ? ' pe-ok' : ''}" data-i="${i}" onclick="PlanUI.ir(${i})" aria-label="Ver ${DIAS_N[i]} ${f.slice(8)}">
+        <i>${DIAS_N[i].slice(0, 3)} ${f.slice(8)}</i><span class="pe-wk-t">${txt}</span><em>${items.length ? (ok ? '✓' : `<span class="pe-num">${hechos}</span>/${items.length}`) : ''}</em></button>`;
+    }).join('');
+    let tot = 0, ok = 0;
+    fechas.forEach(f => P().itemsDelDia(plan(), f).forEach(it => { tot++; if (hechoItem(it, f)) ok++; }));
+    let racha = 0;
+    if (typeof _gymDays === 'function' && typeof _dStr === 'function') {
+      const days = _gymDays(), n = new Date(), y = n.getFullYear(), m = n.getMonth(), t = n.getDate();
+      for (let i = 0; i < 400; i++) {
+        const dd = new Date(y, m, t - i), v = days[_dStr(dd.getFullYear(), dd.getMonth(), dd.getDate())];
+        if (v === 'done') racha++; else if (v === 'rest') continue; else if (v === 'missed') break; else { if (i === 0) continue; break; }
+      }
+    }
+    let ult = null;
+    (S.routines || []).forEach(r => ((S.routineLog && S.routineLog[r.id]) || []).forEach(e => { if (e.date && (!ult || e.date > ult.date)) ult = { date: e.date, name: r.name }; }));
+    const ultTxt = ult ? `${esc(ult.name)} · ${ult.date.slice(8)}/${ult.date.slice(5, 7)}` : 'Sin registros';
+    return `<aside class="pe-colR" aria-label="Semana y resumen">
+      <section class="pe-panel"><div class="pe-h3">Esta semana</div>${filas}</section>
+      <section class="pe-panel"><div class="pe-h3">Resumen rápido</div>
+        <div class="pe-kp"><div><span class="pe-num">${ok}</span>/<span class="pe-num">${tot}</span><small>Hechos esta semana</small></div><div><span class="pe-num">${racha}</span><small>Racha de días</small></div></div>
+        <div class="pe-ult">Último entreno: <b>${ultTxt}</b></div></section></aside>`;
+  }
   function pendienteHtml() {
     const pend = P().pendienteDe(plan(), S.routineLog, hoy(), hechasFn);
     if (!pend) return '';
@@ -166,11 +198,13 @@ const PlanUI = (() => {
         <div class="pe-sinplan-l"><div class="pe-h2">Tus rutinas <button type="button" class="pe-btn" onclick="openModal('modal-add-routine')">+ Nueva</button></div>${cards}</div>`;
     }
     return `<div class="pe-home">${pendienteHtml()}${stripHtml(fechas)}
+      <div class="pe-cols"><div class="pe-colL">
       <div class="pe-car" id="pe-car">${fechas.map(diaHtml).join('')}</div>
       <div class="pe-acts"><button type="button" class="pe-btn pe-pri" onclick="PlanUI.editar()">Editar plan</button>
         <button type="button" class="pe-btn" onclick="openModal('modal-add-routine')">+ Nueva rutina</button>
         <button type="button" class="pe-btn pe-dots2" aria-label="Más opciones del plan" onclick="PlanUI.menuDelPlan()">⋯</button></div>
       ${menuPlan ? `<div class="pe-menu pe-menu-plan" role="menu"><button type="button" onclick="PlanUI.descansar()">Descansar esta semana</button><button type="button" onclick="PlanUI.resetear()">Resetear</button></div>` : ''}
+      </div>${semanaHtml(fechas)}</div>
       ${acc}</div>`;
   }
 
@@ -187,7 +221,7 @@ const PlanUI = (() => {
         clearTimeout(tid);
         tid = setTimeout(() => {
           const i = Math.round(car.scrollLeft / Math.max(1, car.clientWidth)), f = fechasSemana()[i];
-          if (f && f !== sel) { sel = f; document.querySelectorAll('.pe-s').forEach(b => b.classList.toggle('pe-sel', +b.dataset.i === i)); }
+          if (f && f !== sel) { sel = f; document.querySelectorAll('.pe-s, .pe-wk').forEach(b => b.classList.toggle('pe-sel', +b.dataset.i === i)); }
         }, 90);
       }, { passive: true });
     }
@@ -207,7 +241,7 @@ const PlanUI = (() => {
     // Piezas para la tarjeta resumen de Salud (rutinas.js)
     hayPlan, hecho: hechoItem, icono: iconoItem, nombre: nombreItem, claveHecha, fechasSemana, hechasFn,
     entrar() { animar = true; sel = hoy(); modo = 'home'; menuRid = null; menuPlan = false; },
-    ir(i) { const car = document.getElementById('pe-car'); sel = fechasSemana()[i]; document.querySelectorAll('.pe-s').forEach(b => b.classList.toggle('pe-sel', +b.dataset.i === i)); if (car) car.scrollTo({ left: i * car.clientWidth, behavior: 'smooth' }); },
+    ir(i) { const car = document.getElementById('pe-car'); sel = fechasSemana()[i]; document.querySelectorAll('.pe-s, .pe-wk').forEach(b => b.classList.toggle('pe-sel', +b.dataset.i === i)); if (car) car.scrollTo({ left: i * car.clientWidth, behavior: 'smooth' }); },
     empezar(rid) { menuRid = null; startRutinaSession(rid); },
     menu(uid) { menuRid = menuRid === uid ? null : uid; refrescar(); },
     menuDelPlan() { menuPlan = !menuPlan; refrescar(); },
