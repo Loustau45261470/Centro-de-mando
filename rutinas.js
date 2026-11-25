@@ -928,7 +928,7 @@ function _doAddExToRoutine(rtnId, libId) {
     sess.exMeta[newEx.id] = { libId, restSecs: lib.defaultRestSecs };
     const prev = _prefillSets(null, null, libId);
     sess.exSets[newEx.id] = prev.length ? prev : [{ weight: '', reps: '' }];
-    _rtnExpandedEx.add(newEx.id);
+    _rtnExpandedEx = new Set([newEx.id]);
   }
   saveState(); renderRutinas();
   showToast('Ejercicio agregado');
@@ -1312,6 +1312,9 @@ function _updatePip() {
     pip.classList.remove('visible', 'pip-urgent', 'pip-done');
     return;
   }
+  // Con la barra de descanso a la vista (pantalla de la sesión) el mini temporizador sobra: aparece solo cuando se sale de ahí.
+  const _bar = document.querySelector('#rutinas-wrap .ses-rest.show');
+  if (_bar && _bar.getClientRects().length) { pip.classList.remove('visible', 'pip-urgent', 'pip-done'); return; }
   const rem = _rtnTimerRemaining[_pipExId] ?? 0;
   const cd = document.getElementById('pip-countdown');
   const lbl = document.getElementById('pip-label');
@@ -1543,7 +1546,8 @@ function startRutinaSession(rtnId) {
     exMeta[ex.id] = { libId: ex.libId, restSecs: d.restSecs };
   });
   S.activeRtnSession = { routineId: rtnId, startedAt: Date.now(), exSets, exMeta, exOrder: rtn.exercises.map(e => e.id) };
-  _rtnExpandedEx = new Set(rtn.exercises.map(e => e.id));
+  _rtnExpandedEx = new Set([rtn.exercises[0].id]);   // acordeón: un ejercicio abierto a la vez
+  _restFocus = null;
   saveState(); renderRutinas();
   if (prefilled) showToast(`Precargado con lo de la última vez (${prefilled} ejercicio${prefilled > 1 ? 's' : ''})`);
 }
@@ -1567,8 +1571,7 @@ function _doSwapSessionEx(oldExId, newLibId) {
   const order = sess.exOrder || [];
   const i = order.indexOf(oldExId);
   if (i >= 0) order[i] = newId; else order.push(newId);
-  _rtnExpandedEx.delete(oldExId);
-  _rtnExpandedEx.add(newId);
+  _rtnExpandedEx = new Set([newId]);
   saveState(); renderRutinas();
   showToast('Ejercicio reemplazado para esta sesión');
 }
@@ -1594,10 +1597,10 @@ function removeSessionEx(exId) {
   sess.exOrder = (sess.exOrder || []).filter(id => id !== exId);
   delete sess.exSets[exId];
   if (sess.exMeta) delete sess.exMeta[exId];
-  if (_rtnTimers[exId]) { clearInterval(_rtnTimers[exId]); delete _rtnTimers[exId]; }
-  delete _rtnTimerRemaining[exId];
+  _rtnTimerClear(exId);
   _rtnExpandedEx.delete(exId);
   if (_pipExId === exId) { _pipExId = null; _updatePip(); }
+  if (_restFocus === exId) _restFocus = null;
   saveState(); renderRutinas();
   showToast('Ejercicio quitado de esta sesión');
 }
@@ -1641,19 +1644,58 @@ function startRtnChrono() {
   }, 1000);
 }
 
-function toggleRtnEx(exId) {
-  const body = document.getElementById('rtn-exbody-' + exId);
-  const chev = document.getElementById('rtn-exchev-' + exId);
-  if (!body) return;
-  if (_rtnExpandedEx.has(exId)) {
-    _rtnExpandedEx.delete(exId);
-    body.style.display = 'none';
-    if (chev) chev.style.transform = 'rotate(0deg)';
-  } else {
-    _rtnExpandedEx.add(exId);
-    body.style.display = 'block';
-    if (chev) chev.style.transform = 'rotate(-180deg)';
-  }
+// Un solo ejercicio abierto a la vez (acordeón). `scroll` = llevarlo a la vista (auto-avance).
+function sesOpen(exId, scroll) {
+  _rtnExpandedEx = new Set([exId]);
+  const wrap = document.getElementById('rutinas-wrap');
+  if (!wrap) return;
+  wrap.querySelectorAll('.ses-ex').forEach(el => el.classList.toggle('open', el.dataset.ex === exId));
+  _sesProgress();
+  const el = document.getElementById('ses-ex-' + exId);
+  if (scroll && el) el.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+}
+function toggleRtnEx(exId) { if (document.getElementById('ses-ex-' + exId)) sesOpen(exId, false); }
+
+// Menús ⋯ (uno solo abierto): el de cada ejercicio y el de la sesión. Se cierran al tocar afuera.
+function sesMenuToggle(id) {
+  const m = document.getElementById(id);
+  document.querySelectorAll('#rutinas-wrap .ses-menu').forEach(x => { if (x !== m) x.hidden = true; });
+  if (m) m.hidden = !m.hidden;
+}
+function sesExMenu(exId) { sesMenuToggle('ses-xm-' + exId); }
+function sesMenu() { sesMenuToggle('ses-menu'); }
+document.addEventListener('click', e => {
+  if (e.target.closest && e.target.closest('[data-ses-menu-btn], .ses-menu .pe-del')) return;   // el botón de mantener apretado no cierra el menú con un toque corto
+  document.querySelectorAll('#rutinas-wrap .ses-menu').forEach(x => { x.hidden = true; });
+});
+
+// Barra de progreso total (24 LEDs), contador de series, "Ejercicio X de N", FINALIZAR iluminado.
+function _sesProgress() {
+  const sess = S.activeRtnSession, wrap = document.getElementById('rutinas-wrap');
+  if (!sess || !wrap) return;
+  const order = sess.exOrder || [];
+  let tot = 0, done = 0;
+  order.forEach(id => {
+    const sets = sess.exSets[id] || [], d = sets.filter(s => s.done).length;
+    tot += sets.length; done += d;
+    const c = document.getElementById('ses-cnt-' + id); if (c) c.textContent = d + '/' + sets.length;
+    const b = document.getElementById('ses-ex-' + id); if (b) b.classList.toggle('cdone', sets.length > 0 && d === sets.length);
+  });
+  const cnt = document.getElementById('ses-cnt'); if (cnt) cnt.textContent = done + '/' + tot;
+  const leds = wrap.querySelectorAll('#ses-led i'), lit = tot ? Math.round(done / tot * leds.length) : 0;
+  leds.forEach((l, i) => { l.className = i < lit ? 'on' : ''; });
+  const cur = document.getElementById('ses-cur');
+  if (cur) { const open = order.findIndex(id => _rtnExpandedEx.has(id)); cur.textContent = Math.max(1, open + 1); }
+  const fin = document.getElementById('ses-fin'); if (fin) fin.classList.toggle('ready', tot > 0 && done === tot);
+}
+
+function _sesRestHtml(fx) {
+  const show = fx != null, rem = show ? _rtnTimerRemaining[fx] : 0, done = show && rem <= 0;
+  return `<div class="ses-rest${show ? ' show' : ''}${done ? ' done' : ''}" id="${show ? 'rtn-tband-' + fx : 'ses-rest-idle'}" role="timer" aria-live="off">
+      <div class="ses-rest-top"><span class="ses-rest-lbl">Descanso · <span id="ses-rest-name">${show ? escHtml(sessExInfo(fx).name) : ''}</span></span><span class="ses-rest-t" id="${show ? 'rtn-tband-display-' + fx : 'ses-rest-t-idle'}">${show ? (done ? '¡A DARLE!' : fmtTimerDisplay(rem)) : '0:00'}</span></div>
+      <div class="ses-led ses-rest-led">${'<i></i>'.repeat(32)}</div>
+      <div class="ses-rest-bt"><button type="button" onclick="sesRest(-15)">−15 s</button><button type="button" onclick="sesRest(0)">Omitir</button><button type="button" onclick="sesRest(15)">+15 s</button></div>
+    </div>`;
 }
 
 function renderActiveSession() {
@@ -1676,86 +1718,78 @@ function renderActiveSession() {
   const _sessionOrder = (S.activeRtnSession.exOrder || rtn.exercises.map(e => e.id));
   const _orderedExes = _sessionOrder.map(id => sessExInfo(id)).filter(e => e.libId || e.name);
 
+  // Un solo ejercicio abierto: el que estaba abierto, si no el primero con series sin tildar, si no el primero.
+  let openEx = _orderedExes.find(e => _rtnExpandedEx.has(e.id));
+  if (!openEx) openEx = _orderedExes.find(e => (exSets[e.id] || []).some(s => !s.done)) || _orderedExes[0];
+  _rtnExpandedEx = new Set(openEx ? [openEx.id] : []);
+
   const exBlocks = _orderedExes.map((ex, idx) => {
     const sets = exSets[ex.id] || [{ weight: '', reps: '' }];
+    const nDone = sets.filter(s => s.done).length;
     const setsHtml = sets.map((s, si) => `
-      <div class="rtn-set-row${s.done ? ' rtn-set-done' : ''}">
-        <div class="rtn-set-num">${si + 1}</div>
-        <input class="rtn-set-inp" type="number" placeholder="kg" value="${s.weight || ''}"
-          data-rtn-exid="${ex.id}" data-si="${si}" data-f="w">
-        <input class="rtn-set-inp" type="number" placeholder="reps" value="${s.reps || ''}"
-          data-rtn-exid="${ex.id}" data-si="${si}" data-f="r">
-        <button class="rtn-set-check${s.done ? ' checked' : ''}" onclick="checkRtnSet('${ex.id}',${si})">✓</button>
-        ${sets.length > 1 ? `<button class="rtn-set-del" onclick="deleteRtnSet('${ex.id}',${si})">✕</button>` : '<span></span>'}
+      <div class="ses-row${s.done ? ' ses-row-done' : ''}">
+        <span class="ses-n">${si + 1}</span>
+        <label class="ses-in"><input type="number" inputmode="decimal" placeholder="0" value="${s.weight || ''}" aria-label="Kilos, serie ${si + 1}"
+          data-rtn-exid="${ex.id}" data-si="${si}" data-f="w"><i>kg</i></label>
+        <label class="ses-in"><input type="number" inputmode="numeric" placeholder="0" value="${s.reps || ''}" aria-label="Repeticiones, serie ${si + 1}"
+          data-rtn-exid="${ex.id}" data-si="${si}" data-f="r"><i>reps</i></label>
+        ${sets.length > 1 ? `<button type="button" class="ses-del" aria-label="Quitar la serie ${si + 1}" onclick="deleteRtnSet('${ex.id}',${si})">✕</button>` : '<span></span>'}
+        <button type="button" class="pe-ck${s.done ? ' pe-ck-on' : ''}" aria-label="Serie ${si + 1} hecha" onclick="checkRtnSet('${ex.id}',${si})"><b></b></button>
       </div>`).join('');
-    const tRem = _rtnTimerRemaining[ex.id];
-    const tVisible = tRem !== undefined;
-    const tDone = tVisible && tRem <= 0;
-    const tDisplay = tVisible ? fmtTimerDisplay(tRem) : fmtTimerDisplay(ex.restSecs);
-    const isExpanded = _rtnExpandedEx.has(ex.id);
-    const isFirst = idx === 0;
-    const isLast = idx === _orderedExes.length - 1;
-    const btnStyle = 'background:none;border:none;cursor:pointer;padding:2px 5px;font-size:var(--fs-13);color:var(--tt);line-height:1;flex-shrink:0';
-    const btnDisabled = 'opacity:.25;cursor:default;pointer-events:none';
+    const isFirst = idx === 0, isLast = idx === _orderedExes.length - 1;
+    const off = dis => (dis ? ' disabled' : '');
     return `
-      <div class="rtn-ex-block">
-        <div class="rtn-ex-block-header" onclick="toggleRtnEx('${ex.id}')">
-          <div class="rtn-ex-title">
-            <span class="rtn-ex-title-name">${ex.name}</span>
-            <span class="rtn-ex-title-equip">(${ex.equipment})</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:2px;flex-shrink:0">
-            <button onclick="event.stopPropagation();openExHistByLib('${ex.libId}')" style="${btnStyle}" title="Historial">📊</button>
-            <button onclick="event.stopPropagation();swapSessionEx('${ex.id}')" style="${btnStyle}" title="Reemplazar (solo esta sesión)">⇄</button>
-            <button onclick="event.stopPropagation();editRtnEx('${routineId}','${ex.id}')" style="${btnStyle}" title="Ajustar descanso/series">✎</button>
-            <button onclick="event.stopPropagation();removeSessionEx('${ex.id}')" style="${btnStyle};color:var(--danger)" title="Sacar de esta sesión">✕</button>
-            <button onclick="event.stopPropagation();moveRtnSessionEx('${ex.id}',-1)" style="${btnStyle}${isFirst ? ';'+btnDisabled : ''}" title="Subir">↑</button>
-            <button onclick="event.stopPropagation();moveRtnSessionEx('${ex.id}',+1)" style="${btnStyle}${isLast ? ';'+btnDisabled : ''}" title="Bajar">↓</button>
-          </div>
-          <span class="rtn-ex-chevron" id="rtn-exchev-${ex.id}" style="transform:${isExpanded ? 'rotate(-180deg)' : 'rotate(0deg)'}">▾</span>
+      <section class="ses-ex${openEx && openEx.id === ex.id ? ' open' : ''}${sets.length && nDone === sets.length ? ' cdone' : ''}" id="ses-ex-${ex.id}" data-ex="${ex.id}">
+        <div class="ses-exh" onclick="toggleRtnEx('${ex.id}')">
+          <div class="ses-ext"><b>${escHtml(ex.name)}</b><span>${escHtml(ex.equipment)} · descanso ${ex.restSecs}s</span></div>
+          <span class="ses-cnt" id="ses-cnt-${ex.id}">${nDone}/${sets.length}</span>
+          <button type="button" class="pe-dots" data-ses-menu-btn aria-label="Opciones de ${escHtml(ex.name)}" onclick="event.stopPropagation();sesExMenu('${ex.id}')">⋯</button>
         </div>
-        <div class="rtn-ex-block-body" id="rtn-exbody-${ex.id}" style="${isExpanded ? '' : 'display:none'}">
-          ${ex.notes ? `<div class="rtn-ex-notes">💡 ${ex.notes}</div>` : ''}
-          <div style="${ex.notes ? 'margin-top:8px' : ''}">
-            <div class="rtn-sets-header"><div>Serie</div><div>KG</div><div>Reps</div><div style="text-align:center;font-size:var(--fs-12-5)">✓</div><div></div></div>
-            <div id="rtn-sets-${ex.id}">${setsHtml}</div>
-            <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="addRtnSet('${ex.id}')">+ Serie</button>
-          </div>
-          <div id="rtn-tband-${ex.id}" class="rtn-timer-band${tDone ? ' done' : ''}" style="${tVisible ? 'display:flex' : 'display:none'}">
-            <div class="rtn-timer-countdown" id="rtn-tband-display-${ex.id}">${tDisplay}</div>
-            <button class="rtn-timer-adj" onclick="adjustRtnTimer('${ex.id}',-15)">−15s</button>
-            <button class="rtn-timer-skip" onclick="skipRtnTimer('${ex.id}')">Omitir</button>
-            <button class="rtn-timer-adj" onclick="adjustRtnTimer('${ex.id}',+15)">+15s</button>
-          </div>
+        <div class="pe-menu ses-menu" id="ses-xm-${ex.id}" role="menu" hidden>
+          <button type="button" onclick="openExHistByLib('${ex.libId}')">Historial</button>
+          <button type="button" onclick="swapSessionEx('${ex.id}')">Reemplazar (solo esta sesión)</button>
+          <button type="button" onclick="editRtnEx('${routineId}','${ex.id}')">Ajustar descanso / series</button>
+          <button type="button" onclick="moveRtnSessionEx('${ex.id}',-1)"${off(isFirst)}>Subir</button>
+          <button type="button" onclick="moveRtnSessionEx('${ex.id}',+1)"${off(isLast)}>Bajar</button>
+          <button type="button" class="ses-danger" onclick="removeSessionEx('${ex.id}')">Sacar de esta sesión</button>
         </div>
-      </div>`;
+        <div class="ses-bd">
+          ${ex.notes ? `<div class="ses-notes">💡 ${escHtml(ex.notes)}</div>` : ''}
+          <div id="rtn-sets-${ex.id}">${setsHtml}</div>
+          <button type="button" class="pe-lnk ses-addset" onclick="addRtnSet('${ex.id}')">+ Serie</button>
+        </div>
+      </section>`;
   }).join('');
 
+  const fx = _restFocus != null && _rtnTimerRemaining[_restFocus] !== undefined ? _restFocus : null;
+  if (fx == null) _restFocus = null;
   wrap.innerHTML = `
-    <div class="card" style="border-color:rgba(244,63,94,.3)">
-      <div class="rtn-session-bar">
-        <div style="flex:1;min-width:0">
-          <div style="display:flex;align-items:center;gap:10px">
-            <div class="rtn-session-title">🏋️ ${rtn.name}</div>
-            <div class="rtn-chrono" id="rtn-chrono">${fmtChrono(elapsed)}</div>
-          </div>
-          <div class="rtn-session-sub">${_orderedExes.length} ejercicios</div>
-        </div>
-        ${_sessionOrderDiffers(S.activeRtnSession, rtn) ? `<button class="btn btn-ghost btn-sm" style="color:var(--c-salud);flex-shrink:0" onclick="pinSessionOrder()" title="Guardar este orden en la rutina">📌 Fijar orden</button>` : ''}
-        <button class="btn btn-ghost btn-sm" style="color:var(--ts);flex-shrink:0" onclick="cancelRtnSession()">✕ Cancelar</button>
+    <div class="ses" id="ses-root">
+      <div class="ses-kick">Ejercicio <span id="ses-cur">1</span> de ${_orderedExes.length}</div>
+      <div class="ses-head">
+        <div class="ses-ht"><h2 class="ses-title">${escHtml(rtn.icon || '🏋️')} ${escHtml(rtn.name)}</h2>
+          <div class="ses-sub"><span class="rtn-chrono" id="rtn-chrono">${fmtChrono(elapsed)}</span> · <span id="ses-cnt">0/0</span> series</div></div>
+        <button type="button" class="pe-dots" data-ses-menu-btn aria-label="Más opciones de la sesión" onclick="event.stopPropagation();sesMenu()">⋯</button>
       </div>
-      <div class="rtn-session-exes">${exBlocks}
-        <button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="openExPicker('add','${routineId}')">+ Ejercicio</button>
+      <div class="pe-menu ses-menu ses-menu-s" id="ses-menu" role="menu" hidden>
+        ${_sessionOrderDiffers(S.activeRtnSession, rtn) ? `<button type="button" onclick="pinSessionOrder()">Fijar este orden en la rutina</button>` : ''}
+        <button type="button" class="pe-del" data-hold-fn="cancelarSesion" onpointerdown="PlanUI.holdIni(this)" onpointerup="PlanUI.holdFin(this)" onpointerleave="PlanUI.holdFin(this)" onpointercancel="PlanUI.holdFin(this)" oncontextmenu="return false"><span class="pe-hold-fill"></span><span class="pe-hold-txt">Cancelar sesión (mantener apretado)</span></button>
       </div>
-      <div style="padding:0 14px 14px">
-        <button class="btn btn-primary w-full" onclick="finishRtnSession()">✓ Finalizar sesión</button>
+      <div class="ses-led" id="ses-led">${'<i></i>'.repeat(24)}</div>
+      <div class="ses-exs">${exBlocks}
+        <button type="button" class="pe-btn ses-addex" onclick="openExPicker('add','${routineId}')">+ Ejercicio</button>
+      </div>
+      <div class="ses-dock">${_sesRestHtml(fx)}
+        <button type="button" class="ses-fin" id="ses-fin" onclick="sesFinalizar()">FINALIZAR SESIÓN</button>
       </div>
     </div>`;
 
+  _sesProgress();
   startRtnChrono();
-  wrap.querySelectorAll('.rtn-set-inp').forEach(inp => {
+  wrap.querySelectorAll('.ses-row input').forEach(inp => {
     inp.addEventListener('blur', () => _readSaveRtnSets(inp.dataset.rtnExid));
   });
+  _sesLoopEnsure();
 }
 
 function _readSaveRtnSets(exId) {
@@ -1763,10 +1797,10 @@ function _readSaveRtnSets(exId) {
   const container = document.getElementById('rtn-sets-' + exId);
   if (!container) return;
   const sets = [];
-  container.querySelectorAll('.rtn-set-row').forEach(row => {
+  container.querySelectorAll('.ses-row').forEach(row => {
     const w = row.querySelector('[data-f=w]');
     const r = row.querySelector('[data-f=r]');
-    if (w && r) sets.push({ weight: +w.value || 0, reps: +r.value || 0, done: row.classList.contains('rtn-set-done') });
+    if (w && r) sets.push({ weight: +w.value || 0, reps: +r.value || 0, done: row.classList.contains('ses-row-done') });
   });
   S.activeRtnSession.exSets[exId] = sets;
   saveState();
@@ -1805,30 +1839,108 @@ function checkRtnSet(exId, si) {
   S.activeRtnSession.exSets[exId] = sets;
   saveState();
   const container = document.getElementById('rtn-sets-' + exId);
-  if (container) {
-    const rows = container.querySelectorAll('.rtn-set-row');
-    if (rows[si]) {
-      rows[si].classList.toggle('rtn-set-done', sets[si].done);
-      const btn = rows[si].querySelector('.rtn-set-check');
-      if (btn) btn.classList.toggle('checked', sets[si].done);
+  const row = container && container.querySelectorAll('.ses-row')[si];
+  if (row) {
+    row.classList.toggle('ses-row-done', sets[si].done);
+    const btn = row.querySelector('.pe-ck');
+    if (btn) {
+      btn.classList.toggle('pe-ck-on', sets[si].done);
+      btn.classList.remove('pe-flash');
+      if (sets[si].done) { void btn.offsetWidth; btn.classList.add('pe-flash'); }   // destello del color de Salud
     }
   }
+  _sesProgress();
   if (sets[si].done) {
     const ex = sessExInfo(exId);
     if (ex && ex.restSecs) startRtnTimerBand(exId, ex.restSecs);
+    // Todas las series del ejercicio listas → se abre solo el siguiente con series sin tildar (se puede tocar otro igual).
+    if (sets.every(s => s.done)) setTimeout(() => {
+      const sess = S.activeRtnSession;
+      if (!sess || !_rtnExpandedEx.has(exId)) return;   // si el usuario ya abrió otro, no se lo pisa
+      const order = sess.exOrder || [], i = order.indexOf(exId);
+      const next = order.slice(i + 1).find(id => (sess.exSets[id] || []).some(s => !s.done));
+      if (next) sesOpen(next, true);
+    }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 700);
   }
+}
+
+// ── Descanso (barra de 32 LEDs en el dock) ──
+// La cuenta vive en _rtnTimerEndsAt (hora absoluta de fin), nunca en ticks. Un setInterval de 1 s lleva la lógica (fin, aviso,
+// mini temporizador, media session) y sigue andando en segundo plano; un único rAF ~30 fps pinta la barra y se pausa con la
+// pestaña oculta o la sesión fuera de pantalla. Si hay varios descansos a la vez, la barra muestra el último iniciado.
+let _rtnTimerTotal = {};     // { exId: segundos totales del descanso en curso — escala los LEDs }
+let _restFocus = null;       // ejercicio cuyo descanso muestra la barra del dock
+let _sesRaf = 0, _sesLast = 0;
+
+function _sesBox() { return document.querySelector('#rutinas-wrap .ses-rest'); }
+function _sesBindRest(exId) {
+  const box = _sesBox();
+  if (!box) return false;
+  const rem = _rtnTimerRemaining[exId];
+  _restFocus = exId;
+  box.id = 'rtn-tband-' + exId;
+  const t = box.querySelector('.ses-rest-t');
+  t.id = 'rtn-tband-display-' + exId;
+  t.textContent = rem <= 0 ? '¡A DARLE!' : fmtTimerDisplay(rem);
+  const nm = box.querySelector('#ses-rest-name'); if (nm) nm.textContent = sessExInfo(exId).name;
+  box.classList.add('show'); box.classList.remove('warn');
+  box.classList.toggle('done', rem <= 0);
+  box._lit = -1;
+  box.querySelectorAll('.ses-rest-led i').forEach(l => { l.className = rem <= 0 ? 'on' : ''; });
+  _sesLoopEnsure();
+  return true;
+}
+// Si el descanso enfocado ya no existe: pasa al que corre con menos tiempo, o esconde la barra.
+function _sesRestRefresh() {
+  if (_restFocus != null && _rtnTimerRemaining[_restFocus] !== undefined) return;
+  const running = Object.keys(_rtnTimers);
+  if (running.length) { _sesBindRest(running.reduce((a, b) => (_rtnTimerRemaining[a] || 999) <= (_rtnTimerRemaining[b] || 999) ? a : b)); return; }
+  _restFocus = null;
+  const box = _sesBox();
+  if (box) {
+    box.classList.remove('show', 'warn', 'done'); box.id = 'ses-rest-idle';
+    const t = box.querySelector('.ses-rest-t'); if (t) t.id = 'ses-rest-t-idle';
+  }
+}
+// Un solo borrado del estado de un descanso (omitir, sacar ejercicio, fin/cancelación de sesión).
+function _rtnTimerClear(exId) {
+  if (_rtnTimers[exId]) { clearInterval(_rtnTimers[exId]); delete _rtnTimers[exId]; }
+  delete _rtnTimerRemaining[exId]; delete _rtnTimerEndsAt[exId]; delete _rtnTimerTotal[exId];
+}
+function _sesRestFrame() {
+  const fx = _restFocus;
+  if (fx == null || !_rtnTimers[fx]) return false;
+  const box = document.getElementById('rtn-tband-' + fx);
+  if (!box || !box.getClientRects().length) return false;   // fuera de vista (overlay cerrado): se pausa, se reanuda al renderizar
+  const rem = _rtnTimerEndsAt[fx] - Date.now();
+  if (rem <= 0) { _rtnTimerTick(fx, sessExInfo(fx).name || ''); return false; }   // el fin sale por la ruta única del tick
+  box.classList.toggle('warn', rem <= 5000);
+  const t = box.querySelector('.ses-rest-t'), txt = fmtTimerDisplay(Math.ceil(rem / 1000));
+  if (t && t.textContent !== txt) t.textContent = txt;
+  const leds = box.querySelectorAll('.ses-rest-led i'), total = Math.max(1000, (_rtnTimerTotal[fx] || Math.ceil(rem / 1000)) * 1000);
+  const lit = Math.max(1, Math.min(leds.length, Math.ceil(rem / total * leds.length)));
+  if (lit !== box._lit) { box._lit = lit; leds.forEach((l, i) => { l.className = i < lit - 1 ? 'on' : i === lit - 1 ? 'on head' : ''; }); }
+  return true;
+}
+function _sesLoop(now) {
+  _sesRaf = 0;
+  if (document.hidden) return;
+  if (now - _sesLast >= 33) { _sesLast = now; if (!_sesRestFrame()) return; }
+  _sesRaf = requestAnimationFrame(_sesLoop);
+}
+function _sesLoopEnsure() { if (!_sesRaf && !document.hidden && _restFocus != null) _sesRaf = requestAnimationFrame(_sesLoop); }
+
+function sesRest(delta) {
+  if (_restFocus == null) return;
+  if (delta === 0) skipRtnTimer(_restFocus); else adjustRtnTimer(_restFocus, delta);
 }
 
 function startRtnTimerBand(exId, secs) {
   if (_rtnTimers[exId]) { clearInterval(_rtnTimers[exId]); delete _rtnTimers[exId]; }
   _rtnTimerRemaining[exId] = secs;
   _rtnTimerEndsAt[exId] = Date.now() + secs * 1000;
-  const band = document.getElementById('rtn-tband-' + exId);
-  const display = document.getElementById('rtn-tband-display-' + exId);
-  if (!band || !display) return;
-  band.style.display = 'flex';
-  band.classList.remove('done');
-  display.textContent = fmtTimerDisplay(secs);
+  _rtnTimerTotal[exId] = secs;
+  if (!_sesBindRest(exId)) return;
   _pipExId = exId;
   _updatePip();
   // Obtener nombre del ejercicio para media session
@@ -1846,20 +1958,23 @@ function startRtnTimerBand(exId, secs) {
   if (typeof _schedulePushAlarm === 'function') {
     _schedulePushAlarm('rtn-' + exId, secs, '⏱ ¡Descanso terminado!', _exName ? `Seguí con ${_exName}` : 'Retomá la rutina', 'rtn-timer');
   }
+  _sesLoopEnsure();
 }
 
 function _rtnTimerTick(exId, exName) {
   _rtnTimerRemaining[exId] = Math.max(0, Math.ceil((_rtnTimerEndsAt[exId] - Date.now()) / 1000));
   const d = document.getElementById('rtn-tband-display-' + exId);
   const b = document.getElementById('rtn-tband-' + exId);
-  if (!d || !b) { clearInterval(_rtnTimers[exId]); delete _rtnTimers[exId]; return; }
+  // Sin sesión en pantalla y sin barra: el descanso quedó huérfano. Con sesión, un descanso sin barra (otro enfocado) sigue corriendo.
+  if ((!d || !b) && !S.activeRtnSession) { clearInterval(_rtnTimers[exId]); delete _rtnTimers[exId]; return; }
   if (_rtnTimerRemaining[exId] <= 0) {
     clearInterval(_rtnTimers[exId]); delete _rtnTimers[exId];
     // Sin _cancelPushAlarm: el aviso del Worker llega a los otros dispositivos; en este se junta con el local (mismo tag 'rtn-timer').
-    d.textContent = '¡Listo!';
-    b.classList.add('done');
+    if (d) d.textContent = '¡A DARLE!';
+    if (b) { b.classList.remove('warn'); b.classList.add('done'); b.querySelectorAll('.ses-rest-led i').forEach(l => { l.className = 'on'; }); b._lit = -1; }
     showToast('⏱ ¡Descansaste! Seguí con la próxima serie.');
     _playTimerDone();
+    if (navigator.vibrate) { try { navigator.vibrate([220, 90, 220]); } catch (e) {} }
     _msHub.onTimerDone(exName);
     if (Notification.permission === 'granted') {
       _showNotif('⏱ ¡Descanso terminado!', {
@@ -1869,10 +1984,14 @@ function _rtnTimerTick(exId, exName) {
     }
     if (_pipExId === exId) _updatePip();
     setTimeout(() => { if (_pipExId === exId) { _pipExId = null; _updatePip(); } }, 4000);
+    // La barra queda en verde unos segundos y se va sola (si no se inició otro descanso encima).
+    setTimeout(() => { if (_rtnTimerRemaining[exId] === 0 && !_rtnTimers[exId]) { _rtnTimerClear(exId); _sesRestRefresh(); } }, 6000);
   } else {
-    d.textContent = fmtTimerDisplay(_rtnTimerRemaining[exId]);
+    if (d) d.textContent = fmtTimerDisplay(_rtnTimerRemaining[exId]);
+    if (b) b.classList.toggle('warn', _rtnTimerEndsAt[exId] - Date.now() <= 5000);
     if (_pipExId === exId) _updatePip();
     _msHub.onTimerTick(exId, exName);
+    _sesLoopEnsure();
   }
 }
 
@@ -1884,66 +2003,114 @@ document.addEventListener('visibilitychange', () => {
     const ex = sessExInfo(exId);
     _rtnTimerTick(exId, ex?.name || '');
   });
+  _sesLoopEnsure();
 });
 
 function adjustRtnTimer(exId, delta) {
   if (_rtnTimerRemaining[exId] === undefined) return;
+  // Descanso ya terminado ("¡A DARLE!"): +15 s arranca uno nuevo de 15 s; −15 s no hace nada.
+  if (!_rtnTimers[exId]) { if (delta > 0) startRtnTimerBand(exId, delta); return; }
   _rtnTimerEndsAt[exId] = Math.max(Date.now() + 1000, (_rtnTimerEndsAt[exId] || Date.now()) + delta * 1000);
   _rtnTimerRemaining[exId] = Math.max(1, Math.ceil((_rtnTimerEndsAt[exId] - Date.now()) / 1000));
+  if (_rtnTimerRemaining[exId] > (_rtnTimerTotal[exId] || 0)) _rtnTimerTotal[exId] = _rtnTimerRemaining[exId];   // la barra no se pasa de llena
   const d = document.getElementById('rtn-tband-display-' + exId);
   if (d) d.textContent = fmtTimerDisplay(_rtnTimerRemaining[exId]);
   const b = document.getElementById('rtn-tband-' + exId);
-  if (b) b.classList.remove('done');
+  if (b) { b.classList.remove('done'); b._lit = -1; }
   if (_pipExId === exId) _updatePip();
   if (typeof _schedulePushAlarm === 'function') {
     const ex = sessExInfo(exId);
     _schedulePushAlarm('rtn-' + exId, _rtnTimerRemaining[exId], '⏱ ¡Descanso terminado!', ex?.name ? `Seguí con ${ex.name}` : 'Retomá la rutina', 'rtn-timer');
   }
+  _sesLoopEnsure();
 }
 
 function skipRtnTimer(exId) {
-  if (_rtnTimers[exId]) { clearInterval(_rtnTimers[exId]); delete _rtnTimers[exId]; }
-  delete _rtnTimerRemaining[exId];
-  delete _rtnTimerEndsAt[exId];
+  _rtnTimerClear(exId);
   if (typeof _cancelPushAlarm === 'function') _cancelPushAlarm('rtn-' + exId);
-  const band = document.getElementById('rtn-tband-' + exId);
-  if (band) band.style.display = 'none';
+  _sesRestRefresh();
   if (_pipExId === exId) { _pipExId = null; _updatePip(); }
   _msHub.onTimerSkip();
 }
 
-function cancelRtnSession() {
+// Apaga todos los descansos y el cronómetro (cancelar o terminar la sesión).
+function _rtnSessionStop() {
   Object.values(_rtnTimers).forEach(clearInterval);
   if (typeof _cancelPushAlarm === 'function') Object.keys(_rtnTimers).forEach(exId => _cancelPushAlarm('rtn-' + exId));
   _rtnTimers = {};
   _rtnTimerRemaining = {};
   _rtnTimerEndsAt = {};
+  _rtnTimerTotal = {};
+  _restFocus = null;
   if (_rtnChrono) { clearInterval(_rtnChrono); _rtnChrono = null; }
   _rtnExpandedEx = new Set();
   _pipExId = null; _updatePip();
+}
+
+function cancelRtnSession() {
+  _rtnSessionStop();
   S.activeRtnSession = null;
   _msHub.showReminders();
   saveState(); renderRutinas();
 }
 
-function finishRtnSession() {
+// FINALIZAR SESIÓN → hoja con el detalle opcional (duración sola; intensidad y concentración 1-10; propósito libre).
+function sesFinalizar() {
+  const sess = S.activeRtnSession, root = document.getElementById('ses-root');
+  if (!sess || !root) return;
+  (sess.exOrder || []).forEach(id => _readSaveRtnSets(id));
+  const old = document.getElementById('ses-sheet'); if (old) old.remove();
+  let tot = 0, done = 0;
+  (sess.exOrder || []).forEach(id => { const s = sess.exSets[id] || []; tot += s.length; done += s.filter(x => x.done).length; });
+  const mins = Math.max(1, Math.round((Date.now() - sess.startedAt) / 60000));
+  root.insertAdjacentHTML('beforeend', `<div class="ses-sheet" id="ses-sheet" role="dialog" aria-label="Terminar sesión"><div class="ses-sheet-p">
+      <b class="ses-sheet-h">Terminar sesión</b>
+      <p class="ses-sheet-s">Duración <b>${mins >= 60 ? Math.floor(mins / 60) + ' h ' + (mins % 60) + ' min' : mins + ' min'}</b> (se calcula sola) · series tildadas ${done}/${tot}</p>
+      <div class="pe-det">
+        <label>Intensidad (1-10)<input id="ses-d-int" type="number" min="1" max="10" inputmode="numeric"></label>
+        <label>Concentración (1-10)<input id="ses-d-con" type="number" min="1" max="10" inputmode="numeric"></label>
+        <label class="pe-det-w">Propósito<input id="ses-d-pro" type="text" maxlength="500"></label>
+        <div class="pe-det-b"><button type="button" class="pe-btn" onclick="sesCerrarSheet()">Volver</button><button type="button" class="pe-btn pe-pri" onclick="sesGuardar()">Guardar sesión</button></div>
+      </div><p class="ses-sheet-n">El detalle es opcional.</p></div></div>`);
+}
+function sesCerrarSheet() { const s = document.getElementById('ses-sheet'); if (s) s.remove(); }
+function sesGuardar() {
+  const v = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+  const P = window.PlanEntreno;
+  const bad = [['ses-d-int', 'Intensidad'], ['ses-d-con', 'Concentración']].find(([id]) => v(id) !== '' && P.escala10(v(id)) === null);
+  if (bad) { showToast(bad[1] + ': un entero de 1 a 10'); return; }
+  finishRtnSession({
+    intensidad: v('ses-d-int') === '' ? null : P.escala10(v('ses-d-int')),
+    concentracion: v('ses-d-con') === '' ? null : P.escala10(v('ses-d-con')),
+    proposito: v('ses-d-pro') === '' ? null : v('ses-d-pro').slice(0, 500),
+  });
+}
+
+// Guarda la sesión (mismo formato de siempre). `det` opcional: { intensidad, concentracion, proposito } → campos opcionales de la entrada.
+function finishRtnSession(det) {
   if (!S.activeRtnSession) return;
   const sess = S.activeRtnSession;
   // Flush de las filas visibles (los swapeados-out ya quedaron guardados antes del swap).
   (sess.exOrder || []).forEach(id => _readSaveRtnSets(id));
   const { routineId, startedAt, exSets, exMeta } = sess;
-  const date = getActiveDate();
+  const date = localStr(new Date(startedAt));   // el día en que EMPEZÓ (una sesión de medianoche cuenta para ese día)
   const duration = Math.floor((Date.now() - startedAt) / 1000);
   let vol = 0, totalSets = 0;
   Object.values(exSets).forEach(sets => sets.forEach(s => {
     if ((s.reps || 0) > 0) { vol += (s.weight || 0) * s.reps; totalSets++; }
   }));
   if (!S.routineLog[routineId]) S.routineLog[routineId] = [];
-  S.routineLog[routineId].push({
+  const entry = {
     id: uid(), date,
     exSets: JSON.parse(JSON.stringify(exSets)),
     vol, sets: totalSets, duration
-  });
+  };
+  if (det) {
+    if (det.intensidad) entry.intensidad = det.intensidad;
+    if (det.concentracion) entry.concentracion = det.concentracion;
+    if (det.proposito) entry.proposito = det.proposito;
+  }
+  S.routineLog[routineId].push(entry);
   // Historial GLOBAL por ejercicio: cada instancia (incluidos swaps) loguea a su libId.
   if (!S.exerciseHistory) S.exerciseHistory = {};
   Object.entries(exSets).forEach(([instId, sets]) => {
@@ -1954,23 +2121,17 @@ function finishRtnSession() {
     if (!S.exerciseHistory[libId]) S.exerciseHistory[libId] = [];
     S.exerciseHistory[libId].push({ date, routineId, sets: cleanSets });
   });
-  Object.values(_rtnTimers).forEach(clearInterval);
-  if (typeof _cancelPushAlarm === 'function') Object.keys(_rtnTimers).forEach(exId => _cancelPushAlarm('rtn-' + exId));
-  _rtnTimers = {};
-  _rtnTimerRemaining = {};
-  _rtnTimerEndsAt = {};
-  if (_rtnChrono) { clearInterval(_rtnChrono); _rtnChrono = null; }
-  _rtnExpandedEx = new Set();
-  _pipExId = null; _updatePip();
+  _rtnSessionStop();
   S.activeRtnSession = null;
   _msHub.showReminders();
   // Marcar hábito de entrenamientos y actualizar calendario
-  const today = getActiveDate();
   const gymHabit = (S.habitTrackers?.salud || []).find(h => h.id === 'habit-entrenamientos');
   if (gymHabit) {
-    gymHabit.days[today] = 'done';
+    gymHabit.days[date] = 'done';
     _habitActiveId['salud'] = 'habit-entrenamientos';
   }
+  // Vuelve al Inicio (pestaña Plan, en el día de hoy) con el día marcado ✓.
+  _entTab = 'plan'; if (window.PlanUI) PlanUI.entrar();
   saveState(); renderRutinas(); renderHabitsCard('salud');
   showConfetti(3000);
   showToast(`💪 ¡Sesión guardada! ${vol ? vol.toLocaleString() + ' kg de volumen' : ''}`, 4000);

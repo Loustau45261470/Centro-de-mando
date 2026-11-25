@@ -7,7 +7,7 @@
 // — no un array sin id — para que el merge entre dispositivos (_merge3 une objetos clave por clave) no pierda un
 // item agregado en otro dispositivo:
 //   { fijo:      { "0": {uid:item,...}, ... },               // día ausente o {} = descanso/sin asignar
-//     semanas:   { "AAAA-Www": { "<dia>": {uid:item,...,anulada?}, descanso?:bool, hasta?:"AAAA-MM-DD" (deja de valer desde ahí) } },
+//     semanas:   { "AAAA-Www": { "<dia>": {uid:item,...,anulada?}, descanso?:bool, descansoDesde?:"AAAA-MM-DD" (el descanso vale desde ahí; ausente = toda la semana), hasta?:"AAAA-MM-DD" (deja de valer desde ahí) } },
 //                                                              // excepción de ESA semana: reemplaza la lista fija del día ({} = descanso)
 //     corridas:  { "<uid>": { desde:"AAAA-MM-DD", hasta?:"AAAA-MM-DD" } },   // vigente si desde <= f < hasta (resetear fija hasta; anulada = formato viejo)  // desplazamiento en cadena (ver aplicarCorrida)
 //     pendientes:{ "AAAA-MM-DD": "corrida"|"seguir"|"reset" } }       // decisión tomada ese día sobre lo que quedó de ayer
@@ -100,9 +100,11 @@ const PlanEntreno = (() => {
   // Una excepción de semana deja de valer DESDE ex.hasta (fecha del reset): lo anterior conserva lo que mostraba.
   const exVigente = (ex, fecha) => !(ex.hasta && fecha >= ex.hasta);
   const exDe = (p, fecha) => { const ex = excepcionDe(p, semanaISO(fecha)); return exVigente(ex, fecha) ? ex : {}; };
+  // El descanso de una semana vale desde ex.descansoDesde (ausente = toda la semana).
+  const descansa = (ex, fecha) => ex.descanso === true && (!ex.descansoDesde || fecha >= ex.descansoDesde);
   function baseDelDia(p, fecha) {
     const ex = exDe(p, fecha), d = diaDeSemana(fecha);
-    if (ex.descanso === true) return [];
+    if (descansa(ex, fecha)) return [];
     return lista(diaVigente(ex, d) ? ex[d] : p.fijo[d]);
   }
   // Cantidad de corridas vigentes en `fecha`: desde <= fecha y (sin hasta, o fecha < hasta). (anulada = formato viejo, se respeta.)
@@ -110,7 +112,7 @@ const PlanEntreno = (() => {
   // Items efectivos de una fecha: el plan base de (fecha − desfase). La semana "descansada" queda vacía (aunque el desfase traiga items).
   function itemsDelDia(plan, fecha) {
     const p = norm(plan);
-    if (exDe(p, fecha).descanso === true) return [];
+    if (descansa(exDe(p, fecha), fecha)) return [];
     return baseDelDia(p, sumarDias(fecha, -desfase(p, fecha)));
   }
   const rutinasDelDia = (plan, fecha) => itemsDelDia(plan, fecha).filter(i => i.tipo === 'rutina').map(i => i.id);
@@ -241,14 +243,19 @@ const PlanEntreno = (() => {
     ejecutar(ac, d => diaEditable(p, ex, d));
     return p;
   }
-  // "Descansar esta semana": los 7 días quedan sin items y sin pendientes; la semana siguiente vuelve al fijo (con el desfase vigente).
-  function descansarSemana(plan, semanaKey) {
+  // "Descansar esta semana": los días DESDE `fecha` (hoy) quedan sin items y sin pendientes; los anteriores conservan lo que mostraban
+  // (lo ya hecho no se reescribe). Sin `fecha` = la semana entera. La semana siguiente vuelve al fijo (con el desfase vigente).
+  function descansarSemana(plan, semanaKey, fecha) {
     const p = norm(plan);
     if (!esObj(p.semanas[semanaKey])) p.semanas[semanaKey] = {};
-    const ex = p.semanas[semanaKey];
+    const ex = p.semanas[semanaKey], lunes = lunesDeSemana(semanaKey);
     revivir(p, semanaKey, ex);
-    DIAS.forEach(d => { if (esObj(ex[d])) { tombstones(ex[d]); ex[d].anulada = false; } else ex[d] = {}; });
+    DIAS.forEach(d => {
+      if (fecha && sumarDias(lunes, +d) < fecha) return;
+      if (esObj(ex[d])) { tombstones(ex[d]); ex[d].anulada = false; } else ex[d] = {};
+    });
     ex.descanso = true;
+    ex.descansoDesde = fecha && fecha > lunes ? fecha : null;
     return p;
   }
 

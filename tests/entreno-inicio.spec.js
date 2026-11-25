@@ -28,7 +28,7 @@ async function armarPlan(page, dias) {
     const d0 = PlanEntreno.diaDeSemana(getActiveDate());
     let p = PlanEntreno.vacio();
     dias.forEach(({ off, items }) => items.forEach(it => {
-      p = PlanEntreno.cambiarPermanente(p, { op: 'agregar', dia: (((d0 + off) % 7) + 7) % 7, item: it.r != null ? { tipo: 'rutina', id: S.routines[it.r].id } : { tipo: 'actividad', clave: it.a, franja: it.franja } });
+      p = PlanEntreno.cambiarPermanente(p, { op: 'agregar', dia: (((d0 + off) % 7) + 7) % 7, item: it.r != null ? { tipo: 'rutina', id: S.routines[it.r].id, franja: it.franja } : { tipo: 'actividad', clave: it.a, franja: it.franja } });
     }));
     S.planEntreno = p; saveState(); renderRutinas();
   }, dias);
@@ -36,6 +36,10 @@ async function armarPlan(page, dias) {
 const hoyCard = page => page.locator('#rutinas-wrap .pe-day-hoy');
 const sinScrollH = page => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
 const shot = async (page, nombre) => { if (!CAPT) return; fs.mkdirSync(CAPT, { recursive: true }); await page.screenshot({ path: path.join(CAPT, nombre + '.png') }); };
+
+// Cada test arranca la app entera (login + Firebase simulado + canvases de JARVIS): con 2 workers en paralelo el arranque solo ya
+// puede rondar los 15-20 s y se come el timeout global de 30 s sin que haya un fallo real. Se sube SOLO el de este spec.
+test.describe.configure({ timeout: 60000 });
 
 for (const vp of [{ w: 390, h: 844 }, { w: 1280, h: 900 }]) {
   test.describe(`Inicio plan semanal · ${vp.w}px`, () => {
@@ -69,9 +73,11 @@ for (const vp of [{ w: 390, h: 844 }, { w: 1280, h: 900 }]) {
       expect(consoleErrors).toEqual([]);
     });
 
-    test('Inicio cabe en una pantalla: tira de 7 días + tarjeta de hoy + barra inferior, sin scroll vertical ni horizontal', async ({ cmPage: page }) => {
+    for (const [nombre, items] of [['1 rutina + 1 actividad', [{ r: 0 }, { a: 'boxeo', franja: 'tarde' }]], ['2 rutinas', [{ r: 0 }, { r: 1, franja: 'tarde' }]],
+      ['4 ítems (2 rutinas + 2 actividades)', [{ r: 0 }, { a: 'fuerza', franja: 'manana' }, { r: 1, franja: 'tarde' }, { a: 'boxeo', franja: 'noche' }]]]) {
+    test(`Inicio cabe en una pantalla con ${nombre}: tira de 7 días + tarjeta de hoy + barra inferior, sin scroll vertical ni horizontal`, async ({ cmPage: page }) => {
       await preparar(page);
-      await armarPlan(page, [{ off: 0, items: [{ r: 0 }, { a: 'boxeo', franja: 'tarde' }] }, { off: 1, items: [{ r: 1 }] }]);
+      await armarPlan(page, [{ off: 0, items }, { off: 1, items: [{ r: 1 }] }]);
       await expect(page.locator('#rutinas-wrap .pe-s')).toHaveCount(7);
       await expect(page.locator('#rutinas-wrap .pe-s.pe-hoy')).toHaveCount(1);
       const m = await page.evaluate(() => {
@@ -79,11 +85,13 @@ for (const vp of [{ w: 390, h: 844 }, { w: 1280, h: 900 }]) {
         const sc = document.getElementById('rutinas-wrap').closest('.cm-ov-body');
         return { tabBottom: t.bottom, vh: innerHeight, scrolls: !!sc && sc.scrollHeight > sc.clientHeight + 1, wrapH: w.height };
       });
+      if (process.env.ENTRENO_MEDIR) console.log('MEDIDA', vp.w, nombre, JSON.stringify(m));
       expect(m.tabBottom).toBeLessThanOrEqual(m.vh);
       expect(m.scrolls).toBe(false);
       expect(await sinScrollH(page)).toBe(true);
-      await shot(page, `04-una-pantalla-${vp.w}`);
+      await shot(page, `04-una-pantalla-${items.length}-${vp.w}`);
     });
+    }
 
     test('EMPEZAR inicia la sesión actual de rutinas; día hecho muestra ✓ y REPETIR', async ({ cmPage: page }) => {
       await preparar(page);
@@ -92,7 +100,7 @@ for (const vp of [{ w: 390, h: 844 }, { w: 1280, h: 900 }]) {
       const s = await page.evaluate(() => ({ r: S.routines[0].id, ses: S.activeRtnSession && S.activeRtnSession.routineId, ex: S.activeRtnSession && Object.keys(S.activeRtnSession.exSets).length }));
       expect(s.ses).toBe(s.r);
       expect(s.ex).toBeGreaterThan(0);
-      await expect(page.locator('#rutinas-wrap')).toContainText('Finalizar');            // la sesión de siempre
+      await expect(page.locator('#rutinas-wrap')).toContainText('FINALIZAR');            // la sesión (con su botón FINALIZAR SESIÓN fijo abajo)
       // cancelar la sesión y marcar una sesión hecha hoy
       await page.evaluate(() => { S.activeRtnSession = null; S.routineLog[S.routines[0].id] = [{ id: 'l1', date: getActiveDate(), exSets: {}, vol: 100, sets: 12, duration: 2700 }]; saveState(); renderRutinas(); });
       await expect(hoyCard(page)).toContainText('✓ Hecho');
@@ -106,12 +114,17 @@ for (const vp of [{ w: 390, h: 844 }, { w: 1280, h: 900 }]) {
     test('actividad: Hecho con un toque y Detalle opcional (valida 1-10)', async ({ cmPage: page, consoleErrors }) => {
       await preparar(page);
       await armarPlan(page, [{ off: 0, items: [{ a: 'jiujitsu', franja: 'noche' }] }]);
-      await hoyCard(page).getByRole('button', { name: /Marcar Jiujitsu como hecha/ }).click();
+      const ck = hoyCard(page).getByRole('button', { name: /Marcar Jiujitsu como hecha/ });
+      const [bk, bi] = await Promise.all([ck.boundingBox(), hoyCard(page).locator('.pe-it-t').first().boundingBox()]);
+      expect(bk.x).toBeGreaterThan(bi.x + bi.width - 1);                                   // la casilla va a la DERECHA del texto
+      expect(await ck.locator('b').evaluate(b => b.getBoundingClientRect().width)).toBeLessThanOrEqual(18);   // chica
+      await ck.click();
+      await expect(hoyCard(page).locator('.pe-flash')).toHaveCount(1);                    // destello al tildar
       let reg = await page.evaluate(() => Object.values(S.actividadesHechas).filter(Boolean));
       expect(reg).toHaveLength(1);
       expect(reg[0]).toMatchObject({ fecha: await page.evaluate(() => getActiveDate()), clave: 'jiujitsu', franja: 'noche' });
       await expect(hoyCard(page)).toContainText('✓ Hecha');
-      await hoyCard(page).getByRole('button', { name: 'Detalle' }).click();
+      await hoyCard(page).getByRole('button', { name: 'Detalle' }).click();   // link chico, ya no un botón grande
       await page.fill('#pe-d-dur', '75'); await page.fill('#pe-d-int', '11'); await page.fill('#pe-d-con', '6'); await page.fill('#pe-d-pro', 'Pasadas de guardia');
       await hoyCard(page).getByRole('button', { name: 'Guardar' }).click();
       reg = await page.evaluate(() => Object.values(S.actividadesHechas).filter(Boolean));
@@ -206,8 +219,28 @@ for (const vp of [{ w: 390, h: 844 }, { w: 1280, h: 900 }]) {
       await page.getByRole('button', { name: 'Descansar esta semana' }).click();
       await expect(hoyCard(page)).toContainText('Descanso');
       await expect(hoyCard(page).getByRole('button', { name: /Empuje/ })).toBeVisible();   // "entrenar igual"
-      expect(await page.evaluate(() => PlanEntreno.planDeSemana(S.planEntreno, PlanEntreno.semanaISO(getActiveDate())).every(l => l.length === 0))).toBe(true);
+      expect(await page.evaluate(() => { const d0 = PlanEntreno.diaDeSemana(getActiveDate()); return PlanEntreno.planDeSemana(S.planEntreno, PlanEntreno.semanaISO(getActiveDate())).every((l, i) => i < d0 || l.length === 0); })).toBe(true);   // vacío DESDE hoy (lo anterior no se toca: ver el test de días pasados)
       await shot(page, `09-descanso-${vp.w}`);
+    });
+
+    test('Descansar esta semana NO borra los días ya pasados: los ✓ de lunes a miércoles siguen', async ({ cmPage: page }) => {
+      await preparar(page);
+      await page.evaluate(() => { window.getActiveDate = () => '2026-11-26'; });          // jueves; lunes 23 a miércoles 25 ya pasaron
+      await page.evaluate(() => {
+        const rid = S.routines[0].id; let p = PlanEntreno.vacio();
+        [0, 1, 2, 3, 4].forEach(d => { p = PlanEntreno.cambiarPermanente(p, { op: 'agregar', dia: d, item: { tipo: 'rutina', id: rid } }); });
+        S.planEntreno = p; S.routineLog[rid] = [{ id: 'l0', date: '2026-11-23', exSets: {}, vol: 1, sets: 3, duration: 1800 }];
+        PlanUI.entrar(); renderRutinas();
+      });
+      await expect(page.locator('#rutinas-wrap .pe-s').nth(0)).toHaveClass(/pe-ok/);
+      page.once('dialog', d => d.accept());
+      await page.getByRole('button', { name: 'Más opciones del plan' }).click();
+      await page.getByRole('button', { name: 'Descansar esta semana' }).click();
+      await expect(hoyCard(page)).toContainText('Descanso');                               // hoy (jueves) y lo que sigue: descanso
+      const m = await page.evaluate(() => PlanEntreno.planDeSemana(S.planEntreno, '2026-W48').map(l => l.length));
+      expect(m).toEqual([1, 1, 1, 0, 0, 0, 0]);                                           // lunes a miércoles intactos
+      await expect(page.locator('#rutinas-wrap .pe-s').nth(0)).toHaveClass(/pe-ok/);       // el ✓ del lunes sigue
+      await expect(page.locator('#rutinas-wrap .pe-day[data-i="0"]')).toContainText('Hecho');
     });
 
     test('⋯ por rutina: editar, + ejercicio, reordenar y borrar manteniendo apretado ~0,5 s', async ({ cmPage: page }) => {

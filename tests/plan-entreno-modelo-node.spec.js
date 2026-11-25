@@ -123,6 +123,28 @@ test.describe('descansar esta semana', () => {
   });
 });
 
+test.describe('descansar esta semana · solo desde hoy', () => {
+  test('con fecha: los días ya pasados de la semana conservan lo que mostraban; desde hoy queda vacío', () => {
+    const antes = sem(cad(), '2026-W48');
+    const p = P.descansarSemana(cad(), '2026-W48', '2026-11-25');   // miércoles
+    expect(sem(p, '2026-W48').slice(0, 2)).toEqual(antes.slice(0, 2));          // lunes y martes siguen ahí (los ✓ no desaparecen)
+    expect(sem(p, '2026-W48').slice(2)).toEqual([[], [], [], [], []]);
+    expect(P.pendienteDe(p, [], '2026-11-26')).toBeNull();                       // ayer (miércoles) descansado: no hay pendiente
+    expect(sem(p, '2026-W49')).toEqual(sem(cad(), '2026-W49'));                  // la semana siguiente vuelve al fijo
+  });
+  test('descansar de nuevo más adelante no resucita los días ya descansados; editar la semana deja de descansarla desde hoy', () => {
+    let p = P.descansarSemana(cad(), '2026-W48', '2026-11-25');
+    p = P.descansarSemana(p, '2026-W48', '2026-11-27');
+    expect(sem(p, '2026-W48').slice(2)).toEqual([[], [], [], [], []]);
+    p = P.cambiarSoloSemana(p, '2026-W48', ag(3, R('push'), 'n'));
+    expect(sem(p, '2026-W48')).toEqual([...sem(cad(), '2026-W48').slice(0, 2), [], ['push'], [], [], []]);
+  });
+  test('un descanso sin fecha sigue siendo la semana entera (compatibilidad)', () => {
+    const p = P.descansarSemana(cad(), '2026-W48');
+    expect(sem(p, '2026-W48')).toEqual([[], [], [], [], [], [], []]);
+  });
+});
+
 test.describe('franja horaria', () => {
   test('default mañana; el día se ordena por franja y luego por orden de alta', () => {
     let p = P.vacio();
