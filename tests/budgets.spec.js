@@ -62,7 +62,7 @@ async function crearEstacional(page, { nombre, mes, monto, cat }) {
   await page.fill('#seasonalAmount', String(monto));
   await page.click('#modal-seasonal .btn-primary');
 }
-const toast = (page) => page.locator('#toast');
+const toast = (page) => page.locator('#toast .ts').last();   // pila de avisos: el último
 const MSG_MONTO = 'Escribí un monto mayor a 0, con hasta 2 decimales';
 
 test('1. el 1° de noviembre el presupuesto se crea con los límites finales de octubre', async ({ cmPage, consoleErrors }) => {

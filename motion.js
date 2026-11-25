@@ -9,7 +9,7 @@
 //   CMMotion.countUp(el, {from}) count-up corto (≤400 ms) de un número; termina en el texto exacto original
 //   CMMotion.numFrom(texto)      valor numérico del primer número del texto (o null)
 //   CMMotion.quiet(ms)           ventana en la que las listas no animan altas (render masivo de sección/overlay)
-//   (automático) marcar casilla → pop · alta de 1-2 filas en una lista → entrada de la fila · totales → descifrado (descifrar.js)
+//   (automático) marcar casilla → pop + destello con el color de la sección · botón principal → onda · alta de 1-2 filas en una lista → entrada de la fila · totales → descifrado (descifrar.js)
 // ════════════════════════════════════════════════════════════════════════
 const CMMotion = (() => {
   const mq = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
@@ -138,9 +138,9 @@ const CMMotion = (() => {
   const NUM_SEL = '#nwTotal, #nwCash, #txnSumIncome, #txnSumExpense, #txnSumBalance';
 
   // ── 3. Marcar como hecho: pop de la casilla (transform, no mueve el layout) ──
-  const CHECK_SEL = '.check-box, .law-check, .mrd-check, .po-check, .rn-todo-check, .ng-check, .gm-check, .rtn-set-check, input[type="checkbox"]';
+  const CHECK_SEL = '.check-box, .law-check, .mrd-check, .po-check, .rn-todo-check, .ng-check, .gm-check, .pe-ck, .lb-check, .study-cal-dot, input[type="checkbox"]';
   const isOn = el => el.matches('input') ? el.checked
-    : (el.classList.contains('checked') || el.getAttribute('aria-checked') === 'true' || !!el.closest('.done, .done-row, .rn-todo-done, .checked'));
+    : (el.classList.contains('checked') || el.getAttribute('aria-checked') === 'true' || el.classList.contains('pe-ck-on') || el.classList.contains('studied') || !!el.closest('.done, .done-row, .rn-todo-done, .checked'));
   function rowOf(el) { // el ancestro que contiene solo esta casilla
     let r = el;
     for (let i = 0; i < 6 && r.parentElement; i++) {
@@ -153,6 +153,44 @@ const CMMotion = (() => {
     el.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.15)', offset: 0.45 }, { transform: 'scale(1)' }],
       { duration: tok().base, easing: tok().ease });
   }
+  // Destello al tildar (HUD D1): el tilde se dibuja, chispas, anillo y un barrido de luz por la fila, todo con el color de la sección
+  // (--card-accent de la tarjeta donde está; fuera de una tarjeta, --accent). Son capas fijas en <body> (no tocan el layout ni la casilla); duran <0,8 s.
+  const NOFX = '.gm-toggle, .fin-plan-dia, .rep-opt, .pr-chk';   // interruptores de ajustes: no son "tildar algo hecho"
+  const FX_MS = 800, FX_ANG = [0, 45, 90, 135, 180, 225, 270, 315];
+  function burst(el) {
+    if (!canAnimate() || !el.isConnected || (el.closest && el.closest(NOFX))) return;
+    // fuera de una pestaña (overlays de la sección: dieta, entreno, proyectos…) toma el color de la pestaña activa
+    const cs = getComputedStyle(el.closest('.tab-panel') ? el : (document.querySelector('.tab-panel.active') || el));
+    const col =(cs.getPropertyValue('--card-accent') || cs.getPropertyValue('--accent') || '').trim() || '#38BDF8';
+    const r = el.getBoundingClientRect(); if (!r.width || !r.height) return;
+    const layer = [];
+    const row = el.closest(ROW_SEL + ', .rn-todo-item, li, tr') || el.parentElement;
+    const rr = row ? row.getBoundingClientRect() : null;
+    if (rr && rr.width >= 60 && rr.height >= 18 && rr.height <= 120) {
+      const f = document.createElement('div'); f.className = 'ckfx';
+      f.style.cssText = '--fx:' + col + ';left:' + rr.left + 'px;top:' + rr.top + 'px;width:' + rr.width + 'px;height:' + rr.height + 'px;border-radius:' + getComputedStyle(row).borderRadius;
+      layer.push(f);
+    }
+    const p = document.createElement('div'); p.className = 'ckfx-pt';
+    p.style.cssText = '--fx:' + col + ';left:' + (r.left + r.width / 2) + 'px;top:' + (r.top + r.height / 2) + 'px';
+    p.innerHTML = '<svg viewBox="0 0 20 20"><path d="M4 10.5l4 4 8-9"/></svg>' + FX_ANG.map(a => '<i style="--a:' + a + 'deg"></i>').join('');
+    layer.push(p);
+    layer.forEach(n => { n.setAttribute('aria-hidden', 'true'); document.body.appendChild(n); });
+    setTimeout(() => layer.forEach(n => n.remove()), FX_MS);
+  }
+
+  // Onda al tocar el botón principal (HUD D4): capa fija recortada al botón; el pulso suave es CSS (.btn-primary).
+  function onPrimaryClick(e) {
+    if (!canAnimate() || !e.target.closest) return;
+    const b = e.target.closest('.btn-primary'); if (!b || b.disabled) return;
+    const r = b.getBoundingClientRect(); if (!r.width || !r.height) return;
+    const w = document.createElement('div'); w.className = 'cm-rpl'; w.setAttribute('aria-hidden', 'true');
+    const x = e.clientX || r.left + r.width / 2, y = e.clientY || r.top + r.height / 2;
+    w.style.cssText = 'left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width + 'px;height:' + r.height + 'px;border-radius:' + getComputedStyle(b).borderRadius;
+    w.innerHTML = '<i style="left:' + (x - r.left) + 'px;top:' + (y - r.top) + 'px"></i>';
+    document.body.appendChild(w); setTimeout(() => w.remove(), 650);
+  }
+
   function onCheckClick(e) {
     if (!canAnimate() || !e.target.closest) return;
     const el = e.target.closest(CHECK_SEL); if (!el) return;
@@ -167,7 +205,7 @@ const CMMotion = (() => {
         const a = document.getElementById(aid);
         if (a) { const list = Array.from(a.querySelectorAll(CHECK_SEL)); t = list.find(x => rowOf(x).textContent === txt) || list[idx] || null; }
       }
-      if (t && (alwaysPop || isOn(t))) pop(t);
+      if (t && (alwaysPop || isOn(t))) { pop(t); burst(t); }
     });
   }
 
@@ -201,12 +239,13 @@ const CMMotion = (() => {
 
   function init() {
     document.addEventListener('click', onCheckClick, true);
+    document.addEventListener('click', onPrimaryClick);
     // cambiar de pestaña (nav, pestañas internas, hábitos) re-renderiza listas enteras: no son altas
     document.addEventListener('click', e => { if (e.target.closest && e.target.closest('.nav-btn, .plov-tab, .habit-tab-btn, .rail-btn')) quiet(600); }, true);
     new MutationObserver(onMutations).observe(document.body, { childList: true, subtree: true });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 
-  return { enterPanel, countUp, numFrom, quiet, reduced };
+  return { enterPanel, countUp, numFrom, quiet, reduced, burst };
 })();
 window.CMMotion = CMMotion;

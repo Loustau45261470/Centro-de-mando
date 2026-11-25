@@ -52,7 +52,7 @@ async function preparar(page, { ancho = 1280 } = {}) {
 const card = (page) => page.locator('#nwTotal').locator('xpath=ancestor::div[contains(@class,"card")][1]');
 const serie = (page) => page.evaluate(() => ({ n: nwLineInst.data.datasets.length, label: nwLineInst.data.datasets[0].label, data: nwLineInst.data.datasets[0].data.filter((v) => v != null),
   min: nwLineInst.scales.y.min, max: nwLineInst.scales.y.max }));
-const toastTxt = (page) => page.locator('#toast').innerText();
+const toastTxt = (page) => page.locator('#toast .ts').last().innerText();
 const donaSt = (page) => page.evaluate(() => { const s = nwPieInst.estado; return { W: s.W, H: s.H, D: s.D, RO: s.RO, RT: s.RT, top: s.top, wide: s.wide }; });
 // Punto (en px del canvas) sobre el aro, en el medio de la porción de una categoría: ahí hay que tocar para elegirla.
 const puntoDe = (page, id) => page.evaluate((id) => { const s = nwPieInst.estado, it = s.items.find((x) => x.id === id), a = (it.a0 + it.a1) / 2 - Math.PI / 2, r = s.RO - s.RT * .4; return { x: s.W / 2 + Math.cos(a) * r, y: s.H / 2 + Math.sin(a) * r }; }, id);

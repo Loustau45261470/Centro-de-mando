@@ -236,7 +236,7 @@ test('frases: guardar con página, marcar favorita, copiar, editar y borrar', as
 
   // Copiar: avisa y deja la cita con autor, libro y página.
   await filas.filter({ hasText: 'Primera frase' }).locator('[data-act="frase-copiar"]').click();
-  await expect(page.locator('#toast')).toHaveText(/Frase copiada|No se pudo copiar/);
+  await expect(page.locator('#toast .ts').last()).toHaveText(/Frase copiada|No se pudo copiar/);
   const copiado = await page.evaluate(() => navigator.clipboard.readText().catch(() => null));
   if (copiado !== null) expect(copiado).toBe('«Primera frase de ejemplo.» — Autora de Frases, Libro de frases (p. 42)');
 

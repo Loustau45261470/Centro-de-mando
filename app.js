@@ -1813,13 +1813,44 @@ window.addEventListener('load', () => { armScrollReveal(); _armTooltips(); });
 // ════════════════════════════════════════════════════════
 // TOAST
 // ════════════════════════════════════════════════════════
-let toastTimer;
-function showToast(msg, duration = 3000) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('show'), duration);
+// #toast es el contenedor de la pila (máx. 3). Cada aviso: barrido de luz al entrar, color por tipo, barrita que se vacía, se cierra tocándolo.
+// Dura 7 s por defecto; si el código pide más, se respeta (nunca menos de 7 s). type: 'ok' | 'info' | 'warn' | 'err' (si falta, se deduce del texto).
+const TOAST_MIN_MS = 7000, TOAST_MAX = 3;
+const _TOAST_SIGNO = { ok: 1, info: 1, warn: 1, err: 1 };
+function _toastTipo(msg) {
+  const m = String(msg == null ? '' : msg);
+  if (/^(❌|⛔|✕)|no se pudo|error|falló|fallo/i.test(m)) return 'err';
+  if (/^(⚠|⏰|🔔)|ojo|primero|no se puede|no hay|no existe|todavía|negativo|ya tiene|este gasto viene|límite/i.test(m)) return 'warn';
+  if (/^(✅|✓|🏆|🎓)|listo|guardad|restaurad|borrad|eliminad|copiad|actualizad|se pag/i.test(m)) return 'ok';
+  return 'info';
+}
+function _toastCerrar(el) {
+  if (!el || el._cerrando) return;
+  el._cerrando = true; clearTimeout(el._tm);
+  el.classList.add('out');
+  setTimeout(() => {
+    el.remove();
+    const box = document.getElementById('toast');
+    if (box && !box.querySelector('.ts')) box.classList.remove('show');
+  }, 260);
+}
+function showToast(msg, duration, type) {
+  const box = document.getElementById('toast');
+  if (!box) return;
+  const txt = String(msg == null ? '' : msg), ms = Math.max(TOAST_MIN_MS, +duration || 0);
+  const tipo = _TOAST_SIGNO[type] ? type : _toastTipo(txt);
+  box.querySelectorAll('.ts').forEach(x => { if (x.textContent === txt) x.remove(); });   // el mismo aviso no se apila: se reinicia
+  const el = document.createElement('div');
+  el.className = 'ts ts-' + tipo; el.dataset.tipo = tipo; el.setAttribute('role', tipo === 'err' ? 'alert' : 'status');
+  el.style.setProperty('--tms', ms + 'ms');
+  el.innerHTML = '<span class="ts-t"></span><i class="tb" aria-hidden="true"></i>';
+  el.firstChild.textContent = txt;
+  el.addEventListener('click', () => _toastCerrar(el));
+  box.appendChild(el);
+  const vivos = box.querySelectorAll('.ts:not(.out)');
+  for (let i = 0; i < vivos.length - TOAST_MAX; i++) vivos[i].remove();
+  box.classList.add('show');
+  el._tm = setTimeout(() => _toastCerrar(el), ms);
 }
 
 // ════════════════════════════════════════════════════════

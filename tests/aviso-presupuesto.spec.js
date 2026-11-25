@@ -26,7 +26,7 @@ async function gasto(page, monto, moneda = 'ARS') {
   await page.click('#modal-add-txn button:has-text("Registrar")');
   await expect(page.locator('#modal-add-txn')).not.toHaveClass(/open/);
 }
-const toast = (page) => page.locator('#toast');
+const toast = (page) => page.locator('#toast .ts').last();   // pila de avisos: el último
 
 test('1) sin presupuesto cargado para el mes no hay aviso, por grande que sea el gasto', async ({ cmPage, consoleErrors }) => {
   await preparar(cmPage, 0);

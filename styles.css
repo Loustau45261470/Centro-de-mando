@@ -477,20 +477,45 @@ textarea { resize: vertical; min-height: 60px; }
 .pill-accent { background: rgba(124,142,232,.15); color: var(--accent); border: 1px solid rgba(124,142,232,.3); }
 .pill-ghost { background: var(--card); color: var(--ts); border: 1px solid var(--border); }
 
-/* ── Toast ── */
+/* ── Toast (pila HUD: #toast es el contenedor, cada aviso es un .ts) ── */
 #toast {
-  position: fixed; bottom: calc(var(--nav) + var(--safe-b) + 70px);
-  left: 50%; transform: translateX(-50%) translateY(20px);
-  background: rgba(30,30,35,.95); border: 1px solid var(--border);
-  border-radius: 12px; padding: 12px 18px;
-  font-size: var(--fs-13); color: var(--tp);
-  backdrop-filter: blur(20px);
-  opacity: 0; transition: all .3s;
+  /* arriba: cada aviso ahora recibe toques (se cierra tocándolo) y dura 7 s; abajo tapaba los botones que se tocan justo después (descanso, nav, FINALIZAR) */
+  position: fixed; top: calc(env(safe-area-inset-top, 0px) + 12px);
+  left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; gap: 8px; align-items: stretch;
+  width: min(360px, calc(100vw - 32px));
   /* z 1100: el aviso va por encima de los modales (1000) y de los overlays inmersivos (950); si no, queda tapado */
   pointer-events: none; z-index: 1100;
-  max-width: calc(100vw - 32px); text-align: center;
 }
-#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+#toast:not(.show) { opacity: 0; }
+.ts {
+  --tc: var(--hud); position: relative; pointer-events: auto; cursor: pointer; overflow: hidden;
+  display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px 13px;
+  border: 1px solid color-mix(in srgb, var(--tc) 55%, transparent); border-radius: 8px;
+  background: rgba(5,10,18,.94); backdrop-filter: blur(20px);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--tc) 25%, transparent);
+  font-size: var(--fs-13); color: var(--tp); text-align: left; overflow-wrap: anywhere;
+  animation: tsIn .42s cubic-bezier(.2,.9,.2,1) both;
+}
+.ts-ok { --tc: var(--ok); } .ts-info { --tc: var(--hud); } .ts-warn { --tc: var(--warn); } .ts-err { --tc: var(--danger); }
+.ts::before {
+  content: "i"; flex: none; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center;
+  font: 700 12px var(--mono); color: #04090F; background: var(--tc); box-shadow: 0 0 12px var(--tc);
+}
+.ts-ok::before { content: "✓"; } .ts-warn::before { content: "!"; } .ts-err::before { content: "✕"; }
+.ts-t { flex: 1; min-width: 0; line-height: 1.35; padding-top: 1px; }
+.ts .tb { position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: var(--tc); box-shadow: 0 0 8px var(--tc); transform-origin: left; animation: tbDrain var(--tms, 7000ms) linear forwards; }
+.ts::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; transform: translateX(-110%);
+  background: linear-gradient(100deg, transparent 25%, color-mix(in srgb, var(--tc) 55%, transparent) 50%, transparent 75%);
+  animation: tsScan .7s .12s ease-out both;
+}
+.ts.out { animation: tsOut .26s ease-in both; }
+@keyframes tsIn { from { opacity: 0; transform: translateX(46px); clip-path: inset(0 0 0 100%); } to { opacity: 1; transform: none; clip-path: inset(0); } }
+@keyframes tsOut { to { opacity: 0; transform: translateX(30px); } }
+@keyframes tsScan { to { transform: translateX(110%); } }
+@keyframes tbDrain { to { transform: scaleX(0); } }
+@media (prefers-reduced-motion: reduce) { .ts, .ts.out { animation: none; } .ts::after, .ts .tb { display: none; } }
 
 /* ══════════════════════════════
    MAIN TAB
@@ -7421,3 +7446,31 @@ textarea.pr-in { resize: vertical; min-height: 60px; }
 @media (min-width: 900px) { .pe-main.prg-wide { max-width: 1040px; } .prg-grid { grid-template-columns: 1fr 1fr; align-items: start; gap: 14px; } .prg-col { gap: 14px; } }
 @media (prefers-reduced-motion: reduce) { .prg-anim .prg-card { animation: none; } .prg-chev { transition: none; } }
 .prg-card [hidden] { display: none !important; }
+
+/* ── Microinteracciones HUD: destello al tildar (motion.js burst) y botón principal ── */
+.ckfx { position: fixed; z-index: 1090; pointer-events: none; overflow: hidden; }
+.ckfx::before { content: ""; position: absolute; inset: 0; transform: translateX(-100%); animation: ckfxSweep .7s ease-out forwards;
+  background: linear-gradient(100deg, transparent 20%, color-mix(in srgb, var(--fx) 42%, transparent) 50%, transparent 80%); }
+@keyframes ckfxSweep { to { transform: translateX(100%); } }
+.ckfx-pt { position: fixed; z-index: 1090; width: 0; height: 0; pointer-events: none; }
+.ckfx-pt::before { content: ""; position: absolute; left: -11px; top: -11px; width: 22px; height: 22px; border-radius: 7px; border: 1.5px solid var(--fx); opacity: 0; animation: ckfxRing .55s ease-out forwards; }
+@keyframes ckfxRing { from { transform: scale(1); opacity: .9; } to { transform: scale(2.3); opacity: 0; } }
+.ckfx-pt svg { position: absolute; left: -9px; top: -9px; width: 18px; height: 18px; overflow: visible; }
+.ckfx-pt path { fill: none; stroke: var(--fx); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 20; stroke-dashoffset: 20;
+  filter: drop-shadow(0 0 4px var(--fx)); animation: ckfxTick .5s ease-out forwards; }
+@keyframes ckfxTick { 0% { stroke-dashoffset: 20; opacity: 1; } 55% { stroke-dashoffset: 0; opacity: 1; } 100% { stroke-dashoffset: 0; opacity: 0; } }
+.ckfx-pt i { position: absolute; left: 0; top: -1px; width: 9px; height: 2px; border-radius: 2px; transform-origin: 0 50%; opacity: 0;
+  background: color-mix(in srgb, var(--fx) 55%, #fff); box-shadow: 0 0 6px var(--fx); animation: ckfxSpark .5s ease-out forwards; }
+@keyframes ckfxSpark { 0% { opacity: 1; transform: rotate(var(--a)) translateX(10px) scaleX(.3); } 100% { opacity: 0; transform: rotate(var(--a)) translateX(26px) scaleX(1); } }
+
+.btn-primary { animation: btnPulse 2.6s ease-out infinite; }
+.btn-primary:hover, .btn-primary:disabled { animation: none; }
+.btn-primary:active { transform: scale(.97); }
+@keyframes btnPulse {
+  0%   { box-shadow: 0 0 16px var(--hud-glow), inset 0 0 12px rgba(56,189,248,.08), 0 0 0 0 color-mix(in srgb, var(--hud) 45%, transparent); }
+  70%, 100% { box-shadow: 0 0 16px var(--hud-glow), inset 0 0 12px rgba(56,189,248,.08), 0 0 0 12px transparent; }
+}
+.cm-rpl { position: fixed; z-index: 1090; pointer-events: none; overflow: hidden; }
+.cm-rpl i { position: absolute; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: rgba(255,255,255,.55); animation: cmRpl .6s ease-out forwards; }
+@keyframes cmRpl { to { transform: scale(18); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .ckfx, .ckfx-pt, .cm-rpl { display: none; } .btn-primary { animation: none; } }

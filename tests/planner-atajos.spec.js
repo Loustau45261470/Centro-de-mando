@@ -159,10 +159,10 @@ test('5b) campo vacío o 0 no cambian nada y avisan', async ({ cmPage, consoleEr
   await armar(cmPage);
   const antes = await estado(cmPage);
   await cmPage.click(`${barra} .pat-go`);                                        // vacío
-  await expect(cmPage.locator('#toast')).toHaveText('Poné una cantidad mayor a 0');
+  await expect(cmPage.locator('#toast .ts').last()).toHaveText('Poné una cantidad mayor a 0');
   await cmPage.fill(`${barra} .pat-num`, '0');
   await cmPage.click(`${barra} .pat-go`);
-  await expect(cmPage.locator('#toast')).toHaveText('Poné una cantidad mayor a 0');
+  await expect(cmPage.locator('#toast .ts').last()).toHaveText('Poné una cantidad mayor a 0');
   expect(await estado(cmPage)).toBe(antes);
   await expect(cmPage.locator('#cmundo-toast')).not.toHaveClass(/show/);
   expect(consoleErrors).toEqual([]);
@@ -249,7 +249,7 @@ test('10) si todo está hecho avisa y no cambia nada', async ({ cmPage, consoleE
   }, HOY);
   const antes = await estado(cmPage);
   await cmPage.click(`${barra} .pat-chip:has-text("+1 h")`);
-  await expect(cmPage.locator('#toast')).toHaveText('No hay actividades pendientes para correr');
+  await expect(cmPage.locator('#toast .ts').last()).toHaveText('No hay actividades pendientes para correr');
   expect(await estado(cmPage)).toBe(antes);
   await expect(cmPage.locator('#cmundo-toast')).not.toHaveClass(/show/);
   expect(consoleErrors).toEqual([]);
