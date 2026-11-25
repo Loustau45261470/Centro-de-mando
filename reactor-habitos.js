@@ -119,13 +119,13 @@
     reg.forEach((r) => {
       if (!r.cv.isConnected) { if (r.io) r.io.disconnect(); if (r.ro) r.ro.disconnect(); reg.delete(r); return; }
       if (!activo(r)) return;
-      any = true; r.t += dt; r.v += (r.target - r.v) * Math.min(1, dt * 4); r.sec = colorSeccion(r.cv); medir(r); draw(r); r.frames++;
+      any = true; r.t += dt; r.v += (r.target - r.v) * Math.min(1, dt * 4); draw(r); r.frames++;
     });
     if (any) raf = requestAnimationFrame(frame);
   }
   function kick() { if (!raf && !document.hidden && !RM()) { last = performance.now(); raf = requestAnimationFrame(frame); } }
   function estatico(r) { r.sec = colorSeccion(r.cv); medir(r); r.v = r.target; r.intro = false; r.t = 9.3; draw(r); }
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) kick(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { reg.forEach((r) => { if (r.cv.isConnected) r.sec = colorSeccion(r.cv); }); kick(); } });
   if (mqRM && mqRM.addEventListener) mqRM.addEventListener('change', () => { if (RM()) reg.forEach(estatico); else kick(); });
 
   function mount(cv, o) {
@@ -143,9 +143,9 @@
     if (RM()) estatico(r);
     else {
       r.sec = colorSeccion(cv); draw(r);   // cuadro inicial (nunca queda en blanco antes de entrar en pantalla)
-      if ('IntersectionObserver' in window) { r.io = new IntersectionObserver((es) => { r.inView = es[es.length - 1].isIntersecting; if (r.inView) kick(); }); r.io.observe(cv); }
+      if ('IntersectionObserver' in window) { r.io = new IntersectionObserver((es) => { r.inView = es[es.length - 1].isIntersecting; if (r.inView) { r.sec = colorSeccion(r.cv); medir(r); kick(); } }); r.io.observe(cv); }
       else kick();
-      if ('ResizeObserver' in window) { r.ro = new ResizeObserver(() => { medir(r); if (!raf) draw(r); }); r.ro.observe(cv); }
+      if ('ResizeObserver' in window) { r.ro = new ResizeObserver(() => { r.sec = colorSeccion(r.cv); medir(r); if (!raf) draw(r); }); r.ro.observe(cv); }
     }
     return r;
   }

@@ -118,7 +118,6 @@ body::after {
 @property --a1-c { syntax: '<color>'; inherits: true; initial-value: #5CF6FF; }
 body:not([class*="theme-"]) {
   --a1-c: var(--c-jarvis);
-  transition: --a1-c .9s ease;
   background: linear-gradient(165deg, #050A12, #08111D 55%, #050B14);
 }
 body:not([class*="theme-"]):has(#tab-vida.active)         { --a1-c: var(--c-vida); }
@@ -130,6 +129,8 @@ body:not([class*="theme-"])::before {
   background: radial-gradient(70% 55% at 50% -5%, color-mix(in srgb, var(--a1-c) 22%, transparent), transparent 70%);
   -webkit-mask-image: none; mask-image: none;
   animation: a1-breathe 14s ease-in-out infinite alternate;
+  /* El fundido de color vive acá y no en body: --a1-c hereda, y transicionarla en body invalidaba el estilo de todo el árbol en cada cuadro al cambiar de sección. */
+  transition: --a1-c .9s ease;
 }
 body:not([class*="theme-"]) #hud-ambient { display: none; }
 @keyframes a1-breathe { from { opacity: .45; } to { opacity: 1; } }

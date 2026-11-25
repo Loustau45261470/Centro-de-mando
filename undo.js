@@ -14,7 +14,7 @@
       transform:translateX(-50%) translateY(20px);display:flex;align-items:center;gap:12px;
       background:rgba(30,30,35,.95);border:1px solid var(--border);border-radius:12px;padding:10px 12px 10px 18px;
       font-size:var(--fs-13);color:var(--tp);backdrop-filter:blur(20px);opacity:0;transition:all .3s;
-      pointer-events:none;z-index:201;max-width:calc(100vw - 32px)}
+      pointer-events:none;z-index:1100;max-width:calc(100vw - 32px)}
     #cmundo-toast.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
     #cmundo-toast .cmundo-msg{overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-height:1.3}
     #cmundo-toast button{flex-shrink:0;background:transparent;border:1px solid var(--hud);color:var(--hud-bright);

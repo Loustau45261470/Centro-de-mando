@@ -729,6 +729,13 @@
       "desc": "Los bloques del anillo del Pomodoro usaban .pomo-seg, el mismo nombre del selector Día/Semana/Mes de las estadísticas, que quedaba desarmado (absolute + rotate). Renombrados a .pomo-blk.",
       "file": "styles.css",
       "marker": ".pomo-blk { position: absolute; inset: 0;"
+    },
+    {
+      "id": "transicion-a1c-en-pseudo",
+      "fecha": "2026-11-25",
+      "desc": "La transición de --a1-c (registrada con inherits:true) estaba en body: durante 900 ms cada cambio de sección invalidaba el estilo de todo el árbol en cada cuadro. Ahora vive en body::before, que es el único que consume --a1-c.",
+      "file": "styles.css",
+      "marker": "transition: --a1-c .9s ease;"
     }
   ]
 }

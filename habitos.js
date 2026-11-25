@@ -667,6 +667,7 @@ function _renderHabitChart(section, habit) {
     type:'bar',
     data:{ labels, datasets:[{ data, backgroundColor: HABIT_CHART_COLOR[section]||'rgba(255,255,255,.3)', borderRadius:2, barThickness:2 }] },
     options:{
+      animation:false,   // se recrea en cada entrada: animar 850 ms suma trabajo al cambiar de pestaña
       indexAxis:'y',
       responsive:true, maintainAspectRatio:false,
       plugins:{ legend:{ display:false } },
