@@ -409,6 +409,7 @@ const Tenencias = (() => {
 
   function render(body, d, fuente) {
     _ctx = { body, d, fuente };
+    hudLit(body);
     const meta = metaFuente(d, fuente || 'estatico');
     const err = _errorVivo ? `<div class="text-danger ten-act-err" role="status">En vivo no disponible: ${esc(_errorVivo)}</div>` : '';
     body.innerHTML = `<div class="ten-act-bar"><div class="ci-meta">${esc(meta)}</div>${botonActualizar()}</div>${err}${header(d)}${donaHtml(d)}${tabla(d)}`;
@@ -639,7 +640,7 @@ const Tenencias = (() => {
     _openSimbolo = null;
     _orden = 'valorizado';
     _errorVivo = null;
-    bx.innerHTML = `<div class="empty-state">Cargando tenencias…</div>`;
+    hudCarga(bx, 'Cargando tenencias…', 4);
     const estP = leerEstatico(); // en paralelo al Worker: completa lotes/semanal de lo en vivo, o es el fallback
     estP.catch(() => {});        // el error real se maneja en fetchEstatico; acá solo evita el "unhandled rejection"
     fetchWorker()

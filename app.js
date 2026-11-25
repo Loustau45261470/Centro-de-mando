@@ -1854,6 +1854,31 @@ function showToast(msg, duration, type) {
 }
 
 // ════════════════════════════════════════════════════════
+// CARGA TIPO HUD (D7) — estilo en styles.css (.hud-load / .hud-lit)
+// ════════════════════════════════════════════════════════
+// Escribe en `el` el placeholder de carga (bloques con brillo + barra de escaneo) en lugar del "Cargando…" de texto.
+function hudCarga(el, msg, filas) {
+  if (!el) return;
+  const fila = '<div class="hud-load-row"><i class="hud-sk hud-sk-av"></i><span class="hud-load-ls"><i class="hud-sk"></i><i class="hud-sk"></i></span><i class="hud-sk hud-sk-am"></i></div>';
+  el.innerHTML = `<div class="hud-load" role="status" aria-live="polite"><div class="hud-load-h">${escHtml(msg)}</div><div class="hud-load-scan"></div>${fila.repeat(filas || 3)}</div>`;
+  el._hudCarga = true;
+}
+// Al llegar los datos: si el contenedor venía de un placeholder, sus filas nuevas se encienden una vez (no en re-renders posteriores).
+// Se llama JUSTO ANTES de pintar el contenido real; el encendido corre en el tick siguiente, ya con las filas nuevas en el DOM.
+function hudLit(el) {
+  if (!el || !el._hudCarga) return;
+  el._hudCarga = false;
+  const mq = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)');
+  if (mq && mq.matches) return;
+  setTimeout(() => {
+    if (!el.isConnected) return;
+    Array.prototype.slice.call(el.children, 0, 8).forEach((c, i) => c.style.setProperty('--hi', i));
+    el.classList.add('hud-lit');
+    setTimeout(() => el.classList.remove('hud-lit'), 1000);
+  }, 0);
+}
+
+// ════════════════════════════════════════════════════════
 // MODALS
 // ════════════════════════════════════════════════════════
 function openModal(id) {

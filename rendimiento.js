@@ -233,7 +233,8 @@ const Rendimiento = (() => {
 
   function render() {
     if (!_box) return;
-    if (_cargando && !_datos) { _box.innerHTML = '<div class="empty-state">Calculando tu rendimiento…</div>'; return; }
+    if (_cargando && !_datos) { hudCarga(_box, 'Calculando tu rendimiento…', 3); return; }
+    hudLit(_box);
     if (_estado && !_datos) {
       _box.innerHTML = `<div class="empty-state rnd-error"><div>${esc(_estado.texto)}</div><button type="button" class="btn btn-ghost btn-sm rnd-retry">Reintentar</button></div>`;
       return;

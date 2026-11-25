@@ -32,14 +32,26 @@ const CMMotion = (() => {
 
   let _quietUntil = 0;
   // Mientras dura, <html> lleva .mo-in: habilita las animaciones de dibujo (medidor/barras de Presupuesto) que no deben repetirse en re-renders.
-  let _quietTimer = 0;
+  let _quietTimer = 0, _win = 0;
   const quiet = ms => {
     _quietUntil = Math.max(_quietUntil, performance.now() + ms);
-    const root = document.documentElement; root.classList.add('mo-in');
+    const root = document.documentElement; if (!root.classList.contains('mo-in')) _win++;   // ventana de entrada nueva
+    root.classList.add('mo-in');
     clearTimeout(_quietTimer);
     _quietTimer = setTimeout(() => root.classList.remove('mo-in'), Math.max(0, _quietUntil - performance.now()) + 50);
   };
   const isQuiet = () => performance.now() < _quietUntil;
+  // Dibujos de entrada (medidor/barras de Presupuesto): devuelve los ms transcurridos desde el 1.er dibujo de `key` en esta ventana de entrada
+  // (0 la primera vez) o null fuera de la ventana. El render que repite el DOM dentro de la ventana (la sección se pinta dos veces al entrar)
+  // retoma la animación donde iba (animation-delay negativo = --age), así no reinicia; fuera de la ventana (guardados) no anima.
+  const _seen = {}, _t0 = {};
+  const drawAge = key => {
+    if (!document.documentElement.classList.contains('mo-in')) return null;
+    const now = performance.now();
+    if (_seen[key] !== _win) { _seen[key] = _win; _t0[key] = now; return 0; }
+    const age = now - _t0[key];
+    return age < 900 ? Math.round(age) : null;
+  };
   quiet(2500); // arranque: el primer render de todo no se anima
 
   // ── 1. Entrada en cascada de sección (HUD C2) ──────────────────────
@@ -281,6 +293,6 @@ const CMMotion = (() => {
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 
-  return { enterPanel, countUp, numFrom, quiet, reduced, burst };
+  return { enterPanel, countUp, numFrom, quiet, drawAge, reduced, burst };
 })();
 window.CMMotion = CMMotion;

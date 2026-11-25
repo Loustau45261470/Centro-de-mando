@@ -3531,9 +3531,26 @@ function renderBudgetSummary() {
     </div>`;
   }).join('');
 
-  // Medidor radial (arco 270°). C = 2·π·50 ≈ 314.16; arco visible = 0.75·C ≈ 235.6.
-  const ARC = 235.6, FULL = 314.16;
-  const valDash = `${(ARC * Math.min(ratio, 1)).toFixed(1)} ${FULL}`;
+  // Medidor de luces (HUD D9): arco de 270° con 30 segmentos LED que se prenden según lo gastado (verde → amarillo → rojo, colores
+  // semánticos), aguja que sigue al último encendido; desde el 90 % el centro parpadea. Se dibuja solo al entrar (CMMotion.once), no al guardar.
+  const SEG_N = 30, A0 = 135, SWEEP = 270;
+  const lit = ratio > 0 ? Math.min(SEG_N, Math.ceil(Math.min(ratio, 1) * SEG_N - 1e-9)) : 0;
+  const segCol = k => {   // 0..1 → rgb: verde hasta .6, amarillo hacia .78, rojo en 1
+    const st = [[0, [16, 224, 124]], [.6, [16, 224, 124]], [.78, [245, 166, 35]], [1, [255, 51, 88]]];
+    for (let j = 1; j < st.length; j++) if (k <= st[j][0]) {
+      const a = st[j - 1], b = st[j], f = (k - a[0]) / (b[0] - a[0]);
+      return a[1].map((v, c) => Math.round(v + (b[1][c] - v) * f)).join(',');
+    }
+    return st[3][1].join(',');
+  };
+  const segs = Array.from({ length: SEG_N }, (_, i) => {
+    const k = i / (SEG_N - 1), a = (A0 + SWEEP * k) * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+    return `<line class="bsum-seg${i < lit ? ' on' : ''}" style="--i:${i};--c:rgb(${segCol(k)})" x1="${(60 + c * 43).toFixed(2)}" y1="${(60 + s * 43).toFixed(2)}" x2="${(60 + c * 54).toFixed(2)}" y2="${(60 + s * 54).toFixed(2)}"/>`;
+  }).join('');
+  const needleAng = (A0 + SWEEP * Math.min(ratio, 1)).toFixed(1);
+  const drawAge = window.CMMotion && CMMotion.drawAge ? CMMotion.drawAge('bsum') : null;   // null = fuera de la entrada (guardados): sin animación
+  const drawGauge = drawAge != null, ageStyle = drawGauge ? `--age:${drawAge}ms` : '';
+  const warnGauge = budget > 0 && ratio >= 0.9;
   // Aviso corto (solo si hay meses por decidir) que lleva a la pantalla de presupuestos, donde está la lista.
   const pendN = _budgetPendingMonths(mk).length;
   const pendLine = pendN
@@ -3542,10 +3559,11 @@ function renderBudgetSummary() {
   body.innerHTML = `
     ${pendLine}
     <div class="bsum-top">
-      <div class="bsum-gauge-wrap">
-        <svg class="bsum-gauge" viewBox="0 0 120 120" aria-hidden="true">
-          <circle class="bsum-gauge-track" cx="60" cy="60" r="50"/>
-          <circle class="bsum-gauge-val${over ? ' over' : ''}" cx="60" cy="60" r="50" style="--dash:${valDash}"/>
+      <div class="bsum-gauge-wrap${warnGauge ? ' warn' : ''}" data-lit="${lit}">
+        <svg class="bsum-gauge${drawGauge ? ' bsum-draw' : ''}" viewBox="0 0 120 120" aria-hidden="true" style="--n:${lit};${ageStyle}">
+          ${segs}
+          <g class="bsum-needle" style="--ang:${needleAng}deg"><line x1="70" y1="60" x2="96" y2="60"/></g>
+          <circle class="bsum-hub" cx="60" cy="60" r="4.5"/>
         </svg>
         <div class="bsum-gauge-center">
           <div class="bsum-gauge-pct${over ? ' over' : ''}">${budget > 0 ? Math.round(ratio * 100) : 0}<span>%</span></div>
@@ -3561,7 +3579,7 @@ function renderBudgetSummary() {
     <div class="bsum-sec">Por categoría · real / plan</div>
     ${catRows}
     <div class="bsum-sec">Gastado · últimos 6 meses</div>
-    <div class="bsum-trend">${trendCols}</div>
+    <div class="bsum-trend${drawGauge ? ' bsum-draw' : ''}" style="${ageStyle}">${trendCols}</div>
     <button class="bsum-full" onclick="event.stopPropagation();if(window.openBudgetOverlay)openBudgetOverlay('presupuestos')">Ver presupuesto completo →</button>`;
 }
 

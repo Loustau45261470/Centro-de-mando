@@ -148,9 +148,10 @@ window.CMHistorial = (() => {
   const errAmable = () => '<p class="sdiag-muted">No se pudo leer el historial. Revisá la conexión y probá de nuevo.</p>';
 
   async function pintarLista() {
-    body.innerHTML = '<p class="sdiag-muted">Cargando versiones…</p>';
+    hudCarga(body, 'Cargando versiones…', 4);
     let items;
     try { items = await indice(); } catch (e) { console.warn('[historial]', e.code || e.message); body.innerHTML = errAmable(); return; }
+    hudLit(body);
     items = items.filter(i => i && i.t).sort((a, b) => b.t - a.t);
     let html = '<p class="sdiag-intro">Elegí una fecha para ver qué tenías en ese momento y recuperarlo. Antes de cambiar nada se guarda una copia de lo que tenés ahora, así siempre se puede deshacer.</p>' +
       '<h3 class="sdiag-h">Ahora</h3><ul class="sdiag-list"><li class="sdiag-item hv-ahora"><div class="sdiag-row"><span class="sdiag-what">Ahora</span><span class="hv-tag">lo que tenés en pantalla</span></div>' +

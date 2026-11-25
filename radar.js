@@ -114,7 +114,8 @@ const Radar = (() => {
   }
   function pintarFranja() {
     const sl = _box.querySelector('.rd-strip-row'); if (!sl) return;
-    if (_cfgEstado.tipo === 'cargando') { sl.innerHTML = '<p class="rd-muted rd-strip-msg">Cargando empresas…</p>'; return; }
+    if (_cfgEstado.tipo === 'cargando') { hudCarga(sl, 'Cargando empresas…', 1); return; }
+    hudLit(sl);
     if (_cfgEstado.tipo === 'error') { sl.innerHTML = `<p class="rd-err rd-strip-msg">${esc(_cfgEstado.texto)} <button type="button" class="rd-btn rd-btn-ghost" data-act="reintentar-cfg">Reintentar</button></p>`; return; }
     if (_cfgEstado.tipo === 'vacio') { sl.innerHTML = '<p class="rd-muted rd-strip-msg">Todavía no hay empresas en radar-config.json.</p>'; return; }
     sl.innerHTML = empresas().map(e => `<button type="button" class="rd-emp${e.ticker === _sel ? ' on' : ''}" data-t="${esc(e.ticker)}" aria-pressed="${e.ticker === _sel}" title="${esc(e.nombre)}">${logoHtml(e)}<span class="rd-emp-n">${esc(e.nombre)}</span></button>`).join('');
@@ -264,7 +265,8 @@ const Radar = (() => {
     if (!_sel) { cont.innerHTML = ''; return; }
     const emp = empresa(_sel); if (!emp) { cont.innerHTML = ''; return; }
     const arch = ['mercado-', 'historia-', 'kpis-'].map(p => _arch[p + _sel + '.json']);
-    if (empresaCargando(_sel) && !arch.some(a => a && a.data)) { cont.innerHTML = `<p class="rd-muted rd-cargando">Cargando los datos de ${esc(emp.nombre)}…</p>`; return; }
+    if (empresaCargando(_sel) && !arch.some(a => a && a.data)) { hudCarga(cont, `Cargando los datos de ${emp.nombre}…`, 4); return; }
+    hudLit(cont);
     if (!arch.some(a => a && a.data)) {
       const fallo = arch.some(a => a && a.status === 0 || a && a.status === 403);
       cont.innerHTML = fallo
@@ -389,7 +391,8 @@ const Radar = (() => {
     const cont = _box && _box.querySelector('.rd-graf-cuerpo'); if (!cont) return;
     if (_chart) { _chart.destroy(); _chart = null; }
     if (_cfgEstado.tipo !== 'ok') { cont.innerHTML = ''; return; }
-    if (_grafEstado === 'cargando') { cont.innerHTML = '<p class="rd-muted">Cargando los datos de mercado de las empresas…</p>'; return; }
+    if (_grafEstado === 'cargando') { hudCarga(cont, 'Cargando los datos de mercado de las empresas…', 2); return; }
+    hudLit(cont);
     const todos = puntos();
     const buenos = todos.filter(p => p.ok);
     _grafPuntos = buenos;
