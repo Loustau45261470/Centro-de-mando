@@ -62,6 +62,9 @@
     const cx = W / 2, cy = H * 0.49;
     const cr = Math.min(W * 0.86, H * 0.78) * 0.13 + 6;           // mismo radio base que el núcleo de neural-fx
     const half = Math.min(W, H) / 2 - 4;
+    // Contenedor demasiado chico (p.ej. dock colapsado): un radio negativo hace que createRadialGradient/arc lancen
+    // IndexSizeError, el frame aborta antes de pedir el siguiente rAF y la capa se congela. Se saltea el dibujo.
+    if (half <= 4) { ctx.clearRect(0, 0, W, H); return; }
     const r0 = Math.min(cr * 2.6, half * 0.62), hmax = Math.max(8, half - r0);
     const vis = s === 'off' ? 0.4 : 1;
 

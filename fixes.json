@@ -715,6 +715,13 @@
       "desc": "_rescueLocal solo unia listas con id: las claves objeto (comidas, foco, reminders, principios, dayPlan...) se perdian en las ramas de rescate. Ahora las une con _merge3 sin base (nada se borra; un primitivo en conflicto gana la nube). La rama cloudM > localM+3 usa SIEMPRE union (no merge 3 vias: con ancestro mas nuevo que local achicaba la nube). Trade-off: algo borrado en otro dispositivo puede reaparecer.",
       "file": "app.js",
       "marker": "// rescue-claves-objeto"
+    },
+    {
+      "id": "orbe-radio-negativo",
+      "fecha": "2026-11-24",
+      "desc": "Capa de efectos del orbe JARVIS: con el contenedor chico half<0 hacía lanzar IndexSizeError en createRadialGradient, el frame abortaba antes de pedir el siguiente rAF y la capa se congelaba. Guard que saltea el dibujo.",
+      "file": "jarvis-orbe-fx.js",
+      "marker": "if (half <= 4) { ctx.clearRect(0, 0, W, H); return; }"
     }
   ]
 }
