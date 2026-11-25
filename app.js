@@ -25,6 +25,8 @@ const DEFAULT_STATE = {
   routines: null,   // initialized by initRoutines()
   routineLog: {},   // { 'rtnId': [{ id, date, exSets:{exId:[{weight,reps}]}, vol, sets, duration }] }
   activeRtnSession: null, // { routineId, startedAt, exSets:{exId:[{weight,reps}]} }
+  planEntreno: { fijo: {}, semanas: {}, corridas: {}, pendientes: {} }, // plan semanal (plan-entreno.js). fijo{dia 0=lun..6:{uid:item}}; semanas{'AAAA-Www':{dia:{uid:item}, descanso?}} (excepción de esa semana); corridas{uid:{desde,anulada?}} (desplazamiento en cadena); pendientes{fecha:'corrida'|'seguir'|'reset'}; item={uid,o,franja:'manana'|'tarde'|'noche',tipo:'rutina',id}|{...,tipo:'actividad',clave}. Cada día es OBJETO {uid:item} (no array) para que el merge no pierda altas; quitar = null en el uid, deshacer = anulada:true; NUNCA borrar claves ni pre-llenar con null (el rescate sin ancestro pisaría ediciones locales)
+  actividadesHechas: {}, // { uid: {fecha, clave, franja, duracionMin?, intensidad?(1-10), concentracion?(1-10), proposito?} } — actividades marcadas hechas (plan-entreno.js); desmarcar = null en el uid
   bodyWeight: [],   // [{ id, date, value, unit }]
   photos: [],       // [{ id, date, weight, src }]
   // Finance
@@ -1748,7 +1750,6 @@ function renderTabHeader(metaId) {
 }
 
 function switchTab(tab, btn) {
-  if (window.CMMotion) { const _old = document.querySelector('.tab-panel.active'); if (_old && _old.id !== 'tab-' + tab) CMMotion.leavePanel(_old); }   // salida rápida de la sección vieja (HUD C2, motion.js)
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   const _panel = document.getElementById('tab-' + tab);

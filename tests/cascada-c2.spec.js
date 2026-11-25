@@ -1,4 +1,4 @@
-// HUD C2 — cascada al cambiar de sección (motion.js leavePanel/enterPanel + styles.css card-cascade).
+// HUD C2 — cascada al cambiar de sección (motion.js enterPanel + styles.css card-cascade; sin fantasma de salida desde 2026-11-24).
 'use strict';
 const fs = require('fs');
 const { test, expect } = require('./support/fixtures');
@@ -7,7 +7,7 @@ const SHOTS = process.env.CASCADA_SHOTS || '';
 const irA = (page, tab) => page.click(`.nav-btn[data-tab="${tab}"]`);
 
 test.describe('cascada C2', () => {
-  test('cascada: tarjetas visibles escalonadas, mid-shot, y todo vuelve a opacity 1 / sin transform', async ({ cmPage: page, consoleErrors }) => {
+  test('cascada: tarjetas visibles con destello escalonado, mid-shot, y todo vuelve a opacity 1 / sin transform', async ({ cmPage: page, consoleErrors }) => {
     test.setTimeout(90000);
     const vw = page.viewportSize().width;
     for (const tab of ['finanzas', 'salud']) {
@@ -17,8 +17,8 @@ test.describe('cascada C2', () => {
       // durante la cascada hay una tarjeta aún oculta/animando y la sección ya es clickeable
       const delays = await page.evaluate((t) => [...document.querySelectorAll(`#tab-${t} .card`)].map((c) => c.style.getPropertyValue('--cx-d')).filter(Boolean), tab);
       expect(delays.length).toBeGreaterThan(0);
-      expect(Math.min(...delays.map(parseFloat))).toBeGreaterThanOrEqual(120);
-      expect(Math.max(...delays.map(parseFloat))).toBeLessThanOrEqual(480);
+      expect(Math.min(...delays.map(parseFloat))).toBeGreaterThanOrEqual(0);
+      expect(Math.max(...delays.map(parseFloat))).toBeLessThanOrEqual(200);
       await page.waitForTimeout(1500);
       expect(await page.evaluate(() => document.documentElement.classList.contains('mo-in'))).toBe(false);
       if (SHOTS) await page.screenshot({ path: `${SHOTS}/${tab}-${vw}-fin.png` });
@@ -28,6 +28,25 @@ test.describe('cascada C2', () => {
       expect(bad).toBe(0);
     }
     expect(await page.locator('body > .tab-panel').count(), 'sin fantasmas').toBe(0);
+    expect(consoleErrors).toEqual([]);
+  });
+
+  test('regresión lentitud: click -> tarjetas visibles al instante, ninguna con opacity < 1 en ningun cuadro y sin fantasma', async ({ cmPage: page, consoleErrors }) => {
+    await irA(page, 'finanzas');
+    await page.waitForTimeout(1800);
+    const r = await page.evaluate(() => new Promise((ok) => {
+      const t0 = performance.now(), S = [];
+      document.querySelector('.nav-btn[data-tab="conocimiento"]').click();
+      const tick = () => {
+        const t = performance.now() - t0, vis = [...document.querySelectorAll('#tab-conocimiento .card')].filter((c) => !c.classList.contains('sr-armed') && c.getBoundingClientRect().width && c.getBoundingClientRect().top < innerHeight);
+        S.push({ t, n: vis.length, min: vis.length ? Math.min(...vis.map((c) => +getComputedStyle(c).opacity)) : 1, ghosts: document.querySelectorAll('body > .tab-panel').length });
+        if (t < 500) requestAnimationFrame(tick); else ok({ S });
+      };
+      requestAnimationFrame(tick);
+    }));
+    expect(r.S.some((x) => x.n > 0)).toBe(true);
+    expect(Math.min(...r.S.map((x) => x.min)), 'ninguna tarjeta visible con opacity < 1').toBeGreaterThanOrEqual(0.99);
+    expect(Math.max(...r.S.map((x) => x.ghosts)), 'sin fantasma').toBe(0);
     expect(consoleErrors).toEqual([]);
   });
 

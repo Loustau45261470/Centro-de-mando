@@ -42,9 +42,9 @@ test.describe('motion · con movimiento', () => {
     expect(entrada.length, 'tarjetas animadas al entrar').toBeGreaterThan(0);
     expect(entrada.length, 'tope de tarjetas animadas').toBeLessThanOrEqual(8);
     const delays = entrada.map((a) => a.delay);
-    expect(delays[0], 'cascada C2: arranca tras la salida de la sección vieja').toBeGreaterThanOrEqual(120);
-    for (let i = 1; i < delays.length; i++) expect(delays[i] - delays[i - 1], 'escalonado C2 <= 110 ms (tope 480 ms)').toBeLessThanOrEqual(110);
-    expect(Math.max(...delays)).toBeLessThanOrEqual(480);
+    expect(delays[0], 'cascada C2: arranca sin demora (sin fantasma de salida)').toBeLessThanOrEqual(50);
+    for (let i = 1; i < delays.length; i++) expect(delays[i] - delays[i - 1], 'escalonado C2 <= 50 ms (tope 200 ms)').toBeLessThanOrEqual(50);
+    expect(Math.max(...delays)).toBeLessThanOrEqual(200);
     for (const a of entrada) {
       expect(a.dur, 'duración de entrada').toBeLessThanOrEqual(300);
       expect(a.kf).toContain('translateY');

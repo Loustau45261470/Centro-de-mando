@@ -5,7 +5,6 @@
 // --motion-stagger): este archivo los lee de ahí, no define números propios.
 // Solo opacity/transform. Todo se apaga con prefers-reduced-motion (se chequea en cada llamada).
 //
-//   CMMotion.leavePanel(panel)   salida rápida (~180 ms) de la sección vieja (HUD C2)
 //   CMMotion.enterPanel(panel)   entrada en cascada de las tarjetas visibles (≤8) al cambiar de sección
 //   CMMotion.countUp(el, {from}) count-up corto (≤400 ms) de un número; termina en el texto exacto original
 //   CMMotion.numFrom(texto)      valor numérico del primer número del texto (o null)
@@ -43,31 +42,11 @@ const CMMotion = (() => {
   const isQuiet = () => performance.now() < _quietUntil;
   quiet(2500); // arranque: el primer render de todo no se anima
 
-  // ── 1. Salida + entrada en cascada de sección (HUD C2) ──────────────
-  // Salida: leavePanel() deja un "fantasma" (clon sin ids, inerte) de la sección vieja que se apaga en ~180 ms.
-  // Entrada: cada tarjeta visible (≤8) recibe en --cx-d su delay (120 ms + 110 ms por pieza, tope 480 ms) y styles.css
-  // (card-cascade, solo bajo html.mo-in) la enciende con el destello de su --card-accent. Las de bajo el pliegue no se escalonan.
-  const MAX_ENTER = 8, CX_BASE = 120, CX_STEP = 110, CX_CAP = 480, LEAVE_MS = 180;
-  let _ghost = null;
-  function clearGhost() { if (_ghost) { _ghost.remove(); _ghost = null; } }
-  function leavePanel(panel) {
-    clearGhost();
-    if (!panel || !canAnimate() || !panel.getClientRects().length) return;
-    const r = panel.getBoundingClientRect(), vh = window.innerHeight || document.documentElement.clientHeight;
-    if (r.bottom <= 0 || r.top >= vh) return;
-    const g = panel.cloneNode(true);
-    g.removeAttribute('id'); g.classList.remove('active');
-    g.querySelectorAll('[id]').forEach(n => n.removeAttribute('id'));
-    g.querySelectorAll('.card').forEach(c => { c.style.animation = 'none'; });
-    g.setAttribute('aria-hidden', 'true'); g.setAttribute('inert', '');
-    Object.assign(g.style, { display: 'block', position: 'fixed', left: r.left + 'px', top: Math.max(0, r.top) + 'px',
-      width: r.width + 'px', height: (Math.min(r.bottom, vh) - Math.max(0, r.top)) + 'px', overflow: 'hidden',
-      pointerEvents: 'none', zIndex: '40', margin: '0', animation: 'none' });
-    document.body.appendChild(g); _ghost = g;
-    const a = g.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(10px)' }],
-      { duration: LEAVE_MS, easing: 'ease-in', fill: 'forwards' });
-    a.onfinish = a.oncancel = () => { if (_ghost === g) _ghost = null; g.remove(); };
-  }
+  // ── 1. Entrada en cascada de sección (HUD C2) ──────────────────────
+  // Sin fantasma de salida (2026-11-24: el clon de la sección vieja no copiaba el scroll de #app y tapaba la nueva): el cambio es instantáneo.
+  // Cada tarjeta visible (≤8) recibe en --cx-d su delay (0 ms + 50 ms por pieza, tope 200 ms) y styles.css (card-cascade, solo bajo html.mo-in)
+  // la enciende con el destello de su --card-accent. La tarjeta NUNCA está invisible: el destello va sobre contenido ya visible. Las de bajo el pliegue no se escalonan.
+  const MAX_ENTER = 8, CX_BASE = 0, CX_STEP = 50, CX_CAP = 200;
   function enterPanel(panel) {
     quiet(700);
     if (!panel || !canAnimate()) return 0;
@@ -90,7 +69,7 @@ const CMMotion = (() => {
       const d = Math.min(CX_CAP, CX_BASE + i * CX_STEP);
       if (el.classList.contains('card')) { el.style.setProperty('--cx-d', d + 'ms'); el.classList.add('cx-in'); cx.push(el); }
       else el.animate(
-        [{ opacity: 0, transform: `translateY(${t.rise}px)` }, { opacity: 1, transform: 'translateY(0)' }],
+        [{ opacity: .55, transform: `translateY(${t.rise}px)` }, { opacity: 1, transform: 'translateY(0)' }],
         { duration: t.base, delay: d, easing: t.ease, fill: 'backwards' }
       );
     });
@@ -228,6 +207,6 @@ const CMMotion = (() => {
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 
-  return { enterPanel, leavePanel, countUp, numFrom, quiet, reduced };
+  return { enterPanel, countUp, numFrom, quiet, reduced };
 })();
 window.CMMotion = CMMotion;

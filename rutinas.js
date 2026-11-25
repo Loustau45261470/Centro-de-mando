@@ -573,31 +573,28 @@ function renderRutinas() {
     </div>`;
 
   const _rutinaOpen = _rtnSections.has('rutinas');
-  const _statsOpen  = _rtnSections.has('estadisticas');
-  const _libOpen    = _rtnSections.has('biblioteca');
-
-  wrap.innerHTML = `
-    <div class="card">
-      <div class="card-title">🏋️ Entrenamiento</div>
+  // Acordeón "Mis rutinas": las tarjetas de siempre (editar/reordenar/borrar ejercicios, + Ej, Borrar rutina). Cerrado por defecto.
+  const _accRutinas = `
       <div class="rtn-section-hdr" onclick="toggleRtnSection('rutinas')">
         <span id="rtn-section-chev-rutinas" style="display:inline-block;transition:transform .2s;transform:${_rutinaOpen ? 'rotate(0deg)' : 'rotate(-90deg)'}">▾</span>
-        <span style="flex:1">Rutinas</span>
+        <span style="flex:1">Mis rutinas</span>
         <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openModal('modal-add-routine')" style="font-size:var(--fs-12-5);letter-spacing:.06em">+ Nueva</button>
       </div>
-      <div id="rtn-section-rutinas" style="display:${_rutinaOpen ? 'block' : 'none'}">${cards}</div>
-      <div class="rtn-section-hdr" onclick="toggleRtnSection('biblioteca')">
-        <span id="rtn-section-chev-biblioteca" style="display:inline-block;transition:transform .2s;transform:${_libOpen ? 'rotate(0deg)' : 'rotate(-90deg)'}">▾</span>
-        <span style="flex:1">Biblioteca</span>
-        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openLibEx()" style="font-size:var(--fs-12-5);letter-spacing:.06em">+ Nuevo</button>
-      </div>
-      <div id="rtn-section-biblioteca" style="display:${_libOpen ? 'block' : 'none'}">${buildLibraryBody()}</div>
-      <div class="rtn-section-hdr" onclick="toggleRtnSection('estadisticas')">
-        <span id="rtn-section-chev-estadisticas" style="display:inline-block;transition:transform .2s;transform:${_statsOpen ? 'rotate(0deg)' : 'rotate(-90deg)'}">▾</span>
-        <span>Estadísticas</span>
-      </div>
-      <div id="rtn-section-estadisticas" style="display:${_statsOpen ? 'block' : 'none'}">${statsBodyHtml}</div>
+      <div id="rtn-section-rutinas" style="display:${_rutinaOpen ? 'block' : 'none'}">${cards}</div>`;
+  const _tab = _entTab;
+  let _bodyHtml;
+  if (_tab === 'progreso') _bodyHtml = `<div class="pe-h2">Progreso</div>${statsBodyHtml}`;
+  else if (_tab === 'ejercicios') _bodyHtml = `<div class="pe-h2">Ejercicios <button class="btn btn-ghost btn-sm" onclick="openLibEx()" style="font-size:var(--fs-12-5);letter-spacing:.06em">+ Nuevo</button></div>${buildLibraryBody()}`;
+  else _bodyHtml = window.PlanUI ? PlanUI.html(_accRutinas, cards) : _accRutinas;
+  const _tabBtn = (id, label) => `<button type="button" role="tab" aria-selected="${_tab === id}" class="pe-tab${_tab === id ? ' pe-tab-on' : ''}" onclick="setEntTab('${id}')">${label}</button>`;
+
+  wrap.innerHTML = `
+    <div class="card pe-root">
+      <div class="pe-main">${_bodyHtml}</div>
+      <nav class="pe-tabbar" role="tablist" aria-label="Secciones de Entrenamiento">${_tabBtn('plan', 'Plan')}${_tabBtn('progreso', 'Progreso')}${_tabBtn('ejercicios', 'Ejercicios')}</nav>
     </div>`;
   initScanner();
+  if (_tab === 'plan' && window.PlanUI) PlanUI.post();
 }
 
 // ── Biblioteca: filtros + listado ──
@@ -711,15 +708,17 @@ function deleteRoutine() {
   deleteRoutineById(document.getElementById('editRtnId').value);
 }
 
-function deleteRoutineById(id) {
+function deleteRoutineById(id, sinConfirmar) {
   const rtn = S.routines.find(r => r.id === id);
   if (!rtn) return;
   if (S.activeRtnSession && S.activeRtnSession.routineId === id) { showToast('Terminá o cancelá la sesión activa primero'); return; }
-  if (!confirm(`¿Borrar la rutina "${rtn.name}"? Se perderá el historial asociado.`)) return;
+  if (!sinConfirmar && !confirm(`¿Borrar la rutina "${rtn.name}"? Se perderá el historial asociado.`)) return;
   S.routines = S.routines.filter(r => r.id !== id);
   delete S.routineLog[id];
+  const _enPlan = window.PlanEntreno && S.planEntreno && PlanEntreno.usaRutina(S.planEntreno, id);
+  if (_enPlan) S.planEntreno = PlanEntreno.limpiarRutinaBorrada(S.planEntreno, id);   // sus días del plan quedan sin asignar
   saveState(); renderRutinas(); closeModal('modal-edit-routine');
-  showToast('Rutina borrada');
+  showToast(_enPlan ? 'Rutina borrada — sus días del plan quedaron sin asignar' : 'Rutina borrada');
 }
 
 // ── TUNE: descanso/series de un ejercicio dentro de una rutina (override) ──
@@ -1258,7 +1257,9 @@ function openExHistByLib(libId) {
 }
 
 // ── Session ──
-let _rtnSections = new Set(['rutinas', 'estadisticas']);
+let _rtnSections = new Set();   // acordeón "Mis rutinas" cerrado por defecto (el Inicio es el plan semanal)
+let _entTab = 'plan';          // pestañas de la sección: plan | progreso | ejercicios
+function setEntTab(t) { _entTab = t; if (t === 'plan' && window.PlanUI) PlanUI.entrar(); renderRutinas(); }
 let _statsPeriod = 'mes';
 let _muscleDistOpen = true;
 let _recordsOpen = true;
