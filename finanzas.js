@@ -59,6 +59,48 @@ function calcBalanceReal() {
 }
 function calcNetWorth() { return calcBalanceReal(); }
 
+// Patrimonio ← Cartera: las cuentas "Acciones" y "Bonos" toman el total real de la cartera (tenencias.js totalesPorGrupo).
+// Se vinculan por `acc.fuente` ('cartera:acciones' | 'cartera:bonos'); la primera vez se buscan por nombre y queda grabado,
+// así renombrar la cuenta no rompe nada. `acc.carteraGen` evita que un dato más viejo pise a uno más nuevo.
+// Devuelve false si no pudo evaluar (estado sin cargar / dato inválido), true si evaluó (haya escrito o no).
+// Ojo: registrarVentaCartera mueve saldo entre cuentas al vender; el próximo sync deja de nuevo el saldo en el valor real de la cartera.
+let _avisoCtaUsd = false;
+function syncCuentasDesdeCartera(totales, generado, opts) {
+  if (!_estadoCargado || !totales || !Array.isArray(S.accounts)) return false;
+  const gen = Date.parse(generado);
+  if (!isFinite(gen)) return false;
+  const norm = x => String(x || '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const manual = !!(opts && opts.manual);
+  let cambioSaldo = false, cambioVinculo = false;
+  [['acciones', 'cartera:acciones'], ['bonos', 'cartera:bonos']].forEach(([k, fuente]) => {
+    let acc = S.accounts.find(a => a.fuente === fuente);
+    if (!acc) {
+      acc = S.accounts.find(a => !a.fuente && norm(a.name) === k);
+      if (!acc) return;
+      acc.fuente = fuente; cambioVinculo = true;
+    }
+    if (acc.currency && acc.currency !== 'ARS') {
+      if (!_avisoCtaUsd) { _avisoCtaUsd = true; showToast('La cuenta «' + acc.name + '» no está en pesos: no se actualiza sola desde Cartera.', 5000); }
+      return;
+    }
+    const prev = Date.parse(acc.carteraGen);
+    if (isFinite(prev) && gen < prev) return;
+    const nuevo = Math.round(totales[k] * 100) / 100;
+    if (!isFinite(nuevo)) return;
+    if (Math.round((+acc.balance || 0) * 100) !== Math.round(nuevo * 100)) {
+      acc.balance = nuevo; acc.carteraGen = generado; cambioSaldo = true;
+    }
+  });
+  if (cambioSaldo) snapshotNW();
+  if (cambioSaldo || cambioVinculo) {
+    saveState();
+    const t = document.getElementById('tab-finanzas');
+    if (cambioSaldo && t && t.classList.contains('active')) renderFinanzasTab();
+    if (cambioSaldo && manual) showToast('Patrimonio actualizado: Acciones y Bonos');
+  }
+  return true;
+}
+
 function snapshotNW() {
   const today = getActiveDate();
   const val = calcNetWorth();

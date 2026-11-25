@@ -205,6 +205,13 @@ const Tenencias = (() => {
     { titulo: 'Bonos y letras', match: tipo => ['TIT. PUBLICOS', 'TIT.PUBLICOS', 'LETRAS', 'ONS'].includes(normTipo(tipo)) }
   ];
 
+  // Totales en ARS por cuenta de Patrimonio: acciones = GRUPOS[0], bonos = GRUPOS[1]; "Otros" no va a ninguna. Pura.
+  function totalesPorGrupo(d) {
+    const lista = d && Array.isArray(d.tenencias) ? d.tenencias : [];
+    const suma = g => Math.round(lista.reduce((a, t) => a + (t && g.match(t.tipo) ? (+t.valorizado || 0) : 0), 0) * 100) / 100;
+    return { acciones: suma(GRUPOS[0]), bonos: suma(GRUPOS[1]) };
+  }
+
   function hdrRow() {
     return `<div class="ten-row ten-hdr">
         <div class="ten-row-main"><span>Símbolo</span></div>
@@ -599,6 +606,8 @@ const Tenencias = (() => {
       if (!d || !Array.isArray(d.tenencias)) throw new Error('la respuesta de IOL tiene un formato inesperado.');
       _errorVivo = null;
       if (_ctx && _ctx.body === body) render(body, fusionarEstatico(d, est), 'live-fresh');
+      // Patrimonio: las cuentas vinculadas (Acciones/Bonos) toman el total real de la cartera (finanzas.js).
+      try { if (typeof syncCuentasDesdeCartera === 'function') syncCuentasDesdeCartera(totalesPorGrupo(d), d.generado, { manual: true }); } catch (e) { console.warn('[tenencias] sync patrimonio:', e); }
     } catch (e) {
       console.warn('[tenencias] No se pudo forzar la actualización:', e && e.message ? e.message : e);
       showToast('No se pudo actualizar: ' + mensajeError(e), 5000);
@@ -660,6 +669,20 @@ const Tenencias = (() => {
       });
   }
 
-  return { renderInto, renderHistorial, _ventaPreview: ventaPreview, _ventaConfirmar: ventaConfirmar };
+  // Una vez por día (por dispositivo, en localStorage: no genera escrituras de sync) trae la cartera sin ?fresh y
+  // actualiza Patrimonio. Silencioso ante errores; si falla no marca el día, así reintenta en el próximo arranque.
+  const CLAVE_DIA = 'cdm_carteraSyncDia';
+  async function syncPatrimonioDiario() {
+    try {
+      if (navigator.webdriver) return;   // los tests no deben pegarle al Worker real (los specs de esto lo desactivan)
+      const hoy = getActiveDate();
+      if (localStorage.getItem(CLAVE_DIA) === hoy) return;
+      const d = await fetchWorker();
+      if (!d || !Array.isArray(d.tenencias)) return;
+      if (syncCuentasDesdeCartera(totalesPorGrupo(d), d.generado) !== false) localStorage.setItem(CLAVE_DIA, hoy);
+    } catch (e) { console.warn('[tenencias] sync diario de patrimonio:', e && e.message ? e.message : e); }
+  }
+
+  return { renderInto, renderHistorial, totalesPorGrupo, syncPatrimonioDiario, _ventaPreview: ventaPreview, _ventaConfirmar: ventaConfirmar };
 })();
 window.Tenencias = Tenencias;

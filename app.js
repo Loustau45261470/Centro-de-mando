@@ -5133,6 +5133,7 @@ setInterval(() => {
 }, 60000);
 setInterval(() => { checkReminderNotifications(); refreshRemindersView(); }, 60000);
 setInterval(() => { if (!Object.keys(_rtnTimers).length) _msHub.showReminders(); }, 60000);
+setTimeout(() => { if (window.Tenencias) Tenencias.syncPatrimonioDiario(); }, 4000);   // Patrimonio ← Cartera, una vez por día (tenencias.js)
 setTimeout(_asegurarPushDispositivo, 4000);   // avisos push: registra este dispositivo si falta en el mapa
 // Visibilidad del sync (solo registra): cuánto estuvo oculta la app y en qué orden pasa todo al volver.
 // Se registra ANTES que el listener de abajo, así "visible" queda antes del inicio de _syncOnFocus.
