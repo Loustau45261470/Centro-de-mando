@@ -13,13 +13,13 @@ async function shot(page, path) {
   const b = await page.locator('#ov-pomodoro .pomo-run').boundingBox();
   await page.screenshot({ path, clip: { x: Math.max(0, b.x), y: Math.max(0, b.y), width: Math.min(b.width, page.viewportSize().width), height: b.height } });
 }
-const lit = (page) => page.locator('#ov-pomodoro .pomo-seg.on').count();
+const lit = (page) => page.locator('#ov-pomodoro .pomo-blk.on').count();
 
 test('hay 60 bloques en círculo y se encienden proporcional al tiempo', async ({ cmPage }) => {
   await iniciar(cmPage);
-  await expect(cmPage.locator('#ov-pomodoro .pomo-seg')).toHaveCount(60);
+  await expect(cmPage.locator('#ov-pomodoro .pomo-blk')).toHaveCount(60);
   expect(await lit(cmPage)).toBe(0);
-  await expect(cmPage.locator('#ov-pomodoro .pomo-seg.cur')).toHaveCount(1);
+  await expect(cmPage.locator('#ov-pomodoro .pomo-blk.cur')).toHaveCount(1);
   // Adelantar el reloj 10 de 20 min -> mitad = 30 bloques (recalcula por tiempo al volver a la pestaña).
   await cmPage.evaluate(() => {
     const real = Date.now.bind(Date);
@@ -30,7 +30,7 @@ test('hay 60 bloques en círculo y se encienden proporcional al tiempo', async (
   expect(n).toBeGreaterThanOrEqual(29); expect(n).toBeLessThanOrEqual(31);
   // Posiciones en círculo: el bloque 15 queda a 90deg del primero.
   const ang = await cmPage.evaluate(() => {
-    const seg = document.querySelectorAll('#ov-pomodoro .pomo-seg');
+    const seg = document.querySelectorAll('#ov-pomodoro .pomo-blk');
     const c = (el) => { const r = getComputedStyle(el, '::before'); return el.getBoundingClientRect(); };
     const dial = document.querySelector('#ov-pomodoro .pomo-dial').getBoundingClientRect();
     return [seg[0], seg[15]].map((s) => getComputedStyle(s).transform);
@@ -48,12 +48,27 @@ test('hay 60 bloques en círculo y se encienden proporcional al tiempo', async (
 test('pausa congela el cabezal; reduced-motion lo deja sin animación', async ({ cmPage }) => {
   await cmPage.emulateMedia({ reducedMotion: 'reduce' });
   await iniciar(cmPage);
-  const anim = await cmPage.locator('#ov-pomodoro .pomo-seg.cur').evaluate((e) => getComputedStyle(e, '::before').animationName);
+  const anim = await cmPage.locator('#ov-pomodoro .pomo-blk.cur').evaluate((e) => getComputedStyle(e, '::before').animationName);
   expect(anim).toBe('none');
   await cmPage.emulateMedia({ reducedMotion: 'no-preference' });
-  const anim2 = await cmPage.locator('#ov-pomodoro .pomo-seg.cur').evaluate((e) => getComputedStyle(e, '::before').animationName);
+  const anim2 = await cmPage.locator('#ov-pomodoro .pomo-blk.cur').evaluate((e) => getComputedStyle(e, '::before').animationName);
   expect(anim2).toBe('pomo-seg-head');
   await cmPage.evaluate(() => Pomodoro.togglePause());
-  const anim3 = await cmPage.locator('#ov-pomodoro .pomo-seg.cur').evaluate((e) => getComputedStyle(e, '::before').animationName);
+  const anim3 = await cmPage.locator('#ov-pomodoro .pomo-blk.cur').evaluate((e) => getComputedStyle(e, '::before').animationName);
   expect(anim3).toBe('none');
+});
+
+// Regresión: los bloques del anillo usaban .pomo-seg, el mismo nombre que el selector
+// Día/Semana/Mes de las estadísticas → el selector quedaba en position:absolute + rotate.
+test('el selector Día/Semana/Mes (.pomo-seg) no hereda estilos de los bloques del anillo', async ({ cmPage }) => {
+  const st = await cmPage.evaluate(() => {
+    const host = document.createElement('div'); host.id = 'ov-pomo-stats';
+    host.innerHTML = '<div class="pomo-seg"><button>Día</button><button class="active">Mes</button></div>';
+    document.body.appendChild(host);
+    const cs = getComputedStyle(host.querySelector('.pomo-seg'));
+    const r = { position: cs.position, transform: cs.transform };
+    host.remove(); return r;
+  });
+  expect(st.position).not.toBe('absolute');
+  expect(st.transform).toBe('none');
 });

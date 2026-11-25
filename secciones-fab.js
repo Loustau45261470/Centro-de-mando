@@ -17,7 +17,6 @@ const _SF_ICONS = {
   ia: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="3"/><rect x="9.5" y="9.5" width="5" height="5" rx="1"/><path d="M9 5V2.5M15 5V2.5M9 21.5V19M15 21.5V19M5 9H2.5M5 15H2.5M21.5 9H19M21.5 15H19"/></svg>`,
   // Íconos de items del abanico
   principios: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.5 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/></svg>`,
-  planner: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/><path d="M7.5 13h3M7.5 16.5h6"/></svg>`,
   gym: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5v11M17.5 6.5v11M4 9v6M20 9v6M6.5 12h11"/></svg>`,
   wellness: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 6-7 10-7 10z"/><path d="M12 12v-2"/></svg>`,
   goals: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8h12l-1 11.5a1 1 0 0 1-1 .9H8a1 1 0 0 1-1-.9z"/><path d="M9 8a3 3 0 0 1 6 0"/></svg>`,
@@ -124,6 +123,10 @@ function _sfEnsureBudget() {
     // Reubicación permanente de las piezas (viven por id; los render* no necesitan saber dónde están).
     const into = (pane, ids) => ids.forEach(id => { const el = document.getElementById(id); if (el && pane) pane.appendChild(el); });
     into(body.querySelector('#bd-pane-presupuestos'), ['budget-card']);
+    const trendOv = document.createElement('div');   // no es .card a propósito: el panel solo tiene a #budget-card como tarjeta
+    trendOv.id = 'bsum-trend-ov'; trendOv.className = 'bsum-trend-ov';
+    body.querySelector('#bd-pane-presupuestos').appendChild(trendOv);
+    if (typeof renderBudgetTrend === 'function') renderBudgetTrend();
     into(body.querySelector('#bd-pane-fondos'), ['fondos-card']);
     into(body.querySelector('#ov-historial-host'), ['activityColHdr', 'activityList', 'activityEmpty']);
     if (typeof renderActivity === 'function') renderActivity();
@@ -322,7 +325,6 @@ function _sfMount() {
     visibleWhen: () => !!(tabConoc && tabConoc.classList.contains('active')),
   });
 
-  const openPlanner = () => { if (typeof plannerOverlayOpen === 'function') plannerOverlayOpen(); };
   const openGym = R({ id: 'ov-gym', accent: '#F43F5E', eyebrow: 'SALUD · ENTRENAMIENTO', title: 'Entrenamiento', sourceId: 'rutinas-wrap' });
   window.openGymOverlay = openGym;
   const openDieta = R({ id: 'ov-dieta', accent: '#10E07C', eyebrow: 'SALUD · DIETA', title: 'Dieta', sourceId: 'dieta-card' });
@@ -340,7 +342,6 @@ function _sfMount() {
   const sections = [
     { tab: 'vida', accent: '#00D4FF', icon: _SF_ICONS.vida, name: 'Vida', items: [
       proyItem('vida'),
-      { icon: _SF_ICONS.planner, label: 'Planificación', accent: '#00D4FF', onClick: openPlanner },
       { icon: _SF_ICONS.fichero, label: 'Fichero', accent: '#5EEAD4', onClick: () => { if (typeof ficheroOpen === 'function') ficheroOpen(); } },
       { icon: _SF_ICONS.principios, label: 'Principios', accent: '#6B8EFF', onClick: () => { if (window.Principios) Principios.abrir(); } },
     ] },

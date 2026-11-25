@@ -2180,7 +2180,7 @@ html.mo-in .tab-panel.active .qobj-link-bar { animation:qobj-led-on .55s steps(1
   padding: 3px 14px 12px;
 }
 #tab-finanzas .chart-wrap-tall { padding: 0 14px 12px; margin-top: 0; height: 185px; }
-#tab-finanzas .chart-wrap      { padding: 0 14px 12px; margin-top: 0; height: 124px; }   /* 262 → 124 para alinear el fin de Patrimonio con el fin de Hábitos (medido con datos reales en 1366 y 1536) */
+#tab-finanzas .chart-wrap      { padding: 0 14px 12px; margin-top: 0; height: 124px; }   /* altura base (celu/una columna, sin cambios); en escritorio alinear-columnas.js la ajusta para que Patrimonio termine a la par de Hábitos */
 
 /* ══ SELECTOR DE RANGO DEL GRÁFICO DE PATRIMONIO ══ */
 .nw-range { padding: 0; gap: 4px; flex: 0 0 auto; }
@@ -6060,12 +6060,12 @@ input:focus, select:focus, textarea:focus {
   display: grid; place-items: center;
   box-shadow: 0 0 0 1px rgba(255,255,255,.05), 0 0 46px -10px var(--ring); }
 .pomo-segs { position: absolute; inset: 0; }
-.pomo-seg { position: absolute; inset: 0; transform: rotate(calc(var(--i) * 6deg)); }
-.pomo-seg::before { content: ''; position: absolute; top: 1px; left: calc(50% - 4px); width: 8px; height: 11px; border-radius: 2px;
+.pomo-blk { position: absolute; inset: 0; transform: rotate(calc(var(--i) * 6deg)); }
+.pomo-blk::before { content: ''; position: absolute; top: 1px; left: calc(50% - 4px); width: 8px; height: 11px; border-radius: 2px;
   background: rgba(255,255,255,.08); }
-.pomo-seg.on::before { background: var(--ring); box-shadow: 0 0 7px -1px var(--ring); }
-.pomo-seg.cur::before { background: color-mix(in srgb, var(--ring) 55%, #fff); box-shadow: 0 0 12px 1px var(--ring); }
-.pomo-run:not(.paused) .pomo-seg.cur::before { animation: pomo-seg-head 1.3s ease-in-out infinite; }
+.pomo-blk.on::before { background: var(--ring); box-shadow: 0 0 7px -1px var(--ring); }
+.pomo-blk.cur::before { background: color-mix(in srgb, var(--ring) 55%, #fff); box-shadow: 0 0 12px 1px var(--ring); }
+.pomo-run:not(.paused) .pomo-blk.cur::before { animation: pomo-seg-head 1.3s ease-in-out infinite; }
 @keyframes pomo-seg-head { 50% { opacity: .45; } }
 .pomo-dial::after { content: ''; position: absolute; inset: 13px; border-radius: 50%;
   background: radial-gradient(circle at 50% 38%, var(--bg2, #070C16), var(--bg, #020508));
@@ -6507,7 +6507,7 @@ input:focus, select:focus, textarea:focus {
 @keyframes fin-num-flash { 0%, 100% { text-shadow: 0 0 16px rgba(255,51,88,.4); } 50% { text-shadow: 0 0 30px rgba(255,51,88,.95); filter: brightness(1.22); } }
 @keyframes fin-shake { 0%, 92%, 100% { transform: translateX(0); } 94% { transform: translateX(-2px); } 96% { transform: translateX(2px); } 98% { transform: translateX(-1px); } }
 @media (prefers-reduced-motion: reduce) {
-  .pomo-run:not(.paused) .pomo-seg.cur::before, .pomo-run:not(.paused) .pomo-time, .fin-item.urgent, .fin-item.urgent .fin-count-num, .fin-venc-badge { animation: none; }
+  .pomo-run:not(.paused) .pomo-blk.cur::before, .pomo-run:not(.paused) .pomo-time, .fin-item.urgent, .fin-item.urgent .fin-count-num, .fin-venc-badge { animation: none; }
   :is(#ov-pomo-hist, #ov-pomo-stats) .pomo-pulse, :is(#ov-pomo-hist, #ov-pomo-stats) .pomo-mod { animation: none; }
 }
 
@@ -7628,3 +7628,11 @@ textarea.pr-in { resize: vertical; min-height: 60px; }
 .cm-rpl i { position: absolute; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: rgba(255,255,255,.55); animation: cmRpl .6s ease-out forwards; }
 @keyframes cmRpl { to { transform: scale(18); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .ckfx, .ckfx-pt, .cm-rpl { display: none; } .btn-primary { animation: none; } }
+
+/* ══ ALINEAR COLUMNAS (alinear-columnas.js) ══ */
+.alin-oculta { display: none !important; }
+#dayPlannerCard.alin-on #dayPlannerList { max-height: none; overflow-y: visible; }
+.alin-mas { align-self: flex-start; margin: 2px 2px 0; padding: 3px 10px; border-radius: 999px; font-family: var(--mono); font-size: var(--fs-12-5); letter-spacing: .04em; color: var(--ts); border: 1px dashed var(--border); }
+#dayPlannerCard:hover .alin-mas { color: var(--tp); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+/* «Gastado · últimos 6 meses» dentro del overlay de Presupuesto */
+.bsum-trend-ov { --bsum-accent: var(--c-finanzas, #22C55E); margin-top: 16px; padding: 4px 16px 16px; border: 1px solid var(--border); border-radius: var(--radius, 14px); }

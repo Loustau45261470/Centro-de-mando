@@ -2156,14 +2156,13 @@ function renderGoals() {
 // Se mira dónde EMPEZÓ el clic: un arrastre de Sortable o una selección de texto que termina fuera de la fila genera un click
 // cuyo target es un ancestro común, así que el target solo no alcanza.
 const _MRD_PROPIO = '.mrd-item, .pend-item, button, select, input, a, [contenteditable="true"]';
-function _initMetasCardLink() {
-  const card = document.getElementById('metas-readonly-card');
+function _initCardLinkPlanner(card, propio) {
   if (!card || card._linkInit) return;
   card._linkInit = true;
   let desdeInterno = false;
-  card.addEventListener('pointerdown', e => { desdeInterno = !!(e.target.closest && e.target.closest(_MRD_PROPIO)); }, true);
+  card.addEventListener('pointerdown', e => { desdeInterno = !!(e.target.closest && e.target.closest(propio)); }, true);
   card.addEventListener('click', e => {
-    const interno = desdeInterno || (e.target.closest && e.target.closest(_MRD_PROPIO));
+    const interno = desdeInterno || (e.target.closest && e.target.closest(propio));
     desdeInterno = false;
     if (interno) return;
     if (typeof plannerOverlayOpen === 'function') plannerOverlayOpen();
@@ -2172,6 +2171,10 @@ function _initMetasCardLink() {
     if ((e.key === 'Enter' || e.key === ' ') && e.target === card) { e.preventDefault(); if (typeof plannerOverlayOpen === 'function') plannerOverlayOpen(); }
   });
 }
+function _initMetasCardLink() { _initCardLinkPlanner(document.getElementById('metas-readonly-card'), _MRD_PROPIO); }
+// Planificación del día: la tarjeta entera abre el overlay; las filas (editar), casillas, botones y el "+" de la agenda no.
+const _PLN_PROPIO = '.pcal-row, .planner-atajos, button, select, input, label, a, [contenteditable="true"]';
+function _initPlannerCardLink() { _initCardLinkPlanner(document.getElementById('dayPlannerCard'), _PLN_PROPIO); }
 
 // Lista de tareas del día en la sección: ver, marcar, agregar, editar el texto (clic), cambiar de categoría (⇅) y arrastrar entre categorías. Borrar vive en Planificación (overlay).
 function renderMetasReadonly() {
@@ -3464,6 +3467,7 @@ function buildWeekCalendar(containerEl, anchorDate) {
 
 function renderDayPlanner() {
   const today = getActiveDate();
+  _initPlannerCardLink();
 
   // Card standalone (pestaña Vida): siempre hoy, lista de actividades sin horas vacías.
   const listEl = document.getElementById('dayPlannerList');
@@ -3476,6 +3480,7 @@ function renderDayPlanner() {
   // Si el overlay de planificación está abierto, refrescarlo también.
   const ov = document.getElementById('ov-planner');
   if (ov && ov.classList.contains('show') && typeof plannerOverlayRender === 'function') plannerOverlayRender();
+  if (window.CMAlinear) CMAlinear.run();   // la lista se re-armó entera: volver a elegir qué filas entran para terminar a la par de Hábitos
 }
 
 // ════════════════════════════════════════════════════════

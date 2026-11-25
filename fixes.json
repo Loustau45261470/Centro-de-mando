@@ -722,6 +722,13 @@
       "desc": "Capa de efectos del orbe JARVIS: con el contenedor chico half<0 hacía lanzar IndexSizeError en createRadialGradient, el frame abortaba antes de pedir el siguiente rAF y la capa se congelaba. Guard que saltea el dibujo.",
       "file": "jarvis-orbe-fx.js",
       "marker": "if (half <= 4) { ctx.clearRect(0, 0, W, H); return; }"
+    },
+    {
+      "id": "pomo-seg-choque-nombres",
+      "fecha": "2026-11-25",
+      "desc": "Los bloques del anillo del Pomodoro usaban .pomo-seg, el mismo nombre del selector Día/Semana/Mes de las estadísticas, que quedaba desarmado (absolute + rotate). Renombrados a .pomo-blk.",
+      "file": "styles.css",
+      "marker": ".pomo-blk { position: absolute; inset: 0;"
     }
   ]
 }

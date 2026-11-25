@@ -3506,12 +3506,6 @@ function renderBudgetSummary() {
   const cats = [...new Set([...Object.keys(budByCat), ...Object.keys(realByCat)])]
     .sort((a, c) => (realByCat[c] || 0) - (realByCat[a] || 0)).slice(0, 5);
 
-  // Tendencia últimos 6 meses
-  const months = []; const now = new Date();
-  for (let i = 5; i >= 0; i--) { const d = new Date(now.getFullYear(), now.getMonth() - i, 1); months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`); }
-  const trend = months.map(m => ({ m, spent: _spentMonth(m), budget: _budgetMonthTotal(m) }));
-  const maxT = Math.max(1, ...trend.map(t => Math.max(t.spent, t.budget)));
-
   const catRows = cats.map(c => {
     const ci = getCatInfo(c, 'expense'); const plan = budByCat[c] || 0, real = realByCat[c] || 0;
     const w = plan > 0 ? Math.min(real / plan * 100, 100) : (real > 0 ? 100 : 0);
@@ -3521,15 +3515,6 @@ function renderBudgetSummary() {
       <div class="bsum-cat-bar"><div class="bsum-cat-fill${ov ? ' over' : ''}" style="width:${w}%"></div></div>
     </div>`;
   }).join('') || '<p class="empty-state">Sin movimientos este mes</p>';
-
-  const trendCols = trend.map(t => {
-    const h = Math.round(t.spent / maxT * 100), bh = Math.round(t.budget / maxT * 100);
-    const [, mm] = t.m.split('-'); const ov = t.budget > 0 && t.spent > t.budget;
-    return `<div class="bsum-tcol" title="${CAL_MONTHS[+mm - 1]}: gastado ${fmtMoney(t.spent, 'ARS')} / plan ${fmtMoney(t.budget, 'ARS')}">
-      <div class="bsum-tbars"><div class="bsum-tbudget" style="height:${Math.max(bh, 2)}%"></div><div class="bsum-tspent${ov ? ' over' : ''}" style="height:${Math.max(h, 2)}%"></div></div>
-      <div class="bsum-tlbl">${CAL_MONTHS[+mm - 1].slice(0, 3)}</div>
-    </div>`;
-  }).join('');
 
   // Medidor de luces (HUD D9): arco de 270° con 30 segmentos LED que se prenden según lo gastado (verde → amarillo → rojo, colores
   // semánticos), aguja que sigue al último encendido; desde el 90 % el centro parpadea. Se dibuja solo al entrar (CMMotion.once), no al guardar.
@@ -3578,9 +3563,25 @@ function renderBudgetSummary() {
     </div>
     <div class="bsum-sec">Por categoría · real / plan</div>
     ${catRows}
-    <div class="bsum-sec">Gastado · últimos 6 meses</div>
-    <div class="bsum-trend${drawGauge ? ' bsum-draw' : ''}" style="${ageStyle}">${trendCols}</div>
     <button class="bsum-full" onclick="event.stopPropagation();if(window.openBudgetOverlay)openBudgetOverlay('presupuestos')">Ver presupuesto completo →</button>`;
+  renderBudgetTrend();
+}
+// «Gastado · últimos 6 meses»: ya no está en la card de la sección (para que las dos columnas de Finanzas alineen); vive en el overlay de Presupuesto (#bsum-trend-ov, secciones-fab.js).
+function renderBudgetTrend() {
+  const el = document.getElementById('bsum-trend-ov'); if (!el) return;
+  const months = []; const now = new Date();
+  for (let i = 5; i >= 0; i--) { const d = new Date(now.getFullYear(), now.getMonth() - i, 1); months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`); }
+  const trend = months.map(m => ({ m, spent: _spentMonth(m), budget: _budgetMonthTotal(m) }));
+  const maxT = Math.max(1, ...trend.map(t => Math.max(t.spent, t.budget)));
+  const cols = trend.map(t => {
+    const h = Math.round(t.spent / maxT * 100), bh = Math.round(t.budget / maxT * 100);
+    const [, mm] = t.m.split('-'); const ov = t.budget > 0 && t.spent > t.budget;
+    return `<div class="bsum-tcol" title="${CAL_MONTHS[+mm - 1]}: gastado ${fmtMoney(t.spent, 'ARS')} / plan ${fmtMoney(t.budget, 'ARS')}">
+      <div class="bsum-tbars"><div class="bsum-tbudget" style="height:${Math.max(bh, 2)}%"></div><div class="bsum-tspent${ov ? ' over' : ''}" style="height:${Math.max(h, 2)}%"></div></div>
+      <div class="bsum-tlbl">${CAL_MONTHS[+mm - 1].slice(0, 3)}</div>
+    </div>`;
+  }).join('');
+  el.innerHTML = `<div class="bsum-sec">Gastado · últimos 6 meses</div><div class="bsum-trend">${cols}</div>`;
 }
 
 // Llena un <select> de categoría de transacción (#txnCategory / #editTxnCategory) desde

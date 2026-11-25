@@ -188,8 +188,8 @@ test.describe('Patrimonio v2', () => {
     expect(consoleErrors).toEqual([]);
   });
 
-  test('el gráfico de línea mide 124 px (achicado para alinear el fin de Patrimonio con el de Hábitos) y no muestra las fechas del eje X', async ({ cmPage: page, consoleErrors }) => {
-    await preparar(page);
+  test('el gráfico de línea mide 124 px en una columna (en escritorio se adapta: ver alinear-columnas.spec.js) y no muestra las fechas del eje X', async ({ cmPage: page, consoleErrors }) => {
+    await preparar(page, { ancho: 390 });
     const h = await page.evaluate(() => document.getElementById('nwLineChart').closest('.chart-wrap').getBoundingClientRect().height);
     expect(h).toBe(124);
     const x = await page.evaluate(() => ({ display: nwLineInst.options.scales.x.ticks.display }));

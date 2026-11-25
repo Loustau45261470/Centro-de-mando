@@ -323,7 +323,7 @@ const Pomodoro = (() => {
     // Anillo en bloques: POMO_SEGS segmentos en círculo; se encienden por tiempo transcurrido (p), el actual lleva el cabezal.
     const lit = Math.min(POMO_SEGS, Math.floor(p * POMO_SEGS));
     let segs = '';
-    for (let i = 0; i < POMO_SEGS; i++) segs += `<i class="pomo-seg${i < lit ? ' on' : ''}${i === lit && lit < POMO_SEGS ? ' cur' : ''}" style="--i:${i}"></i>`;
+    for (let i = 0; i < POMO_SEGS; i++) segs += `<i class="pomo-blk${i < lit ? ' on' : ''}${i === lit && lit < POMO_SEGS ? ' cur' : ''}" style="--i:${i}"></i>`;
     container.innerHTML = `
       <div class="pomo-run ${isStudy ? 'study' : 'break'} ${paused ? 'paused' : ''}" style="--p:${p.toFixed(3)}">
         <div class="pomo-dial" data-lit="${lit}" data-segs="${POMO_SEGS}">
