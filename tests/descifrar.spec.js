@@ -1,5 +1,5 @@
 // Números que se decodifican (descifrar.js): los KPIs grandes rotan sus dígitos al entrar a la sección y se fijan
-// de izquierda a derecha; las actualizaciones posteriores solo descifran los dígitos que cambiaron.
+// de izquierda a derecha; un cambio posterior re-descifra el número entero (maqueta #7) y su recuadro destella verde/rojo.
 // Datos de ejemplo inventados.
 'use strict';
 const { test, expect } = require('./support/fixtures');
@@ -117,13 +117,16 @@ test.describe('descifrar · con movimiento', () => {
       cmDescifrar(el, '$2.222.222');
       await new Promise((ok) => setTimeout(ok, 60));
       cmDescifrar(el, '$3.333.333');
-      await new Promise((ok) => setTimeout(ok, 1000));
+      // re-descifrado entero (250 + 9·75 ms) + vuelta a su color (~0,4 s); headless pinta a pocos fps → se espera a que cierre (tope 6 s)
+      const t0 = performance.now();
+      await new Promise((ok) => { (function f() { if (!el._dx || performance.now() - t0 > 6000) ok(); else setTimeout(f, 50); })(); });
+      if (performance.now() - t0 > 6000) return { t: 'no cerró', role: null, label: null };
       return { t: el.textContent, role: el.getAttribute('role'), label: el.getAttribute('aria-label') };
     });
     expect(r).toEqual({ t: '$3.333.333', role: null, label: null });
   });
 
-  test('(d) un re-render por datos no relanza la animación completa; un cambio descifra solo los dígitos que cambiaron', async ({ cmPage, consoleErrors }) => {
+  test('(d) un re-render por datos no relanza la animación completa; un cambio re-descifra el número entero (maqueta #7) y su recuadro destella verde', async ({ cmPage, consoleErrors }) => {
     await sembrar(cmPage);
     await cmPage.click('.nav-btn[data-tab="finanzas"]');
     await expect(cmPage.locator('#tab-finanzas')).toHaveClass(/active/);
@@ -137,19 +140,25 @@ test.describe('descifrar · con movimiento', () => {
       (function f() { vistos.add(el.textContent + '|' + el.getAttribute('role')); if (performance.now() - t0 > 400) ok([...vistos]); else requestAnimationFrame(f); })();
     }));
     expect(quieto).toEqual([final0 + '|null']);
-    // un cambio chico: solo rotan los últimos dígitos; los primeros quedan quietos
+    // un cambio (maqueta #7): rueda el número entero con $ y . fijos, termina en el valor nuevo y el recuadro destella verde (sube)
     const r = await cmPage.evaluate(() => new Promise((ok) => {
-      const el = document.getElementById('nwTotal'), prev = el.textContent, vistos = [];
-      const rnd0 = Math.random; Math.random = () => 0.99;                         // dígitos "al azar" siempre 9 (el final termina en 3): sin azar en el test
+      const el = document.getElementById('nwTotal'), prev = el.textContent, vistos = [], box = el.closest('.nw-hero-text');
       S.accounts.find((a) => a.id === 'efe').balance += 3;                          // 700000 -> 700003
       renderAccounts();
       const fin = fmtMoney(calcNetWorth(), 'USD'), t0 = performance.now();
-      (function f() { vistos.push(el.textContent); if (performance.now() - t0 > 700) { Math.random = rnd0; ok({ prev, fin, vistos, ultimo: el.textContent }); } else requestAnimationFrame(f); })();
+      let flash = '';
+      (function f() {
+        vistos.push(el.textContent);
+        if (!flash && box.classList.contains('dx-up')) flash = 'up'; else if (!flash && box.classList.contains('dx-down')) flash = 'down';
+        const t = performance.now() - t0;
+        if ((t > 700 && !el._dx) || t > 6000) ok({ prev, fin, vistos, ultimo: el.textContent, flash }); else requestAnimationFrame(f);
+      })();
     }));
     expect(r.ultimo).toBe(r.fin);
     expect(r.fin).not.toBe(r.prev);
-    expect(r.vistos.some((t) => t !== r.fin), 'hubo descifrado corto').toBe(true);
-    for (const t of r.vistos) expect(t.slice(0, -1), 'dígitos sin cambio fijos').toBe(r.fin.slice(0, -1));
+    expect(r.vistos.some((t) => t !== r.fin), 'hubo descifrado').toBe(true);
+    for (const t of r.vistos) expect(mismaForma(t, r.fin), `"${t}" conserva $ . y el ancho`).toBe(true);
+    expect(r.flash, 'destello verde al subir').toBe('up');
     expect(consoleErrors).toEqual([]);
   });
 

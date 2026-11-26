@@ -397,6 +397,28 @@ body:not([class*="theme-"]) #hud-ambient { display: none; }
 @keyframes k-pop { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
 .k-val.k-flash { animation: k-flash var(--dur-slow) var(--ease-out-quart); }
 @keyframes k-flash { 0%,100% { filter: none; } 28% { filter: brightness(1.7); text-shadow: 0 0 22px currentColor; } }
+
+/* ── Números que se descifran (descifrar.js · maqueta HUD #7) ──
+   Mientras ruedan: símbolos celestes con brillo. Al fijarse: blanco con halo suave. Al terminar (.dx-z): vuelven a su color. */
+.dx-on { white-space: nowrap; }
+.dx-on > span { transition: color .38s ease-out, text-shadow .38s ease-out, opacity .38s ease-out; }
+.dx-on > .dx-d { display: inline-block; width: var(--dx-w, auto); text-align: center; }
+.dx-on > .dx-r { color: #38BDF8; text-shadow: 0 0 10px #38BDF8; opacity: .9; transition: none;
+  font-family: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace; letter-spacing: 0; }   /* monoespaciada como la maqueta: # % & @ entran en el ancho de un dígito */
+.dx-on > .dx-s { color: #EDF4FF; text-shadow: 0 0 14px rgba(125,211,252,.35); }
+.dx-on.dx-z > span { color: inherit; text-shadow: inherit; }
+/* Destello al cambiar el valor: barrido de luz + anillo verde (sube) o rojo (baja) que se apaga en 0,9 s */
+.dx-flash { position: relative; }
+.dx-flash.dx-up   { --dx-fl: rgba(16,224,124,.38); animation: dx-glow-up .9s ease-out; }
+.dx-flash.dx-down { --dx-fl: rgba(255,51,88,.38);  animation: dx-glow-dn .9s ease-out; }
+.dx-flash > .dx-sweep {
+  position: absolute; inset: 0; z-index: 2; pointer-events: none; border-radius: inherit;
+  background: linear-gradient(100deg, transparent 40%, var(--dx-fl) 50%, transparent 60%) no-repeat;
+  background-size: 300% 100%; animation: dx-sweep .9s ease-out both;
+}
+@keyframes dx-sweep { from { background-position: 100% 0; opacity: 1; } to { background-position: 0 0; opacity: 0; } }
+@keyframes dx-glow-up { 0% { box-shadow: 0 0 0 1px #10E07C, 0 0 22px rgba(16,224,124,.55); } 100% { box-shadow: 0 0 0 0 transparent; } }
+@keyframes dx-glow-dn { 0% { box-shadow: 0 0 0 1px #FF3358, 0 0 22px rgba(255,51,88,.55); } 100% { box-shadow: 0 0 0 0 transparent; } }
 .card-title {
   font-size: var(--fs-14); font-weight: 700;
   letter-spacing: .14em; text-transform: uppercase;
@@ -7100,7 +7122,7 @@ body:has(#pushdead-banner) #avisos-app{top:max(var(--av-top,0px),calc(env(safe-a
   :root { --dur-fast: .01ms; --dur-base: .01ms; --dur-slow: .01ms; --dur-exit: .01ms; --motion-rise: 0px; --motion-stagger: 0ms; }
   .tab-panel.active, .modal-overlay.open, #ach-overlay.open, #gm-logros-overlay.show, #gm-tree-overlay.show,
   .modal, .modal::before, #ach-panel, #notas-overlay.show #notas-panel, .plov-pane,
-  .k-val.k-pop, .k-val.k-flash,
+  .k-val.k-pop, .k-val.k-flash, .dx-flash.dx-up, .dx-flash.dx-down, .dx-flash > .dx-sweep,
   .kpi-strip.kpi-enter .kpi-tile .k-bar i { animation: none !important; }
   .card.sr-armed { transition: none; }
 }
