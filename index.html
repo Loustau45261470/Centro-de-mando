@@ -2121,25 +2121,6 @@
   </div>
 </div>
 
-<!-- Modal: agregar período trimestral -->
-<div class="modal-overlay" id="modal-add-period" onclick="if(event.target===this)closeModal('modal-add-period')">
-  <div class="modal">
-    <div class="modal-header">
-      <div class="modal-title">Nuevo Período</div>
-      <button class="modal-close" onclick="closeModal('modal-add-period')">✕</button>
-    </div>
-    <input class="inp" id="period-input-label" placeholder="Ej: T4 2026" style="margin-bottom:10px;width:100%">
-    <input class="inp" id="period-input-note" placeholder="Nota (ej: 92 días · 50%=46)" style="margin-bottom:10px;width:100%">
-    <label style="font-size:var(--fs-12-5);color:var(--ter);display:flex;gap:8px;align-items:center;margin-bottom:14px">
-      <input type="checkbox" id="period-input-flat"> Sin categorías (lista plana)
-    </label>
-    <div class="modal-actions">
-      <button class="btn btn-ghost" onclick="closeModal('modal-add-period')">Cancelar</button>
-      <button class="btn btn-primary" onclick="saveNewPeriod()">Crear Período</button>
-    </div>
-  </div>
-</div>
-
 <script src="errores.js?v=1"></script>
 <script src="deadlines.js?v=15"></script>
 <script src="motion.js?v=7"></script>

@@ -614,17 +614,19 @@ function renderQObjForTab(tabName) {
   const navBtn = (dir, label, title) => canNav
     ? `<button class="btn btn-ghost btn-sm" onclick="navQPeriod(${dir})" title="${title}">${label}</button>`
     : `<button class="btn btn-ghost btn-sm" disabled title="Este período no es un trimestre calendario">${label}</button>`;
-  const dropdownHTML = `<div style="display:flex;align-items:center;gap:4px">
+  const dropdownHTML = `<div id="${ddId}-box" style="display:flex;flex-direction:column;min-width:0;max-width:100%">
+    <div style="display:flex;align-items:center;gap:4px">
     ${navBtn(-1, '‹', 'Trimestre anterior')}
     <div class="qobj-period-dropdown" id="${ddId}" style="margin-bottom:0">
       <button class="qobj-period-trigger" onclick="toggleQObjDropdown('${ddId}')">
         ${period.label}<span class="qobj-period-chevron">▾</span>
       </button>
-      <div class="qobj-period-menu">
-        ${qo.periods.map(p => `<button class="qobj-period-option${p.id===qo.activePeriod?' active':''}" onclick="selectQPeriod('${p.id}');closeQObjDropdown('${ddId}')">${p.label}</button>`).join('')}
-      </div>
     </div>
     ${navBtn(1, '›', 'Trimestre siguiente')}
+    </div>
+    <div class="qobj-period-menu" id="${ddId}-menu">
+        ${qo.periods.map(p => `<div class="qobj-period-row"><button class="qobj-period-option${p.id===qo.activePeriod?' active':''}" title="${p.label}" onclick="selectQPeriod('${p.id}');closeQObjDropdown('${ddId}')">${p.label}</button>${_esPeriodoManual(p) ? `<button class="qobj-act-btn qobj-period-del" title="Borrar período" aria-label="Borrar período" onclick="pedirBorrarPeriodo('${p.id}')">✕</button>` : ''}</div>`).join('')}
+    </div>
   </div>`;
 
   let monthTabsHTML = '';
@@ -640,9 +642,13 @@ function renderQObjForTab(tabName) {
   }
 
   const titleCats = cats.length === 1 ? cats[0] : cats.join(' & ');
-  const addPeriodBtn = isVida
-    ? `<button class="btn btn-ghost btn-sm" onclick="openModal('modal-add-period')">+ Período</button>`
-    : '';
+  const delP = _qobjDelPeriodId && qo.periods.find(p => p.id === _qobjDelPeriodId && _esPeriodoManual(p));
+  const nDel = delP ? (delP.objectives || []).length : 0;
+  const delPeriodHTML = delP ? `<div class="qobj-del-period" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;padding:10px 12px;border:1px solid var(--border);border-radius:8px">
+    <span style="flex:1;min-width:180px;font-size:var(--fs-12-5)">¿Borrar el período «${delP.label}»? ${nDel ? `Tiene ${nDel} objetivo${nDel === 1 ? '' : 's'}, se borran con él.` : 'No tiene objetivos.'}</span>
+    <button class="btn btn-ghost btn-sm" onclick="cancelarBorrarPeriodo()">Cancelar</button>
+    <button class="btn btn-primary btn-sm qobj-del-period-ok" onclick="borrarPeriodo('${delP.id}')">Borrar</button>
+  </div>` : '';
 
   let contentHTML;
   if (activeView === 'trim') {
@@ -715,7 +721,8 @@ function renderQObjForTab(tabName) {
   }
 
   wrap.innerHTML = `<div class="card">
-    <div class="card-title">🏆 Objetivos · ${titleCats}${addPeriodBtn}</div>
+    <div class="card-title">🏆 Objetivos · ${titleCats}</div>
+    ${delPeriodHTML}
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px">
       ${dropdownHTML}
       ${monthTabsHTML}
@@ -731,14 +738,15 @@ function renderQuarterlyObjectives() {
 function toggleQObjDropdown(ddId) {
   const dd = document.getElementById(ddId);
   if (!dd) return;
-  const menu = dd.querySelector('.qobj-period-menu');
+  const menu = document.getElementById(ddId + '-menu');
   const trigger = dd.querySelector('.qobj-period-trigger');
   const isOpen = menu.classList.toggle('open');
   trigger.classList.toggle('open', isOpen);
   if (isOpen) {
     setTimeout(() => {
       document.addEventListener('click', function handler(e) {
-        if (!dd.contains(e.target)) {
+        const box = document.getElementById(ddId + '-box');
+        if (!box || !box.contains(e.target)) {
           closeQObjDropdown(ddId);
           document.removeEventListener('click', handler);
         }
@@ -750,7 +758,7 @@ function toggleQObjDropdown(ddId) {
 function closeQObjDropdown(ddId) {
   const dd = document.getElementById(ddId);
   if (!dd) return;
-  dd.querySelector('.qobj-period-menu').classList.remove('open');
+  document.getElementById(ddId + '-menu').classList.remove('open');
   dd.querySelector('.qobj-period-trigger').classList.remove('open');
 }
 
@@ -864,13 +872,24 @@ function deleteQObj(periodId, objId) {
   saveState(); renderQuarterlyObjectives();
 }
 
-function saveNewPeriod() {
-  const label = document.getElementById('period-input-label').value.trim();
-  if (!label) return;
-  const note  = document.getElementById('period-input-note').value.trim() || null;
-  const flat  = document.getElementById('period-input-flat').checked;
-  const id    = 'p-' + Date.now();
-  S.quarterlyObjectives.periods.push({ id, label, flat, note, objectives: [] });
-  S.quarterlyObjectives.activePeriod = id;
-  saveState(); closeModal('modal-add-period'); renderQuarterlyObjectives();
+// Períodos creados a mano (id 'p-…'; ya no hay botón para crearlos) se pueden borrar; los trimestres t1-YYYY… no.
+// El borrado es una baja normal de un ítem con id: _merge3 la respeta si la nube no editó ese período (sin tombstone aparte).
+let _qobjDelPeriodId = null;
+function _esPeriodoManual(p) { return !!p && /^p-/.test(String(p.id)); }
+function pedirBorrarPeriodo(id) { _qobjDelPeriodId = id; renderQuarterlyObjectives(); }
+function cancelarBorrarPeriodo() { _qobjDelPeriodId = null; renderQuarterlyObjectives(); }
+function borrarPeriodo(id) {
+  const qo = S.quarterlyObjectives;
+  const p = qo.periods.find(x => x.id === id);
+  _qobjDelPeriodId = null;
+  if (!_esPeriodoManual(p)) return renderQuarterlyObjectives();
+  qo.periods = qo.periods.filter(x => x.id !== id);
+  if (S.principios && S.principios.extras) Object.keys(S.principios.extras).forEach(k => { if (k.indexOf('q:' + id + ':') === 0) delete S.principios.extras[k]; });
+  if (qo.activePeriod === id) {
+    const n = new Date(), cur = 't' + (Math.floor(n.getMonth() / 3) + 1) + '-' + n.getFullYear();
+    const trims = qo.periods.filter(x => /^t[1-4]-\d{4}$/.test(x.id));
+    qo.activePeriod = (qo.periods.find(x => x.id === cur) || trims[trims.length - 1] || qo.periods[0] || {}).id;
+    Object.keys(_qobjActiveMonth).forEach(k => _qobjActiveMonth[k] = 'trim');
+  }
+  saveState(); renderQuarterlyObjectives();
 }
