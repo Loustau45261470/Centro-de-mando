@@ -445,13 +445,8 @@ const CMDeadlines = (() => {
       });
     }
 
-    // 7) Proyecciones de mercado que vencen (hay que cargarles el precio real)
-    ((S.sgc || {}).proyecciones || []).forEach(p => {
-      if (!p || p.precioReal != null || !isDate(p.fechaVence)) return;
-      add({ id: 'proye_' + p.id, kind: 'proyeccion', kindLabel: 'Proyección', icon: '📈', tab: 'finanzas',
-            title: `${p.simbolo} — cargar precio real`, date: p.fechaVence, allDay: true,
-            priority: 'medium' });
-    });
+    // 7) (quitado 26/11) Proyecciones de mercado de SGC: se retiró la UI de SGC, así que ya no hay dónde
+    //    cargar el precio real; los datos siguen en S.sgc.proyecciones pero no generan vencimientos ni push.
 
     // 8) Pedidos en camino
     (S.orders || []).forEach(o => {

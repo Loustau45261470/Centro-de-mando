@@ -32,7 +32,7 @@ test.describe('deadlines.js: claves de aviso con fecha', () => {
     expect(keysDue(movido, NOW + 24 * 3600000, seen)).toEqual(['r1@2026-11-25T10:00']);
   });
 
-  test('proyecto, final, cursada, proyección y pedido: la clave lleva la fecha y reprogramar re-avisa', () => {
+  test('proyecto, final, cursada y pedido: la clave lleva la fecha y reprogramar re-avisa; las proyecciones (SGC retirado) ya no avisan', () => {
     const mk = (f1, p1, c1, y1, o1) => ({
       foco: { config: { horas: [] } },
       proyectos: { vida: [{ id: 'p1', label: 'P', dueDate: p1 }] },
@@ -43,14 +43,15 @@ test.describe('deadlines.js: claves de aviso con fecha', () => {
     const dia = '2026-12-01', nuevo = '2026-12-08';
     const ahora = Date.parse(dia + 'T12:00:00Z');   // 09:00 de Argentina: salta el "Hoy"
     const antes = keysDue(mk(dia, dia, dia, dia, dia), ahora);
-    ['proy_p1@', 'final_f1@', 'curs_c1@', 'proye_y1@', 'ord_o1@'].forEach((pre) => {
+    ['proy_p1@', 'final_f1@', 'curs_c1@', 'ord_o1@'].forEach((pre) => {
       expect(antes.some((k) => k.startsWith(pre + dia + 'T23:59_due'))).toBe(true);
     });
+    expect(antes.some((k) => k.startsWith('proye_'))).toBe(false);
     const seen = Object.fromEntries(antes.map((k) => [k, true]));
     expect(keysDue(mk(dia, dia, dia, dia, dia), ahora, seen)).toEqual([]);
     // Se reprograman todos una semana después: a las 09:00 del nuevo día vuelven a avisar.
     const despues = keysDue(mk(nuevo, nuevo, nuevo, nuevo, nuevo), Date.parse(nuevo + 'T12:00:00Z'), seen);
-    ['proy_p1@', 'final_f1@', 'curs_c1@', 'proye_y1@', 'ord_o1@'].forEach((pre) => {
+    ['proy_p1@', 'final_f1@', 'curs_c1@', 'ord_o1@'].forEach((pre) => {
       expect(despues.some((k) => k.startsWith(pre + nuevo + 'T23:59_due'))).toBe(true);
     });
   });
