@@ -6,7 +6,7 @@
 // (IntersectionObserver: también cubre la pestaña Finanzas cerrada). Con prefers-reduced-motion dibuja un cuadro estático.
 (function () {
   'use strict';
-  const TAU = Math.PI * 2, START = -Math.PI / 2, NC = 72;
+  const TAU = Math.PI * 2, START = -Math.PI / 2, NC = 72, DONA_TOPE = 640;   // DONA_TOPE: lienzo máximo (px) del que sale el anillo en escritorio (en celular manda el ancho)
   const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
   const ease = (x) => 1 - Math.pow(1 - clamp(x), 3);
   const flick = (u, i) => { if (u <= 0) return 0; if (u >= .7) return 1; const h = Math.sin(u * 90 + i * 12.9898) * 43758.5453; return (h - Math.floor(h)) > .5 ? 1 : .18; };
@@ -91,12 +91,19 @@
       const dA = .785 * Math.min(W, 440), fs = 10.5;
       let labelW = 0;
       ctx.save();
-      st.items.forEach((it) => { if (!it.value) return; ctx.font = `500 ${fs * .88}px ${fam}`; labelW = Math.max(labelW, ctx.measureText(it.label.toUpperCase()).width);
-        ctx.font = `700 ${fs * 1.3}px ${fam}`; labelW = Math.max(labelW, ctx.measureText(pct(it.f)).width); ctx.font = `500 ${fs}px ${fam}`; labelW = Math.max(labelW, ctx.measureText(fmt(it.value)).width); });
+      st.items.forEach((it) => { it.lw = 0; if (!it.value) return; ctx.font = `500 ${fs * .88}px ${fam}`; it.lw = ctx.measureText(it.label.toUpperCase()).width;
+        ctx.font = `700 ${fs * 1.3}px ${fam}`; it.lw = Math.max(it.lw, ctx.measureText(pct(it.f)).width); ctx.font = `500 ${fs}px ${fam}`; it.lw = Math.max(it.lw, ctx.measureText(fmt(it.value)).width); labelW = Math.max(labelW, it.lw); });
       ctx.restore();
       const dWide = 2 * (W / 2 - labelW - 23) / 1.12;   // 23 px = punto de la línea guía + codo + tramo horizontal + aire con el texto
       st.wide = dWide >= dA * .88;
-      const D = st.wide ? Math.min(dA, dWide) : dA;
+      let D = st.wide ? Math.min(dA, dWide) : dA;
+      if (st.wide) {   // escritorio: el tope de 440 px del lienzo ya no limita; el anillo crece mientras las etiquetas (ya colocadas) sigan entrando en el ancho
+        const entra = (d) => { st.W = W; st.fs = fs; st.r2 = 1.12; st.RO = d / 2; st.H = Math.round(d * 1.2 + 8); st.top = st.H / 2 - st.RO * st.r2; place();
+          return st.items.every((it) => !it.value || (it.side > 0 ? it.ex + 11 + it.lw <= W - 2 : it.ex - 11 - it.lw >= 2)); };
+        let lo = D, hi = .785 * Math.min(W, DONA_TOPE);
+        if (hi > lo && entra(hi)) lo = hi; else for (let k = 0; k < 10 && hi - lo > 1; k++) { const m = (lo + hi) / 2; if (entra(m)) lo = m; else hi = m; }
+        D = lo;
+      }
       st.r2 = st.wide ? 1.12 : 1.08;   // radio (en RO) del anillo giratorio más externo
       st.W = W; st.D = D; st.RO = D / 2; st.RT = D * .105 / .785; st.fs = fs;
       st.H = Math.round(D * (st.wide ? 1.2 : 1.12) + 8);

@@ -7,7 +7,7 @@
 (function () {
   'use strict';
   const $ = id => document.getElementById(id);
-  const FIN_MIN = 110, FIN_MAX = 600;   // rango del gráfico de Patrimonio (px de la caja, con su padding)
+  const FIN_MIN = 110, FIN_MAX = 420;   // rango del gráfico de Patrimonio (px de la caja, con su padding)
   let _raf = 0;
 
   function activa(tabId) { const t = $(tabId); return !!(t && t.classList.contains('active')); }
