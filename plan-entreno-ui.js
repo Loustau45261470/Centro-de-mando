@@ -10,7 +10,7 @@ const PlanUI = (() => {
   const P = () => window.PlanEntreno;
   const DIAS_N = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
   const DIAS_L = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
-  const FR_N = { manana: 'Mañana', tarde: 'Tarde', noche: 'Noche' };
+  const FR_N = { manana: 'Mañana', tarde: 'Tarde', noche: 'Noche', extra: 'Fuera del plan' };
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   // Estado de la pantalla (no se guarda en S: es solo vista)
@@ -34,6 +34,13 @@ const PlanUI = (() => {
 
   // ── Datos derivados ──
   function sesionDe(rid, f) { const h = (S.routineLog && S.routineLog[rid]) || []; for (let i = h.length - 1; i >= 0; i--) if (h[i].date === f) return h[i]; return null; }
+  // Sesiones registradas ese día de rutinas que NO estaban en el plan de ese día ("extra"): se muestran y cuentan igual.
+  // Una rutina planeada otro día y hecha hoy es extra hoy; el día planeado sigue sin hacer (no se reasigna).
+  function extrasDe(f) {
+    const planeadas = P().itemsDelDia(plan(), f).filter(it => it.tipo === 'rutina').map(it => it.id);
+    return (S.routines || []).filter(r => !planeadas.includes(r.id) && sesionDe(r.id, f)).map(r => ({ tipo: 'rutina', id: r.id, uid: 'extra-' + r.id, franja: 'extra', extra: true }));
+  }
+  const itemsConExtras = f => P().itemsDelDia(plan(), f).concat(extrasDe(f));
   function minTipicos(rid) {
     // Mediana (no promedio): una sesión que quedó abierta días (2687 min) no debe inflar el "~min" típico.
     const h = ((S.routineLog && S.routineLog[rid]) || []).filter(e => e.duration > 0).slice(-5).map(e => e.duration).sort((a, b) => a - b);
@@ -59,7 +66,7 @@ const PlanUI = (() => {
   function stripHtml(fechas) {
     const h = hoy();
     return '<div class="pe-strip" role="tablist">' + fechas.map((f, i) => {
-      const items = P().itemsDelDia(plan(), f);
+      const items = itemsConExtras(f);
       const hechos = items.filter(it => hechoItem(it, f)).length;
       const ok = items.length > 0 && hechos === items.length;
       const ic = items.slice(0, 2).map(iconoItem).join('') + (items.length > 2 ? '<b>+</b>' : '');
@@ -112,17 +119,18 @@ const PlanUI = (() => {
       </div>${det}</div>`;
   }
   function diaHtml(f, i) {
-    const items = P().itemsDelDia(plan(), f), h = hoy();
+    const items = itemsConExtras(f), h = hoy(), plan0 = P().itemsDelDia(plan(), f).length;
+    const chips = `<small>Entrenar igual:</small><div class="pe-chips">${(S.routines || []).map(r => `<button type="button" class="pe-chip" onclick="PlanUI.empezar('${r.id}')">${esc(r.icon)} ${esc(r.name)}</button>`).join('')}</div>`;
     let cuerpo;
     if (!items.length) {
-      cuerpo = `<div class="pe-descanso"><b>Descanso</b><small>Entrenar igual:</small><div class="pe-chips">${(S.routines || []).map(r => `<button type="button" class="pe-chip" onclick="PlanUI.empezar('${r.id}')">${esc(r.icon)} ${esc(r.name)}</button>`).join('')}</div></div>`;
+      cuerpo = `<div class="pe-descanso"><b>Descanso</b>${chips}</div>`;
     } else {
-      const c = items.length > 1, lbl = c || items.some(it => it.franja !== 'manana');
+      const c = items.length > 1 || !plan0, lbl = c || items.some(it => it.franja !== 'manana');
       let ult = null;
       cuerpo = items.map(it => {
         const cab = lbl && it.franja !== ult ? `<div class="pe-fr">${FR_N[it.franja]}</div>` : ''; ult = it.franja;
         return cab + (it.tipo === 'rutina' ? itemRutinaHtml(it, f, c) : itemActividadHtml(it, f, c));
-      }).join('');
+      }).join('') + (plan0 ? '' : `<div class="pe-descanso">${chips}</div>`);
     }
     return `<section class="pe-day${items.length > 1 ? ' pe-day-c' : ''}${f === h ? ' pe-day-hoy' : ''}" data-f="${f}" data-i="${i}" aria-label="${DIAS_N[i]}">
       <div class="pe-day-h"><b>${DIAS_N[i]} ${f.slice(8)}</b>${f === h ? '<span class="pe-tag">HOY</span>' : (f < h ? '<span class="pe-tag pe-tag-p">PASADO</span>' : '')}</div>${cuerpo}</section>`;
@@ -131,14 +139,14 @@ const PlanUI = (() => {
   function semanaHtml(fechas) {
     const h = hoy();
     const filas = fechas.map((f, i) => {
-      const items = P().itemsDelDia(plan(), f), hechos = items.filter(it => hechoItem(it, f)).length;
+      const items = itemsConExtras(f), hechos = items.filter(it => hechoItem(it, f)).length;
       const ok = items.length > 0 && hechos === items.length;
       const txt = items.length ? items.map(it => `<span class="pe-wk-i${hechoItem(it, f) ? ' pe-wk-ok' : ''}">${iconoItem(it)} ${esc(nombreItem(it))}</span>`).join('') : '<span class="pe-wk-rest">Descanso</span>';
       return `<button type="button" class="pe-wk${f === h ? ' pe-hoy' : ''}${f === sel ? ' pe-sel' : ''}${ok ? ' pe-ok' : ''}" data-i="${i}" onclick="PlanUI.ir(${i})" aria-label="Ver ${DIAS_N[i]} ${f.slice(8)}">
         <i>${DIAS_N[i].slice(0, 3)} ${f.slice(8)}</i><span class="pe-wk-t">${txt}</span><em>${items.length ? (ok ? '✓' : `<span class="pe-num">${hechos}</span>/${items.length}`) : ''}</em></button>`;
     }).join('');
     let tot = 0, ok = 0;
-    fechas.forEach(f => P().itemsDelDia(plan(), f).forEach(it => { tot++; if (hechoItem(it, f)) ok++; }));
+    fechas.forEach(f => itemsConExtras(f).forEach(it => { tot++; if (hechoItem(it, f)) ok++; }));
     let racha = 0;
     if (typeof _gymDays === 'function' && typeof _dStr === 'function') {
       const days = _gymDays(), n = new Date(), y = n.getFullYear(), m = n.getMonth(), t = n.getDate();

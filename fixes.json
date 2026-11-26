@@ -757,6 +757,13 @@
       "desc": "Cambiar de sección dejaba 2-4 cuadros vacíos (la vieja se sacaba de golpe y la nueva entraba desde opacidad 0, tapada ~100 ms por el render sincrónico) y el click tardaba ~100-230 ms en mostrar algo. Ahora switchTab (solo por click, con movimiento) marca el nav y atenúa la vieja (tab-out) en el mismo cuadro, renderiza después del primer paint y la nueva entra desde .55.",
       "file": "app.js",
       "marker": "function _switchTabNow("
+    },
+    {
+      "id": "entreno-sesion-fuera-del-plan",
+      "fecha": "2026-11-25",
+      "desc": "Una rutina entrenada en un día donde NO estaba planeada (p.ej. día de descanso) quedaba registrada en routineLog pero no se pintaba en el carrusel, la tira ni 'Esta semana' (solo se listaba lo planeado). Ahora extrasDe(f) suma esas sesiones como 'Fuera del plan' y cuentan en tira, fila de la semana y contador.",
+      "file": "plan-entreno-ui.js",
+      "marker": "function extrasDe(f)"
     }
   ]
 }
