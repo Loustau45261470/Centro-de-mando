@@ -1245,6 +1245,38 @@ button.goal-hora-vacio:hover { color: var(--tp); background: rgba(255,255,255,.0
 .pcal-row .pcal-check { padding: 2px; }
 .pcal-row:hover .pcal-del, .pcal-row:focus-within .pcal-del { opacity: .8; }
 
+/* ── "Ahora" en la agenda (solo estética, no marca nada como hecho): línea de la hora y relleno del bloque en curso ──
+   Solo transform/opacity; el relleno usa --pr puesta en el propio <i>, sin hijos que la hereden. */
+.pcal-row { position: relative; }
+.pcal-prog { display: none; }
+.pcal-actual { isolation: isolate; box-shadow: 0 0 14px -3px var(--area-c, var(--hud)); }
+.pcal-actual > .pcal-prog {
+  display: block; position: absolute; inset: 0; z-index: -1; pointer-events: none; border-radius: inherit;
+  background: linear-gradient(90deg, rgba(255,255,255,.08), rgba(255,255,255,.3));
+  transform: scaleX(var(--pr, 0)); transform-origin: left center; transition: transform 1s linear;
+}
+.pcal-block.pcal-actual > .pcal-prog {
+  background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.3));
+  transform: scaleY(var(--pr, 0)); transform-origin: center top;
+}
+/* Lista del día: la línea va en el hueco justo arriba (o abajo) de la fila, sin sumar elementos al flujo */
+.pcal-ahora-antes::before, .pcal-ahora-fin::after {
+  content: ''; position: absolute; left: 0; right: 0; height: 2px; pointer-events: none; z-index: 3;
+  background: var(--accent); box-shadow: 0 0 8px var(--accent);
+}
+.pcal-ahora-antes::before { top: -4px; }
+.pcal-ahora-fin::after { bottom: -4px; }
+/* Grilla del overlay (vista Día): a la hora exacta; la etiqueta con la hora cae en la columna de horas */
+.pcal-ahora {
+  position: absolute; left: 0; right: 0; height: 0; z-index: 4; pointer-events: none;
+  border-top: 2px solid var(--cm-accent, var(--accent)); box-shadow: 0 0 10px var(--cm-accent, var(--accent));
+}
+.pcal-ahora::before {
+  content: attr(data-hora); position: absolute; right: 100%; top: -9px; margin-right: 4px; padding: 1px 5px; border-radius: 4px;
+  font-family: var(--mono); font-size: var(--fs-12-5); font-weight: 700; line-height: 1.2; color: #04090F; background: var(--cm-accent, var(--accent));
+}
+@media (prefers-reduced-motion: reduce) { .pcal-actual > .pcal-prog { transition: none; } }
+
 /* ── Día (pestaña Día del overlay): grilla horaria completa ── */
 .pcal-day-wrap { display: flex; }
 .pcal-day-body { flex: 1; min-width: 0; }
@@ -6794,6 +6826,14 @@ input:focus, select:focus, textarea:focus {
 .cc-chg-list { margin: 6px 0 0; padding-left: 18px; }
 .cc-chg-list li { margin: 2px 0; overflow-wrap: anywhere; }
 .cc-paid { color: var(--ok); font-weight: 700; }
+/* Barra de cuotas de cada compra: pagada = verde, a pagar (mes corriente / próxima) = ámbar, por venir = apagada */
+.cc-cuotas { display: flex; gap: 3px; margin-top: 8px; }
+.cc-q { flex: 1 1 0; min-width: 2px; height: 10px; border-radius: 2px; background: rgba(0,0,0,.6); box-shadow: inset 0 0 0 1px var(--border); }
+.cc-q-pagada { background: var(--ok); box-shadow: 0 0 6px rgba(16,224,124,.55); }
+.cc-q-corriente { background: var(--warn); box-shadow: 0 0 7px rgba(245,166,35,.6); animation: cc-q-late 1.6s ease-in-out infinite; }
+@keyframes cc-q-late { 50% { opacity: .5; } }
+.cc-cuotas-txt { margin-top: 4px; font-family: var(--mono); font-size: var(--fs-12-5); color: var(--ts); }
+@media (prefers-reduced-motion: reduce) { .cc-q-corriente { animation: none; } }
 .cc-preview { margin: 4px 0 12px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: rgba(255,255,255,.03); font-size: var(--fs-13); color: var(--ts); overflow-wrap: anywhere; }
 .cc-pv-title { margin-top: 8px; font-weight: 700; color: var(--tp); }
 /* Panel de compra con tarjeta dentro del formulario de Movimientos */
@@ -7308,7 +7348,20 @@ textarea.pr-in { resize: vertical; min-height: 60px; }
 .rg-btn.tiene { border-color: #0FB9D6; background: rgba(15,185,214,.14); animation: rg-pulso 1.8s ease-in-out infinite; }
 .rg-btn.tiene::after { content: ''; position: absolute; top: -3px; right: -3px; width: 9px; height: 9px; border-radius: 50%; background: var(--warn, #F2C063); border: 1.5px solid #0a101e; }
 @keyframes rg-pulso { 0%, 100% { box-shadow: 0 0 0 0 rgba(15,185,214,.55); } 50% { box-shadow: 0 0 0 7px rgba(15,185,214,0); } }
-@media (prefers-reduced-motion: reduce) { .rg-btn.tiene { animation: none; } }
+/* Segunda onda del latido: un anillo que crece y se desvanece (transform/opacity), desfasado medio ciclo del brillo */
+.rg-btn.tiene::before { content: ''; position: absolute; inset: -1px; border-radius: 50%; border: 1.5px solid #0FB9D6; pointer-events: none; animation: rg-onda 1.8s ease-out .9s infinite; }
+@keyframes rg-onda { 0% { transform: scale(1); opacity: .8; } 100% { transform: scale(1.7); opacity: 0; } }
+/* Ventanas de registros: suben desde abajo y un barrido de luz cruza el borde de arriba al abrir */
+#ov-registros.show .cm-panel, #ov-registro-resp.show .cm-panel { animation: rg-ov-sube .45s var(--ease-out-expo, cubic-bezier(.2,.9,.2,1)) both; }
+@keyframes rg-ov-sube { from { opacity: 0; transform: translateY(44px); } to { opacity: 1; transform: none; } }
+#ov-registros, #ov-registro-resp { overflow: hidden; }
+#ov-registros::after, #ov-registro-resp::after { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 2px; pointer-events: none; opacity: 0; background: linear-gradient(90deg, transparent, #fff, transparent); transform: translateX(-100%); }
+#ov-registros.show::after, #ov-registro-resp.show::after { animation: rg-ov-barrido .7s ease-out .2s both; }
+@keyframes rg-ov-barrido { 0% { opacity: 1; transform: translateX(-100%); } 100% { opacity: 0; transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) {
+  .rg-btn.tiene, .rg-btn.tiene::before { animation: none; }
+  #ov-registros.show .cm-panel, #ov-registro-resp.show .cm-panel, #ov-registros.show::after, #ov-registro-resp.show::after { animation: none !important; }
+}
 .rg-ov-acc { display: flex; justify-content: flex-end; margin: 4px 0 8px; }
 .rg-cat-otra { max-width: 260px; margin: -2px 0 10px; padding: 6px 10px; font-size: 13px; }
 .rg-cat-propia { border-style: dashed; }

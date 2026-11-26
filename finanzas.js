@@ -626,10 +626,33 @@ function applyCardAutoPayments() {
   return made > 0;
 }
 
+// Barra de cuotas de una compra (solo estética, lee lo que ya existe): una casilla por cuota.
+// Pagada (verde) = ya tiene su pago automático (mismo criterio que el "pagada" de "Ver cuotas").
+// A pagar (ámbar) = la primera cuota sin pagar y cualquier otra sin pagar que ya vence este mes o antes.
+// Por venir (apagada) = el resto.
+function _ccCuotasEstados(sched, paidKeys, cardId, today) {
+  const mes = today.slice(0, 7);
+  let primera = true;
+  return sched.map(q => {
+    if (paidKeys.has(`auto:${cardId}:${q.dueDate}`)) return 'pagada';
+    const st = (primera || q.dueDate.slice(0, 7) <= mes) ? 'corriente' : 'futura';
+    primera = false;
+    return st;
+  });
+}
+function _ccCuotasBarraHtml(sched, estados) {
+  if (sched.length < 2) return '';
+  const pag = estados.filter(e => e === 'pagada').length;
+  const prox = sched.find((q, i) => estados[i] === 'corriente');
+  const txt = pag === sched.length ? 'Todas las cuotas pagadas' : `${pag} de ${sched.length} pagadas${prox ? ` · próxima vence el ${_ccDate(prox.dueDate)}` : ''}`;
+  return `<div class="cc-cuotas" role="img" aria-label="${txt}">${estados.map(e => `<i class="cc-q cc-q-${e}"></i>`).join('')}</div><div class="cc-cuotas-txt">${txt}</div>`;
+}
+
 function _ccChargeHtml(ch) {
   const card = (S.cards || []).find(c => c.id === ch.cardId);
   const paidKeys = new Set((S.cardPayments || []).map(p => p && p.key));
   const sched = card ? CMTarjetas.installmentSchedule(card, ch) : [];
+  const barra = card && CMTarjetas.chargeCounts(card, ch) ? _ccCuotasBarraHtml(sched, _ccCuotasEstados(sched, paidKeys, ch.cardId, getActiveDate())) : '';
   const exp = CMTarjetas.expenseSchedule(ch);
   const parte = ch.z ? 'Parte' : 'Cuota';
   const cuotas = sched.map(q => `<li>${sched.length === 1 ? 'Pago único' : `${parte} ${q.n} de ${sched.length}`} · vence el ${_ccDate(q.dueDate)} · ${_ccPesos(q.amount)}${paidKeys.has(`auto:${ch.cardId}:${q.dueDate}`) ? ' · <span class="cc-paid">pagada</span>' : ''}</li>`).join('');
@@ -654,6 +677,7 @@ function _ccChargeHtml(ch) {
     <div class="cc-meta">${escHtml(card ? card.name : 'Tarjeta eliminada')} · ${_ccDate(ch.date)} · ${_CC_MODES[ch.mode] || ''}${ch.z ? ` · <span class="cc-z-tag">Plan Z · ${sched.length || ch.installments} partes</span>` : ''}</div>
     ${card && !CMTarjetas.chargeCounts(card, ch) ? '<div class="cc-meta">Anterior al arranque de la tarjeta: ya está en el saldo de arranque.</div>' : ''}
     ${_coverChargeHtml(ch)}
+    ${barra}
     <details class="cc-chg-cal"><summary>Ver cuotas</summary>
       <ul class="cc-chg-list">${cuotas}</ul>
       <div class="cc-meta">${gasto}</div>

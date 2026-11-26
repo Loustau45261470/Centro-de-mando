@@ -3406,9 +3406,10 @@ function plannerBlockHTML(date, t, hourPx, compact, lay) {
   // Vista previa minimalista: sólo título (hora/área/repetición/prioridad se ven al abrir la tarjeta).
   // El tooltip conserva el detalle para hover. El color del bloque ya comunica el área.
   const sel = !compact && _plSelOn(date, t);
-  return `<div class="pcal-block${compact ? ' pcal-compact' : ''}${ro ? ' pcal-goal' : ''}${isFin ? ' pcal-final' : ''} prio-${t.priority}${t.done ? ' done' : ''}${sel && _plSel.has(t.id) ? ' plsel-on' : ''}" data-id="${rid}"
+  return `<div class="pcal-block${compact ? ' pcal-compact' : ''}${ro ? ' pcal-goal' : ''}${isFin ? ' pcal-final' : ''} prio-${t.priority}${t.done ? ' done' : ''}${sel && _plSel.has(t.id) ? ' plsel-on' : ''}" data-id="${rid}"${isGoal ? '' : ` data-ini="${startMin}" data-fin="${endMin}"`}
     style="top:${top}px;height:${height}px;${pos}--area-c:var(${colorVar})"
     ${sel ? `onclick="plannerSelToggle('${rid}')"` : isFin ? `onclick="Finales.open('plan')"` : isGoal ? '' : `onclick="openPlanModal('${escHtml(date)}','${rid}')"`} title="${escHtml(t.text)} · ${range} · ${label}${isFin ? '' : ' · ' + prioCfg.label}${t.habit ? ' · Hábito' : ''}">
+    ${isGoal ? '' : '<i class="pcal-prog" aria-hidden="true"></i>'}
     <div class="pcal-head">
       <div class="pcal-text">${hIcon}${escHtml(t.text) || '<span class="pcal-empty">Sin título</span>'}</div>
       ${ro || sel ? '' : `<button class="pcal-del" onclick="event.stopPropagation();plannerDeleteTask('${escHtml(date)}','${rid}')" title="Eliminar" aria-label="Eliminar">✕</button>`}
@@ -3471,6 +3472,43 @@ function plannerHourTicksHTML(hourPx) {
   return ticks.join('');
 }
 
+// ── "Ahora" en la agenda del día: solo estética. Una línea con la hora actual y el bloque en curso que se va llenando.
+// NO toca `done`: lo que pasó sin marcar sigue sin marcar (nada se tilda por el paso del tiempo).
+// Lista (#dayPlannerList): la línea va justo antes de la primera actividad que todavía no empezó (o al final si ya empezaron todas).
+// Grilla (overlay, vista Día): la línea se posiciona a la hora exacta. El relleno es transform (barato), sin variables heredadas.
+function plannerAhoraPintar(root) {
+  if (!root) return;
+  const d = new Date(), now = d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60;
+  const hoy = getActiveDate();
+  root.querySelectorAll('.pcal-track').forEach(tr => {
+    let ln = tr.querySelector('.pcal-ahora');
+    if (tr.dataset.date !== hoy || now < PCAL_START_MIN || now >= PCAL_END_MIN) { if (ln) ln.remove(); return; }
+    if (!ln) { ln = document.createElement('div'); ln.className = 'pcal-ahora'; ln.setAttribute('aria-hidden', 'true'); tr.appendChild(ln); }
+    ln.style.top = ((now - PCAL_START_MIN) / 60 * parseFloat(tr.dataset.hourpx)) + 'px';
+    ln.dataset.hora = _minToTime(Math.floor(now));
+  });
+  root.querySelectorAll('[data-ini][data-fin]').forEach(el => {
+    const ini = +el.dataset.ini, fin = +el.dataset.fin, prog = el.querySelector(':scope > .pcal-prog');
+    const en = now >= ini && now < fin && fin > ini;
+    el.classList.toggle('pcal-actual', en);
+    if (prog) prog.style.setProperty('--pr', en ? ((now - ini) / (fin - ini)).toFixed(4) : '0');
+  });
+  root.querySelectorAll('.pcal-list').forEach(ls => {
+    ls.querySelectorAll('.pcal-ahora-antes, .pcal-ahora-fin').forEach(r => r.classList.remove('pcal-ahora-antes', 'pcal-ahora-fin'));
+    const rows = [...ls.querySelectorAll(':scope > .pcal-row')];
+    if (!rows.length) return;
+    const sig = rows.find(r => +r.dataset.ini > now);
+    if (sig) sig.classList.add('pcal-ahora-antes'); else rows[rows.length - 1].classList.add('pcal-ahora-fin');
+  });
+}
+function plannerAhoraTick() {
+  if (document.hidden) return;
+  plannerAhoraPintar(document.getElementById('dayPlannerList'));
+  plannerAhoraPintar(document.getElementById('plov-list-dia'));
+}
+setInterval(plannerAhoraTick, 30000);
+document.addEventListener('visibilitychange', plannerAhoraTick);
+
 // ── Lista simple del día (card standalone, pestaña Vida): solo actividades con horario, sin huecos vacíos ──
 function plannerListRowHTML(date, t) {
   const endMin  = _timeToMin(t.time) + (t.duration || 30);
@@ -3483,10 +3521,11 @@ function plannerListRowHTML(date, t) {
   const range   = isGoal ? t.time : `${t.time}–${_minToTimeDisp(endMin)}`;
   const label   = isFin ? 'Final' : isGoal ? 'Tarea' : areaCfg.label;
   const sel = _plSelOn(date, t);
-  return `<div class="pcal-row${ro ? ' pcal-goal' : ''}${isFin ? ' pcal-final' : ''}${t.done ? ' done' : ''}${sel && _plSel.has(t.id) ? ' plsel-on' : ''}" data-id="${rid}"
+  return `<div class="pcal-row${ro ? ' pcal-goal' : ''}${isFin ? ' pcal-final' : ''}${t.done ? ' done' : ''}${sel && _plSel.has(t.id) ? ' plsel-on' : ''}" data-id="${rid}" data-ini="${_timeToMin(t.time)}"${isGoal ? '' : ` data-fin="${endMin}"`}
     style="--area-c:var(${isFin ? '--c-conocimiento' : isGoal ? '--hud' : areaCfg.cssVar})"
     ${sel ? `onclick="plannerSelToggle('${rid}')"` : isFin ? `onclick="Finales.open('plan')"` : isGoal ? '' : `onclick="openPlanModal('${escHtml(date)}','${rid}')"`} title="${escHtml(t.text)} · ${label}${isFin ? '' : ' · ' + prioCfg.label}">
     ${ro || sel ? '' : `<button class="pcal-del" onclick="event.stopPropagation();plannerDeleteTask('${escHtml(date)}','${rid}')" title="Eliminar" aria-label="Eliminar">✕</button>`}
+    ${isGoal ? '' : '<i class="pcal-prog" aria-hidden="true"></i>'}
     <span class="pcal-row-time">${range}</span>
     <div class="pcal-text">${hIcon}${escHtml(t.text) || '<span class="pcal-empty">Sin título</span>'}</div>
     ${isFin ? '<span class="pcal-row-tag">Final</span>' : isGoal ? '<span class="pcal-row-tag">Tarea</span>' : ''}
@@ -3500,6 +3539,7 @@ function buildDayList(containerEl, date) {
     ? `<div class="pcal-list">${tasks.map(t => plannerListRowHTML(date, t)).join('')}</div>`
     : '<p class="empty-state">Sin actividades planificadas para hoy.</p>';
   containerEl.innerHTML = plannerDaybarHTML(date) + body;
+  if (date === getActiveDate()) plannerAhoraPintar(containerEl);
 }
 
 const PCAL_HOUR_PX = 64;      // pestaña Día (overlay) — grande y legible, estilo Google Calendar
@@ -3512,6 +3552,7 @@ function buildDayCalendar(containerEl, date) {
       <div class="pcal-hours-col" style="height:${(PCAL_SPAN_MIN / 60) * PCAL_HOUR_PX}px">${plannerHourTicksHTML(PCAL_HOUR_PX)}</div>
       <div class="pcal-day-body">${plannerDayTrackHTML(date, PCAL_HOUR_PX, false)}</div>
     </div>`;
+  if (date === getActiveDate()) plannerAhoraPintar(containerEl);
   const now = new Date();
   const curTop = Math.max(0, ((now.getHours() * 60 + now.getMinutes()) - PCAL_START_MIN) / 60 * PCAL_HOUR_PX);
   containerEl.scrollTop = Math.max(0, curTop - containerEl.clientHeight / 2);
