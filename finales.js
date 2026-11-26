@@ -243,7 +243,8 @@ const Finales = (() => {
     const f = ensureF().find(x => x.id === id); if (!f || f.done) return;
     let fila = filaDe(f);
     if (!fila) {
-      fila = { id: uid(), subject: f.materia, target: typeof _lawTargetDeISO === 'function' ? _lawTargetDeISO(f.fecha) : 'Sin fecha' };
+      const c = { fechaTipo: 'exacta', fecha: f.fecha };   // campos de fecha del plan (abogacia.js); target se deriva
+      fila = { id: uid(), subject: f.materia, ...c, target: typeof _lawTargetDeCampos === 'function' ? _lawTargetDeCampos(c) : 'Sin fecha' };
       if (TIPOS.includes(f.tipo)) fila.tipo = f.tipo;
       filasPlan().push(fila);
       f.lawPlanId = fila.id;
@@ -481,11 +482,21 @@ const Finales = (() => {
     return { materia: texto, subjectId: subjectIdDe({ materia: texto }) };
   }
 
+  // Hora y duración del final en edición: viven en la fila vinculada del plan (mismos campos que el modal del plan).
+  function filaHoraEdit(f, inp) {
+    const fila = filaDe(f);
+    if (!fila || typeof _lawFilaCampos !== 'function') return '';
+    const c = _lawFilaCampos(fila), dur = c.durMin || _LAW_DUR_MIN;
+    const durs = _LAW_DURS.includes(dur) ? _LAW_DURS : _LAW_DURS.concat(dur).sort((a, b) => a - b);
+    return `<input id="fin-e-hora" type="time" step="300" value="${c.hora && c.fecha === f.fecha ? c.hora : ''}" aria-label="Hora (opcional)" title="Hora (opcional)" style="${inp};color-scheme:dark">
+      <select id="fin-e-dur" aria-label="Duración" title="Duración" style="${inp}">${durs.map(m => `<option value="${m}" ${m === dur ? 'selected' : ''}>${_lawDurTxt(m)}</option>`).join('')}</select>`;
+  }
   function filaEdit(f) {
     const inp = 'background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:6px 8px;font-size:var(--fs-12-5);color:inherit';
     return `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:8px;border:1px solid var(--accent,#6B8EFF);border-radius:8px;margin-bottom:6px">
       ${selectorMateria('fin-e', subjectIdDe(f), f.materia, inp, f.codigo)}
-      <input id="fin-e-fecha" type="date" value="${f.fecha}" style="${inp}">
+      <input id="fin-e-fecha" type="date" value="${f.fecha}" aria-label="Fecha" style="${inp};color-scheme:dark">
+      ${filaHoraEdit(f, inp)}
       <select id="fin-e-tipo" style="${inp}">${TIPOS.map(t => `<option value="${t}" ${t === f.tipo ? 'selected' : ''}>${t}</option>`).join('')}</select>
       <button class="btn btn-sm" onclick="Finales.saveEdit('${f.id}')">Guardar</button>
       <button class="btn btn-ghost btn-sm" onclick="Finales.cancelEdit()">Cancelar</button>
@@ -536,7 +547,14 @@ const Finales = (() => {
     const movio = fecha !== fechaAntes;
     const fila = filaDe(f);
     if (fila) {
-      if (typeof _lawTargetDeISO === 'function') fila.target = _lawTargetDeISO(f.fecha);
+      // Misma forma que el modal del plan: fechaTipo/fecha/hora/durMin + target derivado (la hora no se pierde al editar acá).
+      if (typeof _lawTargetDeCampos === 'function') {
+        const hora = document.getElementById('fin-e-hora')?.value || '';
+        const c = { fechaTipo: 'exacta', fecha: f.fecha };
+        if (/^([01]\d|2[0-3]):[0-5]\d$/.test(hora)) { c.hora = hora; c.durMin = +document.getElementById('fin-e-dur')?.value || _LAW_DUR_MIN; }
+        ['fechaTipo', 'fecha', 'mes', 'hora', 'durMin', 'sem', 'anio'].forEach(k => delete fila[k]);
+        Object.assign(fila, c, { target: _lawTargetDeCampos(c) });
+      }
       fila.tipo = f.tipo;
     }
     saveState(); _editId = null;

@@ -4,6 +4,17 @@
 'use strict';
 const { test, expect } = require('./support/fixtures');
 
+// El modal del plan ya no tiene texto libre: carga los controles (tipo + fecha / mes / año) a partir del texto que usaban estos tests.
+async function llenarFecha(page, texto) {
+  const c = await page.evaluate((t) => _lawTargetParse(t, getActiveDate()), texto);
+  if (!c) throw new Error('fecha no interpretable en el test: ' + texto);
+  await page.selectOption('#lawPlanFechaTipo', c.fechaTipo);
+  if (c.fechaTipo === 'exacta') await page.fill('#lawPlanFecha', c.fecha);
+  if (c.fechaTipo === 'mes') await page.fill('#lawPlanMes', c.mes);
+  if (c.fechaTipo === 'promo' || c.fechaTipo === 'libre') await page.fill('#lawPlanAnio', c.anio || '');
+  if (c.fechaTipo === 'promo') await page.selectOption('#lawPlanSem', c.sem || '');
+}
+
 const EN_PAGE = `
   window.__mas = (n) => { const d = new Date(getActiveDate() + 'T12:00:00'); d.setDate(d.getDate() + n); return localStr(d); };
   window.__txt = (n) => _lawTargetDeISO(window.__mas(n));
@@ -47,7 +58,7 @@ test('el modal del plan ofrece Comisión (A, B, C, Unificada) y los tipos de exa
   expect(tipos).toContain('Final MC');
 
   await cmPage.fill('#lawPlanSubject', 'Gamma');
-  await cmPage.fill('#lawPlanTarget', 'Junio 2099');
+  await llenarFecha(cmPage, 'Junio 2099');
   await cmPage.selectOption('#lawPlanComision', 'B');
   await cmPage.selectOption('#lawPlanTipo', 'Final MC');
   await cmPage.click('#modal-law-plan .btn-primary');
@@ -122,7 +133,7 @@ test('guardar la fila desde el modal crea/actualiza el final; pasar a "solo mes"
 
   const guardar = async (target, tipo) => {
     await cmPage.evaluate(() => openEditLawPlan('r1'));
-    await cmPage.fill('#lawPlanTarget', target);
+    await llenarFecha(cmPage, target);
     if (tipo) await cmPage.selectOption('#lawPlanTipo', tipo);
     await cmPage.click('#modal-law-plan .btn-primary');
   };
@@ -198,7 +209,7 @@ test('borrar el final vinculado deja la fila con su fecha y finalOff; cambiar la
 
   // Cambiar la fecha borra la marca y vuelve a crearlo.
   await cmPage.evaluate(() => openEditLawPlan('r1'));
-  await cmPage.fill('#lawPlanTarget', await cmPage.evaluate(() => __txt(22)));
+  await llenarFecha(cmPage, await cmPage.evaluate(() => __txt(22)));
   await cmPage.click('#modal-law-plan .btn-primary');
   const fs = await finales(cmPage);
   expect(fs.length).toBe(1);
@@ -234,7 +245,7 @@ test('aprobar el final marca la fila "Rendida" (con la nota) y reactivarlo la de
   await cmPage.evaluate(() => { S.lawProgress.years[0].subjects.find((x) => x.id === 'a2').done = false; });   // la nota de arriba la había aprobado
   await cmPage.evaluate((i) => Finales.del(i), id);
   await cmPage.evaluate(() => { openEditLawPlan('r1'); });
-  await cmPage.fill('#lawPlanTarget', await cmPage.evaluate(() => __txt(21)));
+  await llenarFecha(cmPage, await cmPage.evaluate(() => __txt(21)));
   await cmPage.click('#modal-law-plan .btn-primary');
   const id2 = (await finales(cmPage))[0].id;
   await cmPage.evaluate((i) => { const f = S.sgc.finales.find((x) => x.id === i); f.done = true; f.doneEl = getActiveDate(); renderLawPlan(true); }, id2);
@@ -254,7 +265,7 @@ test('desaprobar: la fila no figura "Rendida", no se recrea con la misma fecha y
   expect((await finales(cmPage)).filter((f) => !f.done)).toEqual([]);   // misma fecha: no vuelve a aparecer
 
   await cmPage.evaluate(() => { openEditLawPlan('r1'); });
-  await cmPage.fill('#lawPlanTarget', await cmPage.evaluate(() => __txt(40)));
+  await llenarFecha(cmPage, await cmPage.evaluate(() => __txt(40)));
   await cmPage.click('#modal-law-plan .btn-primary');
   const activos = (await finales(cmPage)).filter((f) => !f.done);
   expect(activos.length).toBe(1);

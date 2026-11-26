@@ -5,6 +5,17 @@
 'use strict';
 const { test, expect } = require('./support/fixtures');
 
+// El modal del plan ya no tiene texto libre: carga los controles (tipo + fecha / mes / año) a partir del texto que usaban estos tests.
+async function llenarFecha(page, texto) {
+  const c = await page.evaluate((t) => _lawTargetParse(t, getActiveDate()), texto);
+  if (!c) throw new Error('fecha no interpretable en el test: ' + texto);
+  await page.selectOption('#lawPlanFechaTipo', c.fechaTipo);
+  if (c.fechaTipo === 'exacta') await page.fill('#lawPlanFecha', c.fecha);
+  if (c.fechaTipo === 'mes') await page.fill('#lawPlanMes', c.mes);
+  if (c.fechaTipo === 'promo' || c.fechaTipo === 'libre') await page.fill('#lawPlanAnio', c.anio || '');
+  if (c.fechaTipo === 'promo') await page.selectOption('#lawPlanSem', c.sem || '');
+}
+
 const TAB_KEY = 'cdm_plan_materias_tab';
 
 async function armar(page, { suelto = false } = {}) {
@@ -106,7 +117,7 @@ test('Plan: la tabla del plan con sus funciones (+ Materia, chips, orden por fec
   await t.getByRole('button', { name: '+ Materia' }).click();
   await expect(cmPage.locator('#modal-law-plan')).toHaveClass(/open/);
   await cmPage.fill('#lawPlanSubject', 'Delta');
-  await cmPage.fill('#lawPlanTarget', 'Junio 2099');
+  await llenarFecha(cmPage, 'Junio 2099');
   await cmPage.selectOption('#lawPlanComision', 'A');
   await cmPage.click('#modal-law-plan .btn-primary');
   await expect(t.locator('tr', { hasText: 'Delta' })).toContainText('Com. A');
@@ -209,7 +220,7 @@ test('un final suelto (sin fila en el plan) sigue accesible: aparece en la tabla
   await expect(cmPage.locator('#modal-law-plan')).toHaveClass(/open/);
   await expect(cmPage.locator('#lawPlanSubject')).toHaveValue('Materia suelta');
   await expect(cmPage.locator('#lawPlanTipo')).toHaveValue('Final MC');
-  await cmPage.fill('#lawPlanTarget', await cmPage.evaluate(() => _lawTargetDeISO(__mas(30))));
+  await llenarFecha(cmPage, await cmPage.evaluate(() => _lawTargetDeISO(__mas(30))));
   await cmPage.click('#modal-law-plan .btn-primary');
   expect(await cmPage.evaluate(() => S.lawPlan.length)).toBe(3);
   expect((await finalDe(cmPage, 'fs')).fecha).toBe(await cmPage.evaluate(() => __mas(30)));

@@ -90,6 +90,16 @@ const CMDeadlines = (() => {
       // Ocurrencia de un registro (registros.js): un solo aviso "es ahora", con la clave id@YYYY-MM-DDTHH:MM de ESA ocurrencia
       // y la url que abre su formulario. winMs propio (60 min), igual que el chequeo de Foco.
       out.push({ key: base, at: it.at, title: it.title, body: it.cuerpo, lead: false, url: it.url, winMs: FOCO_WIN_MS });
+    } else if (it.kind === 'final' && !it.allDay) {
+      // Final con hora: mismas alertas escalonadas por días que uno de día completo (a las 09:00) + el día del final
+      // (09:00, salvo que el examen sea a primera hora) + 10 min antes. Claves con la hora → no pisan las de día completo.
+      (it.leads || LEADS.final).forEach(d => {
+        if (d > 0) push('_d' + d, toMs(addDays(it.date, -d), ALLDAY_HOUR, tz),
+                        `${it.icon} ${d === 1 ? 'Mañana' : 'En ' + d + ' días'}: ${it.title} (${it.time})`, true);
+      });
+      const nueve = toMs(it.date, ALLDAY_HOUR, tz);
+      if (it.at - nueve >= 60 * MIN) push('_hoy', nueve, `${it.icon} Hoy ${it.time}: ${it.title}`, true);
+      push('_10m', it.at - 10 * MIN, `${it.icon} En 10 min: ${it.title}`, false);
     } else if (it.allDay) {
       // Se muestran al cierre del día pero avisan a las 09:00 (nadie quiere el aviso 23:59).
       (it.leads || LEADS[it.kind] || [1]).forEach(d => {
@@ -293,6 +303,27 @@ const CMDeadlines = (() => {
     return { actual, proxima };
   }
 
+  // ── finales con hora ────────────────────────────────────────────────────
+  // La hora vive en la fila del Plan de materias (S.lawPlan: fechaTipo 'exacta', fecha, hora 'HH:MM', durMin) que el final
+  // tiene vinculada por f.lawPlanId. Solo vale si la fila sigue con la misma fecha que el final (si se editó la fecha desde
+  // Finales, la hora de la fecha vieja no se arrastra). → { hora, durMin } o null.
+  function finalHora(S, f) {
+    if (!f || !f.lawPlanId) return null;
+    const r = ((S || {}).lawPlan || []).find(x => x && x.id === f.lawPlanId);
+    if (!r || r.fechaTipo !== 'exacta' || r.fecha !== f.fecha || !/^([01]\d|2[0-3]):[0-5]\d$/.test(r.hora || '')) return null;
+    return { hora: r.hora, durMin: r.durMin > 0 ? r.durMin : 120 };
+  }
+  // Finales activos con hora de un día (para el planner del día): [{ id, materia, tipo, time, durMin }], por hora.
+  function finalesConHora(S, date) {
+    const out = [];
+    ((S && S.sgc || {}).finales || []).forEach(f => {
+      if (!f || f.done || f.fecha !== date) return;
+      const h = finalHora(S, f);
+      if (h) out.push({ id: f.id, materia: f.materia || 'Final', tipo: f.tipo || '', time: h.hora, durMin: h.durMin });
+    });
+    return out.sort((a, b) => a.time.localeCompare(b.time));
+  }
+
   // ── recolección ─────────────────────────────────────────────────────────
   function collect(state, opts) {
     opts = opts || {};
@@ -337,12 +368,15 @@ const CMDeadlines = (() => {
       walk((S.proyectos || {})[tab]);
     });
 
-    // 3) Finales
+    // 3) Finales. Con hora (fila del Plan de materias con fecha exacta + hora, ver finalHora) → evento con hora real y su
+    //    duración; sin hora → de día completo, como siempre.
     ((S.sgc || {}).finales || []).forEach(f => {
       if (!f || f.done || !isDate(f.fecha)) return;
+      const h = finalHora(S, f);
       const dias = Math.round((toMs(f.fecha, ALLDAY_HOUR, opts.tz) - now) / DAY);
       add({ id: 'final_' + f.id, kind: 'final', kindLabel: 'Final', icon: '🎓', tab: 'conocimiento',
-            title: f.materia || 'Final', sub: f.tipo || '', date: f.fecha, allDay: true,
+            title: f.materia || 'Final', sub: f.tipo || '', date: f.fecha, time: h ? h.hora : '', allDay: !h,
+            ...(h ? { durMin: h.durMin } : {}),
             priority: dias <= 3 ? 'critical' : 'high',
             doneAction: `Finales.done('${f.id}')`, openAction: "Finales.open('plan')" });
     });
@@ -536,7 +570,7 @@ const CMDeadlines = (() => {
     return out;
   }
 
-  return { collect, dueAlerts, focoHoras, migrarClaves, repValidar, repOcurrencias, REP_MIN_MIN, regFrecValidar, regSlotsDia, regOcurrencias, REG_URL };
+  return { collect, finalHora, finalesConHora, dueAlerts, focoHoras, migrarClaves, repValidar, repOcurrencias, REP_MIN_MIN, regFrecValidar, regSlotsDia, regOcurrencias, REG_URL };
 })();
 
 if (typeof window !== 'undefined') window.CMDeadlines = CMDeadlines;

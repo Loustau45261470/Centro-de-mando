@@ -2957,8 +2957,18 @@ function plannerDayGoals(date) {
       area: null, text: g.text, done: !!g.done,
     }));
 }
-// Todo lo que ocupa el día: actividades del planner + metas con horario.
-function plannerDayAgenda(date) { return plannerDayTasks(date).concat(plannerDayGoals(date)); }
+// Finales con hora (Plan de materias) vistos como bloques del planner. Fuente única: CMDeadlines.finalesConHora (deadlines.js).
+// Solo lectura: se rinden/editan desde Finales; el toque abre el Plan de materias.
+function plannerDayFinales(date) {
+  if (typeof CMDeadlines === 'undefined') return [];
+  return CMDeadlines.finalesConHora(S, date).map(f => ({
+    id: 'f:' + f.id, _final: f.id,
+    time: f.time, duration: f.durMin, priority: 3,
+    area: null, text: 'Final · ' + f.materia, done: false,
+  }));
+}
+// Todo lo que ocupa el día: actividades del planner + metas con horario + finales con hora.
+function plannerDayAgenda(date) { return plannerDayTasks(date).concat(plannerDayGoals(date), plannerDayFinales(date)); }
 
 // Reparte en columnas los bloques que se pisan (estilo Google Calendar): agrupa por
 // clúster de solapamiento y le da a cada bloque su columna y el total de columnas.
@@ -3315,7 +3325,7 @@ function plannerShiftCustom(el) {
 // _plSel = null (modo apagado) o Set de ids de las elegidas. Solo hoy, solo pendientes, sin metas.
 let _plSel = null;
 function _plSelIds() { return _plSel ? [..._plSel] : null; }
-function _plSelOn(date, t) { return !!_plSel && date === getActiveDate() && !t.done && !t._goal; }
+function _plSelOn(date, t) { return !!_plSel && date === getActiveDate() && !t.done && !t._goal && !t._final; }
 function _plSelBoxHTML(t) {
   const id = escHtml(t.id);
   return `<label class="pcal-check plsel" onclick="event.stopPropagation()"><input type="checkbox" class="plsel-box" data-id="${id}" aria-label="Elegir para correr: ${escHtml(t.text)}"${_plSel.has(t.id) ? ' checked' : ''} onchange="plannerSelToggle('${id}')"></label>`;
@@ -3351,7 +3361,7 @@ function plannerClearToday() {
 }
 function plannerAtajosHTML(date) {
   const hay = plannerDayTasks(date).length;
-  if (_plSel && !plannerDayTasks(date).some(t => !t.done && !t._goal)) _plSel = null;   // nada que elegir: sale solo
+  if (_plSel && !plannerDayTasks(date).some(t => !t.done && !t._goal && !t._final)) _plSel = null;   // nada que elegir: sale solo
   const sel = !!_plSel, n = sel ? _plSel.size : 0;
   const d = sel ? (n ? '' : ' disabled') : (hay ? '' : ' disabled');
   const chip = (m, l) => `<button type="button" class="pat-chip" onclick="plannerShiftToday(${m}${sel ? ',_plSelIds()' : ''})"${d}>${l}</button>`;
@@ -3384,33 +3394,33 @@ function plannerBlockHTML(date, t, hourPx, compact, lay) {
   const pos = cols > 1
     ? `left:calc(2px + ${col} * (100% - 4px) / ${cols});width:calc((100% - 4px) / ${cols} - 2px);right:auto;`
     : '';
-  const isGoal = !!t._goal;
+  const isGoal = !!t._goal, isFin = !!t._final, ro = isGoal || isFin;
   const hIcon  = t.habit ? escHtml((_habitFind(t.habit) || {}).emoji || '📌') + ' ' : '';
   const area   = PLANNER_AREAS[t.area] ? t.area : 'vida';
   const areaCfg = PLANNER_AREAS[area];
   const prioCfg = PLANNER_PRIO[t.priority] || PLANNER_PRIO[2];
   const rid = escHtml(t.id);
   const range = `${t.time}–${_minToTimeDisp(endMin)}`;
-  const colorVar = isGoal ? '--hud' : areaCfg.cssVar;
-  const label = isGoal ? 'Tarea' : areaCfg.label;
+  const colorVar = isFin ? '--c-conocimiento' : isGoal ? '--hud' : areaCfg.cssVar;
+  const label = isFin ? 'Final' : isGoal ? 'Tarea' : areaCfg.label;
   // Vista previa minimalista: sólo título (hora/área/repetición/prioridad se ven al abrir la tarjeta).
   // El tooltip conserva el detalle para hover. El color del bloque ya comunica el área.
   const sel = !compact && _plSelOn(date, t);
-  return `<div class="pcal-block${compact ? ' pcal-compact' : ''}${isGoal ? ' pcal-goal' : ''} prio-${t.priority}${t.done ? ' done' : ''}${sel && _plSel.has(t.id) ? ' plsel-on' : ''}" data-id="${rid}"
+  return `<div class="pcal-block${compact ? ' pcal-compact' : ''}${ro ? ' pcal-goal' : ''}${isFin ? ' pcal-final' : ''} prio-${t.priority}${t.done ? ' done' : ''}${sel && _plSel.has(t.id) ? ' plsel-on' : ''}" data-id="${rid}"
     style="top:${top}px;height:${height}px;${pos}--area-c:var(${colorVar})"
-    ${sel ? `onclick="plannerSelToggle('${rid}')"` : isGoal ? '' : `onclick="openPlanModal('${escHtml(date)}','${rid}')"`} title="${escHtml(t.text)} · ${range} · ${label} · ${prioCfg.label}${t.habit ? ' · Hábito' : ''}">
+    ${sel ? `onclick="plannerSelToggle('${rid}')"` : isFin ? `onclick="Finales.open('plan')"` : isGoal ? '' : `onclick="openPlanModal('${escHtml(date)}','${rid}')"`} title="${escHtml(t.text)} · ${range} · ${label}${isFin ? '' : ' · ' + prioCfg.label}${t.habit ? ' · Hábito' : ''}">
     <div class="pcal-head">
       <div class="pcal-text">${hIcon}${escHtml(t.text) || '<span class="pcal-empty">Sin título</span>'}</div>
-      ${isGoal || sel ? '' : `<button class="pcal-del" onclick="event.stopPropagation();plannerDeleteTask('${escHtml(date)}','${rid}')" title="Eliminar" aria-label="Eliminar">✕</button>`}
-      ${sel ? _plSelBoxHTML(t) : `<label class="pcal-check" onclick="event.stopPropagation()"><input type="checkbox" aria-label="Marcar como hecha: ${escHtml(t.text)}"${t.done ? ' checked' : ''} onchange="plannerToggleTask('${escHtml(date)}','${rid}',event)"></label>`}
+      ${ro || sel ? '' : `<button class="pcal-del" onclick="event.stopPropagation();plannerDeleteTask('${escHtml(date)}','${rid}')" title="Eliminar" aria-label="Eliminar">✕</button>`}
+      ${sel ? _plSelBoxHTML(t) : isFin ? '' : `<label class="pcal-check" onclick="event.stopPropagation()"><input type="checkbox" aria-label="Marcar como hecha: ${escHtml(t.text)}"${t.done ? ' checked' : ''} onchange="plannerToggleTask('${escHtml(date)}','${rid}',event)"></label>`}
     </div>
-    ${compact ? '' : `<div class="pcal-foot"><span class="pcal-prio-tag">${isGoal ? 'Tarea · ' + prioCfg.label : prioCfg.label}</span></div>`}
+    ${compact ? '' : `<div class="pcal-foot"><span class="pcal-prio-tag">${isFin ? 'Final · ' + range : isGoal ? 'Tarea · ' + prioCfg.label : prioCfg.label}</span></div>`}
   </div>`;
 }
 
 // ── Barra de progreso del día + resumen de pendientes por prioridad ──
 function plannerDaybarHTML(date) {
-  const tasks = plannerDayAgenda(date);
+  const tasks = plannerDayAgenda(date).filter(t => !t._final);   // un final no es una tarea para tachar: no suma al progreso
   const total = tasks.length;
   const done  = tasks.filter(t => t.done).length;
   const pct   = total ? Math.round(done / total * 100) : 0;
@@ -3464,23 +3474,23 @@ function plannerHourTicksHTML(hourPx) {
 // ── Lista simple del día (card standalone, pestaña Vida): solo actividades con horario, sin huecos vacíos ──
 function plannerListRowHTML(date, t) {
   const endMin  = _timeToMin(t.time) + (t.duration || 30);
-  const isGoal  = !!t._goal;
+  const isGoal  = !!t._goal, isFin = !!t._final, ro = isGoal || isFin;
   const hIcon   = t.habit ? escHtml((_habitFind(t.habit) || {}).emoji || '📌') + ' ' : '';
   const area    = PLANNER_AREAS[t.area] ? t.area : 'vida';
   const areaCfg = PLANNER_AREAS[area];
   const prioCfg = PLANNER_PRIO[t.priority] || PLANNER_PRIO[2];
   const rid     = escHtml(t.id);
   const range   = isGoal ? t.time : `${t.time}–${_minToTimeDisp(endMin)}`;
-  const label   = isGoal ? 'Tarea' : areaCfg.label;
+  const label   = isFin ? 'Final' : isGoal ? 'Tarea' : areaCfg.label;
   const sel = _plSelOn(date, t);
-  return `<div class="pcal-row${isGoal ? ' pcal-goal' : ''}${t.done ? ' done' : ''}${sel && _plSel.has(t.id) ? ' plsel-on' : ''}" data-id="${rid}"
-    style="--area-c:var(${isGoal ? '--hud' : areaCfg.cssVar})"
-    ${sel ? `onclick="plannerSelToggle('${rid}')"` : isGoal ? '' : `onclick="openPlanModal('${escHtml(date)}','${rid}')"`} title="${escHtml(t.text)} · ${label} · ${prioCfg.label}">
-    ${isGoal || sel ? '' : `<button class="pcal-del" onclick="event.stopPropagation();plannerDeleteTask('${escHtml(date)}','${rid}')" title="Eliminar" aria-label="Eliminar">✕</button>`}
+  return `<div class="pcal-row${ro ? ' pcal-goal' : ''}${isFin ? ' pcal-final' : ''}${t.done ? ' done' : ''}${sel && _plSel.has(t.id) ? ' plsel-on' : ''}" data-id="${rid}"
+    style="--area-c:var(${isFin ? '--c-conocimiento' : isGoal ? '--hud' : areaCfg.cssVar})"
+    ${sel ? `onclick="plannerSelToggle('${rid}')"` : isFin ? `onclick="Finales.open('plan')"` : isGoal ? '' : `onclick="openPlanModal('${escHtml(date)}','${rid}')"`} title="${escHtml(t.text)} · ${label}${isFin ? '' : ' · ' + prioCfg.label}">
+    ${ro || sel ? '' : `<button class="pcal-del" onclick="event.stopPropagation();plannerDeleteTask('${escHtml(date)}','${rid}')" title="Eliminar" aria-label="Eliminar">✕</button>`}
     <span class="pcal-row-time">${range}</span>
     <div class="pcal-text">${hIcon}${escHtml(t.text) || '<span class="pcal-empty">Sin título</span>'}</div>
-    ${isGoal ? '<span class="pcal-row-tag">Tarea</span>' : ''}
-    ${sel ? _plSelBoxHTML(t) : `<label class="pcal-check" onclick="event.stopPropagation()"><input type="checkbox" aria-label="Marcar como hecha: ${escHtml(t.text)}"${t.done ? ' checked' : ''} onchange="plannerToggleTask('${escHtml(date)}','${rid}',event)"></label>`}
+    ${isFin ? '<span class="pcal-row-tag">Final</span>' : isGoal ? '<span class="pcal-row-tag">Tarea</span>' : ''}
+    ${sel ? _plSelBoxHTML(t) : isFin ? '' : `<label class="pcal-check" onclick="event.stopPropagation()"><input type="checkbox" aria-label="Marcar como hecha: ${escHtml(t.text)}"${t.done ? ' checked' : ''} onchange="plannerToggleTask('${escHtml(date)}','${rid}',event)"></label>`}
   </div>`;
 }
 function buildDayList(containerEl, date) {

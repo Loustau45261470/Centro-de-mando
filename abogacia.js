@@ -222,6 +222,92 @@ function _lawTargetDeISO(iso) {
   return +m[3] + ' de ' + mes.charAt(0).toUpperCase() + mes.slice(1) + ' ' + m[1];
 }
 
+// ── Fecha estructurada de una fila del Plan de materias ──
+// Campos ADITIVOS de la fila: fechaTipo ('exacta'|'mes'|'sin'|'promo'|'libre'), fecha 'YYYY-MM-DD', mes 'YYYY-MM',
+// hora 'HH:MM', durMin, sem ('1'|'2'), anio 'YYYY'. `target` (texto) sigue siendo lo que leen el resto de las pantallas:
+// se DERIVA de los campos al guardar. Filas viejas (solo `target`) se interpretan al leer (_lawFilaCampos) sin escribir nada.
+const _LAW_FECHA_TIPOS = [['exacta', 'Fecha exacta'], ['mes', 'Solo mes'], ['sin', 'Sin fecha'], ['promo', 'Promoción'], ['libre', 'Libre / Online']];
+const _LAW_DUR_MIN = 120;   // duración por defecto de un final con hora
+const _LAW_MES_ABR = { ene: 0, enero: 0, feb: 1, febrero: 1, mar: 2, marzo: 2, abr: 3, abril: 3, may: 4, mayo: 4, jun: 5, junio: 5,
+  jul: 6, julio: 6, ago: 7, agosto: 7, sep: 8, sept: 8, set: 8, septiembre: 8, setiembre: 8, oct: 9, octubre: 9,
+  nov: 10, noviembre: 10, dic: 11, diciembre: 11 };
+const _LAW_MES_RE = '(' + Object.keys(_LAW_MES_ABR).sort((a, b) => b.length - a.length).join('|') + ')';
+const _lawHoraOk = h => /^([01]\d|2[0-3]):[0-5]\d$/.test(h || '');
+const _lawIsoOk = s => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || ''); if (!m) return false; const d = new Date(+m[1], +m[2] - 1, +m[3]); return d.getMonth() === +m[2] - 1 && d.getDate() === +m[3]; };
+const _lawPad2 = n => String(n).padStart(2, '0');
+
+// Texto libre de `target` → campos nuevos, o null si no se puede interpretar. `hoy` ('YYYY-MM-DD') fija el año de "15/12" / "dic".
+// Sin año explícito se toma la próxima ocurrencia (hoy o futura).
+function _lawTargetParse(texto, hoy) {
+  const t = String(texto || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+  hoy = hoy || (typeof getActiveDate === 'function' ? getActiveDate() : new Date().toISOString().slice(0, 10));
+  if (!t || /^(sin fecha|a definir|s\/f|sf|-+|\?+)$/.test(t)) return { fechaTipo: 'sin' };
+  const anio = (t.match(/\b(20\d{2})\b/) || [])[1] || '';
+  const conMes = new RegExp('\\b' + _LAW_MES_RE + '\\b').test(t);
+  if (/promo/.test(t)) {
+    if (conMes) return null;
+    const s = t.match(/\b([12])\s*[°º]?\s*(?:er|ro|do)?\s*(?:sem|cuatri)/);
+    return { fechaTipo: 'promo', sem: s ? s[1] : '', anio };
+  }
+  if (/online|libre/.test(t)) return conMes ? null : { fechaTipo: 'libre', anio };   // "Noviembre u Online 2027" mezcla dos cosas: no se adivina
+  const yHoy = +hoy.slice(0, 4), mHoy = +hoy.slice(5, 7);
+  const anioDe = (y, m, d) => {   // año explícito (2 o 4 cifras) o próxima ocurrencia
+    if (y) return y < 100 ? 2000 + y : y;
+    return (m < mHoy || (d != null && m === mHoy && d < +hoy.slice(8, 10))) ? yHoy + 1 : yHoy;
+  };
+  const exacta = (y, m, d, inferido) => {
+    const iso = y + '-' + _lawPad2(m) + '-' + _lawPad2(d);
+    return _lawIsoOk(iso) ? { fechaTipo: 'exacta', fecha: iso, ...(inferido ? { inferido: true } : {}) } : null;
+  };
+  let r;
+  if ((r = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/))) return exacta(+r[1], +r[2], +r[3]);
+  if ((r = t.match(/^(\d{1,2})\s*[\/.-]\s*(20\d{2})$/))) return +r[1] >= 1 && +r[1] <= 12 ? { fechaTipo: 'mes', mes: r[2] + '-' + _lawPad2(+r[1]) } : null;
+  if ((r = t.match(/^(\d{1,2})\s*[\/.-]\s*(\d{1,2})(?:\s*[\/.-]\s*(\d{4}|\d{2}))?$/))) {
+    const d = +r[1], m = +r[2];
+    return m >= 1 && m <= 12 ? exacta(anioDe(r[3] ? +r[3] : 0, m, d), m, d, !r[3]) : null;
+  }
+  if ((r = t.match(new RegExp('^(?:(?:lunes|martes|miercoles|jueves|viernes|sabado|domingo)\\s+)?(\\d{1,2})\\s*(?:de\\s+)?' + _LAW_MES_RE + '\\.?(?:\\s*(?:de\\s+)?(\\d{4}|\\d{2}))?$')))) {
+    const d = +r[1], m = _LAW_MES_ABR[r[2]] + 1;
+    return exacta(anioDe(r[3] ? +r[3] : 0, m, d), m, d, !r[3]);
+  }
+  if ((r = t.match(new RegExp('^' + _LAW_MES_RE + '\\.?(?:\\s*(?:de\\s+)?(\\d{4}|\\d{2}))?$')))) {
+    const m = _LAW_MES_ABR[r[1]] + 1;
+    return { fechaTipo: 'mes', mes: anioDe(r[2] ? +r[2] : 0, m, null) + '-' + _lawPad2(m), ...(r[2] ? {} : { inferido: true }) };
+  }
+  return null;
+}
+
+// Campos → texto de `target` (el que leen tablas, orden por fecha, Correlativas, búsqueda, sync con Finales).
+function _lawTargetDeCampos(c) {
+  c = c || {};
+  if (c.fechaTipo === 'exacta') return _lawIsoOk(c.fecha) ? _lawTargetDeISO(c.fecha) : 'Sin fecha';
+  if (c.fechaTipo === 'mes') {
+    const m = /^(\d{4})-(\d{2})$/.exec(c.mes || '');
+    return m && +m[2] >= 1 && +m[2] <= 12 ? _LAW_MESES_CAP(+m[2] - 1) + ' ' + m[1] : 'Sin fecha';
+  }
+  if (c.fechaTipo === 'promo') return 'Promoción' + (c.sem === '1' || c.sem === '2' ? ' ' + c.sem + '° sem.' : '') + (/^\d{4}$/.test(c.anio || '') ? ' ' + c.anio : '');
+  if (c.fechaTipo === 'libre') return 'Libre / Online' + (/^\d{4}$/.test(c.anio || '') ? ' ' + c.anio : '');
+  return 'Sin fecha';
+}
+const _LAW_MESES_CAP = i => _LAW_MONTHS[i].charAt(0).toUpperCase() + _LAW_MONTHS[i].slice(1);
+
+// Campos efectivos de una fila: los guardados si siguen coincidiendo con `target` (otro lugar —Finales— puede haber
+// reescrito solo el texto); si no, se interpreta `target`. { fechaTipo, fecha?, mes?, hora?, durMin?, sem?, anio?, orig? }.
+// `orig` = texto que no se pudo interpretar (se muestra para que lo corrijas; guardar sin tocar la fecha lo conserva).
+function _lawFilaCampos(e) {
+  const tgt = String((e && e.target) || '');
+  if (e && e.fechaTipo && _lawTargetDeCampos(e) === tgt) {
+    const c = { fechaTipo: e.fechaTipo, fecha: e.fecha, mes: e.mes, sem: e.sem, anio: e.anio };
+    if (e.fechaTipo === 'exacta' && _lawHoraOk(e.hora)) { c.hora = e.hora; c.durMin = e.durMin > 0 ? e.durMin : _LAW_DUR_MIN; }
+    return c;
+  }
+  const p = _lawTargetParse(tgt);
+  if (!p) return { fechaTipo: 'sin', orig: tgt };
+  delete p.inferido;
+  if (p.fechaTipo === 'exacta' && e && e.fecha === p.fecha && _lawHoraOk(e.hora)) { p.hora = e.hora; p.durMin = e.durMin > 0 ? e.durMin : _LAW_DUR_MIN; }
+  return p;
+}
+
 // "Real" de cada punto del Seguimiento de avance sin número cargado a mano → { [id]: { val, kind } }.
 //  · punto futuro: sin valor (no figura).
 //  · último punto ya vencido (el vigente): la cuenta actual de aprobadas, kind 'actual'.
@@ -451,6 +537,8 @@ function _lawFechaCell(e) {
   const chips = [];
   if (_LAW_COMISIONES.includes(e.comision)) chips.push(`<span class="law-tag law-tag-mini">${e.comision === 'Unificada' ? 'Unificada' : 'Com. ' + e.comision}</span>`);
   if (e.tipo && F && F.TIPOS.includes(e.tipo)) chips.push(`<span class="law-tag law-tag-mini">${e.tipo}</span>`);
+  const hr = _lawFilaCampos(e).hora;
+  if (hr && !est) chips.push(`<span class="law-tag law-tag-mini">🕒 ${hr}</span>`);
   return `<div class="law-tags">${fecha}${chips.join('')}</div>`;
 }
 
@@ -511,11 +599,46 @@ function _lawPlanFillExtra(e) {
   document.getElementById('lawPlanComision').value = (e && e.comision) || '';
 }
 
+// ── Editor de la fecha (tipo + selectores nativos) ──
+const _LAW_DURS = [30, 45, 60, 90, 120, 150, 180, 240];
+const _lawDurTxt = m => (m < 60 ? m + ' min' : (m % 60 ? Math.floor(m / 60) + ' h ' + (m % 60) + ' min' : m / 60 + ' h'));
+let _lawPlanOrig = '';   // texto viejo no interpretable de la fila abierta ('' si no hay)
+
+// Muestra solo los campos del tipo elegido.
+function lawPlanFechaTipoChanged() {
+  const t = document.getElementById('lawPlanFechaTipo').value;
+  document.getElementById('lawPlanFExacta').hidden = t !== 'exacta';
+  document.getElementById('lawPlanFMes').hidden    = t !== 'mes';
+  document.getElementById('lawPlanFAnio').hidden   = t !== 'promo' && t !== 'libre';
+  document.getElementById('lawPlanSemWrap').hidden = t !== 'promo';
+  const o = document.getElementById('lawPlanFOrig');
+  o.hidden = !(_lawPlanOrig && t === 'sin');
+  o.textContent = _lawPlanOrig ? 'Sin fecha (texto original: «' + _lawPlanOrig + '»). Elegí un tipo de fecha para corregirlo; si lo dejás así se conserva.' : '';
+}
+function lawPlanHoraClear() { document.getElementById('lawPlanHora').value = ''; }
+
+function _lawPlanFillFecha(e) {
+  const c = e ? _lawFilaCampos(e) : { fechaTipo: 'exacta' };
+  _lawPlanOrig = c.orig || '';
+  const $ = i => document.getElementById(i);
+  $('lawPlanFechaTipo').innerHTML = _LAW_FECHA_TIPOS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
+  $('lawPlanFechaTipo').value = c.fechaTipo;
+  $('lawPlanFecha').value = c.fecha || '';
+  $('lawPlanHora').value  = c.hora || '';
+  const dur = c.durMin || _LAW_DUR_MIN, durs = _LAW_DURS.includes(dur) ? _LAW_DURS : _LAW_DURS.concat(dur).sort((a, b) => a - b);
+  $('lawPlanDur').innerHTML = durs.map(m => `<option value="${m}">${_lawDurTxt(m)}</option>`).join('');
+  $('lawPlanDur').value = String(dur);
+  $('lawPlanMes').value  = c.mes || '';
+  $('lawPlanSem').value  = c.sem || '';
+  $('lawPlanAnio').value = c.anio || '';
+  lawPlanFechaTipoChanged();
+}
+
 function openAddLawPlan() {
   document.getElementById('lawPlanModalTitle').textContent = 'Nueva Materia';
   document.getElementById('lawPlanId').value      = '';
   document.getElementById('lawPlanSubject').value = '';
-  document.getElementById('lawPlanTarget').value  = '';
+  _lawPlanFillFecha(null);
   _lawPlanFillExtra(null);
   openModal('modal-law-plan');
 }
@@ -526,28 +649,54 @@ function openEditLawPlan(id) {
   document.getElementById('lawPlanModalTitle').textContent = 'Editar Materia';
   document.getElementById('lawPlanId').value      = id;
   document.getElementById('lawPlanSubject').value = e.subject;
-  document.getElementById('lawPlanTarget').value  = e.target;
+  _lawPlanFillFecha(e);
   _lawPlanFillExtra(e);
   openModal('modal-law-plan');
+}
+
+// Lee el editor → campos de fecha ('sin' con texto viejo intacto → { conservar: true }); null si falta un dato (ya avisó).
+function _lawPlanLeerFecha() {
+  const v = i => document.getElementById(i).value;
+  const fechaTipo = v('lawPlanFechaTipo');
+  if (fechaTipo === 'sin' && _lawPlanOrig) return { conservar: true };
+  const c = { fechaTipo };
+  if (fechaTipo === 'exacta') {
+    if (!_lawIsoOk(v('lawPlanFecha'))) { showToast('Elegí la fecha'); return null; }
+    c.fecha = v('lawPlanFecha');
+    if (_lawHoraOk(v('lawPlanHora'))) { c.hora = v('lawPlanHora'); c.durMin = +v('lawPlanDur') || _LAW_DUR_MIN; }
+  } else if (fechaTipo === 'mes') {
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(v('lawPlanMes'))) { showToast('Elegí el mes'); return null; }
+    c.mes = v('lawPlanMes');
+  } else if (fechaTipo === 'promo' || fechaTipo === 'libre') {
+    if (/^\d{4}$/.test(v('lawPlanAnio'))) c.anio = v('lawPlanAnio');
+    if (fechaTipo === 'promo' && v('lawPlanSem')) c.sem = v('lawPlanSem');
+  }
+  return c;
 }
 
 function saveLawPlanEntry() {
   const id      = document.getElementById('lawPlanId').value;
   const subject = document.getElementById('lawPlanSubject').value.trim();
-  const target  = document.getElementById('lawPlanTarget').value.trim();
   const comision = document.getElementById('lawPlanComision').value;
   const tipo     = document.getElementById('lawPlanTipo').value;
   if (!subject) { showToast('Escribe el nombre'); return; }
+  const campos = _lawPlanLeerFecha();
+  if (!campos) return;
+  const target = campos.conservar ? null : _lawTargetDeCampos(campos);   // null = no tocar la fecha (texto viejo sin interpretar)
   let fila, fechaNueva = true;
   if (id) {
     fila = S.lawPlan.find(e => e.id === id);
     if (fila) {
-      fechaNueva = fila.target !== (target || 'Sin fecha');
-      Object.assign(fila, { subject, target: target || 'Sin fecha' });
+      fechaNueva = target !== null && fila.target !== target;
+      fila.subject = subject;
     }
   } else {
-    fila = { id: uid(), subject, target: target || 'Sin fecha' };
+    fila = { id: uid(), subject, target: 'Sin fecha' };
     S.lawPlan.push(fila);
+  }
+  if (fila && target !== null) {
+    ['fechaTipo', 'fecha', 'mes', 'hora', 'durMin', 'sem', 'anio'].forEach(k => delete fila[k]);
+    Object.assign(fila, campos, { target });
   }
   if (fila) {
     if (comision) fila.comision = comision; else delete fila.comision;
