@@ -7764,3 +7764,95 @@ textarea.pr-in { resize: vertical; min-height: 60px; }
 .txn-print-note:empty { display: none; }
 .txn-print-note { min-height: 15px; margin-top: 5px; font: 500 var(--fs-12-5) var(--mono); color: var(--ts); text-align: center; }
 @media (prefers-reduced-motion: reduce) { .txn-print-ch.nw { animation: none; } .txn-print-led i { transition: none; } }
+/* ════════════════════ ENTRENAMIENTO · Historial, notas rápidas y medidas por ejercicio — prefijos .eno- (sesión) y .eh- (historial) ════════════════════ */
+.pe-tabbar { grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 520px) { .pe-tab { letter-spacing: .04em; padding: 0 2px; font-size: 11.5px; } }
+/* sesión: botón de nota al alcance del pulgar, junto a FINALIZAR */
+.ses-act { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; }
+.eno-nota { position: relative; min-height: 54px; padding: 0 16px; border-radius: 14px; border: 1px solid rgba(244,63,94,.5); background: rgba(244,63,94,.14); color: #FFC2CC; font: 800 var(--fs-13) var(--mono); letter-spacing: .1em; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+.eno-nota em { font-style: normal; min-width: 18px; padding: 1px 5px; border-radius: 9px; background: #F43F5E; color: #fff; font-size: 11px; line-height: 16px; text-align: center; }
+.eno-nota em:empty { display: none; }
+.eno-pide { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 12px; border: 1px solid rgba(244,63,94,.5); background: rgba(10,16,30,.94); font-size: var(--fs-13); }
+.eno-pide:empty { display: none; }
+.eno-pide span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.eno-x { background: none; border: 0; color: var(--tt); font-size: 16px; min-width: 40px; min-height: 40px; cursor: pointer; }
+.eno-pro { display: block; width: 100%; box-sizing: border-box; margin: 8px 0 0; padding: 9px 12px; min-height: 40px; text-align: left; border-radius: 12px; border: 1px dashed rgba(244,63,94,.35); background: none; color: var(--ts); font-size: var(--fs-13); cursor: pointer; }
+.eno-pro.on { border-style: solid; background: rgba(244,63,94,.08); }
+.eno-pro small { display: block; font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--tt); }
+.eno-pro b { display: block; color: var(--fg); font-weight: 600; overflow-wrap: anywhere; }
+.eno-hm { color: #FF8FA3 !important; }
+.eno-hm:empty { display: none; }
+.eno-xb { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.eno-xbr { display: flex; gap: 8px; }
+.eno-med, .eno-nb { min-height: 42px; border-radius: 10px; border: 1px solid rgba(244,63,94,.3); background: rgba(244,63,94,.07); color: var(--ts); font-size: var(--fs-12-5); font-weight: 700; cursor: pointer; padding: 4px 10px; }
+.eno-med { flex: 1; min-width: 0; text-align: left; overflow-wrap: anywhere; }
+.eno-med.on { color: #FFC2CC; border-color: rgba(244,63,94,.6); background: rgba(244,63,94,.14); }
+.eno-nt { display: flex; gap: 8px; align-items: flex-start; text-align: left; width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(244,63,94,.18); background: rgba(10,16,30,.5); color: var(--ts); font-size: var(--fs-12-5); cursor: pointer; }
+.eno-nt i { font-style: normal; color: #FF8FA3; }
+.eno-nt span { min-width: 0; overflow-wrap: anywhere; }
+/* hojas de nota / ficha / propósito */
+.ses-sheet-p { max-height: 92vh; overflow-y: auto; }
+.eno-sel { width: 100%; box-sizing: border-box; min-height: 46px; border-radius: 10px; border: 1px solid var(--border); background: rgba(8,12,22,.7); color: var(--fg); font-size: 16px; padding: 0 10px; margin: 0 0 8px; outline: none; }
+.eno-txt { width: 100%; box-sizing: border-box; min-height: 92px; border-radius: 10px; border: 1px solid var(--border); background: rgba(8,12,22,.7); color: var(--fg); font-family: inherit; font-size: 16px; line-height: 1.4; padding: 10px; resize: vertical; outline: none; }
+.eno-txt:focus, .eno-sel:focus { border-color: #F43F5E; box-shadow: 0 0 14px -4px #F43F5E; }
+.ses-sheet .pe-det-b { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+.eno-ln { margin-top: 12px; border-top: 1px solid rgba(244,63,94,.18); }
+.eno-li { display: flex; align-items: flex-start; gap: 4px; padding: 8px 0; border-bottom: 1px solid rgba(244,63,94,.1); }
+.eno-li > div { flex: 1; min-width: 0; }
+.eno-li small { color: var(--tt); font-size: var(--fs-12-5); }
+.eno-li p { margin: 2px 0 0; font-size: var(--fs-13); overflow-wrap: anywhere; }
+.eno-ml { font-family: var(--mono); font-size: var(--fs-12-5); letter-spacing: .08em; text-transform: uppercase; color: var(--tt); margin: 10px 0 5px; }
+.eno-ml b { color: #FF8FA3; margin-left: 6px; }
+.eno-mg { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.eno-mb { min-height: 42px; border-radius: 10px; border: 1px solid rgba(244,63,94,.28); background: rgba(244,63,94,.06); color: var(--fg); font: 700 var(--fs-13) var(--mono); cursor: pointer; padding: 0 2px; }
+.eno-m5 .eno-mb { font-size: 12px; font-family: inherit; }
+.eno-mb.on { background: linear-gradient(180deg, #FF8FA3, #F43F5E); border-color: transparent; color: #fff; }
+.eno-cump { display: flex; flex-direction: column; gap: 4px; }
+.eno-cump b { overflow-wrap: anywhere; font-size: var(--fs-14); }
+.eno-cp { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--tt); margin-top: 4px; }
+.eno-seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.eno-fres { margin: 0; }
+/* propósito de antemano en el plan */
+.pe-pro { display: block; width: 100%; box-sizing: border-box; margin: 6px 0 0; padding: 7px 10px; min-height: 36px; text-align: left; border-radius: 10px; border: 1px dashed rgba(244,63,94,.3); background: none; color: var(--tt); font-size: var(--fs-12-5); cursor: pointer; }
+.pe-pro.on { border-style: solid; color: var(--ts); background: rgba(244,63,94,.07); }
+.pe-pro small { display: block; font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--tt); }
+.pe-pro b { display: block; color: var(--fg); font-weight: 600; overflow-wrap: anywhere; }
+.pe-pro-ed { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.pe-pro-ed input { flex: 1 1 100%; box-sizing: border-box; min-height: 42px; border-radius: 10px; border: 1px solid var(--border); background: rgba(8,12,22,.7); color: var(--fg); font-size: 16px; padding: 0 10px; }
+/* historial */
+.eh-sel { margin-bottom: 12px; }
+.eh-cuenta { font-family: var(--mono); font-size: var(--fs-12-5); color: var(--tt); margin: 2px 4px 8px; }
+.eh-card { display: block; width: 100%; box-sizing: border-box; text-align: left; margin: 0 0 8px; padding: 11px 13px; border-radius: 14px; border: 1px solid rgba(244,63,94,.26); background: linear-gradient(160deg, rgba(244,63,94,.09), rgba(10,16,30,.5)); color: var(--fg); cursor: pointer; }
+.eh-card:hover { border-color: rgba(244,63,94,.6); }
+.eh-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.eh-top b { min-width: 0; overflow-wrap: anywhere; font-size: var(--fs-15); }
+.eh-t { font-size: var(--fs-16) !important; color: #FFC2CC; }
+.eh-fecha { font-family: var(--mono); font-size: var(--fs-12-5); color: var(--tt); white-space: nowrap; }
+.eh-meta { font-size: var(--fs-12-5); color: var(--ts); margin-top: 3px; }
+.eh-pro, .eh-sn, .eh-nt { margin: 6px 0 0; font-size: var(--fs-13); overflow-wrap: anywhere; }
+.eh-pro small, .eh-sn small { display: block; font-family: var(--mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--tt); }
+.eh-sn { color: var(--ts); padding-left: 8px; border-left: 2px solid rgba(244,63,94,.4); }
+.eh-cp { display: inline-block; margin-left: 4px; padding: 1px 8px; border-radius: 9px; font-size: 11px; font-weight: 700; border: 1px solid rgba(244,63,94,.4); color: #FFC2CC; }
+.eh-cp-si { border-color: var(--ok); color: var(--ok); }
+.eh-cp-no { border-color: var(--warn); color: var(--warn); }
+.eh-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+.eh-tags span { font-size: 11.5px; color: var(--tt); padding: 2px 8px; border-radius: 9px; border: 1px solid rgba(244,63,94,.2); }
+.eh-det { margin-bottom: 10px; }
+.eh-gen { display: flex; gap: 18px; margin-top: 8px; }
+.eh-gen div { display: flex; flex-direction: column; font-size: var(--fs-12-5); color: var(--tt); }
+.eh-gen b { font: 800 22px var(--mono); color: #FFC2CC; }
+.eh-ex { margin-bottom: 8px; }
+.eh-exh { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.eh-exh b { min-width: 0; overflow-wrap: anywhere; }
+.eh-sets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.eh-sets span { font-family: var(--mono); font-size: var(--fs-12-5); padding: 3px 8px; border-radius: 8px; background: rgba(244,63,94,.1); color: var(--ts); }
+.eh-med { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 7px; font-size: var(--fs-12-5); color: var(--tt); }
+.eh-med b { color: #FF8FA3; }
+.eh-nt small { display: block; font-family: var(--mono); font-size: 11px; color: var(--tt); text-transform: uppercase; letter-spacing: .1em; }
+.eh-nt { padding-left: 8px; border-left: 2px solid rgba(244,63,94,.4); color: var(--ts); }
+/* historial de un ejercicio (modal): sensaciones y notas */
+.eh-bl { margin-top: 14px; }
+.eh-row { display: block; width: 100%; box-sizing: border-box; text-align: left; margin-top: 6px; padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(0,200,255,.18); background: rgba(0,200,255,.04); color: var(--fg); cursor: pointer; }
+.eh-row small { font-family: var(--mono); color: rgba(0,200,255,.7); display: block; }
+.eh-row span { font-size: var(--fs-12-5); color: var(--ts); }
+.eh-row p { margin: 3px 0 0; font-size: var(--fs-12-5); overflow-wrap: anywhere; }

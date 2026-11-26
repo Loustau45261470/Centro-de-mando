@@ -22,6 +22,7 @@ const PlanUI = (() => {
   let menuPlan = false;      // menú ⋯ del plan (Resetear / Descansar)
   let detalleUid = null;     // actividad hecha con el detalle abierto
   let animar = true;         // la próxima pintura descifra los números
+  let propEdit = null;       // 'fecha|rutina' del propósito que se está escribiendo (solo vista)
   let flashUid = null;       // casilla de actividad recién tildada: la próxima pintura la enciende (destello)
 
   const hoy = () => getActiveDate();
@@ -74,6 +75,14 @@ const PlanUI = (() => {
         <i>${DIAS_L[i]}</i><span class="pe-s-ic">${ic || '·'}</span><em>${ok ? '✓' : (hechos ? '•' : '')}</em></button>`;
     }).join('') + '</div>';
   }
+  // Propósito del entreno cargado de antemano (S.entrenoPropositos['fecha|rutina']): se usa al empezar la sesión y se confirma al terminar.
+  const propKey = (f, rid) => f + '|' + rid;
+  function propHtml(f, r, done) {
+    if (done || f < hoy()) return '';
+    const k = propKey(f, r.id), txt = (S.entrenoPropositos || {})[k];
+    if (propEdit === k) return `<div class="pe-pro-ed"><input id="pe-pro-in" type="text" maxlength="500" value="${esc(txt || '')}" placeholder="Qué querés lograr hoy" aria-label="Propósito del entreno"><button type="button" class="pe-btn pe-pri" onclick="PlanUI.propGuardar('${f}','${r.id}')">Guardar</button><button type="button" class="pe-btn" onclick="PlanUI.propCerrar()">Cerrar</button></div>`;
+    return `<button type="button" class="pe-pro${txt ? ' on' : ''}" onclick="PlanUI.proposito('${f}','${r.id}')">${txt ? `<small>Propósito</small><b>${esc(txt)}</b>` : '+ Propósito del entreno'}</button>`;
+  }
   // c = día con 2+ ítems (se entrena dos veces por día): fila compacta, sin lista de ejercicios y con EMPEZAR al costado.
   function itemRutinaHtml(it, f, c) {
     const r = rutina(it.id), done = hechoItem(it, f), n = r ? r.exercises.length : 0;
@@ -92,13 +101,13 @@ const PlanUI = (() => {
     const dots = `<button type="button" class="pe-dots" aria-label="Más opciones de ${esc(r.name)}" onclick="PlanUI.menu('${esc(it.uid)}')">⋯</button>`;
     if (c) return `<div class="pe-it pe-rut pe-c${done ? ' pe-hecho' : ''}" data-uid="${esc(it.uid)}">
       <div class="pe-it-h"><span class="pe-ico">${esc(r.icon)}</span>
-        <div class="pe-it-t"><b>${esc(r.name)}</b><small>${done ? hecho : sub}</small></div>${go}${dots}</div>${menu}</div>`;
+        <div class="pe-it-t"><b>${esc(r.name)}</b><small>${done ? hecho : sub}</small></div>${go}${dots}</div>${propHtml(f, r, done)}${menu}</div>`;
     return `<div class="pe-it pe-rut${done ? ' pe-hecho' : ''}" data-uid="${esc(it.uid)}">
       <div class="pe-it-h"><span class="pe-ico">${esc(r.icon)}</span>
         <div class="pe-it-t"><b>${esc(r.name)}</b><small>${sub}</small></div>${dots}</div>
       ${menu}
       ${n && !done ? `<ul class="pe-ex">${exs}</ul>` : (n ? '' : '<p class="pe-vacio">Sin ejercicios. Agregá uno desde ⋯.</p>')}
-      ${hecho}${go}</div>`;
+      ${propHtml(f, r, done)}${hecho}${go}</div>`;
   }
   function itemActividadHtml(it, f, c) {
     const e = hechoItem(it, f), uid = claveHecha(f, it);
@@ -250,6 +259,17 @@ const PlanUI = (() => {
     hayPlan, hecho: hechoItem, icono: iconoItem, nombre: nombreItem, claveHecha, fechasSemana, hechasFn,
     entrar() { animar = true; sel = hoy(); modo = 'home'; menuRid = null; menuPlan = false; },
     ir(i) { const car = document.getElementById('pe-car'); sel = fechasSemana()[i]; document.querySelectorAll('.pe-s, .pe-wk').forEach(b => b.classList.toggle('pe-sel', +b.dataset.i === i)); if (car) car.scrollTo({ left: i * car.clientWidth, behavior: 'smooth' }); },
+    proposito(f, rid) { propEdit = propKey(f, rid); refrescar(); const i = document.getElementById('pe-pro-in'); if (i) i.focus(); },
+    propCerrar() { propEdit = null; refrescar(); },
+    propGuardar(f, rid) {
+      const el = document.getElementById('pe-pro-in'), v = el ? el.value.trim().slice(0, 500) : '';
+      if (!S.entrenoPropositos) S.entrenoPropositos = {};
+      const k = propKey(f, rid);
+      if (v) S.entrenoPropositos[k] = v; else delete S.entrenoPropositos[k];
+      const lim = P().sumarDias(hoy(), -14);   // los de días ya pasados se limpian solos
+      Object.keys(S.entrenoPropositos).forEach(x => { if (x.slice(0, 10) < lim) delete S.entrenoPropositos[x]; });
+      propEdit = null; rer(); showToast(v ? 'Propósito guardado' : 'Propósito quitado');
+    },
     empezar(rid) { menuRid = null; startRutinaSession(rid); },
     menu(uid) { menuRid = menuRid === uid ? null : uid; refrescar(); },
     menuDelPlan() { menuPlan = !menuPlan; refrescar(); },

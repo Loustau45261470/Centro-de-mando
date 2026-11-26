@@ -270,10 +270,10 @@ for (const vp of [{ w: 390, h: 844 }, { w: 1280, h: 900 }]) {
       await expect(hoyCard(page)).toContainText('Descanso');
     });
 
-    test('barra inferior Plan · Progreso · Ejercicios: nada se pierde', async ({ cmPage: page, consoleErrors }) => {
+    test('barra inferior Plan · Progreso · Ejercicios · Historial: nada se pierde', async ({ cmPage: page, consoleErrors }) => {
       await preparar(page);
       await armarPlan(page, [{ off: 0, items: [{ r: 0 }] }]);
-      await expect(page.locator('.pe-tab')).toHaveText(['Plan', 'Progreso', 'Ejercicios']);
+      await expect(page.locator('.pe-tab')).toHaveText(['Plan', 'Progreso', 'Ejercicios', 'Historial']);
       await page.locator('.pe-tab', { hasText: 'Progreso' }).click();
       await expect(page.locator('#rutinas-wrap')).toContainText('Entrenos');
       await expect(page.locator('#rutinas-wrap')).toContainText('Récords');

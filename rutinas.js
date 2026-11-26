@@ -574,13 +574,14 @@ function renderRutinas() {
   let _bodyHtml;
   if (_tab === 'progreso') _bodyHtml = window.EntrenoProg ? EntrenoProg.progresoHtml(entStatsCalc()) : '';
   else if (_tab === 'ejercicios') _bodyHtml = window.EntrenoProg ? EntrenoProg.ejerciciosHtml() : '';
+  else if (_tab === 'historial') _bodyHtml = window.EntrenoHist ? EntrenoHist.html() : '';
   else _bodyHtml = window.PlanUI ? PlanUI.html(_accRutinas, cards) : _accRutinas;
   const _tabBtn = (id, label) => `<button type="button" role="tab" aria-selected="${_tab === id}" class="pe-tab${_tab === id ? ' pe-tab-on' : ''}" onclick="setEntTab('${id}')">${label}</button>`;
 
   wrap.innerHTML = `
     <div class="card pe-root">
       <div class="pe-main${_tab === 'progreso' ? ' prg-wide' : ''}">${_bodyHtml}</div>
-      <nav class="pe-tabbar" role="tablist" aria-label="Secciones de Entrenamiento">${_tabBtn('plan', 'Plan')}${_tabBtn('progreso', 'Progreso')}${_tabBtn('ejercicios', 'Ejercicios')}</nav>
+      <nav class="pe-tabbar" role="tablist" aria-label="Secciones de Entrenamiento">${_tabBtn('plan', 'Plan')}${_tabBtn('progreso', 'Progreso')}${_tabBtn('ejercicios', 'Ejercicios')}${_tabBtn('historial', 'Historial')}</nav>
     </div>`;
   initScanner();
   if (_tab === 'plan' && window.PlanUI) PlanUI.post();
@@ -1153,6 +1154,7 @@ function openExHistByLib(libId) {
       </div>
       ${chartsHtml}
       <div style="margin-top:14px">${tableHtml}</div>
+      ${window.EntrenoHist ? EntrenoHist.bloqueEjercicio(libId) : ''}
     </div>`;
   openModal('modal-ex-hist');
 
@@ -1198,8 +1200,8 @@ function openExHistByLib(libId) {
 
 // ── Session ──
 let _rtnSections = new Set();   // acordeón "Mis rutinas" cerrado por defecto (el Inicio es el plan semanal)
-let _entTab = 'plan';          // pestañas de la sección: plan | progreso | ejercicios
-function setEntTab(t) { _entTab = t; if (t === 'plan' && window.PlanUI) PlanUI.entrar(); else if (window.EntrenoProg) EntrenoProg.entrar(); renderRutinas(); }
+let _entTab = 'plan';          // pestañas de la sección: plan | progreso | ejercicios | historial
+function setEntTab(t) { _entTab = t; if (t === 'plan' && window.PlanUI) PlanUI.entrar(); else if (t === 'historial' && window.EntrenoHist) EntrenoHist.entrar(); else if (window.EntrenoProg) EntrenoProg.entrar(); renderRutinas(); }
 let _statsPeriod = 'mes';
 
 function toggleRtnSection(name) {
@@ -1468,6 +1470,10 @@ function startRutinaSession(rtnId) {
     exMeta[ex.id] = { libId: ex.libId, restSecs: d.restSecs };
   });
   S.activeRtnSession = { routineId: rtnId, startedAt: Date.now(), exSets, exMeta, exOrder: rtn.exercises.map(e => e.id) };
+  // Propósito cargado de antemano desde el plan (S.entrenoPropositos['fecha|rutina']): arranca con la sesión.
+  const _pk = getActiveDate() + '|' + rtnId, _pp = S.entrenoPropositos && S.entrenoPropositos[_pk];
+  if (_pp) { S.activeRtnSession.proposito = _pp; S.activeRtnSession.proKey = _pk; }
+  if (window.EntrenoNotas) EntrenoNotas.reset();
   _rtnExpandedEx = new Set([rtn.exercises[0].id]);   // acordeón: un ejercicio abierto a la vez
   _restFocus = null;
   saveState(); renderRutinas();
@@ -1516,6 +1522,7 @@ function removeSessionEx(exId) {
   if (!sess) return;
   const info = sessExInfo(exId);
   if (!confirm(`¿Sacar "${info.name}" de esta sesión? No se guardarán sus series.`)) return;
+  if (window.EntrenoNotas) EntrenoNotas.alQuitar(exId, info.name);   // sus notas pasan a generales
   sess.exOrder = (sess.exOrder || []).filter(id => id !== exId);
   delete sess.exSets[exId];
   if (sess.exMeta) delete sess.exMeta[exId];
@@ -1663,7 +1670,7 @@ function renderActiveSession() {
     return `
       <section class="ses-ex${openEx && openEx.id === ex.id ? ' open' : ''}${sets.length && nDone === sets.length ? ' cdone' : ''}" id="ses-ex-${ex.id}" data-ex="${ex.id}">
         <div class="ses-exh" onclick="toggleRtnEx('${ex.id}')">
-          <div class="ses-ext"><b>${escHtml(ex.name)}</b><span>${escHtml(ex.equipment)} · descanso ${ex.restSecs}s</span></div>
+          <div class="ses-ext"><b>${escHtml(ex.name)}</b><span>${escHtml(ex.equipment)} · descanso ${ex.restSecs}s</span>${window.EntrenoNotas ? EntrenoNotas.tagHtml(ex.id) : ''}</div>
           <span class="ses-cnt" id="ses-cnt-${ex.id}">${nDone}/${sets.length}</span>
           <button type="button" class="pe-dots" data-ses-menu-btn aria-label="Opciones de ${escHtml(ex.name)}" onclick="event.stopPropagation();sesExMenu('${ex.id}')">⋯</button>
         </div>
@@ -1679,6 +1686,7 @@ function renderActiveSession() {
           ${ex.notes ? `<div class="ses-notes">💡 ${escHtml(ex.notes)}</div>` : ''}
           <div id="rtn-sets-${ex.id}">${setsHtml}</div>
           <button type="button" class="pe-lnk ses-addset" onclick="addRtnSet('${ex.id}')">+ Serie</button>
+          ${window.EntrenoNotas ? EntrenoNotas.xbHtml(ex.id) : ''}
         </div>
       </section>`;
   }).join('');
@@ -1697,12 +1705,13 @@ function renderActiveSession() {
         ${_sessionOrderDiffers(S.activeRtnSession, rtn) ? `<button type="button" onclick="pinSessionOrder()">Fijar este orden en la rutina</button>` : ''}
         <button type="button" class="pe-del" data-hold-fn="cancelarSesion" onpointerdown="PlanUI.holdIni(this)" onpointerup="PlanUI.holdFin(this)" onpointerleave="PlanUI.holdFin(this)" onpointercancel="PlanUI.holdFin(this)" oncontextmenu="return false"><span class="pe-hold-fill"></span><span class="pe-hold-txt">Cancelar sesión (mantener apretado)</span></button>
       </div>
+      ${window.EntrenoNotas ? EntrenoNotas.proHtml() : ''}
       <div class="ses-led" id="ses-led">${'<i></i>'.repeat(24)}</div>
       <div class="ses-exs">${exBlocks}
         <button type="button" class="pe-btn ses-addex" onclick="openExPicker('add','${routineId}')">+ Ejercicio</button>
       </div>
-      <div class="ses-dock">${_sesRestHtml(fx)}
-        <button type="button" class="ses-fin" id="ses-fin" onclick="sesFinalizar()">FINALIZAR SESIÓN</button>
+      <div class="ses-dock">${window.EntrenoNotas ? EntrenoNotas.pideHtml() : ''}${_sesRestHtml(fx)}
+        <div class="ses-act">${window.EntrenoNotas ? EntrenoNotas.notaBtnHtml() : ''}<button type="button" class="ses-fin" id="ses-fin" onclick="sesFinalizar()">FINALIZAR SESIÓN</button></div>
       </div>
     </div>`;
 
@@ -1775,10 +1784,12 @@ function checkRtnSet(exId, si) {
   if (sets[si].done) {
     const ex = sessExInfo(exId);
     if (ex && ex.restSecs) startRtnTimerBand(exId, ex.restSecs);
+    if (sets.every(s => s.done) && window.EntrenoNotas) EntrenoNotas.alTerminar(exId);   // ofrece cargar "cómo salió" (tira chica, salteable)
     // Todas las series del ejercicio listas → se abre solo el siguiente con series sin tildar (se puede tocar otro igual).
     if (sets.every(s => s.done)) setTimeout(() => {
       const sess = S.activeRtnSession;
       if (!sess || !_rtnExpandedEx.has(exId)) return;   // si el usuario ya abrió otro, no se lo pisa
+      if (document.querySelector('#rutinas-wrap .ses-menu:not([hidden]), #rutinas-wrap .pe-holding')) return;   // con un menú ⋯ abierto o un hold en curso la página no se mueve (el botón de cancelar se escaparía del dedo)
       const order = sess.exOrder || [], i = order.indexOf(exId);
       const next = order.slice(i + 1).find(id => (sess.exSets[id] || []).some(s => !s.done));
       if (next) sesOpen(next, true);
@@ -1964,6 +1975,7 @@ function _rtnSessionStop() {
   _rtnTimerEndsAt = {};
   _rtnTimerTotal = {};
   _restFocus = null;
+  if (window.EntrenoNotas) EntrenoNotas.reset();
   if (_rtnChrono) { clearInterval(_rtnChrono); _rtnChrono = null; }
   _rtnExpandedEx = new Set();
   _pipExId = null; _updatePip();
@@ -1991,7 +2003,7 @@ function sesFinalizar() {
       <div class="pe-det">
         <label>Intensidad (1-10)<input id="ses-d-int" type="number" min="1" max="10" inputmode="numeric"></label>
         <label>Concentración (1-10)<input id="ses-d-con" type="number" min="1" max="10" inputmode="numeric"></label>
-        <label class="pe-det-w">Propósito<input id="ses-d-pro" type="text" maxlength="500"></label>
+        ${window.EntrenoNotas ? EntrenoNotas.finalHtml() : '<label class="pe-det-w">Propósito<input id="ses-d-pro" type="text" maxlength="500"></label>'}
         <div class="pe-det-b"><button type="button" class="pe-btn" onclick="sesCerrarSheet()">Volver</button><button type="button" class="pe-btn pe-pri" onclick="sesGuardar()">Guardar sesión</button></div>
       </div><p class="ses-sheet-n">El detalle es opcional.</p></div></div>`);
 }
@@ -2005,10 +2017,11 @@ function sesGuardar() {
     intensidad: v('ses-d-int') === '' ? null : P.escala10(v('ses-d-int')),
     concentracion: v('ses-d-con') === '' ? null : P.escala10(v('ses-d-con')),
     proposito: v('ses-d-pro') === '' ? null : v('ses-d-pro').slice(0, 500),
+    cumplido: window.EntrenoNotas ? EntrenoNotas.cumpValor() : null,
   });
 }
 
-// Guarda la sesión (mismo formato de siempre). `det` opcional: { intensidad, concentracion, proposito } → campos opcionales de la entrada.
+// Guarda la sesión (mismo formato de siempre). `det` opcional: { intensidad, concentracion, proposito, cumplido } → campos opcionales de la entrada.
 function finishRtnSession(det) {
   if (!S.activeRtnSession) return;
   const sess = S.activeRtnSession;
@@ -2032,6 +2045,14 @@ function finishRtnSession(det) {
     if (det.concentracion) entry.concentracion = det.concentracion;
     if (det.proposito) entry.proposito = det.proposito;
   }
+  // Propósito fijado ANTES de terminar (en el plan o dentro de la sesión): se guarda y queda registrado si se cumplió.
+  if (sess.proposito) {
+    entry.proposito = sess.proposito; entry.propositoPrevio = true;
+    if (det && ['si', 'medias', 'no'].includes(det.cumplido)) entry.cumplido = det.cumplido;
+    if (sess.proKey && S.entrenoPropositos) delete S.entrenoPropositos[sess.proKey];
+  }
+  // Notas, medidas por ejercicio y nombres de los ejercicios de la sesión (campos nuevos, aditivos).
+  if (window.EntrenoNotas) Object.assign(entry, EntrenoNotas.volcar(sess, exMeta));
   S.routineLog[routineId].push(entry);
   // Historial GLOBAL por ejercicio: cada instancia (incluidos swaps) loguea a su libId.
   if (!S.exerciseHistory) S.exerciseHistory = {};

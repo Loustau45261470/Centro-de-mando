@@ -239,6 +239,10 @@ for (const vp of [{ w: 390, h: 844 }, { w: 1280, h: 900 }]) {
       await tildar(page, 0);                                                                   // hay un descanso corriendo: también se apaga
       await page.getByRole('button', { name: 'Más opciones de la sesión' }).click();
       const del = page.locator('#ses-menu .pe-del');
+      // regresión: con el menú abierto el auto-avance (700 ms + scroll suave) NO mueve el botón de cancelar
+      const y0 = (await del.boundingBox()).y;
+      await page.waitForTimeout(1200);
+      expect((await del.boundingBox()).y).toBe(y0);
       await expect(del).toContainText('Cancelar sesión');
       const box = await del.boundingBox();
       await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
