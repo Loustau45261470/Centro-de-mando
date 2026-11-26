@@ -595,6 +595,6 @@ const Correlativas = (() => {
     }).join('');
   }
 
-  return { open, setEstado, setFiltroAnio, setFiltroEstado, setSearch, ensureCarrera, materiasDelPlan, opcionesDeFila, agruparPorFecha, aprobarMateria, desaprobarMateria, avisoDesbloqueo, repintar, estado, computeStatus, evalReqCursar, evalCorrelativasRendir };
+  return { open, setEstado, setFiltroAnio, setFiltroEstado, setSearch, ensureCarrera, materiasDelPlan, opcionesDeFila, agruparPorFecha, aprobarMateria, desaprobarMateria, avisoDesbloqueo, repintar, estado, computeStatus, nombrePorCodigo, subIdDe: code => _SUBID_ALL[code] || null, evalReqCursar, evalCorrelativasRendir };
 })();
 window.Correlativas = Correlativas;

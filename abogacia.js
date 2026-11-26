@@ -86,6 +86,7 @@ function renderLawProgress() {
       if (idx !== _lawSlide) { _lawSlide = idx; _updateLawDots(); }
     }, { passive: true });
   }
+  if (window.Constelacion) Constelacion.render();   // mapa de la carrera (constelacion-materias.js): solo repinta si cambió algo
 }
 
 function _updateLawDots() {
