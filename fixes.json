@@ -764,6 +764,13 @@
       "desc": "Una rutina entrenada en un día donde NO estaba planeada (p.ej. día de descanso) quedaba registrada en routineLog pero no se pintaba en el carrusel, la tira ni 'Esta semana' (solo se listaba lo planeado). Ahora extrasDe(f) suma esas sesiones como 'Fuera del plan' y cuentan en tira, fila de la semana y contador.",
       "file": "plan-entreno-ui.js",
       "marker": "function extrasDe(f)"
+    },
+    {
+      "id": "objetivos-mes-ritmo-por-vinculo",
+      "fecha": "2026-11-26",
+      "desc": "ANÁLISIS: Objetivos del mes decía atrasado con metas vinculadas en camino pero sin tildar (solo contaba tildadas). Ahora usa qobjLinkProgress por meta: en camino/atrasada/sin medir.",
+      "file": "jarvis-intel.js",
+      "marker": "function _goalState("
     }
   ]
 }

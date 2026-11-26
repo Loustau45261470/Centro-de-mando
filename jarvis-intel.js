@@ -54,22 +54,41 @@
     if (typeof getMonthlyGoals === 'function') return getMonthlyGoals(sec, mk);
     return ((S.monthlyGoals || {})[sec] || {})[mk] || [];
   }
+  // Estado de una meta del mes: 'done' (tildada) | 'ok' (en camino) | 'late' (atrasada) | 'none' (sin medir).
+  // Reusa qobjLinkProgress (la misma cuenta que pinta la barra de la meta). Tolerancia de 10 pts contra el % del mes.
+  function _goalState(g, mk, elapsed){
+    if (g.done) return 'done';
+    if (!g.link || typeof qobjLinkProgress !== 'function') return 'none';
+    let p = null; try { p = qobjLinkProgress(mk, g.link, g.text); } catch(e) {}
+    if (!p) return 'none';
+    if (p.kind === 'pct') return p.meta ? (p.ok ? 'ok' : 'late') : 'none';   // tasa con meta: ok si val >= meta
+    if (p.exceeded != null) return (!p.exceeded && p.pct <= elapsed + 10) ? 'ok' : 'late';   // tope (gasto/gasto_total/presupuesto): no pasarse ni ir más rápido que el mes
+    return p.pct >= elapsed - 10 ? 'ok' : 'late';   // acumulado (ingreso/cuenta/patrimonio/superávit/gym/estudio/materias)
+  }
   function _monthPace(sec){
     try {
       const goals = _monthGoals(sec); if (!goals.length) return null;
-      const done = goals.filter(g => g.done).length, pct = done/goals.length*100;
+      const mk = _today().slice(0,7);
       const now = new Date(_today()+'T00:00:00');
       const dim = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
       const elapsed = Math.min(100, now.getDate()/dim*100);
-      return { done, total: goals.length, pct, elapsed };
+      const c = { done:0, ok:0, late:0, none:0 };
+      goals.forEach(g => { c[_goalState(g, mk, elapsed)]++; });
+      return { done: c.done, total: goals.length, pct: c.done/goals.length*100, elapsed, ok: c.ok, late: c.late, none: c.none };
     } catch(e) { return null; }
   }
   function _monthObjInsight(sec, out){
     const mp = _monthPace(sec); if (!mp) return;
-    const gap = mp.pct - mp.elapsed;
-    const lvl = gap>=5 ? 'ok' : gap<=-12 ? 'bad' : gap<=-5 ? 'warn' : 'info';
-    const word = gap>=5 ? 'adelantado' : gap<=-5 ? 'atrasado' : 'en ritmo';
-    out.push({lvl, ic:'◎', html:`Objetivos del mes: <b>${mp.done}/${mp.total}</b> (${Math.round(mp.pct)}%) con ${Math.round(mp.elapsed)}% del mes transcurrido — <b>${word}</b>.`});
+    const parts = [];
+    if (mp.ok) parts.push(`${mp.ok} en camino`);
+    if (mp.late) parts.push(`${mp.late} atrasada${mp.late!==1?'s':''}`);
+    if (mp.none) parts.push(`${mp.none} sin medir`);
+    const medibles = mp.done + mp.ok + mp.late;
+    let word = '', lvl = 'info';
+    if (mp.late) { word = ' — <b>atrasado</b>'; lvl = (mp.late === medibles - mp.done && mp.elapsed >= 50) ? 'bad' : 'warn'; }
+    else if (mp.done === mp.total) { word = ' — <b>cumplido</b>'; lvl = 'ok'; }
+    else if (medibles) { word = ' — <b>en camino</b>'; lvl = 'ok'; }
+    out.push({lvl, ic:'◎', html:`Objetivos del mes: <b>${mp.done}/${mp.total}</b> cumplidos${parts.length?' · '+parts.join(' · '):''}, con ${Math.round(mp.elapsed)}% del mes transcurrido${word}.`});
   }
   function _habitInsight(sec, out){
     const today = _today(), { done, tot } = habCount(sec, today); if (!tot) return;
