@@ -363,7 +363,7 @@ function remEstadoNotif() {
   if (perm === 'granted') {
     let at = null; try { at = Number(localStorage.getItem('cm_push_sub_at')) || null; } catch (e) {}
     const f = at ? new Date(at).toLocaleDateString('es-AR', { day: 'numeric', month: 'numeric' }) : '';
-    return { estado: 'activadas', txt: base + 'activadas. ' + (at ? 'Avisos con la app cerrada registrados el ' + f + '.' : 'Todavía no se registró este dispositivo para recibir avisos con la app cerrada.') + (win ? ' En Windows, el navegador tiene que quedar abierto en segundo plano.' : '') };
+    return { estado: 'activadas', txt: base + 'activadas. ' + (at ? 'Avisos con la app cerrada registrados el ' + f + '.' : 'Todavía no se registró este dispositivo para recibir avisos con la app cerrada.') + (win ? ' En Windows, el navegador tiene que quedar abierto en segundo plano y «Centro de Mando» (o Chrome) activado en Configuración → Sistema → Notificaciones.' : '') };
   }
   if (perm === 'denied') return { estado: 'bloqueadas', txt: base + 'bloqueadas por el navegador. Para habilitarlas: tocá el candado del sitio, entrá a Notificaciones y elegí Permitir.' + (win ? ' En Windows, el navegador tiene que quedar abierto en segundo plano.' : '') };
   return { estado: 'pendiente', txt: base + 'pendiente de permiso. Tocá «Activar» y aceptá el permiso del navegador.' };
