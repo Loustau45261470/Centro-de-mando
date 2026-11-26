@@ -2010,16 +2010,35 @@ function buildTickerAlerts() {
 // MAIN TAB — DAY PROGRESS
 // ════════════════════════════════════════════════════════
 const WAKE = 8, SLEEP = 24;
-// Fases del día (minutos desde medianoche): los cortes son los de siempre (25/50/75/90 % del rango despierto).
-const DAY_SEG = [
-  { n: 'MAÑANA', a: 480, b: 720 }, { n: 'MEDIODÍA', a: 720, b: 960 }, { n: 'TARDE', a: 960, b: 1200 },
-  { n: 'NOCHE', a: 1200, b: 1344 }, { n: 'HORA DE DORMIR', a: 1344, b: 1440 },
-];
+// Inicio del día dinámico: la 1.ª vez que se abre/vuelve a la app en una fecha entre las 05:00 y las 07:59, el día arranca en ese
+// momento (por dispositivo, en localStorage — no toca el estado sincronizado). Sin entrada antes de las 8 → 08:00 como siempre.
+const DIA_INICIO_DESDE = 300, DIA_INICIO_KEY = 'cdm_inicioDia';
+function cmInicioDiaMin() {
+  try {
+    const r = JSON.parse(localStorage.getItem(DIA_INICIO_KEY) || 'null');
+    if (r && r.fecha === localStr(new Date()) && r.min >= DIA_INICIO_DESDE && r.min < WAKE*60) return r.min;
+  } catch (e) {}
+  return WAKE*60;
+}
+function cmDiaArrancado() { const n = new Date(); return n.getHours()*60 + n.getMinutes() >= cmInicioDiaMin(); }
+function cmRegistrarInicioDia() {
+  try {
+    const n = new Date(), cm = n.getHours()*60 + n.getMinutes(), hoy = localStr(n);
+    if (cm < DIA_INICIO_DESDE || cm >= WAKE*60) return;
+    const r = JSON.parse(localStorage.getItem(DIA_INICIO_KEY) || 'null');
+    if (r && r.fecha === hoy) return;
+    localStorage.setItem(DIA_INICIO_KEY, JSON.stringify({ fecha: hoy, min: cm }));
+  } catch (e) {}
+}
+// Cortes de las fases como fracción del rango despierto (25/50/75/90 %); el rango arranca en el inicio del día.
+const DAY_CUTS = [0, .25, .5, .75, .9, 1];
+const DAY_NAMES = ['MAÑANA', 'MEDIODÍA', 'TARDE', 'NOCHE', 'HORA DE DORMIR'];
+const _hAmPm = (m, corto) => { m = Math.round(m); const h = Math.floor(m/60)%24, mi = m%60; return `${h%12||12}${mi || !corto ? ':'+String(mi).padStart(2,'0') : ''} ${h>=12?'PM':'AM'}`; };
 
 function updateDayProgress() {
   const now = new Date();
   const cm = now.getHours()*60 + now.getMinutes();
-  const T0 = WAKE*60, T1 = SLEEP*60;
+  const T0 = cmInicioDiaMin(), T1 = SLEEP*60;
   const pctEl = document.getElementById('dayPct');
   const tln = document.getElementById('dayTln');
   if (!pctEl || !tln) return;
@@ -2028,19 +2047,24 @@ function updateDayProgress() {
   const leftEl = document.getElementById('dayLeft');
   const nowEl = document.getElementById('dayNow');
 
+  const seg = DAY_NAMES.map((n, i) => ({ n, a: T0 + DAY_CUTS[i]*(T1-T0), b: T0 + DAY_CUTS[i+1]*(T1-T0) }));
+  const rgEl = document.querySelector('.dg2-rg');
+  if (rgEl) rgEl.textContent = _hAmPm(T0) + ' — 12:00 AM';
+  document.querySelectorAll('#dayTln .dg2-mks span').forEach((el, i) => { el.textContent = _hAmPm(T0 + i*.25*(T1-T0), true); });
   const hh = now.getHours()%12||12;
   const hora = `${hh}:${String(now.getMinutes()).padStart(2,'0')} ${now.getHours()>=12?'PM':'AM'}`;
   clockEl.textContent = hora;
   const p = Math.max(0, Math.min(1, (cm-T0)/(T1-T0)));
-  const si = cm < T0 ? -1 : DAY_SEG.findIndex(s => cm < s.b);
+  const si = cm < T0 ? -1 : seg.findIndex(s => cm < s.b);
   pctEl.textContent = cm < T0 ? '—' : Math.round(p*100)+'%';
-  phaseEl.textContent = cm < T0 ? 'DURMIENDO' : DAY_SEG[si].n;
+  phaseEl.textContent = cm < T0 ? 'DURMIENDO' : seg[si].n;
   const rest = Math.max(0, T1 - Math.max(cm, T0));
   leftEl.textContent = `Quedan ${Math.floor(rest/60)} h ${rest%60} min`;
   nowEl.textContent = 'Ahora · ' + hora;
   tln.style.setProperty('--p', p.toFixed(4));
   tln.querySelectorAll('.dg2-sg').forEach((el, i) => {
-    const s = DAY_SEG[i];
+    const s = seg[i];
+    el.style.setProperty('--d', (s.b - s.a).toFixed(2));
     el.classList.toggle('cur', i === si);
     el.classList.toggle('pst', si > i);
     el.style.setProperty('--f', Math.max(0, Math.min(1, (cm-s.a)/(s.b-s.a))).toFixed(4));
@@ -5225,6 +5249,7 @@ await loadState();
 _startFirestoreSync();
 if (typeof window._reloadProyectosFromState === 'function') window._reloadProyectosFromState();
 _migratePhotos();   // migra fotos embebidas viejas a Storage (una vez, cuando Storage esté listo)
+cmRegistrarInicioDia();   // 1.ª entrada del día entre 05:00 y 07:59 → el día arranca ahora
 updateDayProgress();
 setInterval(updateDayProgress, 60000);
 setInterval(buildTickerAlerts, 30000);
@@ -5254,7 +5279,7 @@ document.addEventListener('visibilitychange', () => {
 });
 window.addEventListener('pagehide', () => _syncEv('pagehide', { timer: !!_fbSaveTid, vuelo: _fbSaveInProgress }));
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) { avisosAlVolver(); _reanudarListener(); _syncOnFocus(); _msHub.showReminders(); }
+  if (!document.hidden) { cmRegistrarInicioDia(); updateDayProgress(); avisosAlVolver(); _reanudarListener(); _syncOnFocus(); _msHub.showReminders(); }
   else { _fbFlush(); }   // al ocultar: subir cambios pendientes sin esperar el debounce de 2s
 });
 window.addEventListener('pagehide', _fbFlush);
