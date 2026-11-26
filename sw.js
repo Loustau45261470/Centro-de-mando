@@ -47,6 +47,8 @@ const SHELL = [
   BASE + 'dona-holograma.js',
   BASE + 'reactor-habitos.js',
   BASE + 'reparto-gastos.js',
+  BASE + 'cuotas.js',
+  BASE + 'cuotas.css',
   BASE + 'recordatorios.js',
   BASE + 'objetivos.js',
   BASE + 'principios.js',

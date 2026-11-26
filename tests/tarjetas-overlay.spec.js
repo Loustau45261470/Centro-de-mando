@@ -270,7 +270,10 @@ test('5) la card Crédito es compacta: solo estadísticas, un aro total y una l�
   await preparar(cmPage, { cargos: [] });
   const card = cmPage.locator('#credit-card');
   await card.scrollIntoViewIfNeeded();
-  const alto = (await card.boundingBox()).height;
+  // El acceso a la vista Cuotas (pedido del usuario, 26/11) es el único botón permitido; la compacidad se mide sin él.
+  const acceso = card.locator('#ccCuotasOpen');
+  const altoAcceso = (await acceso.count()) ? (await acceso.boundingBox()).height : 0;
+  const alto = (await card.boundingBox()).height - altoAcceso;
   const ancho = cmPage.viewportSize().width;
   const antes = ancho >= 1000 ? ALTURA_ANTES.desktop : ALTURA_ANTES.mobile;
   test.info().annotations.push({ type: 'alturas', description: `Crédito antes=${antes}px ahora=${Math.round(alto)}px (${(alto / antes * 100).toFixed(1)}%)` });
@@ -278,7 +281,7 @@ test('5) la card Crédito es compacta: solo estadísticas, un aro total y una l�
   expect(alto).toBeLessThanOrEqual(antes * 0.4);
 
   // Nada de detalle ni de frases: sin lista de compras, calendario, botones ni textos explicativos.
-  await expect(card.locator('button')).toHaveCount(0);
+  await expect(card.locator('button:not(#ccCuotasOpen)')).toHaveCount(0);
   await expect(card.locator('.cc-chg, #cardChargeList, #cardCalendar, .cc-cal-m, .cc-hint, .cc-warnline, .cc-due, .cc-actions, .cc-meta, p')).toHaveCount(0);
   const texto = await card.innerText();
   expect(texto).not.toMatch(/Calendario|Compras con tarjeta|Registrar pago|Agregar|Cierra el día|Vence el día|Elegí|Todavía|Cuando|cuenta se paga|límite\./);

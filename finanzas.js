@@ -630,6 +630,22 @@ function applyCardAutoPayments() {
 // Pagada (verde) = ya tiene su pago automático (mismo criterio que el "pagada" de "Ver cuotas").
 // A pagar (ámbar) = la primera cuota sin pagar y cualquier otra sin pagar que ya vence este mes o antes.
 // Por venir (apagada) = el resto.
+// Vencimientos pagados, como keys auto:<tarjeta>:<vencimiento>: los que tienen su pago automático y los que ya
+// quedaron cubiertos enteros por pagos a mano ("Registrar pago de resumen", adelantos) — mismo cálculo que el
+// calendario (pendingDues). Lo usan la barra de Compras y la vista Cuotas (cuotas.js): un solo criterio.
+function _ccCuotasPagadasKeys() {
+  const pays = Array.isArray(S.cardPayments) ? S.cardPayments : [];
+  const keys = new Set(pays.map(p => p && p.key));
+  if (!window.CMTarjetas) return keys;
+  const charges = Array.isArray(S.cardCharges) ? S.cardCharges : [];
+  const dues = Array.isArray(S.cardDues) ? S.cardDues : [];
+  (Array.isArray(S.cards) ? S.cards : []).forEach(card => {
+    const pend = new Set(CMTarjetas.pendingDues(card, charges, '1900-01-01', '2999-12-31', dues, pays).map(d => d.dueDate));
+    CMTarjetas.dueTotals(card, charges, '1900-01-01', '2999-12-31', dues)
+      .forEach(d => { if (!pend.has(d.dueDate)) keys.add(`auto:${card.id}:${d.dueDate}`); });
+  });
+  return keys;
+}
 function _ccCuotasEstados(sched, paidKeys, cardId, today) {
   const mes = today.slice(0, 7);
   let primera = true;
@@ -650,7 +666,7 @@ function _ccCuotasBarraHtml(sched, estados) {
 
 function _ccChargeHtml(ch) {
   const card = (S.cards || []).find(c => c.id === ch.cardId);
-  const paidKeys = new Set((S.cardPayments || []).map(p => p && p.key));
+  const paidKeys = _ccCuotasPagadasKeys();
   const sched = card ? CMTarjetas.installmentSchedule(card, ch) : [];
   const barra = card && CMTarjetas.chargeCounts(card, ch) ? _ccCuotasBarraHtml(sched, _ccCuotasEstados(sched, paidKeys, ch.cardId, getActiveDate())) : '';
   const exp = CMTarjetas.expenseSchedule(ch);
@@ -779,7 +795,16 @@ function _ccCompactHtml() {
       </div>
     </div>
     <div class="cc-lines-hdr"><span>Tarjeta</span><span>usado / disponible</span></div>
-    <div class="cc-lines">${lines}</div>`;
+    <div class="cc-lines">${lines}</div>${_ccCuotasAccesoHtml()}`;
+}
+
+// Acceso a la vista propia de Cuotas (cuotas.js). stopPropagation: la card entera abre Tarjetas.
+function _ccCuotasAccesoHtml() {
+  if (!window.CMCuotas) return '';
+  const r = CMCuotas.resumen();
+  const txt = r.compras ? `<b>${_creditPesos(r.total)}</b> por pagar${r.libre ? ` · libre en ${r.libre}` : ''}` : 'Sin compras en cuotas';
+  return `<button type="button" class="cc-cuotas-open" id="ccCuotasOpen" aria-label="Abrir la vista de cuotas" onclick="event.stopPropagation();CMCuotas.open()">
+    <span class="cco-l">Cuotas</span><span class="cco-v">${txt}</span><span class="cco-go" aria-hidden="true">›</span></button>`;
 }
 
 // Filtro por tarjeta de Compras y Calendario ('' = todas). Lo comparten las dos pestañas.
