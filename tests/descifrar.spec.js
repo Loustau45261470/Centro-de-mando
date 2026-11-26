@@ -16,13 +16,14 @@ const sembrar = (page) => page.evaluate((cuentas) => {
 }, CUENTAS);
 
 // Entra a Finanzas y muestrea el texto de varios elementos cuadro a cuadro durante `ms`.
-const entrarYMuestrear = (page, sels, ms = 900) => page.evaluate(({ sels, ms }) => new Promise((ok) => {
+const entrarYMuestrear = (page, sels, ms = 2500) => page.evaluate(({ sels, ms }) => new Promise((ok) => {
   const out = Object.fromEntries(sels.map((s) => [s, []]));
   document.querySelector('.nav-btn[data-tab="finanzas"]').click();
   const t0 = performance.now();
   (function f() {
     for (const s of sels) { const el = document.querySelector(s); out[s].push({ t: el.textContent, role: el.getAttribute('role'), label: el.getAttribute('aria-label') }); }
-    if (performance.now() - t0 > ms) ok(out); else requestAnimationFrame(f);
+    const t = performance.now() - t0;   // termina cuando pasó `ms` Y ningún elemento sigue descifrándose (tope 12 s): no depende de los fps
+    if ((t > ms && sels.every((s) => !document.querySelector(s)._dx)) || t > 12000) ok(out); else requestAnimationFrame(f);
   })();
 }), { sels, ms });
 
@@ -33,6 +34,8 @@ const esperado = (page) => page.evaluate(() => ({
 const mismaForma = (s, final) => s.length === final.length && [...final].every((c, i) => /\d/.test(c) || s[i] === c);
 
 test.describe('descifrar · con movimiento', () => {
+  // Alto suficiente para que Patrimonio/Cash estén en pantalla al entrar: el descifrado completo espera a verse (un número bajo el pliegue se descifra recién al asomar).
+  test.use({ viewport: { width: 1280, height: 1400 } });
   test('(a) entrar a Finanzas descifra Patrimonio y Cash, con forma estable, aria con el valor real y valor final exacto', async ({ cmPage, consoleErrors }) => {
     await sembrar(cmPage);
     const ex = await esperado(cmPage);
@@ -58,7 +61,7 @@ test.describe('descifrar · con movimiento', () => {
     await cmPage.click('.nav-btn[data-tab="finanzas"]');
     await expect(cmPage.locator('#tab-finanzas')).toHaveClass(/active/);
     const ex = await esperado(cmPage);
-    await cmPage.waitForTimeout(1000);
+    await cmPage.waitForTimeout(2300);   // descifrado completo ~1,1 s + 200 ms de arranque + render pesado
     expect(await cmPage.locator('#nwDonaNum').textContent()).toBe(ex.total);
     const kf = await cmPage.locator('#kpi-finanzas .k-val').allTextContents();
     expect(kf.length).toBeGreaterThan(0);
@@ -67,7 +70,7 @@ test.describe('descifrar · con movimiento', () => {
     await cmPage.waitForTimeout(500);
     expect(await cmPage.locator('#kpi-finanzas .k-val').allTextContents()).toEqual(kf);
     await cmPage.click('.nav-btn[data-tab="vida"]');
-    await cmPage.waitForTimeout(1000);
+    await cmPage.waitForTimeout(2300);
     const kv = await cmPage.locator('#kpi-vida .k-val').allTextContents();
     const esperadoVida = await cmPage.evaluate(() => Array.from(document.querySelectorAll('#kpi-vida .k-val'), (e) => e.textContent));
     expect(kv).toEqual(esperadoVida);
@@ -92,7 +95,7 @@ test.describe('descifrar · con movimiento', () => {
         document.getElementById('txnAccount').value = 'uala';
         const n0 = S.transactions.length;
         addTransaction();
-        setTimeout(() => ok({ n0, n1: S.transactions.length, antes, total: document.getElementById('nwTotal').textContent, cash: document.getElementById('nwCash').textContent, ex: fmtMoney(calcNetWorth(), 'USD'), exc: fmtMoney(calcCash(), 'USD'), role: document.getElementById('nwTotal').getAttribute('role') }), 1000);
+        setTimeout(() => ok({ n0, n1: S.transactions.length, antes, total: document.getElementById('nwTotal').textContent, cash: document.getElementById('nwCash').textContent, ex: fmtMoney(calcNetWorth(), 'USD'), exc: fmtMoney(calcCash(), 'USD'), role: document.getElementById('nwTotal').getAttribute('role') }), 2400);
       }, 200);
     }));
     expect(r.n1).toBe(r.n0 + 1);
@@ -124,7 +127,7 @@ test.describe('descifrar · con movimiento', () => {
     await sembrar(cmPage);
     await cmPage.click('.nav-btn[data-tab="finanzas"]');
     await expect(cmPage.locator('#tab-finanzas')).toHaveClass(/active/);
-    await cmPage.waitForTimeout(1000);
+    await cmPage.waitForTimeout(2300);
     const final0 = (await esperado(cmPage)).total;
     // mismo dato, varios re-renders: el texto nunca se mueve
     const quieto = await cmPage.evaluate(() => new Promise((ok) => {
@@ -159,7 +162,7 @@ test.describe('descifrar · con movimiento', () => {
     await sembrar(cmPage);
     const ex = await esperado(cmPage);
     await irYVolver(cmPage, ['vida', 'finanzas', 'vida', 'finanzas']);
-    await cmPage.waitForTimeout(1500);
+    await cmPage.waitForFunction(() => ['#nwTotal', '#nwCash'].every((s) => !document.querySelector(s)._dx), null, { timeout: 15000 });   // espera a que termine, no un tiempo fijo
     const r = await cmPage.evaluate(() => ['#nwTotal', '#nwCash'].map((s) => { const e = document.querySelector(s); return [e.textContent, e.getAttribute('role'), !!e._dx]; }));
     expect(r[0]).toEqual([ex.total, null, false]);
     expect(r[1]).toEqual([ex.cash, null, false]);
@@ -169,7 +172,7 @@ test.describe('descifrar · con movimiento', () => {
       cmDescifrar(el, real, { full: true });
       await new Promise((ok) => setTimeout(ok, 150));
       cmDescifrar(el, el.textContent, { full: true });
-      await new Promise((ok) => setTimeout(ok, 1000));
+      await new Promise((ok) => setTimeout(ok, 2400));
       return { real, t: el.textContent };
     });
     expect(d.t).toBe(d.real);
@@ -180,7 +183,7 @@ test.describe('descifrar · con movimiento', () => {
     await sembrar(cmPage);
     await irYVolver(cmPage, ['vida', 'finanzas', 'vida', 'finanzas']);
     await cmPage.evaluate(async () => { JARVIS_INTEL.renderCard('finanzas'); await new Promise((ok) => setTimeout(ok, 60)); JARVIS_INTEL.renderCard('finanzas'); });
-    await cmPage.waitForTimeout(1500);
+    await cmPage.waitForFunction(() => [...document.querySelectorAll('#kpi-finanzas .k-val')].every((e) => !e._dx), null, { timeout: 15000 });
     const a = await cmPage.locator('#kpi-finanzas .k-val').allTextContents();
     await cmPage.evaluate(() => JARVIS_INTEL.renderCard('finanzas'));
     await cmPage.waitForTimeout(600);

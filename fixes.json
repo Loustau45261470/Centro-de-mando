@@ -736,6 +736,27 @@
       "desc": "La transición de --a1-c (registrada con inherits:true) estaba en body: durante 900 ms cada cambio de sección invalidaba el estilo de todo el árbol en cada cuadro. Ahora vive en body::before, que es el único que consume --a1-c.",
       "file": "styles.css",
       "marker": "transition: --a1-c .9s ease;"
+    },
+    {
+      "id": "descifrado-visible",
+      "fecha": "2026-11-25",
+      "desc": "El descifrado completo (600 ms contados desde la llamada, antes del primer cuadro pintado, con la sección aún en fade-in y aunque el número estuviera bajo el pliegue) casi no se veía. Ahora dura 1,1 s desde el primer cuadro + 200 ms de arranque, y un número fuera de pantalla espera a asomar (IntersectionObserver) y se descifra una vez.",
+      "file": "descifrar.js",
+      "marker": "const LEAD_MS = 200;"
+    },
+    {
+      "id": "a1c-no-hereda",
+      "fecha": "2026-11-25",
+      "desc": "--a1-c se declaraba en body con inherits:true: cada cambio de sección (body:has(#tab-x.active)) recalculaba el estilo de ~1150 elementos. Ahora inherits:false y se asigna en body::before.",
+      "file": "styles.css",
+      "marker": "inherits: false; initial-value: #5CF6FF;"
+    },
+    {
+      "id": "transicion-dos-tiempos",
+      "fecha": "2026-11-25",
+      "desc": "Cambiar de sección dejaba 2-4 cuadros vacíos (la vieja se sacaba de golpe y la nueva entraba desde opacidad 0, tapada ~100 ms por el render sincrónico) y el click tardaba ~100-230 ms en mostrar algo. Ahora switchTab (solo por click, con movimiento) marca el nav y atenúa la vieja (tab-out) en el mismo cuadro, renderiza después del primer paint y la nueva entra desde .55.",
+      "file": "app.js",
+      "marker": "function _switchTabNow("
     }
   ]
 }

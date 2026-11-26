@@ -1762,10 +1762,31 @@ function _navGlow(btn, animate) {
 window.addEventListener('resize', () => _navGlow(document.querySelector('.nav-btn.active'), false));
 window.addEventListener('load', () => _navGlow(document.querySelector('.nav-btn.active'), false));
 
-function switchTab(tab, btn) {
+// Cambio de sección en dos tiempos (solo por click del usuario y con movimiento): el render de la sección nueva bloquea ~100 ms+, así que
+// 1.º (en el mismo cuadro del click) se marca el botón y la sección vieja empieza a atenuarse (tab-out, compositor, sigue visible) y
+// 2.º, ya pintado eso, se hace el cambio de verdad con todo el render; la nueva entra desde la opacidad a la que quedó la vieja (tab-fade-in).
+// Así nunca hay un cuadro sin sección visible ni se queda congelada la pantalla vieja sin señal. Programático / reduced-motion: inmediato.
+let _swSeq = 0;
+function _tabNav(tab, btn) {
   _navGlow(btn, true);
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+function switchTab(tab, btn) {
+  const seq = ++_swSeq, ev = window.event;
+  const vieja = document.querySelector('.tab-panel.active'), nueva = document.getElementById('tab-' + tab);
+  document.querySelectorAll('.tab-panel.tab-out').forEach(p => p.classList.remove('tab-out'));
+  if (!(ev && ev.type === 'click') || !vieja || !nueva || vieja === nueva || (window.CMMotion && CMMotion.reduced())) return _switchTabNow(tab, btn, false);
+  _tabNav(tab, btn);
+  vieja.classList.add('tab-out');
+  let hecho = false;
+  const ir = () => { if (hecho) return; hecho = true; if (seq === _swSeq) _switchTabNow(tab, btn, true); };
+  requestAnimationFrame(() => setTimeout(ir, 0));
+  setTimeout(ir, 150);   // red de seguridad: pestaña en segundo plano (rAF no corre)
+}
+function _switchTabNow(tab, btn, navHecha) {
+  if (!navHecha) { _navGlow(btn, true); document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active')); }
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active', 'tab-out'));
   const _panel = document.getElementById('tab-' + tab);
   _panel.classList.add('active');
   btn.classList.add('active');

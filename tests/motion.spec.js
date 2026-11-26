@@ -94,7 +94,7 @@ test.describe('motion · con movimiento', () => {
 
     // KPIs de una sección: lo que queda en pantalla es el texto del render, y un re-render sin cambios no anima
     await irA(cmPage, 'vida');
-    await cmPage.waitForTimeout(700);
+    await cmPage.waitForTimeout(2200);
     const antes = await cmPage.locator('#kpi-vida .k-val').allTextContents();
     expect(antes.length).toBeGreaterThan(0);
     await cmPage.evaluate(() => JARVIS_INTEL.renderCard('vida'));

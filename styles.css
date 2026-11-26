@@ -115,21 +115,22 @@ body::after {
 /* ── Fondo A1 "degradé quieto" (solo tema por defecto; bloomberg/amber/radar/infrared conservan el suyo).
    Reemplaza scanlines/radiales de body, la grilla (body::before) y el canvas de partículas (#hud-ambient).
    Luz suave arriba del color de la sección activa que respira lento. Solo CSS: sin JS por frame. */
-@property --a1-c { syntax: '<color>'; inherits: true; initial-value: #5CF6FF; }
+/* El color sigue al botón activo del nav (se marca en el click, antes del render de la sección: el fundido arranca ya). --a1-c NO hereda y se declara en el propio ::before: si viviera en body y heredara, cada cambio de sección (body:has(#tab-x.active)) recalculaba el estilo de ~1300 elementos (40-70 ms por cambio). */
+@property --a1-c { syntax: '<color>'; inherits: false; initial-value: #5CF6FF; }
 body:not([class*="theme-"]) {
-  --a1-c: var(--c-jarvis);
   background: linear-gradient(165deg, #050A12, #08111D 55%, #050B14);
 }
-body:not([class*="theme-"]):has(#tab-vida.active)         { --a1-c: var(--c-vida); }
-body:not([class*="theme-"]):has(#tab-finanzas.active)     { --a1-c: var(--c-finanzas); }
-body:not([class*="theme-"]):has(#tab-salud.active)        { --a1-c: var(--c-salud); }
-body:not([class*="theme-"]):has(#tab-conocimiento.active) { --a1-c: var(--c-conocimiento); }
-body:not([class*="theme-"]):has(#tab-ia.active)           { --a1-c: var(--c-ia); }
+body:not([class*="theme-"]):has(.nav-btn[data-tab="vida"].active)::before         { --a1-c: var(--c-vida); }
+body:not([class*="theme-"]):has(.nav-btn[data-tab="finanzas"].active)::before     { --a1-c: var(--c-finanzas); }
+body:not([class*="theme-"]):has(.nav-btn[data-tab="salud"].active)::before        { --a1-c: var(--c-salud); }
+body:not([class*="theme-"]):has(.nav-btn[data-tab="conocimiento"].active)::before { --a1-c: var(--c-conocimiento); }
+body:not([class*="theme-"]):has(.nav-btn[data-tab="ia"].active)::before           { --a1-c: var(--c-ia); }
 body:not([class*="theme-"])::before {
+  --a1-c: var(--c-jarvis);
   background: radial-gradient(70% 55% at 50% -5%, color-mix(in srgb, var(--a1-c) 22%, transparent), transparent 70%);
   -webkit-mask-image: none; mask-image: none;
   animation: a1-breathe 14s ease-in-out infinite alternate;
-  /* El fundido de color vive acá y no en body: --a1-c hereda, y transicionarla en body invalidaba el estilo de todo el árbol en cada cuadro al cambiar de sección. */
+  /* El fundido de color vive acá y no en body (ahí invalidaba el estilo de todo el árbol). */
   transition: --a1-c .9s ease;
 }
 body:not([class*="theme-"]) #hud-ambient { display: none; }
@@ -217,10 +218,16 @@ body:not([class*="theme-"]) #hud-ambient { display: none; }
 /* El panel solo hace fade (solo se dispara al activarse la pestaña). La entrada escalonada de las
    tarjetas (opacity + translateY, máx. 8) la hace motion.js con WAAPI sobre los nodos existentes en
    switchTab: así un re-render por datos (saveState) nunca vuelve a animarlas, como sí hacía el CSS. */
-.tab-panel.active { display: block; animation: tab-fade-in var(--dur-base) var(--ease-out) both; }
+.tab-panel.active { display: block; animation: tab-fade-in 160ms var(--ease-out) both; }
+/* Cambio de sección en dos tiempos (switchTab): la vieja baja a .55 sin desaparecer (tab-out) mientras se renderiza la nueva, que entra desde ese mismo .55 → nunca un cuadro vacío. */
 @keyframes tab-fade-in {
-  from { opacity: 0; }
+  from { opacity: .55; }
   to   { opacity: 1; }
+}
+.tab-panel.tab-out { animation: tab-fade-out 100ms var(--ease-out) both; pointer-events: none; }
+@keyframes tab-fade-out {
+  from { opacity: 1; }
+  to   { opacity: .55; }
 }
 
 /* ── Bottom Nav ── */

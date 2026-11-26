@@ -23,13 +23,15 @@ test('(b) el pseudo del fondo sí transiciona --a1-c', async ({ cmPage }) => {
 test('(c) al cambiar de sección el fondo interpola y termina en el color de la sección', async ({ cmPage }) => {
   await irA(cmPage, 'vida');
   await expect.poll(() => a1(cmPage), { timeout: 3000 }).toBe(await rgbDe(cmPage, '--c-vida'));
-  const medio = await cmPage.evaluate(async () => {
+  const vida = await rgbDe(cmPage, '--c-vida'), fin = await rgbDe(cmPage, '--c-finanzas');
+  const medio = await cmPage.evaluate(async (vida) => {
     document.querySelector('.nav-btn[data-tab="finanzas"]').click();
     getComputedStyle(document.body, '::before').getPropertyValue('--a1-c');   // fuerza el recálculo: la transición arranca acá, no tras el script de switchTab
-    await new Promise((r) => setTimeout(r, 350));
-    return getComputedStyle(document.body, '::before').getPropertyValue('--a1-c').trim();
-  });
-  const vida = await rgbDe(cmPage, '--c-vida'), fin = await rgbDe(cmPage, '--c-finanzas');
+    // El cambio de sección renderiza en una tarea larga y los cuadros se atrasan: se toma el primer valor ya en movimiento (no uno fijo a 350 ms).
+    const t0 = performance.now(); let v;
+    do { await new Promise((r) => setTimeout(r, 30)); v = getComputedStyle(document.body, '::before').getPropertyValue('--a1-c').trim(); } while (v === vida && performance.now() - t0 < 1500);
+    return v;
+  }, vida);
   expect(medio).not.toBe(vida);
   expect(medio).not.toBe(fin);
   await expect.poll(() => a1(cmPage), { timeout: 3000 }).toBe(fin);
