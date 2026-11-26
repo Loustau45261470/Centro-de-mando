@@ -95,7 +95,6 @@ const SHELL = [
   BASE + 'libros.js',
   BASE + 'frases.js',
   BASE + 'nav-rail.js',
-  BASE + 'sgc.js',
   BASE + 'login.js',
   BASE + 'theme-switcher.js',
   BASE + 'jarvis-core-stats.js',

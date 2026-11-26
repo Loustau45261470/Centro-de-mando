@@ -48,10 +48,6 @@ async function waitForBoot(page) {
 // determinístico y sirva para detectar regresiones NUEVAS, no para repetir en
 // cada corrida un hallazgo ya reportado. Ver el reporte de T10 para el detalle.
 const KNOWN_APP_BUGS = [
-  {
-    id: 'sgc-init-stale-S-race',
-    match: /resolverProyecciones/,
-  },
 ];
 
 function classifyConsoleText(text, consoleErrors, knownAppBugs) {
