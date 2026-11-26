@@ -411,13 +411,28 @@ const CMDeadlines = (() => {
               doneAction: `toggleGoalById('${date}','${g.id}')` });
       });
 
-      const plannerTasks = ((S.dayPlan || {})[date] || {}).tasks || [];
+      // Actividad vinculada a un hábito: el "hecho" vive en el hábito (S.habitTrackers[sec][].days[fecha]),
+      // misma regla que _withHabitDone de app.js. Si el hábito ya no existe, vale el done propio.
+      const habitDone = (link) => {
+        if (!link || !link.section || !link.id) return null;
+        const ht = S.habitTrackers;
+        const list = !ht ? [] : Array.isArray(ht) ? (link.section === 'vida' ? ht : []) : (ht[link.section] || []);
+        const h = list.find(x => x && x.id === link.id);
+        return h ? ((h.days || {})[date] === 'done') : null;
+      };
+      const plannerTasks = (((S.dayPlan || {})[date] || {}).tasks || []).map(t => {
+        if (!t || !t.habit) return t;
+        const st = habitDone(t.habit);
+        return st === null ? t : Object.assign({}, t, { done: st });
+      });
       const recTasks = (S.planRecurring || []).filter(r => recOccursOn(r, date)).map(r => {
         const ex = (r.exceptions || {})[date] || {};
         if (ex.deleted) return null;
+        const link = ex.habit !== undefined ? ex.habit : r.habit;
+        const st = link ? habitDone(link) : null;
         return { id: r.id + '@' + date, text: ex.text != null ? ex.text : r.text,
                  time: ex.time != null ? ex.time : r.time, area: ex.area != null ? ex.area : r.area,
-                 priority: ex.priority != null ? ex.priority : r.priority, done: !!ex.done };
+                 priority: ex.priority != null ? ex.priority : r.priority, done: st === null ? !!ex.done : st };
       }).filter(Boolean);
 
       plannerTasks.concat(recTasks).forEach(t => {

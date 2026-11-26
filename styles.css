@@ -7988,3 +7988,11 @@ textarea.pr-in { resize: vertical; min-height: 60px; }
 .cmz-leg i.l-ap { border-color: #BFD6FF; background: var(--sc); }
 .cmz-leg i.l-bl { border-style: dashed; border-color: #2E3F55; }
 @media (prefers-reduced-motion: reduce) { .cmz-vis .cmz-nd.s-cu .cmz-rg { animation: none; opacity: .5; } }
+/* Estado de notificaciones del dispositivo en la card «Vencimientos» (botón chico a la derecha + línea de estado) */
+.card-title .rnotif-nb { display: inline-flex; align-items: center; margin-left: auto; letter-spacing: 0; text-transform: none; }
+.rnb-btn { font-size: var(--fs-12-5); line-height: 1; padding: 5px 10px; border-radius: 8px; border: 1px solid var(--border); background: none; color: var(--ts); cursor: pointer; }
+.rnb-btn:hover, .rnb-btn:focus-visible { color: var(--tp); border-color: var(--rn-accent, var(--hud)); }
+.rnb-btn.rnb-ico { padding: 4px 7px; border-color: transparent; opacity: .75; }
+.rnotif-estado { font-size: var(--fs-12-5); line-height: 1.45; color: var(--ts); padding: 7px 10px; margin-bottom: 8px; border: 1px dashed var(--border); border-radius: 10px; cursor: default; }
+.rnotif-estado-bloqueadas { border-color: color-mix(in srgb, var(--danger) 45%, transparent); }
+.rnotif-estado-pendiente { border-color: color-mix(in srgb, var(--warn) 45%, transparent); }

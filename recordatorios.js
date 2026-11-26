@@ -49,6 +49,9 @@ function remKindChip(r) {
 // ── Todo lo que vence fuera de S.reminders (proyectos, finales, cursada, metas,
 //    actividades del planner, proyecciones, pedidos) entra acá como
 //    ítem virtual de recordatorio. Fuente única: CMDeadlines (deadlines.js).
+// Un recordatorio puntual vencido hace más de 7 días ya no se muestra (mismo tope que los vencimientos de las demás secciones). El dato no se borra.
+const REM_VENCIDO_DIAS = 7;
+function remMuyVencido(r, now) { return !!(r && r.datetime && now - new Date(r.datetime).getTime() > REM_VENCIDO_DIAS * 86400000); }
 function remVirtualItems(tab) {
   const now = Date.now();
   if (typeof CMDeadlines === 'undefined') return { virtImminent: [], virtUpcoming: [], virtPast: [] };
@@ -189,8 +192,8 @@ function renderReminders(tab) {
   if (!S.reminders) S.reminders = {};
   const todos = S.reminders[tab] || [];
   const reps = todos.filter(remEsRep);
-  const all = todos.filter(r => !remEsRep(r));
   const now = Date.now();
+  const all = todos.filter(r => !remEsRep(r) && !remMuyVencido(r, now));
 
   const PENCIL = `<svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
   const TRASH  = `<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>`;
@@ -349,8 +352,39 @@ function _remTick() {
 }
 function _remTickEnsure() { if (!_remTickT && document.querySelector('.rnotif-item[data-at]')) _remTickT = setInterval(_remTick, 1000); }
 
+// Estado de las notificaciones de ESTE dispositivo: botón/ícono chico a la derecha del título de la card y,
+// debajo, una línea simple (siempre visible si falta permiso; con el ícono se despliega si ya están activadas).
+let _remEstadoAbierto = false;
+function remEstadoToggle() { _remEstadoAbierto = !_remEstadoAbierto; ['vida', 'finanzas', 'salud', 'conocimiento', 'ia'].forEach(renderRemindersNotif); }
+function remEstadoNotif() {
+  if (!('Notification' in window)) return { estado: 'sin-api', txt: 'Este navegador no soporta notificaciones.' };
+  const perm = Notification.permission, win = /Windows/.test(navigator.userAgent || '');
+  const base = 'Notificaciones en este dispositivo: ';
+  if (perm === 'granted') {
+    let at = null; try { at = Number(localStorage.getItem('cm_push_sub_at')) || null; } catch (e) {}
+    const f = at ? new Date(at).toLocaleDateString('es-AR', { day: 'numeric', month: 'numeric' }) : '';
+    return { estado: 'activadas', txt: base + 'activadas. ' + (at ? 'Avisos con la app cerrada registrados el ' + f + '.' : 'Todavía no se registró este dispositivo para recibir avisos con la app cerrada.') + (win ? ' En Windows, el navegador tiene que quedar abierto en segundo plano.' : '') };
+  }
+  if (perm === 'denied') return { estado: 'bloqueadas', txt: base + 'bloqueadas por el navegador. Para habilitarlas: tocá el candado del sitio, entrá a Notificaciones y elegí Permitir.' + (win ? ' En Windows, el navegador tiene que quedar abierto en segundo plano.' : '') };
+  return { estado: 'pendiente', txt: base + 'pendiente de permiso. Tocá «Activar» y aceptá el permiso del navegador.' };
+}
+function _remEstadoCab(body) {
+  const tit = body.parentElement && body.parentElement.querySelector(':scope > .card-title');
+  const e = remEstadoNotif();
+  if (!tit || e.estado === 'sin-api') return '';
+  let nb = tit.querySelector(':scope > .rnotif-nb');
+  if (!nb) { nb = document.createElement('span'); nb.className = 'rnotif-nb'; tit.appendChild(nb); }
+  const stop = 'event.stopPropagation();';
+  nb.innerHTML = e.estado === 'pendiente'
+    ? `<button type="button" class="rnb-btn" onclick="${stop}initNotifications()">Activar 🔔</button>`
+    : `<button type="button" class="rnb-btn rnb-ico" aria-label="Estado de las notificaciones" aria-expanded="${_remEstadoAbierto}" title="Estado de las notificaciones" onclick="${stop}remEstadoToggle()">${e.estado === 'activadas' ? '🔔' : '🔕'}</button>`;
+  return (e.estado !== 'activadas' || _remEstadoAbierto)
+    ? `<div class="rnotif-estado rnotif-estado-${e.estado}" role="status" onclick="event.stopPropagation()">${escHtml(e.txt)}</div>` : '';
+}
+
 function renderRemindersNotif(tab) {
   const body = document.getElementById('reminders-notif-' + tab); if (!body) return;
+  const estadoHTML = _remEstadoCab(body);
   if (!S.reminders) S.reminders = {};
   const now = Date.now();
   const { virtImminent, virtUpcoming, virtPast } = remVirtualItems(tab);
@@ -359,13 +393,13 @@ function renderRemindersNotif(tab) {
     const o = CMDeadlines.repOcurrencias(r, now);
     [o.actual, o.proxima].filter(Boolean).forEach(x => repItems.push({ title: r.title, priority: r.priority, at: x.at, datetime: x.datetime, kindLabel: 'Se repite ' + remRepCorto(r.repetir), icon: '🔁' }));
   });
-  const rec = (S.reminders[tab] || []).filter(r => r.datetime && !remEsRep(r))
+  const rec = (S.reminders[tab] || []).filter(r => r.datetime && !remEsRep(r) && !remMuyVencido(r, now))
     .map(r => ({ title: r.title, priority: r.priority, at: new Date(r.datetime).getTime(), datetime: r.datetime, kindLabel: 'Recordatorio', icon: '🔔' })).concat(repItems);
   const vencidos = [...rec.filter(r => r.at - now <= 0), ...virtPast].sort((a, b) => b.at - a.at);
   const proximos = [...rec.filter(r => r.at - now > 0), ...virtImminent, ...virtUpcoming].sort((a, b) => a.at - b.at);
   const verAll = `<button class="rnotif-all" onclick="event.stopPropagation();if(window.openRemindersOverlay)openRemindersOverlay('${tab}')">Ver todo →</button>`;
   if (!vencidos.length && !proximos.length) {
-    body.innerHTML = `<div class="rnotif-empty">Nada por vencer.</div>
+    body.innerHTML = estadoHTML + `<div class="rnotif-empty">Nada por vencer.</div>
       <button class="rnotif-all" onclick="event.stopPropagation();if(window.openRemindersOverlay)openRemindersOverlay('${tab}')">Crear un recordatorio →</button>`;
     return;
   }
@@ -411,7 +445,7 @@ function renderRemindersNotif(tab) {
     html += `<div class="rnotif-empty">Nada próximo por vencer.</div>`;
   }
   if (vencidos.length) html += `<div class="rnotif-group is-overdue">Vencido · ${vencidos.length}</div><div role="list" class="rnotif-over">${vencidos.map(filaHTML).join('')}</div>`;
-  body.innerHTML = html + verAll;
+  body.innerHTML = estadoHTML + html + verAll;
   _remTickEnsure();
 }
 
@@ -421,6 +455,8 @@ function refreshRemindersView(tab) {
   const t = tab || (typeof currentTab === 'string' ? currentTab : '');
   if (t && document.getElementById('reminders-notif-' + t)) renderReminders(t);
 }
+// Todas las secciones a la vez: tildar o mover una actividad cambia lo que vence en cualquiera de ellas.
+function refreshRemindersAll() { ['vida', 'finanzas', 'salud', 'conocimiento', 'ia'].forEach(refreshRemindersView); }
 
 function openAddReminder(tab) {
   document.getElementById('remModalTitle').textContent = 'Nuevo Recordatorio';
@@ -524,15 +560,16 @@ function initNotifications() {
   if (Notification.permission === 'denied') { showToast('🔕 Notificaciones bloqueadas — habilítalas en Ajustes del navegador'); return; }
   if (Notification.permission === 'granted') {
     // El toast de éxito sale solo si se escribió; si falla, _subscribePush ya mostró el de error.
-    _getOrCreateVapidKeys().then(k => k ? _subscribePush(k.pubKey) : false).then(ok => { if (ok) showToast('🔔 Notificaciones ya activas'); });
+    _getOrCreateVapidKeys().then(k => k ? _subscribePush(k.pubKey) : false).then(ok => { if (ok) showToast('🔔 Notificaciones ya activas'); ['vida','finanzas','salud','conocimiento','ia'].forEach(renderRemindersNotif); });
     return;
   }
   Notification.requestPermission().then(async perm => {
-    ['vida','finanzas','salud','conocimiento','ia'].forEach(renderReminders);
+    ['vida','finanzas','salud','conocimiento','ia'].forEach(t => { renderReminders(t); renderRemindersNotif(t); });
     if (perm === 'granted') {
       showToast('🔔 Notificaciones activadas');
       const keys = await _getOrCreateVapidKeys();
       if (keys) await _subscribePush(keys.pubKey);
+      ['vida','finanzas','salud','conocimiento','ia'].forEach(renderRemindersNotif);
     } else {
       showToast('Notificaciones no habilitadas');
     }
@@ -673,7 +710,8 @@ function avisoPermisoNotif() {
     const hayApi = 'Notification' in window;
     let txt;
     if (isIOS && !instalada && (!hayApi || Notification.permission !== 'granted')) txt = 'Para recibir avisos en el iPhone, agregá la app a la pantalla de inicio: tocá Compartir y después «Agregar a pantalla de inicio». Abrila desde ese ícono y activá las notificaciones.';
-    else if (hayApi && Notification.permission === 'denied') txt = 'Las notificaciones están bloqueadas en este dispositivo, así que no te van a llegar los avisos. Para activarlas, tocá el candado de la barra de direcciones (o los ajustes del navegador) y permití las notificaciones de este sitio.';
+    else if (hayApi && Notification.permission === 'default') txt = 'Todavía no activaste las notificaciones en este dispositivo, así que no te van a llegar los avisos. Tocá el botón y aceptá el permiso del navegador.';
+    else if (hayApi && Notification.permission === 'denied') txt ='Las notificaciones están bloqueadas en este dispositivo, así que no te van a llegar los avisos. Para activarlas, tocá el candado de la barra de direcciones (o los ajustes del navegador) y permití las notificaciones de este sitio.';
     else return;
     const hoy = new Date().toLocaleDateString('sv-SE');
     if (localStorage.getItem('cdm_avisoNotifDia') === hoy) return;
@@ -682,6 +720,11 @@ function avisoPermisoNotif() {
       _avBtnCerrar(el, 'av-permiso');
       const h = document.createElement('div'); h.className = 'av-tit'; h.textContent = '🔕 Avisos desactivados'; el.appendChild(h);
       const p = document.createElement('div'); p.className = 'av-txt'; p.textContent = txt; el.appendChild(p);
+      if (hayApi && Notification.permission === 'default') {
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'av-ver'; b.id = 'av-permiso-activar'; b.textContent = 'Activar notificaciones';
+        b.onclick = () => { _avisoCerrar('av-permiso'); initNotifications(); };
+        el.appendChild(b);
+      }
     });
   } catch (e) {}
 }

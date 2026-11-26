@@ -764,6 +764,34 @@
       "desc": "ANÁLISIS: Objetivos del mes decía atrasado con metas vinculadas en camino pero sin tildar (solo contaba tildadas). Ahora usa qobjLinkProgress por meta: en camino/atrasada/sin medir.",
       "file": "jarvis-intel.js",
       "marker": "function _goalState("
+    },
+    {
+      "id": "vencimientos-actividad-habito-hecha",
+      "fecha": "2026-11-26",
+      "desc": "Actividad del planner vinculada a un habito, ya hecha en el habito, seguia en Vencimientos y el cron seguia avisando (collect solo miraba done propio). deadlines.js resuelve el vinculo contra S.habitTrackers (misma regla que _withHabitDone).",
+      "file": "deadlines.js",
+      "marker": "const habitDone = (link) =>"
+    },
+    {
+      "id": "vencimientos-refresco-al-tildar",
+      "fecha": "2026-11-26",
+      "desc": "Tildar/mover/editar una actividad (o tildar una meta sin hora) no redibujaba las cards Vencimientos hasta el minuto siguiente. renderDayPlanner llama refreshRemindersAll() y toggleGoal refresca siempre.",
+      "file": "app.js",
+      "marker": "refreshRemindersAll();"
+    },
+    {
+      "id": "recordatorios-vencidos-tope-7-dias",
+      "fecha": "2026-11-26",
+      "desc": "Recordatorios puntuales vencidos nunca se iban de las cards. Tope de 7 dias (remMuyVencido), mismo que los demas vencimientos; el dato no se borra.",
+      "file": "recordatorios.js",
+      "marker": "function remMuyVencido("
+    },
+    {
+      "id": "notificaciones-pc-estado-visible",
+      "fecha": "2026-11-26",
+      "desc": "En PC no se pedia el permiso de notificaciones (boton en card oculta; el aviso solo cubria iOS/denied). Aviso con boton Activar con permiso default, boton/estado en la card Vencimientos (remEstadoNotif).",
+      "file": "recordatorios.js",
+      "marker": "function remEstadoNotif("
     }
   ]
 }

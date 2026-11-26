@@ -434,6 +434,7 @@ async function _subscribePush(pubKey, nueva) {
       upd['pushHealth.fallos.' + _pushDeviceId()] = firebase.firestore.FieldValue.delete();
     }
     await _DOC().update(upd);
+    try { localStorage.setItem('cm_push_sub_at', String(upd['pushSubscriptions.' + _pushDeviceId()].updatedAt)); } catch (e) {}   // para la línea de estado de notificaciones
     if (nueva && typeof pushDeadAviso === 'function') pushDeadAviso(null);
     console.log('[PWA] Push subscription stored');
     return true;
@@ -462,7 +463,11 @@ async function _asegurarPushDispositivo() {
     const fallo = d.pushHealth && d.pushHealth.fallos && d.pushHealth.fallos[id];
     const falloVisible = !!(fallo && (fallo.dead || fallo.n >= 3));
     const workerMuerto = actual ? await _pushWorkerEndpointMuerto(actual.endpoint) : false;
-    if (actual && mia && mia.sub && mia.sub.endpoint === actual.endpoint && !falloVisible && !workerMuerto) return;
+    if (actual && mia && mia.sub && mia.sub.endpoint === actual.endpoint && !falloVisible && !workerMuerto) {
+      try { if (mia.updatedAt) localStorage.setItem('cm_push_sub_at', String(mia.updatedAt)); } catch (e) {}   // para la línea de estado de notificaciones
+      if (typeof renderRemindersNotif === 'function') ['vida','finanzas','salud','conocimiento','ia'].forEach(renderRemindersNotif);
+      return;
+    }
     // Sin entrada propia pero con suscripción en el navegador: el cron la borró por muerta (404/410) o el dispositivo es previo al mapa.
     // Reusar el endpoint del navegador reescribiría el mismo endpoint muerto para siempre: se descarta y se crea una suscripción nueva.
     const nueva = !!(actual && (!mia || !mia.sub || falloVisible || workerMuerto));
@@ -2508,8 +2513,8 @@ function toggleGoal(date, idx) {
     try { window.Proyectos.setDone(g.fromTab, g.fromTask, true); } catch (e) {}
   }
   saveState(); renderGoals();
-  // Sync reminders urgent block (timed goals appear there — today and tomorrow)
-  if (S.goals[date][idx].time) renderReminders('vida');
+  // Vencimientos: una meta hecha (con o sin hora, o franja obligatoria) deja de figurar al instante
+  renderReminders('vida');
   if (S.goals[date][idx].done) {
     // Sparkle from the checkbox element (lookup by data attrs — grouped DOM no longer matches array order)
     const box = document.querySelector(`.check-box[data-idx="${idx}"][data-date="${date}"]`);
@@ -3631,6 +3636,8 @@ function renderDayPlanner() {
   const ov = document.getElementById('ov-planner');
   if (ov && ov.classList.contains('show') && typeof plannerOverlayRender === 'function') plannerOverlayRender();
   if (window.CMAlinear) CMAlinear.run();   // la lista se re-armó entera: volver a elegir qué filas entran para terminar a la par de Hábitos
+  // Tildar, mover o editar una actividad cambia lo que vence: las cards «Vencimientos» se redibujan ya, sin esperar el minuto.
+  if (typeof refreshRemindersAll === 'function') refreshRemindersAll();
 }
 
 // ════════════════════════════════════════════════════════
