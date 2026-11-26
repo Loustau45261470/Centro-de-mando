@@ -17,8 +17,19 @@ const irAVida = async (page) => {
 };
 const esperar = (page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 700)))));
 
-// [hora, min, % mostrado, fase, índice de fase actual (-1 = antes de las 8), texto de hora, texto "quedan"]
-const CASOS = [
+// Inicio del día por defecto: 05:00 (rango 5–24 = 1140 min). Con la 1.ª entrada a las 8:00 (INICIO_8) el rango es 8–24 (960 min).
+// [hora, min, % mostrado, fase, índice de fase actual (-1 = antes del inicio), texto de hora, texto "quedan"]
+const INICIO_5 = [
+  [4, 30, '—', 'DURMIENDO', -1, '4:30 AM', 'Quedan 19 h 0 min'],
+  [5, 0, '0%', 'MAÑANA', 0, '5:00 AM', 'Quedan 19 h 0 min'],
+  [8, 0, '16%', 'MAÑANA', 0, '8:00 AM', 'Quedan 16 h 0 min'],
+  [10, 0, '26%', 'MEDIODÍA', 1, '10:00 AM', 'Quedan 14 h 0 min'],
+  [14, 30, '50%', 'TARDE', 2, '2:30 PM', 'Quedan 9 h 30 min'],
+  [21, 0, '84%', 'NOCHE', 3, '9:00 PM', 'Quedan 3 h 0 min'],
+  [22, 30, '92%', 'HORA DE DORMIR', 4, '10:30 PM', 'Quedan 1 h 30 min'],
+  [23, 59, '100%', 'HORA DE DORMIR', 4, '11:59 PM', 'Quedan 0 h 1 min'],
+];
+const INICIO_8 = [
   [6, 0, '—', 'DURMIENDO', -1, '6:00 AM', 'Quedan 16 h 0 min'],
   [8, 0, '0%', 'MAÑANA', 0, '8:00 AM', 'Quedan 16 h 0 min'],
   [10, 0, '13%', 'MAÑANA', 0, '10:00 AM', 'Quedan 14 h 0 min'],
@@ -51,16 +62,17 @@ async function leer(page) {
 test.describe('Barra del día G2', () => {
   test.beforeEach(({}, testInfo) => { test.skip(testInfo.project.name !== 'chromium-desktop', 'el viewport (1280 y 390) se fija adentro'); });
 
-  for (const ancho of [1280, 390]) {
-    test(`fase, porcentaje y cartel «Ahora» a distintas horas (${ancho})`, async ({ cmPage: page }) => {
+  for (const [ancho, inicio, CASOS] of [[1280, 300, INICIO_5], [390, 300, INICIO_5], [1280, 480, INICIO_8], [390, 480, INICIO_8]]) {
+    test(`fase, porcentaje y cartel «Ahora» a distintas horas (${ancho}, día desde las ${inicio / 60}:00)`, async ({ cmPage: page }) => {
       await page.setViewportSize({ width: ancho, height: ancho === 390 ? 844 : 900 });
       await irAVida(page);
+      await page.evaluate(({ hoy, min }) => localStorage.setItem('cdm_inicioDia', JSON.stringify(min === 300 ? null : { fecha: hoy, min })), { hoy: HOY, min: inicio });
       for (const [h, m, pct, fase, cur, hora, quedan] of CASOS) {
         await fijar(page, h, m);
         await page.evaluate(() => updateDayProgress());
         const r = await leer(page);
         const cm = h * 60 + m;
-        const p = Math.max(0, Math.min(1, (cm - 480) / 960));
+        const p = Math.max(0, Math.min(1, (cm - inicio) / (1440 - inicio)));
         expect(r.pct, `${h}:${m} %`).toBe(pct);
         expect(r.fase, `${h}:${m} fase`).toBe(fase);
         expect(r.hora).toBe(hora);
@@ -79,7 +91,7 @@ test.describe('Barra del día G2', () => {
         if (SHOTS && (m === 0 || h === 14)) {
           fs.mkdirSync(SHOTS, { recursive: true });
           await esperar(page);
-          await page.locator('.day-progress-wrap').screenshot({ path: path.join(SHOTS, `barra-${String(h).padStart(2, '0')}${String(m).padStart(2, '0')}-${ancho}.png`) });
+          await page.locator('.day-progress-wrap').screenshot({ path: path.join(SHOTS, `barra-i${inicio / 60}-${String(h).padStart(2, '0')}${String(m).padStart(2, '0')}-${ancho}.png`) });
         }
       }
     });

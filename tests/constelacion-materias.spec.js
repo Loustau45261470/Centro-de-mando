@@ -1,4 +1,4 @@
-// Mapa de la carrera (constelacion-materias.js): constelación que se adapta (horizontal en pantalla ancha,
+// Mapa de la carrera (constelacion-materias.js), dentro del overlay «Plan de carrera» (correlativas.js): constelación que se adapta (horizontal en pantalla ancha,
 // vertical en celular). Datos sintéticos: nombres genéricos sobre el plan 2019 (códigos/correlativas de correlativas.js).
 'use strict';
 const { test, expect } = require('./support/fixtures');
@@ -23,6 +23,7 @@ async function armar(page) {
 }
 async function irAConocimiento(page) {
   await page.evaluate(() => switchTab('conocimiento', document.querySelector('.nav-btn[onclick*="conocimiento"]')));
+  await page.evaluate(() => Correlativas.open());   // el mapa vive en el Plan de carrera
   await expect(page.locator('#cmz-card')).toBeVisible();
 }
 const sinScrollH = (page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1 && document.body.scrollWidth <= window.innerWidth + 1);
@@ -146,36 +147,23 @@ test('constelación: con movimiento reducido el anillo de "en curso" no se anima
   expect(anim).toBe('none');
 });
 
-test('constelación: medición del cambio a Conocimiento con y sin el mapa (mediana de 5)', async ({ cmPage }, info) => {
-  test.setTimeout(90000);
+test('constelación: no está en Conocimiento ni se dibuja hasta abrir el Plan de carrera; al cerrar no anima', async ({ cmPage, consoleErrors }) => {
   await cmPage.setViewportSize({ width: 1280, height: 800 });
   await armar(cmPage);
-  const cdp = await cmPage.context().newCDPSession(cmPage);
-  await cdp.send('Performance.enable');
-  const suma = async () => { const { metrics } = await cdp.send('Performance.getMetrics'); const g = (k) => (metrics.find((m) => m.name === k) || {}).value || 0; return (g('TaskDuration')) * 1000; };
-  const medir = async () => {
-    const xs = [];
-    for (let i = 0; i < 5; i++) {
-      await cmPage.evaluate(() => switchTab('vida', document.querySelector('.nav-btn[onclick*="vida"]')));
-      await cmPage.waitForTimeout(250);
-      const a = await suma();
-      const t = await cmPage.evaluate(async () => {
-        const t0 = performance.now();
-        switchTab('conocimiento', document.querySelector('.nav-btn[onclick*="conocimiento"]'));
-        const sync = performance.now() - t0;
-        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-        return { sync, total: performance.now() - t0 };
-      });
-      xs.push({ sync: t.sync, total: t.total, tarea: (await suma()) - a });
-    }
-    const med = (k) => xs.map((x) => x[k]).sort((p, q) => p - q)[2];
-    return { sync: +med('sync').toFixed(1), total: +med('total').toFixed(1), tarea: +med('tarea').toFixed(1) };
-  };
-  await cmPage.evaluate(() => { window.__C = window.Constelacion; });
-  await cmPage.evaluate(() => { window.Constelacion = undefined; });
-  const sin = await medir();
-  await cmPage.evaluate(() => { window.Constelacion = window.__C; });
-  const con = await medir();
-  console.log('MEDICION_CONOCIMIENTO ' + JSON.stringify({ sinMapa: sin, conMapa: con, proyecto: info.project.name }));
-  expect(con.sync - sin.sync).toBeLessThan(25);   // el mapa no debe sumar más que una fracción chica del cambio
+  await cmPage.evaluate(() => switchTab('conocimiento', document.querySelector('.nav-btn[onclick*="conocimiento"]')));
+  await cmPage.evaluate(() => { renderLawProgress(); });
+  await expect(cmPage.locator('#tab-conocimiento #cmz-card')).toHaveCount(0);
+  expect(await cmPage.locator('.cmz-nd').count()).toBe(0);                 // nada dibujado con la vista cerrada
+  await cmPage.evaluate(() => Correlativas.open());
+  await expect(cmPage.locator('#ov-carrera #cmz-card')).toBeVisible();
+  await expect(cmPage.locator('#ov-carrera .cmz-nd')).toHaveCount(49);
+  await expect(cmPage.locator('#ov-carrera .corr-sticky')).toBeVisible();   // la lista de materias sigue debajo
+  // sin botón redundante al plan de carrera dentro del mapa
+  await expect(cmPage.locator('#cmz-card button')).toHaveCount(0);
+  await cmPage.locator('.cmz-nd[data-code="60-410"]').click();
+  await expect(cmPage.locator('.cmz-info')).toContainText('Derecho penal parte general');
+  await expect(cmPage.locator('.cmz-info button')).toHaveCount(0);
+  await cmPage.evaluate(() => CMOverlay.close('ov-carrera'));
+  expect(await cmPage.evaluate(() => getComputedStyle(document.querySelector('.cmz-nd.s-cu .cmz-rg')).animationName)).toBe('none');
+  expect(consoleErrors).toEqual([]);
 });

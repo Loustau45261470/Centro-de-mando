@@ -1,4 +1,4 @@
-// Inicio del día dinámico: la 1.ª entrada del día entre 05:00 y 07:59 arranca la barra del día en ese momento.
+// Inicio del día dinámico: por defecto 05:00; la 1.ª entrada del día desde las 05:00 (a cualquier hora) arranca la barra en ese momento.
 // Reloj fijo; sin llamadas reales (ElevenLabs/LLM bloqueados por el fixture). Datos solo en memoria.
 // Con INICIO_SHOTS=<carpeta> guarda capturas de la barra a las 5:12.
 'use strict';
@@ -55,12 +55,24 @@ test.describe('Inicio del día dinámico', () => {
     expect(r.rango).toBe('5:12 AM — 12:00 AM');
     expect(r.fase).toBe('MAÑANA'); expect(r.pct).toBe('4%');   // (360-312)/1128 = 4,3 %
 
-    // Día siguiente a las 6:00: el inicio de ayer no cuenta (se registra uno nuevo en la entrada) y antes de entrar es 8:00.
+    // Día siguiente a las 6:00: el inicio de ayer no cuenta (se registra uno nuevo en la entrada) y antes de entrar es 5:00.
     await fijar(page, 6, 0, 25);
     r = await page.evaluate(() => ({ ini: cmInicioDiaMin(), arr: cmDiaArrancado() }));
-    expect(r).toEqual({ ini: 480, arr: false });
+    expect(r).toEqual({ ini: 300, arr: true });
     await entrar(page);
     expect((await barra(page)).guardado).toEqual({ fecha: '2026-11-25', min: 360 });
+  });
+
+  test('a las 5:00 sin entrar todavía: rango 5–24, MAÑANA 0 %, sin registro', async ({ cmPage: page }) => {
+    await limpiar(page);
+    await fijar(page, 5, 0);
+    const r = await barra(page);
+    expect(r.guardado).toBeNull();
+    expect(r.inicio).toBe(300);
+    expect(r.rango).toBe('5:00 AM — 12:00 AM');
+    expect(r.marcas).toEqual(['5 AM', '9:45 AM', '2:30 PM', '7:15 PM', '12 AM']);
+    expect(r.fase).toBe('MAÑANA'); expect(r.pct).toBe('0%');
+    expect(r.d).toEqual([285, 285, 285, 171, 114]);
   });
 
   test('a las 4:30 sigue DURMIENDO y no registra inicio', async ({ cmPage: page }) => {
@@ -70,20 +82,37 @@ test.describe('Inicio del día dinámico', () => {
     const r = await barra(page);
     expect(r.guardado).toBeNull();
     expect(r.fase).toBe('DURMIENDO'); expect(r.pct).toBe('—');
-    expect(r.rango).toBe('8:00 AM — 12:00 AM');
+    expect(r.rango).toBe('5:00 AM — 12:00 AM');
     expect(r.arrancado).toBe(false);
   });
 
-  test('primera entrada a las 9:00: rango 8–24 como siempre y no registra', async ({ cmPage: page }) => {
+  test('primera entrada a las 9:00: el día arranca a las 9, rango 9–24', async ({ cmPage: page }) => {
     await limpiar(page);
     await fijar(page, 9, 0);
     await entrar(page);
+    let r = await barra(page);
+    expect(r.guardado).toEqual({ fecha: '2026-11-24', min: 540 });
+    expect(r.rango).toBe('9:00 AM — 12:00 AM');
+    expect(r.marcas).toEqual(['9 AM', '12:45 PM', '4:30 PM', '8:15 PM', '12 AM']);
+    expect(r.fase).toBe('MAÑANA'); expect(r.pct).toBe('0%');
+    expect(r.d).toEqual([225, 225, 225, 135, 90]);
+    // Una segunda entrada más tarde no mueve el inicio.
+    await fijar(page, 14, 0);
+    await entrar(page);
+    r = await barra(page);
+    expect(r.guardado).toEqual({ fecha: '2026-11-24', min: 540 });
+    expect(r.fase).toBe('MEDIODÍA'); expect(r.pct).toBe('33%');
+  });
+
+  test('entrada muy tarde (22:00): la barra se muestra desde las 18:00 y no se rompe', async ({ cmPage: page }) => {
+    await limpiar(page);
+    await fijar(page, 22, 0);
+    await entrar(page);
     const r = await barra(page);
-    expect(r.guardado).toBeNull();
-    expect(r.rango).toBe('8:00 AM — 12:00 AM');
-    expect(r.marcas).toEqual(['8 AM', '12 PM', '4 PM', '8 PM', '12 AM']);
-    expect(r.fase).toBe('MAÑANA'); expect(r.pct).toBe('6%');
-    expect(r.d).toEqual([240, 240, 240, 144, 96]);
+    expect(r.guardado).toEqual({ fecha: '2026-11-24', min: 1320 });   // se guarda lo real
+    expect(r.rango).toBe('6:00 PM — 12:00 AM');                        // tope visual
+    expect(r.fase).toBe('TARDE'); expect(r.pct).toBe('67%');
+    expect(r.d.reduce((a, b) => a + b, 0)).toBeCloseTo(360, 0);
   });
 
   test('abrir la app después de las 5 y volver a la pestaña también arrancan el día', async ({ cmPage: page }) => {
@@ -95,12 +124,14 @@ test.describe('Inicio del día dinámico', () => {
     expect(r.fase).toBe('MAÑANA');
   });
 
-  test('voz: a las 5:30 no es noche si el día arrancó, sí lo es si no', async ({ cmPage: page }) => {
+  test('voz: no es noche desde las 5:00 (haya o no entrada); sí antes de las 5 y desde las 23', async ({ cmPage: page }) => {
     await limpiar(page);
     await fijar(page, 5, 30);
-    expect((await barra(page)).noche).toBe(true);        // sin entrada registrada
+    expect((await barra(page)).noche).toBe(false);       // día arrancado por defecto
     await entrar(page);
-    expect((await barra(page)).noche).toBe(false);       // día arrancado
+    expect((await barra(page)).noche).toBe(false);
+    await fijar(page, 4, 59);
+    expect((await barra(page)).noche).toBe(true);
     await fijar(page, 23, 30);
     expect((await barra(page)).noche).toBe(true);        // a la noche sigue valiendo
     await limpiar(page);
@@ -109,20 +140,22 @@ test.describe('Inicio del día dinámico', () => {
   });
 
   for (const ancho of [1280, 390]) {
-    test(`captura 5:12 (${ancho}) sin scroll horizontal`, async ({ cmPage: page }) => {
-      await page.setViewportSize({ width: ancho, height: ancho === 390 ? 844 : 900 });
-      await limpiar(page);
-      await fijar(page, 5, 12);
-      await entrar(page);
-      await page.click('.nav-btn[data-tab="vida"]');
-      await page.waitForFunction(() => document.getElementById('dayTln').getBoundingClientRect().width > 0);
-      await barra(page);
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-      if (SHOTS) {
-        fs.mkdirSync(SHOTS, { recursive: true });
-        await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 700)))));
-        await page.locator('.day-progress-wrap').screenshot({ path: path.join(SHOTS, `barra-0512-${ancho}.png`) });
-      }
-    });
+    for (const [h, m, entra] of [[5, 0, false], [9, 0, true]]) {
+      test(`captura ${h}:${String(m).padStart(2, '0')} (${ancho}) sin scroll horizontal`, async ({ cmPage: page }) => {
+        await page.setViewportSize({ width: ancho, height: ancho === 390 ? 844 : 900 });
+        await limpiar(page);
+        await fijar(page, h, m);
+        if (entra) await entrar(page);
+        await page.click('.nav-btn[data-tab="vida"]');
+        await page.waitForFunction(() => document.getElementById('dayTln').getBoundingClientRect().width > 0);
+        await barra(page);
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+        if (SHOTS) {
+          fs.mkdirSync(SHOTS, { recursive: true });
+          await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 700)))));
+          await page.locator('.day-progress-wrap').screenshot({ path: path.join(SHOTS, `barra-${h}00-${ancho}.png`) });
+        }
+      });
+    }
   }
 });

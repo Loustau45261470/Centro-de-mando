@@ -461,6 +461,7 @@ const Correlativas = (() => {
     if (!overlay._crBuilt) {
       body.innerHTML = `<div class="cm-ov-head"><div class="cm-ov-eyebrow">CONOCIMIENTO · CARRERA</div><div class="cm-ov-title">Plan de carrera</div></div>
         <div class="cm-ov-host">
+          <div id="constelacion-wrap"></div>
           <div class="corr-sticky">
             <div class="corr-counters" id="corr-counters"></div>
             <div class="corr-filters">
@@ -481,6 +482,7 @@ const Correlativas = (() => {
     const ov = ensureOverlay(); if (!ov) return;
     render();
     CMOverlay.open(ov);
+    if (window.Constelacion) Constelacion.render();   // mapa de la carrera: se dibuja recién al abrir esta vista
   }
 
   function setFiltroAnio(v) { _filtAnio = v; render(); }

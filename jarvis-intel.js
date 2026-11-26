@@ -397,7 +397,7 @@
   function _maybeMorningBriefing() {
     try {
       const h = new Date().getHours();
-      if (h >= 13 || (h < 7 && !(typeof cmDiaArrancado === 'function' && cmDiaArrancado()))) return;   // ventana 07:00-12:59; desde las 05:00 si el día ya arrancó (cmInicioDiaMin, app.js)
+      if (h >= 13 || (typeof cmDiaArrancado === 'function' ? !cmDiaArrancado() : h < 5)) return;   // ventana: desde que arrancó el día (05:00 o la 1.ª entrada, cmInicioDiaMin en app.js) hasta las 12:59
       if (localStorage.getItem('jarvis_enabled') !== '1') return;        // JARVIS no habilitado
       if (!window.JARVIS || typeof JARVIS.speak !== 'function') return;  // JARVIS no cargó
       const today = _today();

@@ -7936,6 +7936,8 @@ textarea.pr-in { resize: vertical; min-height: 60px; }
 
 /* ═══ Mapa de la carrera (constelacion-materias.js): ancho = horizontal, celular = vertical ═══ */
 .cmz { --sc: var(--c-conocimiento); margin-top: 14px; overflow: hidden; }
+.cm-ov-host .cmz { margin-top: 0; }   /* vive dentro del Plan de carrera */
+.cm-overlay:not(.show) .cmz .cmz-rg { animation: none !important; }   /* overlay cerrado: sin animación aunque el mapa "intersecte" */
 .cmz-vw { position: relative; }
 .cmz svg { display: block; width: 100%; height: auto; overflow: hidden; }
 .cmz-ed { stroke: rgba(100,155,220,.12); stroke-width: 1; fill: none; }

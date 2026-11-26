@@ -2014,22 +2014,24 @@ function buildTickerAlerts() {
 // ════════════════════════════════════════════════════════
 // MAIN TAB — DAY PROGRESS
 // ════════════════════════════════════════════════════════
-const WAKE = 8, SLEEP = 24;
-// Inicio del día dinámico: la 1.ª vez que se abre/vuelve a la app en una fecha entre las 05:00 y las 07:59, el día arranca en ese
-// momento (por dispositivo, en localStorage — no toca el estado sincronizado). Sin entrada antes de las 8 → 08:00 como siempre.
-const DIA_INICIO_DESDE = 300, DIA_INICIO_KEY = 'cdm_inicioDia';
+const SLEEP = 24;
+// Inicio del día dinámico: por defecto 05:00; la 1.ª vez que se abre/vuelve a la app en una fecha, a partir de las 05:00 y a cualquier
+// hora, el día arranca en ese momento (por dispositivo, en localStorage — no toca el estado sincronizado). Antes de las 05:00 es
+// noche (DURMIENDO) y no registra. Tope: un inicio registrado después de las 18:00 se muestra como 18:00 (rango mínimo de 6 h
+// para que la barra y las fases no se rompan); el valor guardado no se modifica.
+const DIA_INICIO_DESDE = 300, DIA_INICIO_TOPE = 18*60, DIA_INICIO_KEY = 'cdm_inicioDia';
 function cmInicioDiaMin() {
   try {
     const r = JSON.parse(localStorage.getItem(DIA_INICIO_KEY) || 'null');
-    if (r && r.fecha === localStr(new Date()) && r.min >= DIA_INICIO_DESDE && r.min < WAKE*60) return r.min;
+    if (r && r.fecha === localStr(new Date()) && r.min >= DIA_INICIO_DESDE) return Math.min(r.min, DIA_INICIO_TOPE);
   } catch (e) {}
-  return WAKE*60;
+  return DIA_INICIO_DESDE;
 }
 function cmDiaArrancado() { const n = new Date(); return n.getHours()*60 + n.getMinutes() >= cmInicioDiaMin(); }
 function cmRegistrarInicioDia() {
   try {
     const n = new Date(), cm = n.getHours()*60 + n.getMinutes(), hoy = localStr(n);
-    if (cm < DIA_INICIO_DESDE || cm >= WAKE*60) return;
+    if (cm < DIA_INICIO_DESDE) return;
     const r = JSON.parse(localStorage.getItem(DIA_INICIO_KEY) || 'null');
     if (r && r.fecha === hoy) return;
     localStorage.setItem(DIA_INICIO_KEY, JSON.stringify({ fecha: hoy, min: cm }));
@@ -5256,7 +5258,7 @@ await loadState();
 _startFirestoreSync();
 if (typeof window._reloadProyectosFromState === 'function') window._reloadProyectosFromState();
 _migratePhotos();   // migra fotos embebidas viejas a Storage (una vez, cuando Storage esté listo)
-cmRegistrarInicioDia();   // 1.ª entrada del día entre 05:00 y 07:59 → el día arranca ahora
+cmRegistrarInicioDia();   // 1.ª entrada del día desde las 05:00 → el día arranca ahora
 updateDayProgress();
 setInterval(updateDayProgress, 60000);
 setInterval(buildTickerAlerts, 30000);

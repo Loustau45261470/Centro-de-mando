@@ -17,11 +17,10 @@
   // así una interrupción corta TODA la cola pendiente, no solo la oración que suena en ese momento.
   let _playGen = 0;
 
-  // Modo nocturno: >=23h o <7h (el usuario duerme 00:00-07:00) — voz más baja y respuestas
-  // más cortas (esto último lo aplica ears.js en el prompt de Gemini). Guard: solo la hora local.
+  // Modo nocturno: >=23h o hasta que arranca el día (05:00 o la hora de la 1.ª entrada, ver cmInicioDiaMin en app.js) —
+  // voz más baja y respuestas más cortas (esto último lo aplica ears.js en el prompt de Gemini). Guard: solo la hora local.
   function _isNightTime() {
-    // Si el día ya arrancó (primera entrada desde las 05:00, ver cmInicioDiaMin en app.js) la madrugada no cuenta como noche.
-    try { const h = new Date().getHours(); return h >= 23 || (h < 7 && !(typeof cmDiaArrancado === 'function' && cmDiaArrancado())); } catch(e) { return false; }
+    try { const h = new Date().getHours(); return h >= 23 || (typeof cmDiaArrancado === 'function' ? !cmDiaArrancado() : h < 5); } catch(e) { return false; }
   }
   const NIGHT_VOLUME = 0.55;
 
@@ -600,7 +599,7 @@
 
   function greeting() {
     const h = new Date().getHours();
-    const lines = (h >= 6 || (h >= 5 && typeof cmDiaArrancado === 'function' && cmDiaArrancado())) && h < 12
+    const lines = (typeof cmDiaArrancado === 'function' ? cmDiaArrancado() : h >= 5) && h < 12
       ? ["Good morning, sir. All systems are online.",
          "Good morning, sir. Ready when you are.",
          "Good morning, sir. Your agenda is clear.",

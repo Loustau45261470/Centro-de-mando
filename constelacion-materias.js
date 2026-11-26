@@ -1,6 +1,6 @@
 'use strict';
 // ════════════════════════════════════════════════════════════════════════
-// CONSTELACIÓN DE MATERIAS (Conocimiento → "Mapa de la carrera").
+// CONSTELACIÓN DE MATERIAS (Conocimiento → Plan de carrera → "Mapa de la carrera", arriba de la lista; se dibuja al abrir esa vista).
 // Todas las materias del plan (CORR_SUBJECTS, correlativas.js) como estrellas, unidas por sus correlativas.
 // Pantalla ancha: mapa horizontal, una columna por año. Celular: vertical, un año por franja.
 // Solo LEE el estado (Correlativas.computeStatus/estado, Finales.activos, S.lawPlan); no guarda nada.
@@ -147,9 +147,7 @@ const Constelacion = (() => {
 
   function esqueleto(wrap) {
     wrap.innerHTML = `<div class="card cmz" id="cmz-card">
-      <div class="card-title">🗺 Mapa de la carrera
-        <button class="btn btn-ghost btn-sm" type="button" onclick="if(window.Correlativas) Correlativas.open()">Correlatividades →</button>
-      </div>
+      <div class="card-title">🗺 Mapa de la carrera</div>
       <div class="cmz-vw"><svg role="group" aria-label="Mapa de las materias de la carrera"></svg></div>
       <div class="cmz-bar" aria-hidden="true"><i class="cmz-b-ap"></i><i class="cmz-b-cu"></i><i class="cmz-b-pe"></i></div>
       <div class="cmz-cnt"></div>
@@ -229,8 +227,7 @@ const Constelacion = (() => {
     const hs = n.hijos.map(h => N[h].corto);
     const habilita = hs.length ? esc(hs.slice(0, 6).join(', ')) + (hs.length > 6 ? ' y ' + (hs.length - 6) + ' más' : '') : 'ninguna';
     const fin = d.st === 'ap' || d.st === 'ex' ? '' : `<br>Final: ${d.fecha ? esc(d.fecha) : 'sin fecha'}`;
-    return `<b>${esc(n.nombre)}</b> · ${n.anio}° año · ${ESTADOS[d.st]}${fin}<br>Necesita: ${need}<br>Habilita: ${habilita}`
-      + `<br><button class="btn btn-ghost btn-sm cmz-ver" type="button" onclick="if(window.Correlativas) Correlativas.open()">Ver en el plan de carrera</button>`;
+    return `<b>${esc(n.nombre)}</b> · ${n.anio}° año · ${ESTADOS[d.st]}${fin}<br>Necesita: ${need}<br>Habilita: ${habilita}`;
   }
 
   function elegir(i) { sel = sel === i ? -1 : i; pintar(); }
@@ -246,7 +243,8 @@ const Constelacion = (() => {
   // Punto de entrada: lo llama renderLawProgress (cada cambio de datos / cambio de pestaña).
   function render() {
     const wrap = document.getElementById('constelacion-wrap');
-    if (!wrap || !init() || typeof S === 'undefined' || !S || !S.lawProgress) return;
+    if (!wrap || !wrap.closest('.cm-overlay.show')) return;   // solo se dibuja con el Plan de carrera abierto
+    if (!init() || typeof S === 'undefined' || !S || !S.lawProgress) return;
     const d = calcular();
     const f = d.map(x => x.st + (x.fecha || '')).join('|');
     if (!root || !root.isConnected) { esqueleto(wrap); construido = null; firma = ''; }
