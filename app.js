@@ -2010,39 +2010,41 @@ function buildTickerAlerts() {
 // MAIN TAB — DAY PROGRESS
 // ════════════════════════════════════════════════════════
 const WAKE = 8, SLEEP = 24;
-const PALETTE = [[255,216,158],[255,205,121],[255,227,143],[255,183,106],[255,149,89],[243,111,79],[226,93,122],[123,91,176],[47,58,102]];
-
-function lerpColor(t) {
-  const n = PALETTE.length-1;
-  const i = Math.min(Math.floor(t*n), n-1);
-  const f = t*n-i;
-  const [a,b] = [PALETTE[i], PALETTE[i+1]];
-  return `rgb(${Math.round(a[0]+(b[0]-a[0])*f)},${Math.round(a[1]+(b[1]-a[1])*f)},${Math.round(a[2]+(b[2]-a[2])*f)})`;
-}
+// Fases del día (minutos desde medianoche): los cortes son los de siempre (25/50/75/90 % del rango despierto).
+const DAY_SEG = [
+  { n: 'MAÑANA', a: 480, b: 720 }, { n: 'MEDIODÍA', a: 720, b: 960 }, { n: 'TARDE', a: 960, b: 1200 },
+  { n: 'NOCHE', a: 1200, b: 1344 }, { n: 'HORA DE DORMIR', a: 1344, b: 1440 },
+];
 
 function updateDayProgress() {
   const now = new Date();
-  const h = now.getHours() + now.getMinutes()/60;
+  const cm = now.getHours()*60 + now.getMinutes();
+  const T0 = WAKE*60, T1 = SLEEP*60;
   const pctEl = document.getElementById('dayPct');
+  const tln = document.getElementById('dayTln');
+  if (!pctEl || !tln) return;
   const phaseEl = document.getElementById('dayPhase');
-  const fillEl = document.getElementById('dayFill');
   const clockEl = document.getElementById('dayClock');
+  const leftEl = document.getElementById('dayLeft');
+  const nowEl = document.getElementById('dayNow');
 
-  let hh = now.getHours()%12||12;
-  clockEl.textContent = `${hh}:${String(now.getMinutes()).padStart(2,'0')} ${now.getHours()>=12?'PM':'AM'}`;
-
-  if (h < WAKE) {
-    pctEl.textContent = '—'; phaseEl.textContent = 'DURMIENDO';
-    fillEl.style.cssText = 'width:0%;background:#4D4B47';
-  } else if (h < SLEEP) {
-    const pct = (h-WAKE)/(SLEEP-WAKE)*100;
-    pctEl.textContent = Math.round(pct)+'%';
-    phaseEl.textContent = pct<25?'MAÑANA':pct<50?'MEDIODÍA':pct<75?'TARDE':pct<90?'NOCHE':'HORA DE DORMIR';
-    fillEl.style.cssText = `width:${pct}%;background:${lerpColor(pct/100)}`;
-  } else {
-    pctEl.textContent = '100%'; phaseEl.textContent = 'NOCHE TARDE';
-    fillEl.style.cssText = 'width:100%;background:#E25D7A';
-  }
+  const hh = now.getHours()%12||12;
+  const hora = `${hh}:${String(now.getMinutes()).padStart(2,'0')} ${now.getHours()>=12?'PM':'AM'}`;
+  clockEl.textContent = hora;
+  const p = Math.max(0, Math.min(1, (cm-T0)/(T1-T0)));
+  const si = cm < T0 ? -1 : DAY_SEG.findIndex(s => cm < s.b);
+  pctEl.textContent = cm < T0 ? '—' : Math.round(p*100)+'%';
+  phaseEl.textContent = cm < T0 ? 'DURMIENDO' : DAY_SEG[si].n;
+  const rest = Math.max(0, T1 - Math.max(cm, T0));
+  leftEl.textContent = `Quedan ${Math.floor(rest/60)} h ${rest%60} min`;
+  nowEl.textContent = 'Ahora · ' + hora;
+  tln.style.setProperty('--p', p.toFixed(4));
+  tln.querySelectorAll('.dg2-sg').forEach((el, i) => {
+    const s = DAY_SEG[i];
+    el.classList.toggle('cur', i === si);
+    el.classList.toggle('pst', si > i);
+    el.style.setProperty('--f', Math.max(0, Math.min(1, (cm-s.a)/(s.b-s.a))).toFixed(4));
+  });
 }
 
 // ════════════════════════════════════════════════════════

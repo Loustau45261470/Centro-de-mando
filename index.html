@@ -21,7 +21,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-<link rel="stylesheet" href="styles.css?v=340">
+<link rel="stylesheet" href="styles.css?v=342">
 <script>try{if(localStorage.getItem('cm_rail_off')==='1')document.documentElement.classList.add('rail-off')}catch(e){}</script>
 <link rel="stylesheet" href="gamemode.css">
 <link rel="stylesheet" href="overlay-core.css">
@@ -225,18 +225,28 @@
     <div id="kpi-vida" class="kpi-strip kpi-sm"></div>
     <!-- Day progress (debajo de las cuadrículas de KPIs, ancho completo) -->
     <div class="card day-progress-wrap">
-      <div class="day-progress-header">
-        <div>
-          <div class="day-pct" id="dayPct">0%</div>
-          <div class="day-phase" id="dayPhase">CARGANDO</div>
+      <div class="dg2-top">
+        <div class="dg2-l">
+          <div class="dg2-pc" id="dayPct">0%</div>
+          <div class="dg2-ph" id="dayPhase">CARGANDO</div>
         </div>
-        <div style="text-align:right">
-          <div class="day-time" id="dayClock"></div>
-          <div class="text-xs text-ter mt-8">8:00 AM — 12:00 AM</div>
+        <div class="dg2-r">
+          <div class="dg2-tm" id="dayClock"></div>
+          <div class="dg2-rg">8:00 AM — 12:00 AM</div>
+          <div class="dg2-lf" id="dayLeft"></div>
         </div>
       </div>
-      <div class="day-bar-wrap"><div class="day-bar-fill" id="dayFill" style="width:0%"></div></div>
-      <div class="time-labels"><span>8 AM</span><span>12 PM</span><span>4 PM</span><span>8 PM</span><span>12 AM</span></div>
+      <div class="dg2-tln" id="dayTln">
+        <div class="dg2-mkr" id="dayMkr"><div class="dg2-fg" id="dayNow">Ahora</div><i class="dg2-ln"></i></div>
+        <div class="dg2-sgs">
+          <div class="dg2-sg" style="--d:240"><span class="dg2-sn">MAÑANA</span><div class="dg2-tr"><b class="dg2-fl"></b></div></div>
+          <div class="dg2-sg" style="--d:240"><span class="dg2-sn">MEDIODÍA</span><div class="dg2-tr"><b class="dg2-fl"></b></div></div>
+          <div class="dg2-sg" style="--d:240"><span class="dg2-sn">TARDE</span><div class="dg2-tr"><b class="dg2-fl"></b></div></div>
+          <div class="dg2-sg" style="--d:144"><span class="dg2-sn">NOCHE</span><div class="dg2-tr"><b class="dg2-fl"></b></div></div>
+          <div class="dg2-sg" style="--d:96"><span class="dg2-sn"><span class="dg2-lg" aria-label="Hora de dormir"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M8 1.2A5 5 0 1 0 10.8 8 4 4 0 0 1 8 1.2z" fill="currentColor"/></svg></span><span class="dg2-lw">DORMIR</span></span><div class="dg2-tr"><b class="dg2-fl"></b></div></div>
+        </div>
+        <div class="dg2-mks"><span style="--l:0%">8 AM</span><span style="--l:25%">12 PM</span><span style="--l:50%">4 PM</span><span style="--l:75%">8 PM</span><span style="--l:100%">12 AM</span></div>
+      </div>
     </div>
     <!-- ⚡ INTEL — análisis de la sección -->
     <div class="card intel-card">
@@ -2135,7 +2145,7 @@
 <script src="deadlines.js?v=15"></script>
 <script src="motion.js?v=7"></script>
 <script src="descifrar.js?v=2"></script>
-<script src="app.js?v=259"></script>
+<script src="app.js?v=260"></script>
 <script src="datos-privados.js?v=2"></script>
 <script src="sync-diagnostico.js?v=2"></script>
 <script src="historial-versiones.js?v=4"></script>

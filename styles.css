@@ -556,17 +556,42 @@ textarea { resize: vertical; min-height: 60px; }
 /* ══════════════════════════════
    MAIN TAB
 ══════════════════════════════ */
-.day-progress-wrap { margin-bottom: 4px; padding: 10px 14px !important; }
-.day-progress-header {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 5px;
-}
-.day-time { font-family: var(--mono); font-size: var(--fs-12-5); color: var(--ts); }
-.day-pct { font-size: 18px; font-weight: 800; letter-spacing: -.03em; }
-.day-phase { font-family: var(--mono); font-size: var(--fs-12-5); font-weight: 700; letter-spacing: .15em; text-transform: uppercase; color: var(--tt); }
-.day-bar-wrap { position: relative; height: 4px; border-radius: 99px; background: rgba(255,255,255,.07); overflow: hidden; margin-bottom: 4px; }
-.day-bar-fill { height: 100%; border-radius: 99px; transition: width .6s; }
-.time-labels { display: flex; justify-content: space-between; font-family: var(--mono); font-size: var(--fs-12); color: var(--tt); }
+.day-progress-wrap { margin-bottom: 4px; padding: 12px 14px 22px !important; --sc: #0FB9D6; }
+/* Barra del día: línea de tiempo por fases con cartel «Ahora» (HUD tanda 5 · G2) */
+.dg2-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.dg2-l, .dg2-r { display: grid; gap: 4px; min-width: 0; }
+.dg2-r { text-align: right; justify-items: end; }
+.dg2-pc { font-family: var(--mono); font-size: clamp(30px, 9vw, 40px); font-weight: 700; line-height: 1.1; letter-spacing: -.03em; color: #fff; white-space: nowrap; text-shadow: 0 0 16px color-mix(in srgb, var(--sc) 60%, transparent); }
+.dg2-ph { font-family: var(--mono); font-size: var(--fs-12); font-weight: 600; letter-spacing: .14em; color: var(--ts); }
+.dg2-tm { font-family: var(--mono); font-size: clamp(17px, 5vw, 22px); font-weight: 700; line-height: 1.1; color: #fff; white-space: nowrap; }
+.dg2-rg { font-family: var(--mono); font-size: var(--fs-12); color: var(--ts); white-space: nowrap; }
+.dg2-lf { font-family: var(--mono); font-size: var(--fs-12); color: var(--tt); white-space: nowrap; }
+.dg2-tln { position: relative; margin-top: 8px; padding-top: 30px; --t1: color-mix(in srgb, var(--sc) 60%, #fff); --t2: var(--sc); --t3: color-mix(in srgb, var(--sc) 78%, #04090F); --t4: color-mix(in srgb, var(--sc) 52%, #04090F); --t5: color-mix(in srgb, var(--sc) 32%, #04090F); }
+.dg2-mkr { position: absolute; top: 0; bottom: 24px; left: calc(var(--p, 0) * 100%); width: 0; z-index: 3; pointer-events: none; }
+.dg2-fg { position: absolute; top: 0; left: 0; transform: translateX(calc(var(--p, 0) * -100%)); padding: 2px 7px; border-radius: 4px; background: var(--sc); color: #04090F; font-family: var(--mono); font-size: var(--fs-12); font-weight: 700; white-space: nowrap; box-shadow: 0 0 12px color-mix(in srgb, var(--sc) 60%, transparent); }
+.dg2-ln { position: absolute; left: -1px; top: 22px; bottom: 0; width: 2px; background: #fff; box-shadow: 0 0 8px 1px var(--sc); animation: dg2Ln 1.8s ease-in-out infinite; }
+@keyframes dg2Ln { 50% { opacity: .45; } }
+.dg2-sgs { display: flex; }
+.dg2-sg { position: relative; flex: var(--d) 1 0; min-width: 0; --t: var(--t1); }
+.dg2-sg:nth-child(2) { --t: var(--t2); } .dg2-sg:nth-child(3) { --t: var(--t3); } .dg2-sg:nth-child(4) { --t: var(--t4); } .dg2-sg:nth-child(5) { --t: var(--t5); }
+.dg2-sn { display: block; height: 16px; font-family: var(--mono); font-size: var(--fs-12); font-weight: 600; line-height: 16px; letter-spacing: .08em; color: color-mix(in srgb, var(--t) 65%, #04090F); white-space: nowrap; overflow: hidden; padding-left: 2px; }
+.dg2-sn svg { width: 11px; height: 11px; vertical-align: -1px; }
+.dg2-sn .dg2-lw { display: none; }
+@media (min-width: 760px) { .dg2-sn .dg2-lg { display: none; } .dg2-sn .dg2-lw { display: inline; } }
+.dg2-sg.cur .dg2-sn, .dg2-sg.pst .dg2-sn { color: var(--t); }
+/* El corte entre fases es un borde transparente: el relleno queda recortado al área interior. */
+.dg2-tr { height: 14px; box-sizing: border-box; border-right: 2px solid transparent; background: color-mix(in srgb, var(--t) 13%, transparent); background-clip: padding-box; box-shadow: inset 0 1px 0 color-mix(in srgb, var(--t) 40%, transparent); overflow: hidden; }
+.dg2-sg:first-child .dg2-tr { border-radius: 3px 0 0 3px; }
+.dg2-sg:last-child .dg2-tr { border-right: 0; border-radius: 0 3px 3px 0; }
+.dg2-fl { position: relative; display: block; height: 100%; width: calc(var(--f, 0) * 100%); background: var(--t); overflow: hidden; }
+.dg2-sg.cur .dg2-fl::after { content: ""; position: absolute; top: 0; bottom: 0; left: -36px; right: 0; background: repeating-linear-gradient(115deg, transparent 0 7px, rgba(255,255,255,.22) 7px 9px); animation: dg2Strp 2.4s linear infinite; }
+@keyframes dg2Strp { to { transform: translateX(36px); } }
+.dg2-mks { position: relative; height: 22px; margin-top: 2px; font-family: var(--mono); font-size: var(--fs-12); color: var(--tt); }
+.dg2-mks span { position: absolute; top: 0; left: var(--l); transform: translateX(-50%); padding-top: 6px; white-space: nowrap; }
+.dg2-mks span::before { content: ""; position: absolute; left: 50%; top: 0; height: 4px; width: 1px; background: currentColor; }
+.dg2-mks span:first-child { transform: none; } .dg2-mks span:first-child::before { left: 0; }
+.dg2-mks span:last-child { transform: translateX(-100%); } .dg2-mks span:last-child::before { left: 100%; }
+@media (prefers-reduced-motion: reduce) { .dg2-ln, .dg2-sg.cur .dg2-fl::after { animation: none; } }
 
 .streak-pill {
   display: inline-flex; align-items: center; gap: 5px;
@@ -1996,7 +2021,7 @@ html.mo-in .tab-panel.active .hh-cell.hh-today { animation:hh-on .38s ease-out b
 .study-cal-stat-num, .qobj-progress-num, .rtn-stats-bar .rtn-stat-val, #goalsDoneNum {
   font-family: var(--mono); text-shadow: 0 0 14px currentColor;
 }
-.prog-fill, .day-bar-fill, .law-total-bar-fill, .law-year-bar-fill,
+.prog-fill, .law-total-bar-fill, .law-year-bar-fill,
 .qobj-progress-bar, .cal-week-bar-done, .cal-month-bar-fill, .ach-global-fill {
   box-shadow: 0 0 8px var(--accent);
 }
@@ -3924,10 +3949,6 @@ body.font-jakarta  { --sans: "Plus Jakarta Sans", sans-serif; }
 #tab-vida .check-label { color: var(--tab-t1); font-size: var(--fs-13); }
 
 /* ── Day progress (vida) ── */
-#tab-vida .day-pct { color: var(--tab-t1); }
-#tab-vida .day-phase { color: var(--tab-t3); font-size: var(--fs-12); letter-spacing: 0.12em; }
-#tab-vida .day-time { color: var(--tab-t3); }
-#tab-vida .time-labels { color: var(--tab-t3); font-size: var(--fs-12); }
 
 /* ── Sleep tracker (vida) ── */
 #tab-vida .sleep-section-label {
