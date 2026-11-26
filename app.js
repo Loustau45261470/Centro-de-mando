@@ -1960,7 +1960,7 @@ function buildTickerAlerts() {
       : (sec === 'vida' && Array.isArray(S.habitTrackers) ? S.habitTrackers : []);
     habits.forEach(habit => {
       const val = (habit.days || {})[today];
-      if (!val || val === 'partial') {
+      if (!val) {   // cualquier marca (hecho, parcial, no lo hice, descanso) lo saca de la cinta
         alerts.push({ text: `${habit.emoji || '📌'} ${habit.name} pendiente`, cls: 'warn' });
       }
     });
