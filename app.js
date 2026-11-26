@@ -2017,13 +2017,13 @@ function buildTickerAlerts() {
 const SLEEP = 24;
 // Inicio del día dinámico: por defecto 05:00; la 1.ª vez que se abre/vuelve a la app en una fecha, a partir de las 05:00 y a cualquier
 // hora, el día arranca en ese momento (por dispositivo, en localStorage — no toca el estado sincronizado). Antes de las 05:00 es
-// noche (DURMIENDO) y no registra. Tope: un inicio registrado después de las 18:00 se muestra como 18:00 (rango mínimo de 6 h
-// para que la barra y las fases no se rompan); el valor guardado no se modifica.
-const DIA_INICIO_DESDE = 300, DIA_INICIO_TOPE = 18*60, DIA_INICIO_KEY = 'cdm_inicioDia';
+// noche (DURMIENDO) y no registra. Tope: solo una primera entrada hasta las 11:00 cuenta como "me levanté"; después (ej. abrir
+// la PC a la tarde cuando el celular ya se usó a la mañana) el día se toma desde las 05:00 y no se registra nada.
+const DIA_INICIO_DESDE = 300, DIA_INICIO_TOPE = 11*60, DIA_INICIO_KEY = 'cdm_inicioDia';
 function cmInicioDiaMin() {
   try {
     const r = JSON.parse(localStorage.getItem(DIA_INICIO_KEY) || 'null');
-    if (r && r.fecha === localStr(new Date()) && r.min >= DIA_INICIO_DESDE) return Math.min(r.min, DIA_INICIO_TOPE);
+    if (r && r.fecha === localStr(new Date()) && r.min >= DIA_INICIO_DESDE && r.min <= DIA_INICIO_TOPE) return r.min;
   } catch (e) {}
   return DIA_INICIO_DESDE;
 }
@@ -2031,7 +2031,7 @@ function cmDiaArrancado() { const n = new Date(); return n.getHours()*60 + n.get
 function cmRegistrarInicioDia() {
   try {
     const n = new Date(), cm = n.getHours()*60 + n.getMinutes(), hoy = localStr(n);
-    if (cm < DIA_INICIO_DESDE) return;
+    if (cm < DIA_INICIO_DESDE || cm > DIA_INICIO_TOPE) return;
     const r = JSON.parse(localStorage.getItem(DIA_INICIO_KEY) || 'null');
     if (r && r.fecha === hoy) return;
     localStorage.setItem(DIA_INICIO_KEY, JSON.stringify({ fecha: hoy, min: cm }));

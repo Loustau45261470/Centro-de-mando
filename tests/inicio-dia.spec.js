@@ -104,15 +104,35 @@ test.describe('Inicio del día dinámico', () => {
     expect(r.fase).toBe('MEDIODÍA'); expect(r.pct).toBe('33%');
   });
 
-  test('entrada muy tarde (22:00): la barra se muestra desde las 18:00 y no se rompe', async ({ cmPage: page }) => {
+  test('primera entrada a la tarde (17:32): no cuenta como inicio, el día va desde las 5:00', async ({ cmPage: page }) => {
+    await limpiar(page);
+    await fijar(page, 17, 32);
+    await entrar(page);
+    const r = await barra(page);
+    expect(r.guardado).toBeNull();
+    expect(r.rango).toBe('5:00 AM — 12:00 AM');
+    expect(r.fase).toBe('TARDE'); expect(r.pct).toBe('66%');
+  });
+
+  test('inicio viejo guardado después de las 11 (versión anterior) se ignora', async ({ cmPage: page }) => {
+    await limpiar(page);
+    await fijar(page, 17, 34);
+    await page.evaluate(() => localStorage.setItem('cdm_inicioDia', JSON.stringify({ fecha: localStr(new Date()), min: 1052 })));
+    await entrar(page);
+    const r = await barra(page);
+    expect(r.rango).toBe('5:00 AM — 12:00 AM');
+    expect(r.fase).toBe('TARDE');
+  });
+
+  test('entrada muy tarde (22:00): el día va desde las 5:00 y no se rompe', async ({ cmPage: page }) => {
     await limpiar(page);
     await fijar(page, 22, 0);
     await entrar(page);
     const r = await barra(page);
-    expect(r.guardado).toEqual({ fecha: '2026-11-24', min: 1320 });   // se guarda lo real
-    expect(r.rango).toBe('6:00 PM — 12:00 AM');                        // tope visual
-    expect(r.fase).toBe('TARDE'); expect(r.pct).toBe('67%');
-    expect(r.d.reduce((a, b) => a + b, 0)).toBeCloseTo(360, 0);
+    expect(r.guardado).toBeNull();
+    expect(r.rango).toBe('5:00 AM — 12:00 AM');
+    expect(r.fase).toBe('NOCHE'); expect(r.pct).toBe('89%');
+    expect(r.d.reduce((a, b) => a + b, 0)).toBeCloseTo(1140, 0);
   });
 
   test('abrir la app después de las 5 y volver a la pestaña también arrancan el día', async ({ cmPage: page }) => {
