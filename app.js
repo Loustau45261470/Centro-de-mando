@@ -4137,6 +4137,7 @@ function renderNWSeriesSelect() {
 }
 function setNWSeries(v) {
   _nwSeries = String(v || 'total');
+  NWTrazo.replay(nwLineInst);
   updateNWCharts();
 }
 
@@ -4187,13 +4188,14 @@ function setNWRange(r) {
   if (!(r in _NW_RANGES)) return;
   try { localStorage.setItem(_NW_RANGE_KEY, r); } catch (e) {}
   _renderNWRange();
+  NWTrazo.replay(nwLineInst);
   updateNWCharts();
 }
 
 // Escalas del gráfico de líneas: el eje Y se ajusta solo a la serie elegida (no arranca en cero).
 function _nwLineScales() {
   return {
-    x: { type: 'category', ticks: { display: false } },   // sin fechas en el eje X (la fecha sigue en el tooltip)
+    x: { type: 'category', ticks: { display: false }, grid: { display: false } },   // sin fechas en el eje X (la fecha sigue en el tooltip); sin grilla vertical (con cientos de días era un rayado)
     y: { grace: '8%', ticks: { font: { size: _cfs(13) }, callback: (v, i, ticks) => {
       const step = ticks && ticks.length > 1 ? Math.abs(ticks[1].value - ticks[0].value) : 1;
       return fmtMoney(v, 'USD', step < 1 ? 2 : 0);
@@ -4201,7 +4203,9 @@ function _nwLineScales() {
   };
 }
 function _nwLineDataset(info, hist) {
-  return { label: info.label, data: _nwSeriesData(info, hist), borderColor: _hexA(info.color, .85), backgroundColor: _hexA(info.color, .08), tension: .3, pointRadius: 3, fill: true, spanGaps: true };
+  // Transparente y sin puntos: la línea la dibuja NWTrazo (patrimonio-trazo.js) con degradé, luz y punta que late.
+  return { label: info.label, data: _nwSeriesData(info, hist), borderColor: 'rgba(0,0,0,0)', borderWidth: 0, fill: false, tension: .3, pointRadius: 0, pointHoverRadius: 0, spanGaps: true,
+    _noGrad: true, _noGlow: true, _tz: /^#[0-9a-f]{6}$/i.test(info.color || '') ? info.color : '#6BE3A4', _tzFill: info.ids ? info.color : '#38BDF8' };
 }
 
 // ── Crosshair HUD del gráfico de evolución ──
@@ -4254,27 +4258,46 @@ const _nwCrosshair = {
   },
   beforeDestroy(chart) { (chart._nwHandlers || []).forEach(([n, f]) => chart.canvas.removeEventListener(n, f)); },
   afterDatasetsDraw(chart) {
-    const m = chart._nwXh; if (!m || m.sel == null) return;
-    const a = m.anchors[m.sel]; if (!a) return;
+    // Con el dedo/mouse encima manda la elección; si no, el cartel acompaña a la luz que recorre el gráfico (NWTrazo).
+    const m = chart._nwXh, tz = chart._nwTz; if (!m) return;
+    let j = m.sel;
+    const xs = chart.scales.x, auto = j == null && !!(tz && tz.on);
+    if (auto) {
+      let bd = Infinity;
+      m.anchors.forEach((an, k) => { const px = xs.getPixelForValue(an.i); if (px > tz.xd + .5) return; const d = Math.abs(px - tz.cx); if (d < bd) { bd = d; j = k; } });
+    }
+    m.txt = null;
+    if (j == null) return;
+    const a = m.anchors[j]; if (!a) return;
     const ds = chart.data.datasets[0], v = ds && ds.data[a.i]; if (v == null) return;
-    const c = chart.ctx, area = chart.chartArea, x = chart.scales.x.getPixelForValue(a.i), y = chart.scales.y.getPixelForValue(v);
-    const col = getComputedStyle(chart.canvas).getPropertyValue('--accent').trim() || '#38BDF8';
+    const c = chart.ctx, area = chart.chartArea, x = xs.getPixelForValue(a.i), y = chart.scales.y.getPixelForValue(v);
+    const lx = auto ? tz.cx : x, t = tz ? tz.t : 0;
     c.save();
-    c.setLineDash([4, 4]); c.strokeStyle = _hexA(col, .65); c.lineWidth = 1;
-    c.beginPath(); c.moveTo(x, area.top); c.lineTo(x, area.bottom); c.stroke(); c.setLineDash([]);
+    c.setLineDash([4, 4]); c.lineWidth = 1;
+    c.strokeStyle = 'rgba(190,240,255,.65)'; c.beginPath(); c.moveTo(lx, area.top - 4); c.lineTo(lx, area.bottom); c.stroke();
+    c.strokeStyle = 'rgba(190,240,255,.28)'; c.beginPath(); c.moveTo(area.left, y); c.lineTo(area.right, y); c.stroke();
+    c.setLineDash([]);
     c.shadowColor = '#fff'; c.shadowBlur = 14; c.fillStyle = '#fff';
     c.beginPath(); c.arc(x, y, 3.6, 0, Math.PI * 2); c.fill(); c.shadowBlur = 0;
-    c.strokeStyle = _hexA(col, .9); c.lineWidth = 1.4; c.beginPath(); c.arc(x, y, 7, 0, Math.PI * 2); c.stroke();
-    const t1 = fmtMoney(v, 'USD'), t2 = _nwXhLabel(a, m.gran), fs = 11;
-    c.font = `600 ${fs}px ui-monospace, Menlo, Consolas, monospace`;
-    const w = Math.max(c.measureText(t1).width, c.measureText(t2).width) + 14, h = fs * 2 + 12;
-    let bx = x - w / 2; bx = Math.max(2, Math.min(chart.width - w - 2, bx));
-    let by = y - h - 12; if (by < 2) by = Math.min(chart.height - h - 2, y + 12);
-    c.fillStyle = 'rgba(8,14,26,.94)'; c.strokeStyle = _hexA(col, .85); c.lineWidth = 1;
-    c.beginPath(); c.roundRect(bx, by, w, h, 5); c.fill(); c.stroke();
-    c.textAlign = 'center'; c.textBaseline = 'middle';
-    c.fillStyle = '#fff'; c.fillText(t1, bx + w / 2, by + 6 + fs / 2);
-    c.fillStyle = _hexA(col, 1); c.fillText(t2, bx + w / 2, by + 6 + fs * 1.5 + 2);
+    c.strokeStyle = 'rgba(125,211,252,.9)'; c.lineWidth = 1.4; c.beginPath(); c.arc(x, y, 7 + 1.5 * Math.sin(t * 5), 0, Math.PI * 2); c.stroke();
+    // Cartel: período, valor y ▲/▼ contra el cierre del período anterior.
+    const pa = j > 0 ? m.anchors[j - 1] : null, pv = pa ? ds.data[pa.i] : null, dl = pv == null ? null : v - pv;
+    const l1 = _nwXhLabel(a, m.gran).toUpperCase(), l2 = fmtMoney(v, 'USD');
+    const l3 = dl == null ? 'inicio de la serie' : (dl >= 0 ? '▲ +' : '▼ −') + fmtMoney(Math.abs(dl), 'USD');
+    m.txt = [l1, l2, l3];
+    const MONO = 'ui-monospace, Menlo, Consolas, monospace', grande = area.bottom - area.top > 170, fsS = grande ? 11.5 : 10, fsB = grande ? 17 : 14;
+    c.font = `700 ${fsB}px ${MONO}`; const wB = c.measureText(l2).width;
+    c.font = `600 ${fsS}px ${MONO}`; const wS = Math.max(c.measureText(l1).width, c.measureText(l3).width);
+    const w = Math.max(wB, wS) + 20, h = grande ? 60 : 50;
+    let bx = x + 14; if (bx + w > chart.width - 4) bx = x - 14 - w;
+    bx = Math.max(2, bx);
+    const by = Math.max(2, Math.min(area.bottom - h, y - h - 10));
+    c.beginPath(); c.roundRect(bx, by, w, h, 6); c.fillStyle = 'rgba(2,8,16,.9)'; c.fill();
+    c.shadowColor = '#38BDF8'; c.shadowBlur = 8; c.strokeStyle = 'rgba(125,211,252,.7)'; c.lineWidth = 1; c.stroke(); c.shadowBlur = 0;
+    c.textAlign = 'left'; c.textBaseline = 'alphabetic';
+    c.font = `600 ${fsS}px ${MONO}`; c.fillStyle = 'rgba(139,165,192,.95)'; c.fillText(l1, bx + 10, by + h * .28);
+    c.font = `700 ${fsB}px ${MONO}`; c.fillStyle = '#EDF4FF'; c.fillText(l2, bx + 10, by + h * .62);
+    c.font = `600 ${fsS}px ${MONO}`; c.fillStyle = dl == null ? 'rgba(139,165,192,.9)' : dl >= 0 ? '#10E07C' : '#FF3358'; c.fillText(l3, bx + 10, by + h * .88);
     c.restore();
   },
 };
@@ -4290,8 +4313,8 @@ function initNWCharts() {
   nwLineInst=new Chart(lineCtx,{
     type:'line',
     data:{ labels:[], datasets:[{ data:[] }] },
-    options:{ responsive:true, maintainAspectRatio:false, events:[], plugins:{ legend:{ display:false }, tooltip:{ enabled:false } }, scales:_nwLineScales() },   // events:[] → hover/tooltip nativos fuera; el crosshair HUD (_nwCrosshair) maneja sus propios eventos
-    plugins:[_nwCrosshair]
+    options:{ responsive:true, maintainAspectRatio:false, events:[], layout:{ padding:{ top:6, right:18 } }, plugins:{ legend:{ display:false }, tooltip:{ enabled:false } }, scales:_nwLineScales() },   // events:[] → hover/tooltip nativos fuera; el crosshair HUD (_nwCrosshair) maneja sus propios eventos · padding derecho: lugar para los anillos de la punta
+    plugins:[NWTrazo, _nwCrosshair]   // NWTrazo (patrimonio-trazo.js) dibuja la línea viva; el crosshair va encima
   });
   nwLineInst._nwXh = { anchors:[], sel:null, gran:'m' };
   _renderNWRange();

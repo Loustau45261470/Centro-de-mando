@@ -68,6 +68,7 @@ const SHELL = [
   BASE + 'pomodoro.js',
   BASE + 'finales.js',
   BASE + 'alinear-columnas.js',
+  BASE + 'patrimonio-trazo.js',
   BASE + 'gamemode.js',
   BASE + 'gamemode-ui.js',
   BASE + 'gamemode.css',
