@@ -257,6 +257,12 @@ function _rgProxima(reg) {
   const o = _rgDL().regOcurrencias(reg, Date.now(), {});
   return o.proxima || null;
 }
+// Orden de presentación (copia: no toca S.registros): próximo aviso más cercano primero; empates por nombre; sin próximo aviso al final.
+function rgOrdenados(regs) {
+  const k = r => { const p = _rgProxima(r); return p ? p.date + 'T' + p.time : ''; };
+  const n = r => String(r.nombre || '');
+  return regs.map(r => ({ r, k: k(r) })).sort((x, y) => (x.k && !y.k ? -1 : !x.k && y.k ? 1 : x.k < y.k ? -1 : x.k > y.k ? 1 : n(x.r).localeCompare(n(y.r), 'es'))).map(x => x.r);
+}
 
 // ── Lista de registros (ventana #ov-registros) y pulso del botón #rg-btn ─────────────────────────────────────────────
 function _rgPulso(regs) {
@@ -270,7 +276,7 @@ function rgRenderCard() {
   _rgPulso(regs);
   const host = document.getElementById('registros-body'); if (!host) return;
   if (!regs.length) { host.innerHTML = '<div class="empty-state">Todavía no hay registros</div>'; return; }
-  host.innerHTML = regs.map(r => {
+  host.innerHTML = rgOrdenados(regs).map(r => {
     const pen = _rgPendiente(r), prox = _rgProxima(r);
     const sub = r.pausado ? 'En pausa' : (pen ? '<b class="rg-pen">Sin responder: ' + _rgEsc(pen.hora) + '</b>' : (prox ? 'Próximo aviso: ' + _rgEsc(prox.time) + (prox.date !== rgFechaDe(new Date()) ? ' (' + _rgEsc(prox.date.slice(8, 10) + '/' + prox.date.slice(5, 7)) + ')' : '') : ''));
     return '<div class="rg-row" data-id="' + _rgEsc(r.id) + '"><div class="rg-info"><b>' + _rgEsc(r.nombre) + '</b><small>' + _rgEsc(rgFrecuenciaTexto(r)) + '</small><small>' + sub + '</small></div>'
@@ -479,7 +485,7 @@ function _rgHRender() {
     + '<div class="rg-filtros"><select id="rg-h-val" class="pr-in" aria-label="Valoración" onchange="Registros.h(\'val\',this.value)">' + sel('val', [['', 'Todas las valoraciones'], ['up', '👍 Salió bien'], ['down', '👎 Salió mal']]) + '</select>'
     + '<select id="rg-h-sobre" class="pr-in" aria-label="Actividad o pensamiento" onchange="Registros.h(\'sobre\',this.value)">' + sel('sobre', [['', 'Actividad y pensamiento'], ['actividad', 'Solo actividad'], ['pensamiento', 'Solo pensamiento']]) + '</select>'
     + '<select id="rg-h-cat" class="pr-in" aria-label="Categoría" onchange="Registros.h(\'categoria\',this.value)">' + sel('categoria', [['', 'Todas las categorías']].concat(RG_CATEGORIAS, rgCategoriasPropias(_rgResps()).map(c => [c.clave, c.nombre]))) + '</select>'
-    + '<select id="rg-h-reg" class="pr-in" aria-label="Registro" onchange="Registros.h(\'registroId\',this.value)">' + sel('registroId', [['', 'Todos los registros']].concat(_rgRegs().map(r => [r.id, r.nombre]))) + '</select>'
+    + '<select id="rg-h-reg" class="pr-in" aria-label="Registro" onchange="Registros.h(\'registroId\',this.value)">' + sel('registroId', [['', 'Todos los registros']].concat(rgOrdenados(_rgRegs().filter(r => r && r.id)).map(r => [r.id, r.nombre]))) + '</select>'
     + '<input id="rg-h-texto" class="pr-in" type="search" placeholder="Buscar texto" aria-label="Buscar texto" value="' + _rgEsc(_rgH.texto) + '" oninput="Registros.h(\'texto\',this.value)"></div>'
     + '<div id="rg-h-res"></div>';
   _rgHResultados();
