@@ -7,6 +7,7 @@
 //                        está apareciendo). Solo si el número está en pantalla; uno bajo el pliegue (o en una tarjeta que el
 //                        scroll aún no reveló) queda con su valor real y se descifra UNA vez cuando asoma (IntersectionObserver).
 //     opts.from  texto anterior a comparar (si el elemento se re-creó y ya no lo recuerda).
+//     opts.valor número con signo que representa el texto (si el texto no lleva signo): da la dirección del destello.
 //
 // Cómo se ve (fiel a la maqueta):
 //   · Cada dígito rueda por 0-9 y los símbolos # % & @ * en CELESTE con brillo, ~18 cambios por segundo.
@@ -46,9 +47,11 @@
     if (/\dk\b/i.test(s)) v *= 1e3; else if (/\dM\b/.test(s)) v *= 1e6;
     return /^[^\d]*[-−]/.test(s) ? -v : v;
   }
-  function destellar(el, previo, final) {
+  // va/vb: valor real con signo si el llamador lo pasó (opts.valor); si no, se lee del texto.
+  function destellar(el, previo, final, va, vb) {
     const box = el.closest(FLASH_SEL);
-    const a = numero(previo), b = numero(final);
+    const conValor = typeof va === 'number' && typeof vb === 'number';
+    const a = conValor ? va : numero(previo), b = conValor ? vb : numero(final);
     if (!box || Number.isNaN(a) || Number.isNaN(b) || a === b) return;
     let sw = box.querySelector(':scope > .dx-sweep');
     if (sw) sw.remove();
@@ -100,10 +103,16 @@
     if (!el) return;
     opts = opts || {};
     let final = String(texto == null ? '' : texto);
+    const vNew = typeof opts.valor === 'number' ? opts.valor : undefined;
     // Quien relee el DOM a mitad de animación (motion.js al volver a entrar, etc.) pasa los símbolos al azar que hay en pantalla:
     // si coincide con lo que estamos pintando, el valor real es el que ya guardamos, no ese texto.
     if (el._dx && final === el.textContent) final = el._dx.final;
     const previo = opts.from != null ? String(opts.from) : (el._dx ? el._dx.final : (el._dxFinal != null ? el._dxFinal : el.textContent));
+    // Valor con signo (opts.valor) del texto anterior, si el llamador lo pasó: el texto puede no llevar signo (Balance del mes muestra el
+    // saldo negativo sin "-"), así que la dirección del destello sale del número real, no del texto.
+    const vPrev = el._dxVal && el._dxVal.t === previo ? el._dxVal.v : undefined;
+    if (vNew !== undefined) el._dxVal = { t: final, v: vNew };
+    else if (!el._dxVal || el._dxVal.t !== final) el._dxVal = null;
     const corriendo = el._dx && el._dx.final === final && !opts.full;
     if (corriendo) return;                                     // mismo valor ya descifrándose: no reiniciar
     if (!/[0-9]/.test(final) || (mq && mq.matches) || document.hidden || !el.isConnected || !el.getClientRects().length || (el.children.length && !el._dx)) {
@@ -115,8 +124,9 @@
     }
 
     const completo = !!opts.full || !el._dxInit;
-    if (!completo && document.documentElement.classList.contains('mo-in')) return directo(el, final);   // render masivo de entrada a sección (CMMotion.quiet): sin animar
-    if (!opts.full && previo !== final) destellar(el, previo, final);
+    // Un valor que cambia se re-descifra y destella también dentro de la ventana de entrada a la sección (html.mo-in): si ya corría
+    // el descifrado de entrada, se re-apunta al valor nuevo (antes caía en directo: cortaba el descifrado y no destellaba).
+    if (!opts.full && previo !== final) destellar(el, previo, final, vPrev, vNew);
 
     cerrar(el);
     el._dxInit = true;

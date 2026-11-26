@@ -4150,7 +4150,7 @@ function renderActivity() {
   cmDescifrar(document.getElementById('txnSumIncome'), '+'+fmtMoney(totalInc, filtered[0]?.currency||'ARS'));
   cmDescifrar(document.getElementById('txnSumExpense'), '-'+fmtMoney(totalExp, filtered[0]?.currency||'ARS'));
   const balEl = document.getElementById('txnSumBalance');
-  cmDescifrar(balEl, (bal>=0?'+':'')+fmtMoney(Math.abs(bal), filtered[0]?.currency||'ARS'));
+  cmDescifrar(balEl, (bal>=0?'+':'')+fmtMoney(Math.abs(bal), filtered[0]?.currency||'ARS'), { valor: bal });   // el texto negativo va sin '-': la dirección del destello sale de bal
   balEl.className = 'fin-summary-num '+(bal>=0?'text-ok':'text-danger');
 
   // Transaction list — el filtro de categoría solo aplica acá (overlay de historial);
