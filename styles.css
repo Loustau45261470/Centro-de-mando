@@ -358,6 +358,31 @@ body:not([class*="theme-"]) #hud-ambient { display: none; }
 .kpi-tile .k-bar { height: 3px; background: rgba(120,180,230,.12); border-radius: 2px; margin-top: 7px; overflow: hidden; }
 .kpi-tile .k-bar i { display: block; height: 100%; background: var(--c-vida); box-shadow: 0 0 6px var(--c-vida); border-radius: 2px; }
 @media (max-width: 430px) { .kpi-strip { grid-template-columns: repeat(2, 1fr); } }
+/* ── Tendencias de Vida (HUD D5): número grande + mini gráfico que se dibuja (motion.js renderTendencias) ── */
+.tend-card { container-type: inline-size; }
+.tend-rows { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); background: rgba(4, 9, 15, .72); border: 1px solid rgba(100, 155, 220, .16); border-radius: 12px; overflow: hidden; }
+.tend-row { display: grid; grid-template-columns: minmax(0, 46%) minmax(0, 1fr); align-items: center; gap: 8px; padding: 14px 14px 14px 16px; min-height: 96px; }
+.tend-row + .tend-row { border-left: 1px solid rgba(100, 155, 220, .14); }
+.tend-txt { min-width: 0; }
+.tend-lbl { font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: rgba(139, 165, 192, .95); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tend-val { margin-top: 4px; font-size: 22px; font-weight: 700; letter-spacing: -.01em; line-height: 1.15; color: #EDF4FF; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tend-val small { margin-left: 2px; font-size: 12px; font-weight: 600; letter-spacing: 0; color: var(--ts); }
+.tend-dl { margin-top: 4px; font-size: 11.5px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.3; }
+.tend-dl.ok { color: #10E07C; } .tend-dl.mal { color: #FF6B87; } .tend-dl.neu { color: var(--ts); }
+.tend-dl span { font-weight: 500; color: var(--tt); }
+.tend-graf { position: relative; height: 68px; min-width: 0; touch-action: pan-y; -webkit-user-select: none; user-select: none; }
+.tend-graf canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: crosshair; }
+.tend-vacio { display: flex; align-items: center; height: 68px; padding: 0 4px 0 12px; border-left: 2px dashed color-mix(in srgb, var(--tc) 40%, transparent); font-size: 12px; line-height: 1.35; color: var(--ts); }
+.tend-nota { margin: 10px 2px 0; font-size: 11.5px; line-height: 1.4; color: var(--tt); }
+@container (max-width: 940px) {
+  .tend-rows { grid-template-columns: 1fr; }
+  .tend-row + .tend-row { border-left: 0; border-top: 1px solid rgba(100, 155, 220, .14); }
+}
+@media (max-width: 430px) {
+  .tend-row { min-height: 86px; padding: 12px 12px 12px 14px; }
+  .tend-val { font-size: 20px; }
+  .tend-graf, .tend-vacio { height: 60px; }
+}
 /* ── KPI strip compacto (por sección) ── */
 .kpi-strip.kpi-sm { gap: 7px; margin-bottom: 10px; }
 .kpi-sm .kpi-tile { padding: 10px 7px 9px; border-radius: 11px; }

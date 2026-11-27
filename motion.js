@@ -61,6 +61,7 @@ const CMMotion = (() => {
   const MAX_ENTER = 8, CX_BASE = 0, CX_STEP = 50, CX_CAP = 200;
   function enterPanel(panel) {
     quiet(700);
+    if (panel && panel.id === 'tab-vida') renderTendencias(canAnimate());   // tarjeta Tendencias (D5): se dibuja al entrar a Vida
     if (!panel || !canAnimate()) return 0;
     const t = tok(), vh = window.innerHeight || document.documentElement.clientHeight;
     // La cascada aplica SOLO a los nodos presentes ahora: .cx-in (con su --cx-d) se quita al terminar; un re-render posterior no re-anima.
@@ -125,6 +126,189 @@ const CMMotion = (() => {
       } catch (e) {}
     }
   }
+
+  // ── 1c. Tarjeta «Tendencias» de Vida (HUD D5, fiel a la maqueta) ────
+  // Tres filas: Patrimonio, Gasto diario y Horas de estudio, cada una con número grande, comparación y un mini gráfico de los últimos
+  // 30 días que se dibuja de izquierda a derecha con una luz en la punta; al pasar el mouse o apoyar el dedo muestra fecha y valor.
+  // Solo datos con fecha propia dentro del período: patrimonio = registros diarios (S.nwHistory, solo los del cálculo actual c:1);
+  // gasto = movimientos por día con la misma regla que Reportes (_repGastos: neto de reintegros, sin cuotas de tarjeta del día 1);
+  // estudio = minutos del Pomodoro (S.pomodoroHistory). La comparación con los 30 días anteriores solo aparece si hay registros
+  // desde antes de ese tramo (si no, compararía contra días sin registrar). Se pinta al ENTRAR a Vida (enterPanel) y al volver a la
+  // app; guardar no la re-anima. La luz late solo mientras la tarjeta está en pantalla; con «reducir movimiento» queda quieta.
+  const TEND_N = 30, TEND_DRAW = 1500, TEND_STAG = 180;
+  const TEND_MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  const tFecha = d => (+d.slice(8, 10)) + ' ' + TEND_MES[+d.slice(5, 7) - 1];
+  const tPesos = v => (v < 0 ? '-$' : '$') + fmtNum(Math.abs(Math.round(v)));
+  const tHoras = v => fmtNum(v, Math.abs(v) >= 100 ? 0 : 1) + ' h';
+  const tHex = (hex, a) => 'rgba(' + parseInt(hex.slice(1, 3), 16) + ',' + parseInt(hex.slice(3, 5), 16) + ',' + parseInt(hex.slice(5, 7), 16) + ',' + a + ')';
+  const tEase = x => { x = Math.max(0, Math.min(1, x)); return 1 - Math.pow(1 - x, 3); };
+
+  function tendDatos() {
+    const R = window.CMReportes, hoy = getActiveDate();
+    const desde = R.repSumarDias(hoy, -(TEND_N - 1)), pDesde = R.repSumarDias(hoy, -(2 * TEND_N - 1)), pHasta = R.repSumarDias(hoy, -TEND_N);
+    const dias = []; for (let i = 0; i < TEND_N; i++) dias.push(R.repSumarDias(desde, i));
+    const vs = 'vs 30 días previos';
+    // Patrimonio: cada punto es un registro diario.
+    const nw = (S.nwHistory || []).filter(p => p && p.c === 1 && p.date >= desde && p.date <= hoy && isFinite(+p.value))
+      .slice().sort((a, b) => a.date.localeCompare(b.date)).map(p => ({ d: p.date, v: +p.value, tip: tFecha(p.date) + ' · ' + tPesos(+p.value) }));
+    const pat = { k: 'pat', lbl: 'Patrimonio', col: '#16B364', pts: nw, fmt: tPesos, val: nw.length ? tPesos(nw[nw.length - 1].v) : '—', dl: null };
+    if (nw.length >= 2) {
+      const a = nw[0].v, b = nw[nw.length - 1].v;
+      pat.dl = a > 0 ? { n: (b - a) / a * 100, txt: fmtNum(Math.abs((b - a) / a * 100), 1) + '%' } : { n: b - a, txt: tPesos(Math.abs(b - a)).replace('-', '') };
+      pat.dl.sub = 'desde el ' + tFecha(nw[0].d); pat.dl.bueno = pat.dl.n >= 0;
+    } else pat.vacio = nw.length ? 'Falta otro día de registro para ver la tendencia' : 'Todavía no hay registros del patrimonio en estos 30 días';
+    // Gasto y estudio: promedio por día. Se cuenta desde el primer registro (antes no se registraba: no son días en cero).
+    // Cada punto del gráfico = promedio por día de la semana que termina ese día (solo semanas enteras con registro).
+    const porDia = (o, valDia, prim, antTot, fmt, bueno) => {
+      if (!prim || prim > hoy) return Object.assign(o, { pts: [], val: '—', vacio: o.sinDatos });
+      const base = prim > desde ? prim : desde, nDias = R.repDiasEntre(base, hoy) + 1;
+      let tot = 0; dias.forEach(d => { if (d >= base) tot += valDia(d); });
+      const prom = tot / nDias;
+      o.val = fmt(prom); o.unidad = '/día';
+      o.pts = dias.filter(d => R.repSumarDias(d, -6) >= prim).map(d => {
+        const a = R.repSumarDias(d, -6); let s = 0; for (let i = 0; i < 7; i++) s += valDia(R.repSumarDias(a, i));
+        const ini = a.slice(5, 7) === d.slice(5, 7) ? String(+a.slice(8, 10)) : tFecha(a);
+        return { d, v: s / 7, tip: ini + '–' + tFecha(d) + ' · ' + fmt(s / 7) + '/día' };
+      });
+      if (!(tot > 0)) o.vacio = o.sinDatos;
+      else if (o.pts.length < 2) o.vacio = 'Con una semana de registros se dibuja la tendencia';
+      if (tot > 0 && prim <= pDesde && antTot() > 0) {
+        const ant = antTot() / TEND_N;
+        o.dl = o.k === 'gas' ? { n: (prom - ant) / ant * 100, txt: fmtNum(Math.abs((prom - ant) / ant * 100), 1) + '%' } : { n: Math.round((prom - ant) * 10) / 10, txt: fmt(Math.abs(prom - ant)) };
+        o.dl.sub = vs; o.dl.bueno = bueno(o.dl.n);
+      }
+      return o;
+    };
+    const gd = { transactions: S.transactions || [], cardCharges: S.cardCharges || [] }, gMap = {};
+    const gDia = d => (d in gMap) ? gMap[d] : (gMap[d] = _repGastos(gd, { desde: d, hasta: d }, true).total);
+    const gPrim = typeof _repGastos === 'function' ? gd.transactions.reduce((m, t) => (_repEsGasto(t) && t.date && (!m || t.date < m)) ? t.date : m, null) : null;
+    const gas = porDia({ k: 'gas', lbl: 'Gasto diario', col: '#F43F5E', fmt: tPesos, dl: null, sinDatos: 'No hay gastos registrados en los últimos 30 días' },
+      gDia, gPrim, () => _repGastos(gd, { desde: pDesde, hasta: pHasta }, true).total, tPesos, n => n <= 0);
+    const min = {}; let ePrim = null;
+    (S.pomodoroHistory || []).forEach(e => { if (!e || !e.date) return; min[e.date] = (min[e.date] || 0) + (+e.minutes || 0); if (!ePrim || e.date < ePrim) ePrim = e.date; });
+    const est = porDia({ k: 'est', lbl: 'Horas de estudio', col: '#3B82F6', fmt: tHoras, dl: null, sinDatos: 'No hay sesiones de Pomodoro en los últimos 30 días' },
+      d => (min[d] || 0) / 60, ePrim, () => { let s = 0; for (const d in min) if (d >= pDesde && d <= pHasta) s += min[d] / 60; return s; }, tHoras, n => n >= 0);
+    return [pat, gas, est];
+  }
+
+  const tEsc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  function tendHTML(r) {
+    const dl = r.dl ? `<div class="tend-dl ${r.dl.n === 0 ? 'neu' : r.dl.bueno ? 'ok' : 'mal'}">${r.dl.n > 0 ? '+' : r.dl.n < 0 ? '−' : ''}${tEsc(r.dl.txt)} <span>${tEsc(r.dl.sub)}</span></div>`
+      : `<div class="tend-dl neu"><span>${r.vacio ? '' : 'sin datos de los 30 días previos'}</span></div>`;
+    const ini = r.pts.length ? r.fmt(r.pts[0].v) : '', fin = r.pts.length ? r.fmt(r.pts[r.pts.length - 1].v) : '';
+    const graf = r.vacio ? `<div class="tend-vacio">${tEsc(r.vacio)}</div>`
+      : `<div class="tend-graf"><canvas role="img" aria-label="${tEsc(r.lbl)}${r.unidad ? ' (promedio por día de cada semana)' : ''}, últimos 30 días: de ${tEsc(ini)} a ${tEsc(fin)}"></canvas></div>`;
+    return `<div class="tend-row" data-k="${r.k}" style="--tc:${r.col}"><div class="tend-txt"><div class="tend-lbl">${tEsc(r.lbl)}</div>`
+      + `<div class="tend-val">${tEsc(r.val)}${r.unidad ? `<small>${tEsc(r.unidad)}</small>` : ''}</div>${dl}</div>${graf}</div>`;
+  }
+
+  // Estado de la tarjeta (expuesto en card._tend para los tests): filas, inicio del dibujo, rAF del loop, fila/punto bajo el puntero.
+  let _tendIO = null;
+  function renderTendencias(animar) {
+    const card = document.getElementById('tendCard'), box = document.getElementById('tendRows');
+    if (!card || !box || !window.CMReportes || typeof S === 'undefined') return;
+    let filas; try { filas = tendDatos(); } catch (e) { return; }
+    const st = card._tend || (card._tend = { t0: 0, raf: 0, vis: true, hov: null });
+    box.innerHTML = filas.map(tendHTML).join('');
+    st.filas = filas.map((r, i) => Object.assign(r, { i, cv: box.querySelector(`.tend-row[data-k="${r.k}"] canvas`) }));
+    st.t0 = animar && !reduced() ? 0 : -1;   // 0 = arranca al primer cuadro visible; -1 = completo (sin dibujo)
+    st.hov = null;
+    st.font = getComputedStyle(card).fontFamily || 'sans-serif';
+    st.filas.forEach(r => { if (r.cv) tendPointer(st, r); });
+    if (!_tendIO && 'IntersectionObserver' in window) {
+      _tendIO = new IntersectionObserver(es => { for (const e of es) { st.vis = e.isIntersecting; tendLoop(st); } });
+      _tendIO.observe(card);
+    }
+    if (!card._tendRO && 'ResizeObserver' in window) { card._tendRO = new ResizeObserver(() => tendPintar(st, performance.now())); card._tendRO.observe(box); }
+    tendPintar(st, performance.now());
+    tendLoop(st);
+  }
+  const tendActiva = () => { const c = document.getElementById('tendCard'); return !!(c && c.getClientRects().length); };
+  // El loop corre solo con la tarjeta en pantalla, la app visible y la pestaña Vida activa; con «reducir movimiento» no corre.
+  function tendLoop(st) {
+    const debe = st.vis && !document.hidden && tendActiva() && !reduced() && st.filas && st.filas.some(r => r.cv);
+    if (!debe) { if (st.raf) cancelAnimationFrame(st.raf); st.raf = 0; return; }
+    if (st.raf) return;
+    const f = now => { st.raf = 0; tendPintar(st, now); tendLoop(st); };
+    st.raf = requestAnimationFrame(f);
+  }
+  // Progreso del dibujo de la fila i (0..1).
+  function tendProg(st, i, now) {
+    if (st.t0 < 0) return 1;
+    if (st.t0 === 0) return 0;
+    return tEase((now - st.t0 - i * TEND_STAG) / TEND_DRAW);
+  }
+  function tendPintar(st, now) {
+    if (!st.filas) return;
+    if (!st.hov) st.tip = null;
+    if (st.t0 === 0 && st.vis && !document.hidden && tendActiva()) st.t0 = now;
+    if (st.t0 > 0 && now - st.t0 > TEND_DRAW + TEND_STAG * 3) st.t0 = -1;   // terminó: ya no hay dibujo pendiente
+    for (const r of st.filas) if (r.cv) tendFila(st, r, now);
+  }
+  // Coordenadas de la serie: X por fecha (huecos entre registros respetados), Y normalizada al mínimo/máximo de la fila.
+  function tendGeo(r, W, H) {
+    const pad = 11, T = 11, B = H - 8, L = 4, Rx = W - pad;   // margen para que el halo de la punta (radio 9) no se recorte
+    const day = d => Date.parse(d + 'T00:00:00Z') / 86400000;
+    const d0 = day(r.pts[0].d), d1 = day(r.pts[r.pts.length - 1].d) || d0 + 1;
+    const vs = r.pts.map(p => p.v), mn = Math.min(...vs), mx = Math.max(...vs);
+    const X = k => L + (Rx - L) * (d1 > d0 ? (day(r.pts[k].d) - d0) / (d1 - d0) : k / Math.max(1, r.pts.length - 1));
+    const Y = k => mx > mn ? B - (B - T) * (r.pts[k].v - mn) / (mx - mn) : (T + B) / 2;
+    return { L, R: Rx, T, B, X, Y };
+  }
+  function tendFila(st, r, now) {
+    const cv = r.cv, dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+    if (!W || !H) return;
+    if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+    const c = cv.getContext('2d'); if (!c) return;
+    c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, W, H);
+    const g = tendGeo(r, W, H), n = r.pts.length, p = tendProg(st, r.i, now), m = p * (n - 1);
+    const pts = []; for (let k = 0; k <= Math.floor(m); k++) pts.push([g.X(k), g.Y(k)]);
+    let tip = pts[pts.length - 1];
+    if (m < n - 1 && p > 0) { const k = Math.floor(m), f = m - k; tip = [g.X(k) + (g.X(k + 1) - g.X(k)) * f, g.Y(k) + (g.Y(k + 1) - g.Y(k)) * f]; pts.push(tip); }
+    if (p <= 0 || !pts.length) return;
+    const path = () => { c.beginPath(); pts.forEach((q, k) => k ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1])); };
+    path(); c.lineTo(tip[0], g.B); c.lineTo(pts[0][0], g.B); c.closePath();
+    const gr = c.createLinearGradient(0, g.T, 0, g.B); gr.addColorStop(0, tHex(r.col, .28)); gr.addColorStop(1, tHex(r.col, 0)); c.fillStyle = gr; c.fill();
+    c.shadowColor = r.col; c.shadowBlur = 8; c.strokeStyle = r.col; c.lineWidth = 2; c.lineJoin = 'round'; c.lineCap = 'round'; path(); c.stroke(); c.shadowBlur = 0;
+    // luz en la punta: viaja mientras se dibuja y late al terminar (quieta con «reducir movimiento»)
+    const done = p >= 1, pl = reduced() ? .5 : .5 + .5 * Math.sin(now / 1000 * 4);
+    c.fillStyle = tHex(r.col, done ? .18 + .18 * pl : .3); c.beginPath(); c.arc(tip[0], tip[1], 5 + (done ? 4 * pl : 3), 0, Math.PI * 2); c.fill();
+    c.shadowColor = '#fff'; c.shadowBlur = 8; c.fillStyle = '#fff'; c.beginPath(); c.arc(tip[0], tip[1], 2.6, 0, Math.PI * 2); c.fill(); c.shadowBlur = 0;
+    // valor del punto bajo el puntero
+    if (st.hov && st.hov.r === r && done) {
+      const k = st.hov.k, hx = g.X(k), hy = g.Y(k);
+      c.strokeStyle = 'rgba(190,240,255,.5)'; c.lineWidth = 1; c.setLineDash([3, 3]); c.beginPath(); c.moveTo(hx, g.T - 4); c.lineTo(hx, g.B + 4); c.stroke(); c.setLineDash([]);
+      c.shadowColor = r.col; c.shadowBlur = 10; c.fillStyle = '#fff'; c.beginPath(); c.arc(hx, hy, 3.4, 0, Math.PI * 2); c.fill(); c.shadowBlur = 0;
+      const txt = r.pts[k].tip, fs = 11;
+      c.font = '600 ' + fs + 'px ' + st.font;
+      const w = c.measureText(txt).width + 14, h = fs + 9;
+      const bx = Math.max(1, Math.min(W - w - 1, hx - w / 2)), by = hy - h - 8 >= 1 ? hy - h - 8 : Math.min(H - h - 1, hy + 8);
+      c.beginPath(); if (c.roundRect) c.roundRect(bx, by, w, h, 5); else c.rect(bx, by, w, h);
+      c.fillStyle = 'rgba(2,8,16,.94)'; c.fill(); c.strokeStyle = tHex(r.col, .8); c.lineWidth = 1; c.stroke();
+      c.fillStyle = '#EDF4FF'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(txt, bx + w / 2, by + h / 2 + 1);
+      st.tip = txt;
+    }
+  }
+  function tendPointer(st, r) {
+    const cv = r.cv;
+    const mover = e => {
+      const b = cv.getBoundingClientRect(), g = tendGeo(r, b.width, b.height), x = e.clientX - b.left;
+      let k = 0, best = Infinity; for (let i = 0; i < r.pts.length; i++) { const d = Math.abs(g.X(i) - x); if (d < best) { best = d; k = i; } }
+      st.hov = { r, k }; tendPintar(st, performance.now());
+    };
+    const salir = () => { if (st.hov && st.hov.r === r) { st.hov = null; st.tip = null; tendPintar(st, performance.now()); } };
+    cv.addEventListener('pointermove', mover);
+    cv.addEventListener('pointerdown', mover);
+    cv.addEventListener('pointerup', e => { if (e.pointerType !== 'mouse') salir(); });
+    cv.addEventListener('pointerleave', salir);
+    cv.addEventListener('pointercancel', salir);
+  }
+  document.addEventListener('visibilitychange', () => {
+    const c = document.getElementById('tendCard');
+    if (!c || !c._tend) return;
+    if (!document.hidden && tendActiva()) renderTendencias(false);   // al volver a la app: datos frescos, sin re-dibujar
+    else tendLoop(c._tend);
+  });
 
   // ── 2. Count-up ─────────────────────────────────────────────────────
   // Interpreta el primer número del texto respetando el formato (separador de miles/decimal, es-AR o en-US).
